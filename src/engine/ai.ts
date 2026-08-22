@@ -30,6 +30,42 @@ function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
   return unit.side === "player" ? "hostile" : "player";
 }
 
+/**
+ * Vision gate (Maxime, 22 Aug 2026 — "all enemy seem to know where I am at
+ * all times"). Every unit already carries a computed `vision` stat
+ * (data/bloom.ts, data/units.ts, mek vision bonuses) but nothing read it —
+ * reflexive/pack targeting picked from every living enemy on the board
+ * regardless of distance. This is the fix: a target only counts if it's
+ * within the observer's own vision range (Chebyshev, same metric as
+ * attackRange elsewhere in this file), and a still-burrowed Undertow never
+ * counts at all — Data Pack §8.1 calls it "not drawn/targetable" outright.
+ *
+ * Emergent tier (Heartwood, boss-only) is deliberately left un-gated — GDD
+ * §5.3 calls it "board-level heuristics," which reads as intentionally
+ * omniscient for a boss, distinct from reflexive's "nearest VISIBLE target."
+ *
+ * Not covered here: burrow-surfacing on adjacency and the vibrissal/
+ * Runemaster "Sensor Sweep" reveal (data/abilities.ts) are still
+ * unimplemented — `revealedUntilTurn` exists on BattleUnit but nothing
+ * sets it yet. Fine for the current 4-mission slice (no vibrissal pilot in
+ * the roster), but flag it before Mission 3's Undertow count grows.
+ */
+function isVisibleTo(observer: BattleUnit, target: BattleUnit): boolean {
+  if (target.burrowed) return false;
+  return chebyshevDistance(observer.pos, target.pos) <= observer.vision;
+}
+
+function visibleEnemiesOf(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
+  return livingTargets(allUnits, enemySideOf(unit)).filter((t) => isVisibleTo(unit, t));
+}
+
+/** Same-side, pack-tier units close enough to share what they've spotted (GDD §5.3's pack-coordination radius, reused as a vision-sharing radius). */
+function packAllies(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
+  return allUnits.filter(
+    (u) => u !== unit && u.side === unit.side && !u.downed && intelligenceOf(u) === "pack" && chebyshevDistance(u.pos, unit.pos) <= SPLITFANG_PACK_RADIUS
+  );
+}
+
 function occupiedSet(units: BattleUnit[], exclude: string): Set<string> {
   const s = new Set<string>();
   for (const u of units) if (!u.downed && u.instanceId !== exclude) s.add(coordKey(u.pos));
@@ -109,8 +145,8 @@ function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, target: 
 }
 
 function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
-  const targets = livingTargets(allUnits, enemySideOf(unit));
-  if (!targets.length) return {};
+  const targets = visibleEnemiesOf(unit, allUnits);
+  if (!targets.length) return {}; // nothing in sensor range — hold position rather than beeline the whole board
   targets.sort((a, b) => chebyshevDistance(unit.pos, a.pos) - chebyshevDistance(unit.pos, b.pos));
   const nearest = targets[0];
 
@@ -129,7 +165,12 @@ function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battl
 }
 
 function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit | undefined {
-  const targets = livingTargets(allUnits, enemySideOf(unit));
+  // Pack coordination extends to spotting: a target counts if it's visible
+  // to this unit OR to any packmate within SPLITFANG_PACK_RADIUS (called in
+  // over the pack's shared awareness, not this unit's own eyes only).
+  const spotters = [unit, ...packAllies(unit, allUnits)];
+  const enemies = livingTargets(allUnits, enemySideOf(unit));
+  const targets = enemies.filter((t) => spotters.some((s) => isVisibleTo(s, t)));
   if (!targets.length) return undefined;
   // "lowest (HP x DEF) wins" — GDD §5.3.
   return targets.reduce((best, t) => (t.currentHp * t.effectiveDefense < best.currentHp * best.effectiveDefense ? t : best));
@@ -174,9 +215,7 @@ export function decideHostileAction(map: MapDefinition, unit: BattleUnit, allUni
   if (tier === "pack") {
     // Only coordinate if at least one same-side pack-tier ally is within
     // SPLITFANG_PACK_RADIUS — otherwise behave reflexively.
-    const nearbyPack = allUnits.some(
-      (u) => u !== unit && u.side === unit.side && !u.downed && intelligenceOf(u) === "pack" && chebyshevDistance(u.pos, unit.pos) <= SPLITFANG_PACK_RADIUS
-    );
+    const nearbyPack = packAllies(unit, allUnits).length > 0;
     return nearbyPack ? packDecision(map, unit, allUnits) : reflexiveDecision(map, unit, allUnits);
   }
   if (tier === "emergent") return emergentDecision(map, unit, allUnits);
