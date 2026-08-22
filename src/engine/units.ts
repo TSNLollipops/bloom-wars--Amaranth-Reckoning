@@ -1,7 +1,7 @@
 // src/engine/units.ts
 // Runtime unit instances + effective-stat calculation (Data Pack §5.1's
 // worked example, order of application: base -> tier -> mek).
-import type { Coord, Path } from "../data/types";
+import type { Coord, MekArchetype, Path, PilotRecord } from "../data/types";
 import { UNIT_ARCHETYPES, HOSTILE_MECHS } from "../data/units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
@@ -68,8 +68,7 @@ export interface BattleUnit {
   spriteKey: string;
 }
 
-function mekStatBonus(mekId: string): { attack: number; defense: number; hp: number; vision: number } {
-  const mek = findMek(mekId);
+function mekStatBonus(mek: MekArchetype | undefined): { attack: number; defense: number; hp: number; vision: number } {
   if (!mek) return { attack: 0, defense: 0, hp: 0, vision: 0 };
   const out = { attack: 0, defense: 0, hp: 0, vision: 0 };
   const apply = (track: string, isPrimary: boolean) => {
@@ -93,13 +92,29 @@ function nextInstanceId(prefix: string): string {
   return `${prefix}_${instanceCounter}`;
 }
 
-export function createPlayerUnit(pilotId: string, pos: Coord): BattleUnit {
-  const pilot = findPilot(pilotId);
+/**
+ * `overrides`, added for the transporter-pad squad-selection pass (22 Aug
+ * 2026): when given, `overrides.pilot`/`overrides.mek` are used instead of
+ * resolving through data/pilotRegistry.ts's static findPilot()/findMek().
+ * This is what lets a caller (engine/mission.ts's DeployRosterEntry path)
+ * deploy either a CampaignState's live, campaign-persistent pilot/mek copy
+ * (tier upgrades, mek secondaries) or a generated recruit's own record —
+ * neither of which the static, build-time pilotRegistry can ever resolve
+ * by id (see engine/campaignState.ts's own header: "engine/units.ts's
+ * createPlayerUnit() still resolves pilots through... findPilot(), which
+ * has no way to see a CampaignState's generated recruits" — this closes
+ * that gap). Omitting `overrides` keeps the old, registry-only behavior
+ * exactly as it was, so every existing call site (tests, npm run sim, and
+ * Mission's own no-override fallback) is unaffected.
+ */
+export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilot?: PilotRecord; mek?: MekArchetype }): BattleUnit {
+  const pilot = overrides?.pilot ?? findPilot(pilotId);
   if (!pilot) throw new Error(`Unknown pilot id: ${pilotId}`);
   const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
   if (!archetype) throw new Error(`Unknown archetype id: ${pilot.archetypeId}`);
   const tier = TIERS[pilot.tier];
-  const mekBonus = mekStatBonus(pilot.mekId);
+  const mek = overrides?.mek ?? findMek(pilot.mekId);
+  const mekBonus = mekStatBonus(mek);
 
   const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack;
   const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense;

@@ -4,8 +4,9 @@
 // (CampaignState.points, now explicitly company-level). See that file's
 // own header for every placeholder number this suite pins down.
 import { describe, it, expect } from "vitest";
-import { Mission } from "../mission";
+import { Mission, ASSIST_MIN_FRACTION, ASSIST_MAX_FRACTION, REPAIR_ASSIST_FRACTION } from "../mission";
 import { createHostileMechUnit } from "../units";
+import { MAX_ACTIONS_PER_TURN } from "../../data/combatTables";
 import { MISSION_1A, MISSION_3 } from "../../data/campaign";
 import { AMARANTH_MISSION_1 } from "../../data/campaignAmaranth";
 import { createCampaignState, createWardenCampaignState, applyPermadeathCheck } from "../campaignState";
@@ -23,7 +24,6 @@ import {
   MEK_SECONDARY_COST,
   SPARE_PART_COST,
   CO_BONUS_BY_RANK,
-  DAMAGE_POINTS_DIVISOR,
   KILL_BONUS,
   SURVIVAL_BONUS,
   OBJECTIVE_BONUS,
@@ -94,25 +94,208 @@ describe("Mission per-unit performance tracking (the new bookkeeping this pass a
   it("every deployed pilot gets a zeroed entry up front, even one who never acts", () => {
     const mission = new Mission(MISSION_1A);
     for (const pilotId of mission.mission.playerPilotIds) {
-      expect(mission.unitPerformance[pilotId]).toEqual({ damageDealt: 0, kills: 0, wasDowned: false });
+      expect(mission.unitPerformance[pilotId]).toEqual({ damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false });
     }
   });
 });
 
+describe("Combat/repair assist credit (Qiraki_Weapons_And_Progression.md's 'Scoring system, LOCKED': kills plus assists combined)", () => {
+  it("a solo kill — one pilot deals all the damage and lands the finishing blow — earns the kill and NO self-assist", () => {
+    const mission = new Mission(MISSION_1A);
+    const attacker = mission.units.find((u) => u.pilotId === "pilot_thyns")!;
+    const target = mission.units.find((u) => u.side === "hostile" && u.kind === "bloom")!;
+    target.endurance = 0;
+    target.collapsed = true;
+    target.vitality = 1;
+    target.currentHp = 1;
+    attacker.pos = { x: target.pos.x + 1, y: target.pos.y };
+
+    mission.attack(attacker.instanceId, target.instanceId);
+
+    const perf = mission.unitPerformance["pilot_thyns"];
+    expect(perf.kills).toBe(1);
+    expect(perf.assistCredit).toBe(0);
+  });
+
+  it("a victim that's damaged but never dies resolves to nothing — no kill, no assist, for anyone", () => {
+    const mission = new Mission(MISSION_1A);
+    const attacker = mission.units.find((u) => u.pilotId === "pilot_thyns")!;
+    const target = mission.units.find((u) => u.side === "hostile" && u.kind === "bloom")!;
+    target.currentHp = 999999; // survives the hit
+    attacker.pos = { x: target.pos.x + 1, y: target.pos.y };
+
+    mission.attack(attacker.instanceId, target.instanceId);
+
+    const perf = mission.unitPerformance["pilot_thyns"];
+    expect(perf.kills).toBe(0);
+    expect(perf.assistCredit).toBe(0);
+  });
+
+  it("two pilots damage the same hostile; whoever DOESN'T land the finishing blow gets a combat assist, not a kill", () => {
+    const mission = new Mission(MISSION_1A);
+    const softener = mission.units.find((u) => u.pilotId === "pilot_tourignie")!; // Reeps, no counter — deterministic
+    const finisher = mission.units.find((u) => u.pilotId === "pilot_thyns")!;
+    const target = mission.units.find((u) => u.side === "hostile" && u.kind === "bloom")!;
+    target.pos = { x: 10, y: 10 };
+    softener.pos = { x: 8, y: 10 }; // pilot_tourignie is Reeps — attackRange [2,4], distance 2 here
+    finisher.pos = { x: 11, y: 10 }; // pilot_thyns is Tank — attackRange [1,1]
+    target.endurance = 0;
+    target.collapsed = false; // still up after the softening hit
+    target.vitality = 1000;
+    target.currentHp = 1000;
+
+    const softenOutcome = mission.attack(softener.instanceId, target.instanceId)!;
+    expect(softenOutcome.defenderDowned).toBe(false); // confirms it survived the softening hit
+
+    // Now guaranteed one-hit for the finisher, same convention as the
+    // existing "credits the attacker's own damage and a kill" test above.
+    target.collapsed = true;
+    target.vitality = 1;
+    target.currentHp = 1;
+    mission.attack(finisher.instanceId, target.instanceId);
+
+    const softenerPerf = mission.unitPerformance["pilot_tourignie"];
+    const finisherPerf = mission.unitPerformance["pilot_thyns"];
+    expect(finisherPerf.kills).toBe(1);
+    expect(finisherPerf.assistCredit).toBe(0); // the finisher doesn't also get an assist on their own kill
+    expect(softenerPerf.kills).toBe(0);
+    expect(softenerPerf.assistCredit).toBeGreaterThan(0);
+    expect(softenerPerf.assistCredit).toBeLessThanOrEqual(ASSIST_MAX_FRACTION);
+    expect(softenerPerf.assistCredit).toBeGreaterThanOrEqual(ASSIST_MIN_FRACTION);
+  });
+
+  it("a bigger contribution share earns a bigger assist fraction, within the 10%-50% band", () => {
+    // Same contributing pilot both times, against two separate victims —
+    // isolates "this pilot's share of the total damage dealt to a given
+    // victim" as the only variable, by controlling how hard the FINISHER
+    // hits relative to the contributor's own softening hit (resolveAttack-
+    // OnBloom, combat.ts: damage = round(effectiveAttack * 0.5) on open
+    // ground at full HP — directly settable, no RNG involved), rather than
+    // relying on any assumption about how two different archetypes'
+    // damage output compares to each other.
+    const mission = new Mission(MISSION_1A);
+    const contributor = mission.units.find((u) => u.pilotId === "pilot_tourignie")!; // Reeps — attackRange [2,4]
+    const finisher = mission.units.find((u) => u.pilotId === "pilot_thyns")!; // Tank — attackRange [1,1]
+    const [victimA, victimB] = mission.units.filter((u) => u.side === "hostile" && u.kind === "bloom");
+    victimA.pos = { x: 10, y: 10 };
+    victimB.pos = { x: 14, y: 10 };
+    victimA.endurance = 0; // already past Collapse — every hit from here lands on vitality directly
+    victimA.vitality = 1000; // survives the contributor's softening hit
+    victimB.endurance = 0;
+    victimB.vitality = 1000;
+
+    // --- Case 1: finisher hits far harder than the contributor did — contributor's share, and assist, should land near the MIN end of the band.
+    contributor.pos = { x: 8, y: 10 }; // distance 2
+    mission.attack(contributor.instanceId, victimA.instanceId);
+    victimA.vitality = 1; // guarantee the finisher's hit downs it next
+    finisher.pos = { x: 9, y: 10 }; // distance 1
+    finisher.effectiveAttack = 100000; // dwarfs the contributor's own hit
+    mission.attack(finisher.instanceId, victimA.instanceId);
+    const lowShareAssist = mission.unitPerformance["pilot_tourignie"].assistCredit;
+
+    // --- Case 2: finisher barely contributes anything next to the same contributor's own hit — share, and assist, should land near the MAX end of the band.
+    contributor.actionsRemaining = MAX_ACTIONS_PER_TURN; // attack() zeroes this — reused unit needs a fresh turn
+    contributor.pos = { x: 12, y: 10 }; // distance 2
+    mission.attack(contributor.instanceId, victimB.instanceId);
+    victimB.vitality = 1;
+    finisher.actionsRemaining = MAX_ACTIONS_PER_TURN;
+    finisher.pos = { x: 13, y: 10 }; // distance 1
+    finisher.effectiveAttack = 10; // small but still nonzero — must stay enough to actually down victimB (vitality 1)
+    mission.attack(finisher.instanceId, victimB.instanceId);
+    const totalAssist = mission.unitPerformance["pilot_tourignie"].assistCredit;
+    const highShareAssist = totalAssist - lowShareAssist; // this pilot's own assistCredit accumulates across both cases
+
+    expect(lowShareAssist).toBeGreaterThanOrEqual(ASSIST_MIN_FRACTION);
+    expect(highShareAssist).toBeLessThanOrEqual(ASSIST_MAX_FRACTION);
+    expect(highShareAssist).toBeGreaterThan(lowShareAssist);
+  });
+
+  it("a successful repair action credits the healer a flat REPAIR_ASSIST_FRACTION assist", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = mission.units.find((u) => u.pilotId === "pilot_barasj")!; // Munti, Fieldwright primary
+    const target = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    healer.pos = { x: 5, y: 5 };
+    target.pos = { x: 6, y: 5 };
+    target.currentHp = target.maxHp - 50;
+
+    mission.repairUnit(healer.instanceId, target.instanceId);
+
+    expect(mission.unitPerformance["pilot_barasj"].assistCredit).toBe(REPAIR_ASSIST_FRACTION);
+  });
+
+  it("repairing twice in one turn (the two-action house rule) accumulates assist credit additively", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
+    const allyA = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    const allyB = mission.units.find((u) => u.pilotId === "pilot_thyns")!;
+    healer.pos = { x: 5, y: 5 };
+    allyA.pos = { x: 6, y: 5 };
+    allyB.pos = { x: 4, y: 5 };
+    allyA.currentHp -= 10;
+    allyB.currentHp -= 10;
+
+    mission.repairUnit(healer.instanceId, allyA.instanceId);
+    mission.repairUnit(healer.instanceId, allyB.instanceId);
+
+    expect(mission.unitPerformance["pilot_barasj"].assistCredit).toBe(REPAIR_ASSIST_FRACTION * 2);
+  });
+
+  it("a repair that heals 0 HP (already-full target) does NOT credit an assist", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
+    const fullHpAlly = mission.units.find((u) => u.pilotId === "pilot_tourignie")!;
+    healer.pos = { x: 5, y: 5 };
+    fullHpAlly.pos = { x: 6, y: 5 };
+    // Bypass getRepairableFrom's own full-HP filter (repair.test.ts's
+    // regression test) by calling repairUnit directly — this test is
+    // specifically about the amount===0 guard inside repairUnit itself.
+    const result = mission.repairUnit(healer.instanceId, fullHpAlly.instanceId);
+
+    expect(result!.amount).toBe(0);
+    expect(mission.unitPerformance["pilot_barasj"].assistCredit).toBe(0);
+  });
+});
+
 describe("computeMissionEarnings — the personal-points formula", () => {
-  it("matches damagePoints + killBonus + survivalBonus, with objectiveBonus at 0 while the mission is still ongoing", () => {
+  it("matches killBonus + assistBonus + survivalBonus, with objectiveBonus at 0 while the mission is still ongoing", () => {
     const mission = new Mission(MISSION_1A);
     const attacker = mission.units.find((u) => u.pilotId === "pilot_thyns")!;
     const target = mission.units.find((u) => u.side === "hostile" && u.kind === "bloom")!;
     target.endurance = 0;
     target.vitality = 1;
     attacker.pos = { x: target.pos.x + 1, y: target.pos.y };
-    const outcome = mission.attack(attacker.instanceId, target.instanceId)!;
+    mission.attack(attacker.instanceId, target.instanceId);
 
     const earnings = computeMissionEarnings(mission);
-    const expected =
-      Math.floor(outcome.damage / DAMAGE_POINTS_DIVISOR) + KILL_BONUS * 1 + SURVIVAL_BONUS + 0;
+    // Solo kill, nobody else touched the target first — assistBonus is 0.
+    const expected = KILL_BONUS * 1 + Math.round(KILL_BONUS * 0) + SURVIVAL_BONUS + 0;
     expect(earnings["pilot_thyns"]).toBe(expected);
+  });
+
+  it("a combat assist adds Math.round(KILL_BONUS * assistCredit) on top of the rest of the formula", () => {
+    const mission = new Mission(MISSION_1A);
+    const softener = mission.units.find((u) => u.pilotId === "pilot_tourignie")!;
+    const finisher = mission.units.find((u) => u.pilotId === "pilot_thyns")!;
+    const target = mission.units.find((u) => u.side === "hostile" && u.kind === "bloom")!;
+    target.pos = { x: 10, y: 10 };
+    softener.pos = { x: 8, y: 10 }; // pilot_tourignie is Reeps — attackRange [2,4], distance 2 here
+    finisher.pos = { x: 11, y: 10 }; // pilot_thyns is Tank — attackRange [1,1]
+    target.endurance = 0;
+    target.collapsed = false;
+    target.vitality = 1000;
+    target.currentHp = 1000;
+
+    mission.attack(softener.instanceId, target.instanceId);
+    target.collapsed = true;
+    target.vitality = 1;
+    target.currentHp = 1;
+    mission.attack(finisher.instanceId, target.instanceId);
+
+    const earnings = computeMissionEarnings(mission);
+    const perf = mission.unitPerformance["pilot_tourignie"];
+    expect(perf.assistCredit).toBeGreaterThan(0);
+    const expected = KILL_BONUS * 0 + Math.round(KILL_BONUS * perf.assistCredit) + SURVIVAL_BONUS + 0;
+    expect(earnings["pilot_tourignie"]).toBe(expected);
   });
 
   it("an idle deployed pilot who never acts and never gets downed still earns exactly the survivalBonus", () => {

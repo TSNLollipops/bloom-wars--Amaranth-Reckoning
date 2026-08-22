@@ -27,45 +27,65 @@ import type { Mission, UnitPerformance } from "./mission";
 
 // ---- Personal points: earning -------------------------------------------
 
-// Placeholder personal-earnings formula — every number in this block is
-// Maxime's own judgment call, unspecified anywhere in the design docs,
-// flagged exactly like campaignState.ts's DISCRETIONARY_RECRUIT_COST.
-// Pending a real tuning pass once there's actual play data to weigh
-// against (how much a pilot should out-earn a teammate for carrying a
-// fight vs. surviving quietly in the back line, etc.).
-export const DAMAGE_POINTS_DIVISOR = 10; // damagePoints = floor(damageDealt / this)
-export const KILL_BONUS = 5; // per finishing blow credited
+// Personal-earnings formula, REVISED 22 Aug 2026 against
+// Qiraki_Weapons_And_Progression.md's "Scoring system, LOCKED" section
+// (Maxime: "weapon and progression give you the per unit point system...
+// only thing that isnt in it normaly is dmg point bonus because normally
+// bloom unit doesnt have a lifepool"). That doc's own locked rule is
+// "kills plus assists combined" — no damage-dealt term, for any target —
+// so the old damagePoints/DAMAGE_POINTS_DIVISOR term is gone. What it
+// counts against is engine/mission.ts's UnitPerformance.assistCredit
+// (fractional kill-equivalents, accumulated by Mission itself — see that
+// file's own ASSIST_MIN_FRACTION comment for the full canon citation and
+// exactly how combat-assist vs. repair-assist credit gets earned), priced
+// here the same way canon prices it — "a fraction of a full kill" — by
+// literally multiplying it against KILL_BONUS, the same constant a whole
+// kill uses. KILL_BONUS/SURVIVAL_BONUS/OBJECTIVE_BONUS themselves are
+// otherwise unchanged from before this pass, still Maxime's own judgment
+// call, unspecified in absolute point value anywhere in the design docs,
+// flagged exactly like campaignState.ts's DISCRETIONARY_RECRUIT_COST —
+// pending a real tuning pass once there's actual play data to weigh
+// against.
+export const KILL_BONUS = 5; // per finishing blow credited; an assist is priced as a fraction of this same value
 export const SURVIVAL_BONUS = 5; // never downed this mission
 export const OBJECTIVE_BONUS = 10; // deployed on a mission that ended in a win
 
 /**
- * A pilot's personal earnings from one mission — damage dealt, finishing
- * blows, whether they were ever downed, and whether the mission was won —
- * all sourced from Mission.unitPerformance (engine/mission.ts) plus
- * Mission's own public outcome/playerPilotIds. Callable once a mission
- * reaches its outcome (a win/loss result); calling it mid-mission is not
- * an error, it just scores objectiveBonus as 0 (mission.outcome isn't
- * "win" yet) — everything else is a running total that's already
- * meaningful at any point.
+ * A pilot's personal earnings from one mission — finishing blows, combat/
+ * repair assist credit, whether they were ever downed, and whether the
+ * mission was won — all sourced from Mission.unitPerformance
+ * (engine/mission.ts) plus Mission's own public outcome/deployedPilotIds.
+ * Callable once a mission reaches its outcome (a win/loss result); calling
+ * it mid-mission is not an error, it just scores objectiveBonus as 0
+ * (mission.outcome isn't "win" yet) — everything else is a running total
+ * that's already meaningful at any point.
  *
- * Iterates `mission.mission.playerPilotIds` — every pilot who deployed —
- * rather than mission.units, so a pilot removed mid-mission (the
- * remove_from_roster event action) still gets scored for whatever they
- * did before that happened, using whatever unitPerformance entry they
- * accumulated; a pilot who somehow has no entry at all (shouldn't happen —
- * deployPlayerUnits() seeds one for every deployed id — but this stays
- * defensive rather than throwing) is scored as a zeroed no-op mission.
+ * assistBonus rounds to the nearest whole point (Math.round, not floor) —
+ * assistCredit is a sum of fractional kill-equivalents, not itself a point
+ * value, so there's no "always round down" convention to preserve the way
+ * there was for the old floor(damageDealt/divisor) term.
+ *
+ * Iterates `mission.deployedPilotIds` — every pilot who actually deployed,
+ * which is `mission.mission.playerPilotIds` unless the transporter-pad
+ * squad-selection pass (22 Aug 2026) gave Mission a real, possibly-smaller
+ * DeployRosterEntry[] — rather than mission.units, so a pilot removed
+ * mid-mission (the remove_from_roster event action) still gets scored for
+ * whatever they did before that happened, using whatever unitPerformance
+ * entry they accumulated; a pilot who somehow has no entry at all
+ * (shouldn't happen — deployPlayerUnits() seeds one for every deployed id —
+ * but this stays defensive rather than throwing) is scored as a zeroed
+ * no-op mission.
  */
 export function computeMissionEarnings(mission: Mission): Record<string, number> {
   const earnings: Record<string, number> = {};
   const won = mission.outcome === "win";
-  for (const pilotId of mission.mission.playerPilotIds) {
-    const perf: UnitPerformance = mission.unitPerformance[pilotId] ?? { damageDealt: 0, kills: 0, wasDowned: false };
-    const damagePoints = Math.floor(perf.damageDealt / DAMAGE_POINTS_DIVISOR);
+  for (const pilotId of mission.deployedPilotIds) {
+    const perf: UnitPerformance = mission.unitPerformance[pilotId] ?? { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
     const killBonus = KILL_BONUS * perf.kills;
+    const assistBonus = Math.round(KILL_BONUS * perf.assistCredit);
     const survivalBonus = perf.wasDowned ? 0 : SURVIVAL_BONUS;
     const objectiveBonus = won ? OBJECTIVE_BONUS : 0;
-    earnings[pilotId] = damagePoints + killBonus + survivalBonus + objectiveBonus;
+    earnings[pilotId] = killBonus + assistBonus + survivalBonus + objectiveBonus;
   }
   return earnings;
 }
@@ -93,7 +113,10 @@ export function applyMissionEarnings(state: CampaignState, earnings: Record<stri
 
 // ---- Personal points: spending — gear tier and mek secondary -----------
 
-const TIER_ORDER: Tier[] = ["G", "F", "E", "D", "C", "B", "A"];
+// Exported (Debrief pass, 22 Aug 2026) so scenes/Debrief.ts can read a
+// pilot's next tier for a cost-preview label without duplicating this
+// ordering or mutating state via purchaseTierUpgrade just to peek at it.
+export const TIER_ORDER: Tier[] = ["G", "F", "E", "D", "C", "B", "A"];
 
 // Data Pack §12.1's own costs, transcribed, not invented here.
 export const TIER_UPGRADE_COST: Record<Exclude<Tier, "A">, number> = {
@@ -202,8 +225,13 @@ export function purchaseMekSecondary(state: CampaignState, pilotId: string, trac
 // Data Pack §12.1's own cost, transcribed, not invented here.
 export const SPARE_PART_COST = 40;
 
-/** Data Pack §12.1: "Up to the Fabricator track maximum (2 primary, 1 secondary)." */
-function fabricatorMaxSpareParts(mek: { primary: MekTrack; secondary: MekTrack | null }): number {
+/**
+ * Data Pack §12.1: "Up to the Fabricator track maximum (2 primary, 1
+ * secondary)." Exported (Debrief pass, 22 Aug 2026) so the debrief shop can
+ * decide which meks have anywhere to put a spare part before calling
+ * purchaseSpareParts, instead of re-deriving this rule in scenes/Debrief.ts.
+ */
+export function fabricatorMaxSpareParts(mek: { primary: MekTrack; secondary: MekTrack | null }): number {
   if (mek.primary === "fabricator") return 2;
   if (mek.secondary === "fabricator") return 1;
   return 0;
@@ -335,17 +363,20 @@ export const CO_BONUS_BY_RANK: Record<Rank, number> = {
 
 /**
  * Zero unless pilot_rourke both deployed on this specific mission
- * (`mission.mission.playerPilotIds`) and is currently active in the
- * campaign roster. Judgment call: "contributes EXTRA company points every
- * mission" is read as "every mission she's actually in," not literally
- * every mission regardless of whether she deployed — she can't act as CO
- * of a fight she wasn't at. In practice she can never be
- * permanently_lost (PilotRecord.exemptFromPermadeath, data/
- * campaignAmaranth.ts), so the active-status check only ever matters for
- * a synthetic/test CampaignState that omits her entirely.
+ * (`mission.deployedPilotIds` — see that field's own doc comment in
+ * engine/mission.ts for why this reads that instead of
+ * mission.mission.playerPilotIds) and is currently active in the campaign
+ * roster. Judgment call: "contributes EXTRA company points every mission"
+ * is read as "every mission she's actually in," not literally every
+ * mission regardless of whether she deployed — she can't act as CO of a
+ * fight she wasn't at. In practice she can never be permanently_lost
+ * (PilotRecord.exemptFromPermadeath, data/campaignAmaranth.ts), so the
+ * active-status check only ever matters for a synthetic/test CampaignState
+ * that omits her entirely — and, as of the transporter-pad squad-selection
+ * pass, for a real deploy selection that simply leaves her on the bench.
  */
 export function computeCoBonus(state: CampaignState, mission: Mission): number {
-  if (!mission.mission.playerPilotIds.includes(ROURKE_PILOT_ID)) return 0;
+  if (!mission.deployedPilotIds.includes(ROURKE_PILOT_ID)) return 0;
   const entry = state.pilots[ROURKE_PILOT_ID];
   if (!entry || entry.status !== "active") return 0;
   return CO_BONUS_BY_RANK[state.rourkeRank];

@@ -7,10 +7,12 @@
 import Phaser from "phaser";
 import type { Coord, TileType } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
-import { Mission } from "../engine/mission";
+import { Mission, type DeployRosterEntry } from "../engine/mission";
 import type { BattleUnit } from "../engine/units";
 import { coordKey } from "../engine/grid";
 import { BLOOM } from "../data/bloom";
+import { findPilot, findMek } from "../data/pilotRegistry";
+import { createWardenCampaignState, loadCampaignState } from "../engine/campaignState";
 
 const TILE_COLORS: Record<TileType, number> = {
   plain: 0x3a4636,
@@ -49,13 +51,47 @@ export class Battle extends Phaser.Scene {
     super("Battle");
   }
 
-  init(data: { missionId: string }) {
+  init(data: { missionId: string; selectedPilotIds?: string[] }) {
     const missionDef = MISSIONS_BY_ID[data.missionId] ?? Object.values(MISSIONS_BY_ID)[0];
-    this.mission = new Mission(missionDef);
+    this.mission = new Mission(missionDef, this.resolveDeployRoster(missionDef.playerPilotIds, data.selectedPilotIds));
     this.selectedUnitId = null;
     this.reachable = [];
     this.attackable = [];
     this.repairable = [];
+  }
+
+  /**
+   * Transporter-pad squad-selection pass (22 Aug 2026): turns the ids the
+   * pad actually beamed down (`selectedPilotIds` — falls back to the
+   * mission's own static roster when absent, e.g. a scene started directly
+   * without going through TransporterPad) into the resolved
+   * DeployRosterEntry[] Mission's constructor wants. Reads the same
+   * CampaignState the pad itself read, independently — not trusting
+   * anything serialized through scene data — so a live, campaign-persistent
+   * pilot/mek copy (tier upgrades, mek secondaries) deploys correctly, and
+   * so does a generated recruit (engine/campaignState.ts's generatePilot),
+   * which data/pilotRegistry.ts's static findPilot() alone could never
+   * resolve — see engine/units.ts's createPlayerUnit `overrides` doc
+   * comment for the full reasoning.
+   */
+  private resolveDeployRoster(missionPilotIds: string[], selectedPilotIds?: string[]): DeployRosterEntry[] {
+    const state = loadCampaignState() ?? createWardenCampaignState();
+    const ids = selectedPilotIds ?? missionPilotIds;
+    const roster: DeployRosterEntry[] = [];
+    for (const pilotId of ids) {
+      const entry = state.pilots[pilotId];
+      if (entry) {
+        roster.push({ pilotId, pilot: entry.pilot, mek: state.meks[entry.pilot.mekId] ?? findMek(entry.pilot.mekId) });
+        continue;
+      }
+      // Defensive fallback only — shouldn't happen for a well-formed
+      // selection (every deployable id comes from this same CampaignState),
+      // but stays consistent with static-registry resolution rather than
+      // silently dropping the pilot.
+      const pilot = findPilot(pilotId);
+      if (pilot) roster.push({ pilotId, pilot, mek: findMek(pilot.mekId) });
+    }
+    return roster;
   }
 
   create() {
@@ -354,11 +390,22 @@ export class Battle extends Phaser.Scene {
       ? `Lost to extraction failure: ${this.mission.removedFromRoster.join(", ")}`
       : "";
     const sub = this.add.text(480, 330, extra, { fontFamily: "monospace", fontSize: "13px", color: "#e8e2d4" }).setOrigin(0.5);
+    // Debrief wiring (22 Aug 2026): this outcome overlay used to send the
+    // player straight back to MapSelect, skipping the meta layer entirely.
+    // It's kept exactly as-is (the win/loss beat is worth seeing, not
+    // rushed past the instant `outcome` flips) — only the button's
+    // destination changes. `this.mission` — the live Mission instance, not
+    // a re-serialized copy of it — goes through Phaser's scene data as-is:
+    // scene.start's data isn't JSON-serialized, it's handed to the next
+    // scene by reference in the same JS heap, which is exactly what
+    // engine/campaignEconomy.ts's computeMissionEarnings /
+    // computeMissionCompletionBonus / computeCoBonus want (they all take a
+    // live Mission directly) — see scenes/Debrief.ts's own header.
     const btn = this.add
       .rectangle(480, 390, 260, 40, 0x2e5c7a)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.scene.start("MapSelect"));
-    const btnLabel = this.add.text(480, 390, "back to mission select", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+      .on("pointerdown", () => this.scene.start("Debrief", { mission: this.mission }));
+    const btnLabel = this.add.text(480, 390, "continue to debrief", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     this.overlay.add([bg, title, sub, btn, btnLabel]);
   }
 }

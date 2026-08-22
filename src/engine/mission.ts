@@ -3,7 +3,7 @@
 // consumer). Owns turn order, the environment step, mission-event wiring,
 // win/loss evaluation, and is the single surface both src/sim and the
 // Phaser Battle scene call into — so the rules only exist once.
-import type { CampaignMission, Coord, MapDefinition, TileType } from "../data/types";
+import type { CampaignMission, Coord, MapDefinition, MekArchetype, PilotRecord, TileType } from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
 import { createPlayerUnit, createHostileMechUnit, createBloomUnit, type BattleUnit } from "./units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
@@ -43,6 +43,26 @@ import { evaluatePermadeathCheck } from "./campaignState";
 export type MissionOutcome = "ongoing" | "win" | "loss";
 export type MissionPhase = "player" | "hostile" | "environment";
 
+/**
+ * Transporter-pad squad-selection pass (22 Aug 2026, scenes/TransporterPad.ts
+ * + engine/campaignState.ts's recruit system): one resolved deploy-roster
+ * entry — a pilotId plus the actual PilotRecord/MekArchetype to build the
+ * BattleUnit from. Mission's optional constructor param below (deployRoster)
+ * is the "real interface change" the deploy-cap task called for: without
+ * it, Mission can only ever deploy `mission.playerPilotIds` resolved through
+ * the static, build-time data/pilotRegistry.ts — which has no way to
+ * resolve a generated recruit (engine/campaignState.ts's generatePilot) at
+ * all, and silently ignores any campaign-persistent tier/mek-secondary
+ * purchase on a named pilot too. Passing a caller-resolved roster (the
+ * transporter pad's own CampaignState read, threaded through
+ * scenes/Battle.ts) fixes both at once.
+ */
+export interface DeployRosterEntry {
+  pilotId: string;
+  pilot: PilotRecord;
+  mek?: MekArchetype;
+}
+
 export interface AttackOutcome {
   attackerId: string;
   defenderId: string;
@@ -74,10 +94,53 @@ export interface RepairOutcome {
 // "pilots keep their stable roster id on the board"), so no separate
 // instanceId->pilotId resolution is needed.
 export interface UnitPerformance {
-  damageDealt: number;
+  damageDealt: number; // raw HP/Endurance-and-Vitality chipped off — kept for UI/telemetry only, NOT a scoring input (see ASSIST_MIN_FRACTION's comment below)
   kills: number; // finishing blows credited — see recordPerformance() below for exactly what counts
+  assistCredit: number; // fractional kill-equivalents from assists this mission, summed across events — see recordContribution()/resolveKill()/repairUnit() below
   wasDowned: boolean; // true the instant this pilot is ever downed, latched for the rest of the mission
 }
+
+// Point-formula correction (Maxime, 22 Aug 2026, reading
+// Qiraki_Weapons_And_Progression.md's "Scoring system, LOCKED" section for
+// the first time against the economy pass above): the canonical rule is
+// "an individual's score inside a mission is kills plus assists combined.
+// An assist is worth a fraction of a full kill, roughly 10% to 50%
+// depending on the actual weight of the action, not a flat half-credit."
+// No damage-dealt term exists anywhere in that locked rule — for ANY
+// target, not just Bloom — which lines up with Maxime's own note that
+// Bloom targets don't have a conventional damage-depletable life pool in
+// the books' fiction (they die via discrete destruction of their physical
+// form, not gradual damage accumulation), so a "chip away HP for points"
+// mechanic never corresponded to anything the source material actually
+// does. engine/campaignEconomy.ts's old DAMAGE_POINTS_DIVISOR term is
+// removed this pass; damageDealt itself stays on UnitPerformance (useful
+// for a future "biggest hit" UI stat) but is never read by the points
+// formula again.
+//
+// The exact mapping from "weight of the action" to a fraction inside the
+// 10%-50% band isn't specified in the doc, so the two rules below are
+// Maxime's own judgment call, flagged the same way DAMAGE_POINTS_DIVISOR
+// used to be:
+//   - A COMBAT assist (you damaged a hostile that someone else landed the
+//     finishing blow on) scales linearly across the band by your share of
+//     the total damage the whole squad dealt to that specific victim —
+//     tap it once before someone else does the real work, ~10%; do most
+//     of the softening and hand the kill to a teammate, closer to 50%.
+//     See resolveKill() below.
+//   - A REPAIR assist (the doc's own example: "healing/repair actions
+//     count as assists," named as its own flat category rather than tied
+//     to a contribution share) is a flat mid-band fraction per successful
+//     repair action, not scaled by heal amount — the doc ties "weight of
+//     the action" to combat contribution specifically, not to how many HP
+//     a given repair restored. See repairUnit() below.
+// A Munti's disintegrator weapon (the doc: "their disintegrator weapon...
+// earns kill-adjacent credit on purge missions") needs no special-case
+// code at all — it's just their attack, already routed through the same
+// attack()/recordPerformance() path as every other weapon, so it already
+// earns kills/combat-assists exactly like anyone else's hits do.
+export const ASSIST_MIN_FRACTION = 0.1;
+export const ASSIST_MAX_FRACTION = 0.5;
+export const REPAIR_ASSIST_FRACTION = 0.25;
 
 // Data Pack §6's abil_repair: 30 HP base, x1.25 if the Munti's own mek has
 // Fieldwright as primary (x1 if secondary or absent — see MEK_TRACK_EFFECTS).
@@ -96,6 +159,17 @@ function repairHealAmount(healer: BattleUnit): number {
 export class Mission {
   readonly mission: CampaignMission;
   readonly map: MapDefinition;
+  // Transporter-pad squad-selection pass: who actually deployed this
+  // mission. Equal to `mission.playerPilotIds` whenever the constructor's
+  // optional `deployRoster` arg is omitted (every existing call site —
+  // tests, npm run sim, and scenes/Battle.ts's own no-selection fallback),
+  // so nothing downstream that already reads this shape breaks. Once a
+  // real DeployRosterEntry[] is passed in, this is the player's real,
+  // possibly-smaller-or-reordered selection instead. engine/campaignEconomy.ts
+  // reads THIS field, not mission.playerPilotIds directly, for computing
+  // personal earnings / the Rourke CO bonus — see that file's own notes.
+  readonly deployedPilotIds: string[];
+  private readonly deployRoster?: DeployRosterEntry[];
   units: BattleUnit[] = [];
   turn = 1;
   phase: MissionPhase = "player";
@@ -120,15 +194,25 @@ export class Mission {
   // reads this after the mission ends (engine/campaignEconomy.ts's
   // computeMissionEarnings).
   unitPerformance: Record<string, UnitPerformance> = {};
+  // Per-victim damage contribution this mission — victim BattleUnit
+  // instanceId -> (pilotId -> total damage that pilot dealt to it so far).
+  // Written by recordContribution(), read and cleared by resolveKill() the
+  // moment that victim actually goes down; a victim who's damaged but
+  // survives to mission end just keeps an unresolved bucket here, which is
+  // correct — no kill happened, so nobody's owed a kill OR an assist for
+  // it. See ASSIST_MIN_FRACTION's comment above for why this exists.
+  private victimContributions: Record<string, Record<string, number>> = {};
   log: string[] = [];
   private eventState: EventRuntimeState = createEventRuntimeState();
   private extractedUnitId: string | null = null;
 
-  constructor(mission: CampaignMission) {
+  constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[]) {
     this.mission = mission;
     const map = MAPS[mission.mapId];
     if (!map) throw new Error(`Unknown map id: ${mission.mapId}`);
     this.map = map;
+    this.deployRoster = deployRoster;
+    this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
     this.spawnWavesForTurn(1);
     this.runTurnStartEvents();
@@ -136,10 +220,27 @@ export class Mission {
 
   private deployPlayerUnits(): void {
     const pads = this.map.deployZones.player;
+    if (this.deployRoster) {
+      // Real selection path (scenes/TransporterPad.ts via scenes/Battle.ts):
+      // build every unit from the caller-resolved PilotRecord/MekArchetype
+      // directly, not by re-resolving `entry.pilotId` through the static
+      // pilotRegistry — see createPlayerUnit's own `overrides` doc comment
+      // (engine/units.ts) for why that distinction matters for a generated
+      // recruit.
+      this.deployRoster.forEach((entry, i) => {
+        const pos = pads[i % pads.length];
+        this.units.push(createPlayerUnit(entry.pilotId, pos, { pilot: entry.pilot, mek: entry.mek }));
+        this.unitPerformance[entry.pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
+      });
+      return;
+    }
+    // Old, no-selection path — unchanged: every test, npm run sim, and any
+    // future direct `new Mission(missionDef)` call still resolves purely
+    // through the static, build-time roster/registry.
     this.mission.playerPilotIds.forEach((pilotId, i) => {
       const pos = pads[i % pads.length];
       this.units.push(createPlayerUnit(pilotId, pos));
-      this.unitPerformance[pilotId] = { damageDealt: 0, kills: 0, wasDowned: false };
+      this.unitPerformance[pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
     });
   }
 
@@ -404,14 +505,27 @@ export class Mission {
    * Only ever credits player pilots (creditDamage/creditKill no-op on an
    * undefined pilotId) — hostile mechs and Bloom have none, so this never
    * needs a side check of its own; the pilotId lookup already does it.
+   *
+   * Contribution tracking (recordContribution/resolveKill, added alongside
+   * assistCredit — see ASSIST_MIN_FRACTION's comment above) is gated on
+   * `defender.side === "hostile"` / `attacker.side === "hostile"`,
+   * mirroring creditKill's own existing gate exactly: a "victim" only
+   * needs a contribution bucket at all if it's possible for it to resolve
+   * into a kill, and only a hostile can ever be killed here.
    */
   private recordPerformance(attacker: BattleUnit, defender: BattleUnit, outcome: AttackOutcome): void {
     this.creditDamage(attacker.pilotId, outcome.damage);
-    if (outcome.defenderDowned && defender.side === "hostile") this.creditKill(attacker.pilotId);
+    if (defender.side === "hostile") {
+      this.recordContribution(defender.instanceId, attacker.pilotId, outcome.damage);
+      if (outcome.defenderDowned) this.resolveKill(defender.instanceId, attacker.pilotId);
+    }
 
     if (outcome.countered && outcome.counterDamage) {
       this.creditDamage(defender.pilotId, outcome.counterDamage);
-      if (outcome.attackerDowned && attacker.side === "hostile") this.creditKill(defender.pilotId);
+      if (attacker.side === "hostile") {
+        this.recordContribution(attacker.instanceId, defender.pilotId, outcome.counterDamage);
+        if (outcome.attackerDowned) this.resolveKill(attacker.instanceId, defender.pilotId);
+      }
     }
   }
 
@@ -425,6 +539,46 @@ export class Mission {
     if (!pilotId) return;
     const perf = this.unitPerformance[pilotId];
     if (perf) perf.kills += 1;
+  }
+
+  private creditAssist(pilotId: string | undefined, fraction: number): void {
+    if (!pilotId) return;
+    const perf = this.unitPerformance[pilotId];
+    if (perf) perf.assistCredit += fraction;
+  }
+
+  /** Tallies `pilotId`'s running damage contribution against one specific victim, keyed by that victim's instanceId — see `victimContributions`'s own field comment. */
+  private recordContribution(victimInstanceId: string, pilotId: string | undefined, amount: number): void {
+    if (!pilotId || amount <= 0) return;
+    const bucket = (this.victimContributions[victimInstanceId] ??= {});
+    bucket[pilotId] = (bucket[pilotId] ?? 0) + amount;
+  }
+
+  /**
+   * A victim just went down. `finisherPilotId` gets the kill (unchanged
+   * behavior). Everyone else who's in that victim's contribution bucket —
+   * i.e. damaged it at some earlier point this mission without being the
+   * one who finished it — gets a combat assist, weighted by their share of
+   * the total damage the whole squad dealt to it (ASSIST_MIN_FRACTION's
+   * comment above has the exact rule). The bucket is deleted once
+   * resolved: this victim is done, nothing more can ever be credited
+   * against it.
+   */
+  private resolveKill(victimInstanceId: string, finisherPilotId: string | undefined): void {
+    this.creditKill(finisherPilotId);
+    const bucket = this.victimContributions[victimInstanceId];
+    if (bucket) {
+      const total = Object.values(bucket).reduce((sum, v) => sum + v, 0);
+      if (total > 0) {
+        for (const [pilotId, amount] of Object.entries(bucket)) {
+          if (pilotId === finisherPilotId) continue; // the finisher already got the kill — no double-dipping an assist on their own kill
+          const share = Math.min(1, amount / total);
+          const fraction = ASSIST_MIN_FRACTION + (ASSIST_MAX_FRACTION - ASSIST_MIN_FRACTION) * share;
+          this.creditAssist(pilotId, fraction);
+        }
+      }
+      delete this.victimContributions[victimInstanceId];
+    }
   }
 
   /**
@@ -448,6 +602,13 @@ export class Mission {
     const amount = Math.max(0, Math.min(healAmount, target.maxHp - target.currentHp));
     target.currentHp += amount;
     healer.actionsRemaining -= 1;
+    // Campaign economy pass, point-formula correction (22 Aug 2026):
+    // Qiraki_Weapons_And_Progression.md's locked scoring rule names
+    // "healing/repair actions" as an assist in their own right — see
+    // REPAIR_ASSIST_FRACTION's comment above UnitPerformance. Only a
+    // repair that actually restored HP counts (amount > 0), same
+    // "did-it-actually-do-anything" guard creditDamage already uses.
+    if (amount > 0) this.creditAssist(healer.pilotId, REPAIR_ASSIST_FRACTION);
     this.log.push(`${healer.displayName} repairs ${target.displayName} for ${amount} HP`);
     return { healerId, targetId, amount };
   }
