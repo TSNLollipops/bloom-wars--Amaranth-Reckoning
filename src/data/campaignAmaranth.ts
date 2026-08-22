@@ -29,6 +29,14 @@ export const WARDEN_PILOTS: PilotRecord[] = [
     archetypeId: "arch_meeps_bipedal",
     mekId: "mek_rourke",
     tier: "G",
+    // "No plot armor except Rourke" — Maxime, asked directly whether the
+    // live Munti-presence permadeath check (engine/campaignState.ts)
+    // applies to every named pilot including Bosk's scripted Act 1 finale:
+    // "for bosk and the scripted death. yeah." Then, naming the one
+    // exception: "the only character that is safe is the mc." Rourke is
+    // the protagonist; every other pilot, named or generated, plays for
+    // keeps. See claude/Bloom_Wars_Spitball_Ideas.md.
+    exemptFromPermadeath: true,
   },
   {
     id: "pilot_bosk",

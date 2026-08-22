@@ -65,6 +65,12 @@ console.log(`RESULT: ${m.outcome.toUpperCase()} on turn ${m.turn} (guard iterati
 if (m.removedFromRoster.length) {
   console.log(`Removed from roster: ${m.removedFromRoster.join(", ")}`);
 }
+if (m.permanentLosses.length) {
+  // Campaign-persistence pass (engine/campaignState.ts) — per-mission
+  // signal only; nothing here actually touches a saved CampaignState. See
+  // Mission.permanentLosses's own comment in engine/mission.ts.
+  console.log(`Permanent losses (no living Munti at time of downing): ${m.permanentLosses.map((l) => l.pilotId).join(", ")}`);
+}
 
 // Compact summary of what the test player AI actually did, always printed —
 // a quick read on whether units mostly fought, mostly chased, or mostly ran.

@@ -16,10 +16,11 @@ campaign missions will be authored separately later (Canon Pass §J). See
 ```
 npm install
 npm run dev        # http://localhost:5173 — pick a mission, play it
-npm test           # 140 tests: the combat resolver validated against
+npm test           # 168 tests: the combat resolver validated against
                     # sim_output.txt exactly, plus movement + event +
                     # Repair-ability + Meeps-dodge + Tank-shield +
-                    # Munti-regen + two-action-per-turn tests
+                    # Munti-regen + two-action-per-turn + campaign-state
+                    # (permadeath check, deploy gate, recruiting) tests
 npm run sim -- mission_1a   # headless: runs a mission with both sides on
                              # simple autoplay, prints the full turn log
 npm run typecheck  # tsc --noEmit
@@ -65,7 +66,7 @@ hold the zone / extract a unit).
 | 8 | Mission events | Done and tested — turn_start (+repeatEvery), zone_entered, unit_downed, objective_complete, guardGroup mutual exclusion, Mission 1a's collapse ambush (both trigger paths) and Mission 3's extraction failure all work |
 | 9 | Headless sim harness | Done — `npm run sim -- <mission_id>` runs any of the 4 missions with autoplay on both sides, never hangs (tested all 4) |
 | 10 | Rendering and input | Done, rough — placeholder geometric shapes per GDD §12 (shape=path, colour=faction, outline weight=centauroid), move/attack highlighting, HP bars (two-segment for Bloom), a plain-text combat log. No combat forecast popup, no Collapse pulse animation yet |
-| 11 | Meta layer | **Not built.** No debrief scoring, no points shop, no gear-tier purchase, no campaign persistence across missions (`localStorage`) |
+| 11 | Meta layer | **Partially built (22 Aug 2026).** `engine/campaignState.ts` is the rules/data layer: a mutable `CampaignState` (per-pilot status/tier, per-mek spare parts) seeded from `data/campaignAmaranth.ts`, basic `localStorage` save/load, the live Munti-gated permadeath check (wired into `Mission.handleDowned()`, evaluated fresh at every downing — see `mission.permanentLosses`), the pilot_rourke permadeath exemption, the `canLaunchMission` deploy gate, and both recruit tracks (`checkMuntiGuarantee` free/unconditional, `recruitDiscretionary` points-gated). Still not built: any debrief-screen UI, points-shop UI, gear-tier-purchase UI, and wiring a generated recruit into an actual deployable Mission (`engine/units.ts`'s `createPlayerUnit` still resolves pilots through the static `data/pilotRegistry.ts` only — see `campaignState.ts`'s header comment on that gap) |
 | 12 | Heirloom + campaign wiring | **Not built.** Severance exists in `data/abilities.ts` and `engine/combat.ts` has the pieces (`ignoresFullHpCap`, `vsBloom: "collapse_check"`) but there's no targeting UI and no mission-to-mission sequencing yet |
 
 ## House rules added during playtesting (not in the Data Pack)

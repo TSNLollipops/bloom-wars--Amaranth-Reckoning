@@ -38,6 +38,7 @@ import {
   evaluateObjectiveComplete,
   type EventRuntimeState,
 } from "./events";
+import { evaluatePermadeathCheck } from "./campaignState";
 
 export type MissionOutcome = "ongoing" | "win" | "loss";
 export type MissionPhase = "player" | "hostile" | "environment";
@@ -65,6 +66,19 @@ export interface RepairOutcome {
   amount: number;
 }
 
+// Campaign economy pass (22 Aug 2026, engine/campaignEconomy.ts):
+// per-pilot performance tracking, added to Mission itself since nothing
+// tracked anything per-unit before this pass — only mission-wide outcome
+// (win/loss) existed. Keyed by pilotId, which for a player unit is always
+// identical to its instanceId (units.ts createPlayerUnit's own comment:
+// "pilots keep their stable roster id on the board"), so no separate
+// instanceId->pilotId resolution is needed.
+export interface UnitPerformance {
+  damageDealt: number;
+  kills: number; // finishing blows credited — see recordPerformance() below for exactly what counts
+  wasDowned: boolean; // true the instant this pilot is ever downed, latched for the rest of the mission
+}
+
 // Data Pack §6's abil_repair: 30 HP base, x1.25 if the Munti's own mek has
 // Fieldwright as primary (x1 if secondary or absent — see MEK_TRACK_EFFECTS).
 // Only player pilots carry a pilotId/mekId; hostile mechs never get a bonus.
@@ -87,6 +101,25 @@ export class Mission {
   phase: MissionPhase = "player";
   outcome: MissionOutcome = "ongoing";
   removedFromRoster: string[] = [];
+  // Campaign-persistence pass (engine/campaignState.ts): pilotIds the live
+  // Munti-presence permadeath check ruled un-restockable at the moment
+  // they went down this mission — "if there a muntie there is restock. no
+  // munties no restock," checked fresh at each downing, not a one-way
+  // flag. Mirrors removedFromRoster's shape deliberately: both are
+  // per-mission signals a future debrief screen reads and applies to the
+  // persistent CampaignState (applyPermadeathCheck / the pilot's status
+  // field) after the mission ends — this array only records *which*
+  // pilots and *why*; it does not itself touch any campaign save data,
+  // since Mission has no CampaignState reference and isn't meant to.
+  permanentLosses: { pilotId: string; reason: string }[] = [];
+  // Campaign economy pass — see UnitPerformance's own comment above.
+  // Seeded with a zeroed entry for every deployed pilot in
+  // deployPlayerUnits() below, so a pilot who does nothing all mission
+  // (never attacks, never gets touched) still resolves cleanly to a
+  // present, zeroed record rather than an undefined lookup for whoever
+  // reads this after the mission ends (engine/campaignEconomy.ts's
+  // computeMissionEarnings).
+  unitPerformance: Record<string, UnitPerformance> = {};
   log: string[] = [];
   private eventState: EventRuntimeState = createEventRuntimeState();
   private extractedUnitId: string | null = null;
@@ -106,6 +139,7 @@ export class Mission {
     this.mission.playerPilotIds.forEach((pilotId, i) => {
       const pos = pads[i % pads.length];
       this.units.push(createPlayerUnit(pilotId, pos));
+      this.unitPerformance[pilotId] = { damageDealt: 0, kills: 0, wasDowned: false };
     });
   }
 
@@ -323,6 +357,8 @@ export class Mission {
       outcome = { attackerId, defenderId, damage: dmg, countered: false, defenderDowned: defender.downed, defenderDodged };
     }
 
+    this.recordPerformance(attacker, defender, outcome);
+
     // Attack always consumes every remaining action and ends the unit's
     // turn, regardless of which action slot it's used in (two-action house
     // rule, Maxime, 22 Aug 2026 — matches XCOM 2: you can heal then heal,
@@ -339,6 +375,56 @@ export class Mission {
     if (outcome.attackerDowned) this.handleDowned(attacker);
 
     return outcome;
+  }
+
+  /**
+   * Campaign economy pass — bookkeeping only, no effect on combat math or
+   * outcomes: reads the already-computed AttackOutcome and credits
+   * damage/kills to whichever pilot's mek actually dealt each portion of
+   * it. Called once per attack() resolution, after `outcome` is built and
+   * before the two damage-application calls above have any further
+   * consequence, so it works identically across all three attack
+   * branches (mech-vs-mech, mech-vs-bloom, bloom-vs-mech) without needing
+   * branch-specific logic — every branch already funnels into the same
+   * AttackOutcome shape.
+   *
+   * Two credited categories, deliberately not just one:
+   *   - `attacker`'s primary hit (outcome.damage / outcome.defenderDowned).
+   *   - `defender`'s own counter-hit back (outcome.counterDamage /
+   *     outcome.attackerDowned), when the defender is the one who
+   *     survived and countered. Judgment call, not spelled out in the
+   *     brief's formula: a counter is the defender's OWN mek acting, not
+   *     the attacker's, so it's credited to the defender, separately from
+   *     the primary hit — excluding counter damage entirely would
+   *     arbitrarily punish counter-built pilots (Tanks especially) for
+   *     doing exactly what their kit is for. A "kill" via counter (the
+   *     defender's counter-hit is what actually downs the original
+   *     hostile attacker) counts the same as a kill via a direct attack.
+   *
+   * Only ever credits player pilots (creditDamage/creditKill no-op on an
+   * undefined pilotId) — hostile mechs and Bloom have none, so this never
+   * needs a side check of its own; the pilotId lookup already does it.
+   */
+  private recordPerformance(attacker: BattleUnit, defender: BattleUnit, outcome: AttackOutcome): void {
+    this.creditDamage(attacker.pilotId, outcome.damage);
+    if (outcome.defenderDowned && defender.side === "hostile") this.creditKill(attacker.pilotId);
+
+    if (outcome.countered && outcome.counterDamage) {
+      this.creditDamage(defender.pilotId, outcome.counterDamage);
+      if (outcome.attackerDowned && attacker.side === "hostile") this.creditKill(defender.pilotId);
+    }
+  }
+
+  private creditDamage(pilotId: string | undefined, amount: number): void {
+    if (!pilotId || amount <= 0) return;
+    const perf = this.unitPerformance[pilotId];
+    if (perf) perf.damageDealt += amount;
+  }
+
+  private creditKill(pilotId: string | undefined): void {
+    if (!pilotId) return;
+    const perf = this.unitPerformance[pilotId];
+    if (perf) perf.kills += 1;
   }
 
   /**
@@ -368,6 +454,33 @@ export class Mission {
 
   private handleDowned(unit: BattleUnit): void {
     this.log.push(`${unit.displayName} is downed.`);
+
+    // Rule 1 (engine/campaignState.ts): evaluated live, right here, at the
+    // exact moment of downing — not deferred to mission end, because the
+    // set of "living Munti on this side" can change turn to turn within
+    // the same mission (a Fabricator redeploy could put one back on the
+    // board; a Munti downed later removes one). Only player-side pilots
+    // are campaign-tracked; hostile mechs/Bloom are no-ops inside the
+    // check itself, but skipped here too so this never runs on every
+    // Bloom kill for nothing.
+    if (unit.side === "player" && unit.pilotId) {
+      // Campaign economy pass: survivalBonus tracking. This method is the
+      // one place a player unit's `.downed` flag ever flips true (see
+      // this method's own call sites), so it's also the single correct
+      // place to latch "was this pilot ever downed this mission" —
+      // latched, not reset, even though a future Fabricator mid-mission
+      // redeploy (not built) could put the unit back on the board:
+      // survivalBonus means "never downed," not "never downed and still
+      // down."
+      const perf = this.unitPerformance[unit.pilotId];
+      if (perf) perf.wasDowned = true;
+
+      const sameSide = this.units.filter((u) => u.side === unit.side);
+      const check = evaluatePermadeathCheck(unit, sameSide);
+      this.log.push(`Permadeath check — ${unit.displayName}: ${check.reason}`);
+      if (check.permanent) this.permanentLosses.push({ pilotId: unit.pilotId, reason: check.reason });
+    }
+
     const fired = evaluateUnitDowned(this.mission.events, unit.instanceId, this.turn, this.eventState);
     for (const ev of fired) this.applyEventAction(ev.action);
   }

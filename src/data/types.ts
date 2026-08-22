@@ -62,6 +62,14 @@ export interface PilotRecord {
   archetypeId: string;
   mekId: string;
   tier: Tier;
+  // Permadeath exemption (engine/campaignState.ts's live Munti-presence
+  // check, Amaranth Reckoning campaign doc / Spitball Ideas, 22 Aug 2026):
+  // "the only character that is safe is the mc." Optional and false/absent
+  // for every pilot except pilot_rourke (data/campaignAmaranth.ts) — kept
+  // as an explicit, data-driven field rather than a hardcoded id check
+  // buried in logic, per that pass's own instructions. Not read anywhere
+  // outside the permadeath check.
+  exemptFromPermadeath?: boolean;
 }
 
 export interface MekArchetype {
