@@ -21,7 +21,14 @@ export function intelligenceOf(unit: BattleUnit): IntelligenceTier {
   return BLOOM[unit.archetypeId]?.intelligence ?? "reflexive";
 }
 
-function livingTargets(units: BattleUnit[], side: BattleUnit["side"]): BattleUnit[] {
+// livingTargets/occupiedSet/estimateDamage/bestAttackTargetInRange/moveToward/
+// reachableWithinRangeTile are exported (in addition to being used inside
+// this file) so src/sim/testPlayerAi.ts — a testing-only stand-in for a
+// human player, NOT part of decideHostileAction's tier logic — can reuse
+// the same damage math and pathfinding instead of forking it. Nothing here
+// changes for the real hostile AI; this is purely making the building
+// blocks reusable.
+export function livingTargets(units: BattleUnit[], side: BattleUnit["side"]): BattleUnit[] {
   return units.filter((u) => u.side === side && !u.downed);
 }
 
@@ -66,14 +73,14 @@ function packAllies(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
   );
 }
 
-function occupiedSet(units: BattleUnit[], exclude: string): Set<string> {
+export function occupiedSet(units: BattleUnit[], exclude: string): Set<string> {
   const s = new Set<string>();
   for (const u of units) if (!u.downed && u.instanceId !== exclude) s.add(coordKey(u.pos));
   return s;
 }
 
 /** Estimate prospective damage this unit would deal to `target` from `attackFrom`, for target-picking only — does not mutate state. */
-function estimateDamage(map: MapDefinition, unit: BattleUnit, target: BattleUnit, allUnits: BattleUnit[]): number {
+export function estimateDamage(map: MapDefinition, unit: BattleUnit, target: BattleUnit, allUnits: BattleUnit[]): number {
   const sameSide = allUnits.filter((u) => u.side === unit.side);
   const targetSameSide = allUnits.filter((u) => u.side === target.side);
   if (unit.kind === "bloom") {
@@ -85,7 +92,7 @@ function estimateDamage(map: MapDefinition, unit: BattleUnit, target: BattleUnit
   return resolveMechAttack(map, unit, target, targetSameSide, sameSide, false).damage;
 }
 
-function bestAttackTargetInRange(map: MapDefinition, unit: BattleUnit, from: Coord, targets: BattleUnit[], allUnits: BattleUnit[]): BattleUnit | undefined {
+export function bestAttackTargetInRange(map: MapDefinition, unit: BattleUnit, from: Coord, targets: BattleUnit[], allUnits: BattleUnit[]): BattleUnit | undefined {
   const [minR, maxR] = unit.attackRange;
   const inRange = targets.filter((t) => {
     const d = chebyshevDistance(from, t.pos);
@@ -108,7 +115,7 @@ function bestAttackTargetInRange(map: MapDefinition, unit: BattleUnit, from: Coo
   return best;
 }
 
-function moveToward(map: MapDefinition, unit: BattleUnit, target: Coord, allUnits: BattleUnit[]): Coord[] {
+export function moveToward(map: MapDefinition, unit: BattleUnit, target: Coord, allUnits: BattleUnit[]): Coord[] {
   const kind = chassisToMovementKind(unit.chassis ?? "bipedal", unit.kind === "bloom" ? false : false);
   const flying = unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane";
   const movementKind = flying ? "flying" : kind;
@@ -126,7 +133,7 @@ function moveToward(map: MapDefinition, unit: BattleUnit, target: Coord, allUnit
   return reconstructPath(reachable, bestTile);
 }
 
-function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, target: Coord, allUnits: BattleUnit[]): Coord[] | null {
+export function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, target: Coord, allUnits: BattleUnit[]): Coord[] | null {
   const flying = unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane";
   const movementKind = flying ? "flying" : chassisToMovementKind(unit.chassis ?? "bipedal", false);
   const reachable = reachableTiles(map, unit.pos, unit.moveRange, movementKind, occupiedSet(allUnits, unit.instanceId));
