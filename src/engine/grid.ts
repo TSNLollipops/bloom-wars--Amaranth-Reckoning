@@ -93,6 +93,22 @@ export function reachableTiles(
   return best;
 }
 
+/**
+ * True path-cost from `origin` to every tile it can reach, walls-aware but
+ * NOT bounded by a single turn's movement budget and NOT blocked by where
+ * units currently stand (a "distance field" — the AI-movement analogue of
+ * a roguelike Dijkstra map). Used by moveToward() below so multi-turn
+ * routing around an obstacle can be compared against what's reachable
+ * *this* turn, instead of only straight-line Chebyshev distance to the
+ * goal, which has no notion of "the wall in between."
+ */
+export function distanceField(map: MapDefinition, origin: Coord, kind: MovementKind): Map<string, number> {
+  const flood = reachableTiles(map, origin, Infinity, kind, new Set());
+  const out = new Map<string, number>();
+  for (const [key, entry] of flood) out.set(key, entry.cost);
+  return out;
+}
+
 export function reconstructPath(
   reachable: Map<string, { cost: number; cameFrom: Coord | null }>,
   target: Coord

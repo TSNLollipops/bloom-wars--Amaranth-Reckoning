@@ -15,7 +15,7 @@
 // decision the test player AI made this run as JSON — useful for eyeballing
 // *why* a run went the way it did, and per Maxime, a starting point if any
 // of this gets reused for multiplayer-map bot opponents later.
-import { MISSIONS_BY_ID } from "../data/campaign";
+import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission } from "../engine/mission";
 import { decideTestPlayerAction, resetTestAiLog, testAiLog, type TestAiReason } from "./testPlayerAi";
 import { writeFileSync } from "node:fs";

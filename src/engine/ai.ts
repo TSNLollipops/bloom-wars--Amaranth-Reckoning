@@ -6,7 +6,7 @@
 import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
 import { BLOOM, SPLITFANG_PACK_RADIUS } from "../data/bloom";
-import { chebyshevDistance, chassisToMovementKind, reachableTiles, reconstructPath, coordKey, isStraightLineCharge } from "./grid";
+import { chebyshevDistance, chassisToMovementKind, reachableTiles, reconstructPath, coordKey, isStraightLineCharge, distanceField } from "./grid";
 import { resolveMechAttack, resolveAttackOnBloom, bloomDamage } from "./combat";
 
 export interface AiDecision {
@@ -120,13 +120,25 @@ export function moveToward(map: MapDefinition, unit: BattleUnit, target: Coord, 
   const flying = unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane";
   const movementKind = flying ? "flying" : kind;
   const reachable = reachableTiles(map, unit.pos, unit.moveRange, movementKind, occupiedSet(allUnits, unit.instanceId));
+
+  // Rank this turn's reachable tiles by TRUE walls-aware path-distance to
+  // the target, not straight-line Chebyshev distance (Maxime, 22 Aug 2026
+  // — "in mission 2 the bloom dont come at us"). A single-doorway room
+  // means the correct first step is often AWAY from the target in
+  // straight-line terms (go around to the door); the old straight-line
+  // tie-break never found a this-turn tile that beat standing still in
+  // that case, so hostiles froze at the outside wall forever. The field
+  // is computed from the target's side, so its value at each candidate
+  // tile is that tile's real route-length home, chokepoints included.
+  const field = distanceField(map, target, movementKind);
   let bestTile: Coord = unit.pos;
-  let bestDist = chebyshevDistance(unit.pos, target);
+  let bestDist = field.get(coordKey(unit.pos)) ?? chebyshevDistance(unit.pos, target);
   for (const key of reachable.keys()) {
-    const [x, y] = key.split(",").map(Number);
-    const d = chebyshevDistance({ x, y }, target);
+    const d = field.get(key);
+    if (d === undefined) continue; // not reachable from the target's side at all (sealed pocket) — ignore
     if (d < bestDist) {
       bestDist = d;
+      const [x, y] = key.split(",").map(Number);
       bestTile = { x, y };
     }
   }

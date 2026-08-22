@@ -3,7 +3,8 @@
 // worked example, order of application: base -> tier -> mek).
 import type { Coord, Path } from "../data/types";
 import { UNIT_ARCHETYPES, HOSTILE_MECHS } from "../data/units";
-import { PILOTS, MEKS, MEK_TRACK_EFFECTS } from "../data/meks";
+import { MEK_TRACK_EFFECTS } from "../data/meks";
+import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
 import { TIERS, MAX_ACTIONS_PER_TURN } from "../data/combatTables";
 
@@ -68,7 +69,7 @@ export interface BattleUnit {
 }
 
 function mekStatBonus(mekId: string): { attack: number; defense: number; hp: number; vision: number } {
-  const mek = MEKS[mekId] ?? ROSTER_DEPTH_MEK_LOOKUP(mekId);
+  const mek = findMek(mekId);
   if (!mek) return { attack: 0, defense: 0, hp: 0, vision: 0 };
   const out = { attack: 0, defense: 0, hp: 0, vision: 0 };
   const apply = (track: string, isPrimary: boolean) => {
@@ -86,13 +87,6 @@ function mekStatBonus(mekId: string): { attack: number; defense: number; hp: num
   return out;
 }
 
-// Roster-depth meks (Team Two / bench, Canon Pass §H) aren't wired into any
-// mission yet, but keep the lookup honest if something references them.
-import { ROSTER_DEPTH_MEKS } from "../data/meks";
-function ROSTER_DEPTH_MEK_LOOKUP(id: string) {
-  return ROSTER_DEPTH_MEKS[id];
-}
-
 let instanceCounter = 0;
 function nextInstanceId(prefix: string): string {
   instanceCounter += 1;
@@ -100,7 +94,7 @@ function nextInstanceId(prefix: string): string {
 }
 
 export function createPlayerUnit(pilotId: string, pos: Coord): BattleUnit {
-  const pilot = PILOTS.find((p) => p.id === pilotId);
+  const pilot = findPilot(pilotId);
   if (!pilot) throw new Error(`Unknown pilot id: ${pilotId}`);
   const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
   if (!archetype) throw new Error(`Unknown archetype id: ${pilot.archetypeId}`);

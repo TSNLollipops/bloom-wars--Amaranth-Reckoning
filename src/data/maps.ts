@@ -11,7 +11,7 @@
 // coordinate can be wrong.
 import type { MapDefinition, TileType, Coord } from "./types";
 
-function deriveZones(tiles: TileType[][]) {
+export function deriveZones(tiles: TileType[][]) {
   const player: Coord[] = [];
   const enemy: Coord[] = [];
   const exitTiles: Coord[] = [];
@@ -28,7 +28,10 @@ function deriveZones(tiles: TileType[][]) {
   return { player, enemy, exitTiles, holdZone };
 }
 
-function makeMap(id: string, name: string, width: number, height: number, tiles: TileType[][]): MapDefinition {
+// Exported so a second maps file (data/mapsAmaranth.ts) doesn't fork this
+// logic — "exactly one place a coordinate can be wrong" applies just as
+// much across files as within one.
+export function makeMap(id: string, name: string, width: number, height: number, tiles: TileType[][]): MapDefinition {
   const zones = deriveZones(tiles);
   return {
     id,

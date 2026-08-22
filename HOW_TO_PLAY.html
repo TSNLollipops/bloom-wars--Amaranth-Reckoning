@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warden Company Field Manual</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Text:wght@700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#0c0f12;
+    --surface:#12171c;
+    --surface-2:#171d24;
+    --border:#2a323b;
+    --border-soft:#20262d;
+    --text:#d7dde3;
+    --text-muted:#8a97a6;
+    --text-faint:#5c6773;
+    --accent:#e0b23c;
+    --accent-dim:#e0b23c26;
+    --go:#4ade80;
+    --danger:#ef4444;
+    --info:#22d3ee;
+    --hp-mid:#facc15;
+    --shield:#38bdf8;
+    --endurance:#60a5fa;
+    --vitality:#f87171;
+    --font-display:"Big Shoulders Stencil Text", "Arial Narrow", sans-serif;
+    --font-mono:"JetBrains Mono", ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ background:var(--bg); }
+  @media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
+
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, #ffffff05 39px, #ffffff05 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, #ffffff05 39px, #ffffff05 40px),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:15px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{ color:var(--accent); }
+  a:focus-visible, button:focus-visible, .navlink:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+
+  .page{
+    max-width:880px;
+    margin:0 auto;
+    padding:0 24px 96px;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    padding:56px 0 28px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:8px;
+  }
+  .masthead .stamp{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    border:1px solid var(--accent-dim);
+    background:var(--accent-dim);
+    padding:5px 10px;
+    border-radius:2px;
+    margin-bottom:22px;
+  }
+  .masthead .stamp::before{ content:"◆"; font-size:9px; }
+  .masthead h1{
+    font-family:var(--font-display);
+    font-weight:800;
+    font-size:clamp(40px, 8vw, 68px);
+    letter-spacing:.02em;
+    line-height:.95;
+    margin:0 0 10px;
+    text-wrap:balance;
+    color:var(--text);
+  }
+  .masthead h1 span{ color:var(--accent); }
+  .masthead p{
+    margin:0;
+    color:var(--text-muted);
+    font-size:14px;
+    max-width:60ch;
+  }
+  .masthead .meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 18px;
+    margin-top:20px;
+    font-size:12px;
+    color:var(--text-faint);
+    letter-spacing:.03em;
+  }
+  .masthead .meta b{ color:var(--text-muted); font-weight:600; }
+
+  /* ---------- sticky nav ---------- */
+  .quicknav{
+    position:sticky;
+    top:0;
+    z-index:20;
+    background:#0c0f12ee;
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--border);
+    margin:0 0 8px;
+  }
+  .quicknav-inner{
+    max-width:880px;
+    margin:0 auto;
+    padding:0 24px;
+    display:flex;
+    gap:2px;
+    overflow-x:auto;
+    scrollbar-width:thin;
+  }
+  .navlink{
+    flex:none;
+    padding:12px 12px;
+    font-size:11.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    text-decoration:none;
+    border-bottom:2px solid transparent;
+    white-space:nowrap;
+    transition:color .12s ease, border-color .12s ease;
+  }
+  .navlink:hover{ color:var(--text); border-color:var(--border); }
+
+  /* ---------- section chrome ---------- */
+  section{
+    padding:52px 0 8px;
+    border-top:1px solid var(--border-soft);
+    scroll-margin-top:52px;
+  }
+  section:first-of-type{ border-top:none; }
+  .sec-label{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    margin-bottom:6px;
+  }
+  .sec-num{
+    font-size:12px;
+    color:var(--accent);
+    letter-spacing:.08em;
+    font-weight:700;
+  }
+  .sec-label h2{
+    font-size:22px;
+    letter-spacing:.01em;
+    margin:0;
+    color:var(--text);
+    font-weight:700;
+  }
+  .sec-dek{
+    color:var(--text-muted);
+    font-size:13.5px;
+    max-width:66ch;
+    margin:0 0 26px;
+  }
+
+  /* ---------- shared bits ---------- */
+  .grid{
+    display:grid;
+    gap:10px;
+  }
+  .cards-3{ grid-template-columns:repeat(3, 1fr); }
+  .cards-2{ grid-template-columns:repeat(2, 1fr); }
+  @media (max-width:640px){
+    .cards-3, .cards-2{ grid-template-columns:1fr; }
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:3px;
+    padding:14px 16px;
+  }
+  .card h3{
+    margin:0 0 6px;
+    font-size:13.5px;
+    color:var(--text);
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card p{ margin:0; color:var(--text-muted); font-size:12.5px; }
+  .card .fine{ margin-top:6px; color:var(--text-faint); font-size:11.5px; }
+
+  code, kbd{
+    font-family:var(--font-mono);
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:1px 6px;
+    border-radius:2px;
+    font-size:.92em;
+    color:var(--text);
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    font-variant-numeric:tabular-nums;
+  }
+  caption{ text-align:left; color:var(--text-faint); font-size:11px; margin-bottom:6px; }
+  th, td{
+    text-align:left;
+    padding:8px 10px;
+    border-bottom:1px solid var(--border-soft);
+    vertical-align:top;
+  }
+  th{
+    color:var(--text-faint);
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    font-size:10.5px;
+  }
+  tbody tr:hover{ background:var(--surface); }
+  .table-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:3px; }
+  .table-wrap table{ min-width:560px; }
+  .table-wrap th, .table-wrap td{ border-bottom:1px solid var(--border); }
+  .table-wrap thead tr{ background:var(--surface-2); }
+
+  .swatch{
+    width:22px; height:22px; border-radius:2px;
+    border:1px solid #ffffff22;
+    flex:none;
+  }
+
+  /* ---------- Sec 01: controls ---------- */
+  .control-row{
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    padding:12px 0;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .control-row:last-child{ border-bottom:none; }
+  .control-key{
+    flex:none;
+    width:96px;
+    font-size:11px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--accent);
+    padding-top:2px;
+  }
+  .control-desc{ color:var(--text-muted); font-size:13px; }
+  .control-desc b{ color:var(--text); font-weight:600; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+    padding:2px 8px; border-radius:10px; font-weight:600;
+  }
+  .chip-go{ background:#4ade8022; color:var(--go); }
+  .chip-danger{ background:#ef444422; color:var(--danger); }
+  .chip-info{ background:#22d3ee22; color:var(--info); }
+
+  /* ---------- Sec 02: units ---------- */
+  .unit-card{ display:flex; gap:12px; align-items:center; }
+  .unit-icon{ flex:none; width:38px; height:38px; }
+
+  /* ---------- Sec 04: bars ---------- */
+  .bar-demo{ margin-top:8px; }
+  .bar-track{ height:6px; background:#1c2229; border-radius:3px; overflow:hidden; margin-bottom:3px; }
+  .bar-fill{ height:100%; }
+  .bar-label{ font-size:10.5px; color:var(--text-faint); display:flex; justify-content:space-between; }
+
+  /* ---------- Sec 05: triangle ---------- */
+  .matrix{ font-size:12px; }
+  .matrix td, .matrix th{ text-align:center; }
+  .matrix td:first-child, .matrix th:first-child{ text-align:left; }
+  .matrix .self{ color:var(--text-faint); }
+  .matrix .high{ color:var(--go); font-weight:700; }
+
+  /* ---------- Sec 09: missions ---------- */
+  .mission-card{ padding:16px 18px; }
+  .mission-card .tag-row{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 10px; }
+  .tag{
+    font-size:10.5px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-faint); border:1px solid var(--border); border-radius:10px;
+    padding:2px 9px;
+  }
+  .mission-card .tip{
+    margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);
+    color:var(--text); font-size:12.5px;
+  }
+  .mission-card .tip b{ color:var(--accent); }
+
+  footer{
+    margin-top:64px;
+    padding-top:24px;
+    border-top:1px solid var(--border);
+    color:var(--text-faint);
+    font-size:11.5px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="masthead" id="top">
+    <span class="stamp">Unclassified — Warden Co. internal use</span>
+    <h1>THE BLOOM WARS<br><span>FIELD MANUAL</span></h1>
+    <p>Quick reference for Warden Company's front — <em>The Amaranth Reckoning</em>, Act I: The Fallow Line. Keep it open in a second tab while you play; nothing here is spoiler content, just the rules the game doesn't explain out loud.</p>
+    <div class="meta">
+      <span><b>Build:</b> Amaranth Act I, missions 1&ndash;4</span>
+      <span><b>Engine:</b> placeholder-geometry pass, no sprites yet</span>
+      <span><b>Updated:</b> 22 Aug 2026</span>
+    </div>
+  </div>
+
+  <nav class="quicknav" aria-label="Section jump links">
+    <div class="quicknav-inner">
+      <a class="navlink" href="#controls">01 Controls</a>
+      <a class="navlink" href="#units">02 Board</a>
+      <a class="navlink" href="#tiles">03 Terrain</a>
+      <a class="navlink" href="#bars">04 Health</a>
+      <a class="navlink" href="#triangle">05 Triangle</a>
+      <a class="navlink" href="#abilities">06 Abilities</a>
+      <a class="navlink" href="#objectives">07 Objectives</a>
+      <a class="navlink" href="#roster">08 Roster</a>
+      <a class="navlink" href="#missions">09 Missions</a>
+    </div>
+  </nav>
+
+  <!-- ============ 01 CONTROLS ============ -->
+  <section id="controls">
+    <div class="sec-label"><span class="sec-num">SEC. 01</span><h2>Controls</h2></div>
+    <p class="sec-dek">Everything happens by clicking the board. There's no drag, no hotkeys, no right-click menu.</p>
+
+    <div class="control-row">
+      <div class="control-key">Click a unit</div>
+      <div class="control-desc">Selects it. The board lights up around it: <span class="chip chip-go">green</span> tiles it can move to, <span class="chip chip-danger">red</span> enemies it can hit from where it's standing, <span class="chip chip-info">cyan</span> allies a Munti can Repair instead of attacking.</div>
+    </div>
+    <div class="control-row">
+      <div class="control-key">Click green</div>
+      <div class="control-desc">Moves there. Costs <b>1 action</b>, does not end your turn — the unit stays selected and its options recompute, so you can move again or still act.</div>
+    </div>
+    <div class="control-row">
+      <div class="control-key">Click red</div>
+      <div class="control-desc">Attacks. Costs <b>every action the unit has left</b> and ends its turn immediately, no matter how many actions were still in the bank.</div>
+    </div>
+    <div class="control-row">
+      <div class="control-key">Click cyan</div>
+      <div class="control-desc">Munti only — heals that ally instead of attacking. Costs 1 action, does not end the turn (so a Munti with two actions free can heal two different allies in one turn).</div>
+    </div>
+    <div class="control-row">
+      <div class="control-key">End Turn</div>
+      <div class="control-desc">Bottom-right button. Resolves the hostile AI's whole turn, then the environment step (acid tiles, deploy-pad healing, shield/regen ticks), then hands the turn back to you.</div>
+    </div>
+    <div class="control-row">
+      <div class="control-key">&lt; mission select</div>
+      <div class="control-desc">Top-right, bails out to the mission list at any time — nothing is saved mid-mission, so this is a hard restart of the current fight.</div>
+    </div>
+    <div class="control-row">
+      <div class="control-key">Campaign tabs</div>
+      <div class="control-desc">The mission-select screen has two tabs: <b>Team One</b> (the original 4-mission engine test) and <b>Amaranth Act I</b> (this manual). They're independent — different roster, different maps, same rules.</div>
+    </div>
+  </section>
+
+  <!-- ============ 02 READING THE BOARD ============ -->
+  <section id="units">
+    <div class="sec-label"><span class="sec-num">SEC. 02</span><h2>Reading the board</h2></div>
+    <p class="sec-dek">No sprites yet — every unit is a shape. Shape says class, fill colour says side, outline says chassis.</p>
+
+    <div class="grid cards-2">
+      <div class="card unit-card">
+        <svg class="unit-icon" viewBox="0 0 40 40"><polygon points="20,7 33,31 7,31" fill="#2e5c7a" stroke="#fff" stroke-width="1.5"/></svg>
+        <div><h3>Triangle — Meeps</h3><p>Melee brawler. Dodges 40% of any hit it takes (house rule).</p></div>
+      </div>
+      <div class="card unit-card">
+        <svg class="unit-icon" viewBox="0 0 40 40"><rect x="8" y="8" width="24" height="24" fill="#2e5c7a" stroke="#fff" stroke-width="1.5"/></svg>
+        <div><h3>Square — Tank</h3><p>Melee, high HP, projects a shield aura onto anyone standing next to it.</p></div>
+      </div>
+      <div class="card unit-card">
+        <svg class="unit-icon" viewBox="0 0 40 40"><polygon points="20,6 34,20 20,34 6,20" fill="#2e5c7a" stroke="#fff" stroke-width="1.5"/></svg>
+        <div><h3>Diamond — Reeps</h3><p>Ranged (2&ndash;4 tiles), never counterattacked. Gets +1 range standing on a ridge.</p></div>
+      </div>
+      <div class="card unit-card">
+        <svg class="unit-icon" viewBox="0 0 40 40"><circle cx="20" cy="20" r="13" fill="#2e5c7a" stroke="#fff" stroke-width="1.5"/><line x1="9" y1="20" x2="31" y2="20" stroke="#fff" stroke-width="2"/></svg>
+        <div><h3>Circle with bar — Munti</h3><p>Support. Weak in a fight; keeps everyone else alive instead.</p></div>
+      </div>
+    </div>
+
+    <div class="grid cards-3" style="margin-top:10px;">
+      <div class="card">
+        <h3><span class="swatch" style="background:#2e5c7a;display:inline-block;"></span> Blue fill</h3>
+        <p>One of yours &mdash; Warden Company.</p>
+      </div>
+      <div class="card">
+        <h3><span class="swatch" style="background:#7a6a55;display:inline-block;"></span> Tan fill</h3>
+        <p>A hostile mech. The game never names these &mdash; that's deliberate, not a bug.</p>
+      </div>
+      <div class="card">
+        <h3><span class="swatch" style="background:#7a2430;display:inline-block;border-radius:50%;"></span> Coloured blob</h3>
+        <p>A Bloom creature &mdash; a plain circle, faded/translucent while burrowed.</p>
+      </div>
+    </div>
+    <div class="fine" style="margin-top:14px;color:var(--text-faint);font-size:12px;">
+      Thick white outline = centauroid chassis (can Charge). Thin outline = bipedal/vibrissal. Dimmed to ~half-opacity = that unit has already used its actions this turn.
+    </div>
+  </section>
+
+  <!-- ============ 03 TERRAIN ============ -->
+  <section id="tiles">
+    <div class="sec-label"><span class="sec-num">SEC. 03</span><h2>Terrain</h2></div>
+    <p class="sec-dek">Tile colour on the board is the actual rules data, not decoration &mdash; every colour below is exactly what you'll see in-mission.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Tile</th><th>Move cost</th><th>Cover</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><span class="swatch" style="background:#3a4636;"></span></td><td>Plain</td><td>1</td><td>&mdash;</td><td>Open ground, no penalty or bonus.</td></tr>
+          <tr><td><span class="swatch" style="background:#5a5a5a;"></span></td><td>Road</td><td>1</td><td>&mdash;</td><td>Fast, but zero defence &mdash; you're exposed on it.</td></tr>
+          <tr><td><span class="swatch" style="background:#455233;"></span></td><td>Scrub</td><td>1</td><td>&mdash;</td><td>Open ground, no cover.</td></tr>
+          <tr><td><span class="swatch" style="background:#8a7a5f;"></span></td><td>Rubble</td><td>2 (3 centauroid)</td><td>++</td><td>Slows everyone, centauroids worst. Decent cover for the trouble.</td></tr>
+          <tr><td><span class="swatch" style="background:#55606b;"></span></td><td>Structure</td><td>1 (2 centauroid)</td><td>+++</td><td>Best cover short of a ridge; centauroid chassis pay extra to enter.</td></tr>
+          <tr><td><span class="swatch" style="background:#4a2e3a;"></span></td><td>Bloom mat</td><td>2</td><td>+</td><td><b style="color:var(--danger)">5 damage every turn</b> you end your move standing on it.</td></tr>
+          <tr><td><span class="swatch" style="background:#6a5a4a;"></span></td><td>Ridge</td><td>2 (3 centauroid)</td><td>++++</td><td>Best cover in the game. Reeps get +1 attack range from here.</td></tr>
+          <tr><td><span class="swatch" style="background:#2a4a5a;"></span></td><td>Sump (water)</td><td>&infin;</td><td>&mdash;</td><td>Impassable to everyone but flyers.</td></tr>
+          <tr><td><span class="swatch" style="background:#2e5c7a;"></span></td><td>Deploy pad</td><td>1</td><td>+</td><td>Your landing zone &mdash; <b style="color:var(--go)">heals 20 HP</b> a turn if you're standing on one.</td></tr>
+          <tr><td><span class="swatch" style="background:#7a2430;"></span></td><td>Spawn seam</td><td>1</td><td>&mdash;</td><td>Where hostiles enter the map. Yours to avoid loitering near.</td></tr>
+          <tr><td><span class="swatch" style="background:#3d8a4a;"></span></td><td>Exit</td><td>1</td><td>+</td><td>Extraction tile &mdash; the win condition on an <code>extract_unit</code> mission.</td></tr>
+          <tr><td><span class="swatch" style="background:#8a7a2a;"></span></td><td>Hold zone</td><td>1</td><td>++</td><td>The ground you're defending on a <code>hold_zone</code> mission.</td></tr>
+          <tr><td><span class="swatch" style="background:#151515;"></span></td><td>Wall</td><td>&infin;</td><td>&mdash;</td><td>Solid. Nothing gets through it, flyers included.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 04 HEALTH / SHIELD / COLLAPSE ============ -->
+  <section id="bars">
+    <div class="sec-label"><span class="sec-num">SEC. 04</span><h2>Health, shield &amp; Collapse</h2></div>
+    <p class="sec-dek">Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.</p>
+
+    <div class="grid cards-2">
+      <div class="card">
+        <h3>Your units &amp; hostile mechs</h3>
+        <div class="bar-demo">
+          <div class="bar-label"><span>HP</span><span>green &gt; 50% &middot; yellow 25&ndash;50% &middot; red &lt; 25%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:62%;background:var(--go);"></div></div>
+        </div>
+        <p class="fine">A blue line above the HP bar means the unit is currently inside an active Tank's shield radius &mdash; see Sec. 06.</p>
+      </div>
+      <div class="card">
+        <h3>Bloom creatures</h3>
+        <div class="bar-demo">
+          <div class="bar-label"><span>Endurance</span><span>drains first</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:45%;background:var(--endurance);"></div></div>
+          <div class="bar-label" style="margin-top:5px;"><span>Vitality</span><span>the real HP underneath</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:80%;background:var(--vitality);"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h3>How Collapse actually works (verified from the ruleset, not flavour text)</h3>
+      <p>A Bloom creature's <b style="color:var(--endurance)">Endurance</b> (top bar) soaks damage first, and overflow does <b>not</b> spill into Vitality &mdash; a single huge hit against high Endurance is partly wasted, so finishing blows beat overkill. While Endurance is still above zero, the creature also <b>hits softer as its shell wears down</b> &mdash; its own outgoing damage scales down with its remaining Endurance fraction.</p>
+      <p style="margin-top:8px;">Once Endurance hits zero, it enters <b style="color:var(--danger)">Collapse</b> (a pulsing red ring appears around it): any single hit worth at least its remaining <b style="color:var(--vitality)">Vitality</b> kills it outright &mdash; but its own attacks now land at <b>full power</b>, not weakened. A dying Bloom creature is not a safe one. Finish collapsed targets fast.</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 CLASS TRIANGLE ============ -->
+  <section id="triangle">
+    <div class="sec-label"><span class="sec-num">SEC. 05</span><h2>The class triangle</h2></div>
+    <p class="sec-dek">Meeps &gt; Reeps &gt; Tank &gt; Meeps. Munti sits outside the triangle entirely &mdash; it's not built to win fights.</p>
+
+    <div class="table-wrap">
+      <table class="matrix">
+        <caption>Base damage dealt, attacker (row) vs. defender (column) &mdash; before tier, terrain or ability modifiers</caption>
+        <thead><tr><th>Attacker &darr; / Defender &rarr;</th><th>Meeps</th><th>Tank</th><th>Reeps</th><th>Munti</th></tr></thead>
+        <tbody>
+          <tr><td>Meeps</td><td class="self">55</td><td>30</td><td class="high">75</td><td>70</td></tr>
+          <tr><td>Tank</td><td class="high">65</td><td class="self">40</td><td>50</td><td>60</td></tr>
+          <tr><td>Reeps</td><td>45</td><td class="high">70</td><td class="self">50</td><td>55</td></tr>
+          <tr><td>Munti</td><td>30</td><td>20</td><td>35</td><td class="self">30</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine" style="margin-top:10px;color:var(--text-faint);">The one rule that makes this triangle work: <b style="color:var(--text);">a Reeps firing from range never eats a counterattack.</b> That's the entire reason Reeps beats Tank despite the Tank's raw durability &mdash; keep your Reeps at range 2&ndash;4 and it's a one-way exchange.</p>
+  </section>
+
+  <!-- ============ 06 ABILITIES ============ -->
+  <section id="abilities">
+    <div class="sec-label"><span class="sec-num">SEC. 06</span><h2>Abilities &amp; house rules</h2></div>
+    <p class="sec-dek">A few of these aren't in the original design docs &mdash; added during Maxime's own playtesting. All of them are live in this build.</p>
+
+    <div class="grid cards-2">
+      <div class="card"><h3>Overshield <span class="tag">Tank, passive</span></h3><p>While an Overshield Tank is alive on the board, every <b>adjacent</b> ally gets +1 terrain defence star (10% less damage taken). Doesn't stack with a second Tank.</p></div>
+      <div class="card"><h3>Repair <span class="tag">Munti, active</span></h3><p>Instead of attacking: heal one adjacent ally 30 HP (38 if the Munti's mek runs Fieldwright as primary). Costs 1 action, doesn't end the turn.</p></div>
+      <div class="card"><h3>Charge <span class="tag">Centauroid, passive</span></h3><p>Move 3+ tiles in an unbroken straight line over cost-1 terrain, then attack at the end of it &rarr; <b style="color:var(--accent)">+25% damage</b>.</p></div>
+      <div class="card"><h3>Sensor Sweep <span class="tag">Vibrissal, passive</span></h3><p>On the sheet for vibrissal-chassis pilots (Cpl. Anand). Honest flag: burrow-reveal isn't wired up in this build yet &mdash; treat it as flavour for now, not a mechanical edge against Undertow.</p></div>
+      <div class="card"><h3>Meeps Dodge <span class="tag">house rule</span></h3><p><b style="color:var(--accent)">40% chance</b> to take zero damage from any single hit &mdash; as the target, and again on the counter-hit a Meeps eats after attacking something that counters back. Two independent rolls.</p></div>
+      <div class="card"><h3>Tank Shield <span class="tag">house rule</span></h3><p>Overshield also grants a real 20-point shield (absorbs before HP) to the Tank and every adjacent ally. Regens 8/turn only if that unit took zero damage since the last tick. Step outside the radius and shield drops to 0 immediately &mdash; it's borrowed, not owned.</p></div>
+      <div class="card"><h3>Munti Regen <span class="tag">house rule</span></h3><p>Every living Munti passively heals itself and same-side allies within 2 tiles for 8 HP/turn &mdash; free, stacks with active Repair, doesn't stack across multiple Muntis.</p></div>
+      <div class="card"><h3>2 Actions / Turn <span class="tag">house rule</span></h3><p>Move and Repair each cost 1 action and don't end your turn &mdash; chain two moves, two Repairs on different allies, or move-then-Repair. Attack always burns every remaining action, whichever slot it's used in.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 07 OBJECTIVES ============ -->
+  <section id="objectives">
+    <div class="sec-label"><span class="sec-num">SEC. 07</span><h2>Objectives</h2></div>
+    <p class="sec-dek">Three objective types across these four missions. Only one of them still has a hard clock.</p>
+
+    <div class="grid cards-3">
+      <div class="card">
+        <h3>eliminate_all</h3>
+        <p>Kill every hostile. <b style="color:var(--go)">No turn limit</b> &mdash; the turn count shown is a future bonus-scoring target, not a deadline. Only losing every one of your units ends the mission early.</p>
+      </div>
+      <div class="card">
+        <h3>hold_zone</h3>
+        <p>Get a unit onto the gold hold tiles and keep every hostile off them from the hold-turn on. <b style="color:var(--danger)">Real deadline</b> &mdash; and if hostiles control the zone unopposed past turn 2, that's an instant loss.</p>
+      </div>
+      <div class="card">
+        <h3>extract_unit</h3>
+        <p>Get the named unit onto a green exit tile before the turn limit. <b style="color:var(--danger)">Real deadline</b> &mdash; a deliberate rescue-mission clock, kept on purpose.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 ROSTER ============ -->
+  <section id="roster">
+    <div class="sec-label"><span class="sec-num">SEC. 08</span><h2>Warden Company roster</h2></div>
+    <p class="sec-dek">All five deploy on every Act I mission. All tier G, no Heirloom charge until much later in the act.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Callsign</th><th>Name</th><th>Path</th><th>Chassis</th><th>Mek track</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><b>Lark</b></td><td>2nd Lt. Dessa Rourke</td><td>Meeps</td><td>Human / bipedal</td><td>Runemaster</td><td>Squad lead. Aggressive, quick, still learning patience.</td></tr>
+          <tr><td><b>Anvil</b></td><td>M.Sgt. Halvard Bosk</td><td>Tank</td><td>Human / bipedal</td><td>Armorer</td><td>The mentor. Put him in the doorway.</td></tr>
+          <tr><td><b>Foxfire</b></td><td>Pvt. Tegan Iyari</td><td>Meeps</td><td>Hiopi / centauroid</td><td>Armorer</td><td>Second melee voice &mdash; can Charge.</td></tr>
+          <tr><td><b>Farsight</b></td><td>Cpl. Priya Anand</td><td>Reeps</td><td>Osnian / vibrissal</td><td>Runemaster</td><td>The squad's eyes. Keep her at range.</td></tr>
+          <tr><td><b>Patch</b></td><td>Spec. Corin Lask</td><td>Munti</td><td>Human / bipedal</td><td>Fieldwright</td><td>Keeps everyone standing. Protect him.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 09 MISSIONS ============ -->
+  <section id="missions">
+    <div class="sec-label"><span class="sec-num">SEC. 09</span><h2>Mission briefings — Act I</h2></div>
+    <p class="sec-dek">The four Amaranth missions currently in the build, with one tactical note each.</p>
+
+    <div class="grid" style="grid-template-columns:1fr;">
+      <div class="card mission-card">
+        <h3 style="font-size:15px;">I.1 &mdash; Muster</h3>
+        <div class="tag-row"><span class="tag">eliminate_all</span><span class="tag">6 Crawlmass</span><span class="tag">bonus by turn 8</span></div>
+        <p>First light on the Fallow Line. A tutorial fight, meant to be an easy clean win.</p>
+        <div class="tip"><b>Tip:</b> no clock to fail on &mdash; take your time, keep the squad together, let Bosk lead the way in.</div>
+      </div>
+      <div class="card mission-card">
+        <h3 style="font-size:15px;">I.2 &mdash; Wire and Mud</h3>
+        <div class="tag-row"><span class="tag">hold_zone</span><span class="tag">6 Splitfang, staggered</span><span class="tag">hold from turn 6, limit 10</span></div>
+        <p>Hold the forward listening post until the survey detail clears.</p>
+        <div class="tip"><b>Tip:</b> there is exactly one doorway into the hold room. Park Bosk in it &mdash; everyone else can spread out on the gold tiles behind him.</div>
+      </div>
+      <div class="card mission-card">
+        <h3 style="font-size:15px;">I.3 &mdash; The Low Ground</h3>
+        <div class="tag-row"><span class="tag">eliminate_all</span><span class="tag">8 Crawlmass + 2 Splitfang</span><span class="tag">bonus by turn 12</span></div>
+        <p>Bloom mat came up through the terraces overnight &mdash; a supply detail was caught crossing at first light.</p>
+        <div class="tip"><b>Tip:</b> the purple ground is bloom mat &mdash; 5 damage every turn you end a move on it (Sec. 03). Don't linger; kill and keep moving.</div>
+      </div>
+      <div class="card mission-card">
+        <h3 style="font-size:15px;">I.4 &mdash; Tunnel Rats</h3>
+        <div class="tag-row"><span class="tag">eliminate_all</span><span class="tag">3 burrowed Undertow + 4 Crawlmass</span><span class="tag">bonus by turn 12</span></div>
+        <p>First burrower contact on the Line.</p>
+        <div class="tip"><b>Tip:</b> burrowed units render faded but are already targetable at range &mdash; lead with Anand's Reeps (range 2&ndash;4, no counter) rather than walking a melee unit in blind.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Compiled from the live ruleset in <code>bloom-wars/</code>, 22 Aug 2026. Numbers here are pulled straight from <code>data/combatTables.ts</code>, <code>data/tiles.ts</code>, <code>data/abilities.ts</code> and <code>engine/combat.ts</code> &mdash; if a number in-game ever disagrees with this manual, the code is right and this file is stale.
+  </footer>
+
+</div>
+</body>
+</html>

@@ -142,6 +142,23 @@ hold the zone / extract a unit).
   a possible future company-scale/ship layer (see the project's
   `Bloom_Wars_Spitball_Ideas.md`), where a continuous energy budget suits a
   more freeform, less grid-locked kind of turn better.
+- **eliminate_all objectives: no turn-limit fail condition.** Maxime's call
+  (22 Aug 2026), after failing Amaranth Mission 1 ("Muster") on the clock
+  while playing carefully — "remove the clock on missions, give player
+  more freedom, xcom doesn't have clocks all the time."
+  `engine/mission.ts`'s `checkWinLoss` no longer fails an eliminate_all
+  mission for running past `objectiveParams.turnLimit`; the only way to
+  lose one now is every player unit going down. The field itself stays on
+  every eliminate_all mission and still shows in the HUD
+  (`scenes/Battle.ts`) — now as "bonus if clear by turn N" instead of
+  "Turn N / limit" — because the Amaranth design doc's points-economy
+  appendix (Appendix B) ties a future "finished under X turns" bonus to
+  this same number; dropping the field would throw that hook away along
+  with the deadline. `hold_zone` and `extract_unit` are deliberately
+  untouched — "hold until turn N" and "get out before turn N" are what
+  those objectives *are*, not an added pressure valve the way the clock
+  was for eliminate_all — the same split XCOM itself draws between its
+  untimed and timed mission types.
 
 ## Known simplifications, flagged rather than hidden
 

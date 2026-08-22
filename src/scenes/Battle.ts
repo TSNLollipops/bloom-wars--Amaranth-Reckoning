@@ -6,7 +6,7 @@
 // reflection of that engine state (Build Brief §5.2's load-bearing line).
 import Phaser from "phaser";
 import type { Coord, TileType } from "../data/types";
-import { MISSIONS_BY_ID } from "../data/campaign";
+import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission } from "../engine/mission";
 import type { BattleUnit } from "../engine/units";
 import { coordKey } from "../engine/grid";
@@ -310,14 +310,17 @@ export class Battle extends Phaser.Scene {
 
   private drawHud() {
     const m = this.mission;
-    const lines = [
-      m.mission.displayName,
-      `Turn ${m.turn} / ${m.mission.objectiveParams.turnLimit}  —  ${m.phase} phase`,
-      "",
-      m.mission.briefing,
-      "",
-      `Objective: ${m.mission.objective}`,
-    ];
+    // eliminate_all has no turn-limit fail condition any more (Maxime, 22
+    // Aug 2026 — see engine/mission.ts checkWinLoss) — the turn count is
+    // still shown, but as a bonus-scoring target, not a deadline, so it
+    // doesn't read like a clock the player can lose to. hold_zone and
+    // extract_unit still have a real deadline, so they keep the "/ limit"
+    // framing.
+    const turnLine =
+      m.mission.objective === "eliminate_all"
+        ? `Turn ${m.turn}  (bonus if clear by turn ${m.mission.objectiveParams.turnLimit})  —  ${m.phase} phase`
+        : `Turn ${m.turn} / ${m.mission.objectiveParams.turnLimit}  —  ${m.phase} phase`;
+    const lines = [m.mission.displayName, turnLine, "", m.mission.briefing, "", `Objective: ${m.mission.objective}`];
     if (this.selectedUnitId) {
       const selected = m.unitById(this.selectedUnitId);
       if (selected) lines.push("", `${selected.displayName}: ${selected.actionsRemaining} action(s) left`);

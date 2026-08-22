@@ -4,9 +4,10 @@
 // win/loss evaluation, and is the single surface both src/sim and the
 // Phaser Battle scene call into — so the rules only exist once.
 import type { CampaignMission, Coord, MapDefinition, TileType } from "../data/types";
-import { MAPS } from "../data/maps";
+import { ALL_MAPS as MAPS } from "../data/mapRegistry";
 import { createPlayerUnit, createHostileMechUnit, createBloomUnit, type BattleUnit } from "./units";
-import { PILOTS, MEKS, MEK_TRACK_EFFECTS } from "../data/meks";
+import { MEK_TRACK_EFFECTS } from "../data/meks";
+import { findPilot, findMek } from "../data/pilotRegistry";
 import {
   reachableTiles,
   reconstructPath,
@@ -70,8 +71,8 @@ export interface RepairOutcome {
 const REPAIR_BASE_HEAL = 30;
 function repairHealAmount(healer: BattleUnit): number {
   if (!healer.pilotId) return REPAIR_BASE_HEAL;
-  const pilot = PILOTS.find((p) => p.id === healer.pilotId);
-  const mek = pilot ? MEKS[pilot.mekId] : undefined;
+  const pilot = findPilot(healer.pilotId);
+  const mek = pilot ? findMek(pilot.mekId) : undefined;
   let mult = 1;
   if (mek?.primary === "fieldwright") mult = MEK_TRACK_EFFECTS.fieldwright.primary.muntiHealOutputMult;
   else if (mek?.secondary === "fieldwright") mult = MEK_TRACK_EFFECTS.fieldwright.secondary.muntiHealOutputMult;
@@ -521,12 +522,23 @@ export class Mission {
     }
 
     if (this.mission.objective === "eliminate_all") {
+      // House rule #5, NOT in the Data Pack: Maxime's call (22 Aug 2026),
+      // after failing Amaranth Mission 1 on the clock while playing
+      // carefully — "remove the clock on missions, give player more
+      // freedom, xcom doesn't have clocks all the time." eliminate_all no
+      // longer fails on turn count; the only way to lose is losing every
+      // unit (checked above). objectiveParams.turnLimit is kept on every
+      // eliminate_all mission and still shown in the HUD (scenes/Battle.ts)
+      // as a target, not a deadline — the Amaranth design doc's points-
+      // economy appendix ties a future "finished under X turns" bonus to
+      // this same number (Appendix B), so the field stays meaningful even
+      // though it no longer ends the mission. hold_zone and extract_unit
+      // are deliberately NOT touched here: turns are part of what those
+      // objectives *mean* ("hold until turn N", "get out before turn N"),
+      // not an arbitrary pressure valve layered on top the way it was for
+      // eliminate_all — the same distinction XCOM itself draws between its
+      // untimed and timed mission types.
       if (!hostileAlive.length) return this.finishWin();
-      if (this.turn > turnLimit) {
-        this.outcome = "loss";
-        this.log.push("Loss: turn limit reached.");
-        return true;
-      }
     } else if (this.mission.objective === "hold_zone") {
       const hold = this.map.holdZone ?? [];
       const holdKeys = new Set(hold.map(coordKey));
