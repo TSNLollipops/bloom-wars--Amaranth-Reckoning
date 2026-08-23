@@ -10,6 +10,7 @@ import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission, type DeployRosterEntry } from "../engine/mission";
 import type { BattleUnit } from "../engine/units";
 import { coordKey } from "../engine/grid";
+import { unitsVisibleToSide } from "../engine/ai";
 import { BLOOM } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { createWardenCampaignState, loadCampaignState } from "../engine/campaignState";
@@ -33,6 +34,54 @@ const TILE_COLORS: Record<TileType, number> = {
 const PLAYER_COLOR = 0x2e5c7a;
 const HOSTILE_MECH_COLOR = 0x7a6a55;
 
+// Highlight/tell colours for the ability-depth pass (23 Aug 2026). Each is
+// deliberately distinct from every colour already spoken for on this board:
+// green 0x4ade80 = reachable, red 0xef4444 = attackable, cyan 0x22d3ee =
+// repair target, amber 0xfbbf24 = overwatch brackets, red ring = collapsed
+// Bloom. Violet does double duty for the two things Sensor Sweep connects
+// (the sweep footprint, and being unseen/painted), which is the one place
+// sharing a hue is the point rather than a collision.
+const SWEEP_COLOR = 0xa855f7; // abil_sensor_sweep footprint + painted-contact ring
+const CONCEAL_COLOR = 0xc084fc; // abil_ambush / abil_screen — this unit is not seen
+const INTERDICT_COLOR = 0xfb923c; // abil_interdict kill-box
+const SCREEN_COLOR = 0xf472b6; // abil_screen coverage preview
+
+// Right-hand panel layout. The log occupies the band between the HUD block
+// and the contextual action bar; drawHud() budgets its lines against it.
+const HUD_TOP = 12;
+const LOG_TOP = 336;
+const LOG_BOTTOM = 505; // top edge of the action bar's upper row
+// Wrapped-line metrics for the 230px-wide panel: ~7.2px/char at 12px
+// monospace for the HUD, ~6px/char at 10px for the log.
+const HUD_LINE_H = 15;
+const HUD_CHARS_PER_LINE = 31;
+const LOG_LINE_H = 13;
+const LOG_CHARS_PER_LINE = 38;
+
+// The contextual action bar (ability-depth pass): a 2x2 grid of slots above
+// END TURN, filled per selected unit with only the verbs that unit's kit
+// actually contains. Four slots is headroom — the widest kit in the game is
+// three (a vibrissal Munti: OVERWATCH + SCREEN + SWEEP). Kept as a fixed
+// pool of Phaser objects rather than created/destroyed per selection, so
+// nothing leaks and render() stays a pure refresh.
+const ACTION_SLOTS: Coord[] = [
+  { x: 784, y: 524 },
+  { x: 886, y: 524 },
+  { x: 784, y: 560 },
+  { x: 886, y: 560 },
+];
+const ACTION_SLOT_W = 98;
+const ACTION_SLOT_H = 30;
+
+/** One entry in the contextual action bar. `usable` comes from the engine's own canX() predicate — this scene never re-derives one. */
+interface ActionOption {
+  label: string;
+  usable: boolean;
+  /** True when the verb ends the unit's turn (Overwatch/Ambush/Interdict), false when the unit keeps acting (Sweep/Screen). */
+  endsTurn: boolean;
+  run: () => void;
+}
+
 export class Battle extends Phaser.Scene {
   private mission!: Mission;
   private tileSize = 32;
@@ -46,6 +95,19 @@ export class Battle extends Phaser.Scene {
   private reachable: Coord[] = [];
   private attackable: BattleUnit[] = [];
   private repairable: BattleUnit[] = [];
+  // Ability-depth pass (23 Aug 2026): the three new highlight sets, each
+  // filled straight from the matching engine query and each empty whenever
+  // the selected unit can't use that verb right now — the greying rule and
+  // the highlight rule are therefore the same rule, asked once, in
+  // engine/mission.ts.
+  private sweepArea: Coord[] = [];
+  private interdictZone: Coord[] = [];
+  private screenable: BattleUnit[] = [];
+  // The contextual action bar's fixed slot pool, plus the options currently
+  // bound to them. Whether a slot is usable is Mission's call (canX()),
+  // never this scene's.
+  private actionSlots: { btn: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }[] = [];
+  private actionOptions: ActionOption[] = [];
 
   constructor() {
     super("Battle");
@@ -55,9 +117,7 @@ export class Battle extends Phaser.Scene {
     const missionDef = MISSIONS_BY_ID[data.missionId] ?? Object.values(MISSIONS_BY_ID)[0];
     this.mission = new Mission(missionDef, this.resolveDeployRoster(missionDef.playerPilotIds, data.selectedPilotIds));
     this.selectedUnitId = null;
-    this.reachable = [];
-    this.attackable = [];
-    this.repairable = [];
+    this.clearSelectionHighlights();
   }
 
   /**
@@ -100,7 +160,10 @@ export class Battle extends Phaser.Scene {
 
     this.gfx = this.add.graphics();
     this.hudText = this.add.text(720, 12, "", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", wordWrap: { width: 230 } });
-    this.logText = this.add.text(720, 300, "", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: 230 } });
+    // Log starts below the HUD block. Nudged down from 300 when overwatch
+    // added two more possible HUD lines — at 300 a selected overwatching
+    // unit's status wrote straight over the top of the log.
+    this.logText = this.add.text(720, LOG_TOP, "", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: 230 } });
 
     const endTurnBtn = this.add
       .rectangle(835, 600, 200, 32, 0x2e5c7a)
@@ -108,14 +171,33 @@ export class Battle extends Phaser.Scene {
       .on("pointerdown", () => {
         if (this.mission.outcome !== "ongoing") return;
         this.selectedUnitId = null;
-        this.reachable = [];
-        this.attackable = [];
-        this.repairable = [];
+        this.clearSelectionHighlights();
         this.mission.endPlayerTurn();
         this.render();
       });
     this.add.text(835, 600, "END TURN", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     endTurnBtn.setStrokeStyle(1, 0x4a7a9a);
+
+    // The contextual action bar. This replaced the single, always-present
+    // OVERWATCH button (47ab304) when the ability-depth pass took the verb
+    // count per unit from one to as many as three: a fixed row of every
+    // ability in the game would have been mostly dead buttons for every
+    // unit, so the bar is filled per selection from availableActions()
+    // below with only the verbs the selected unit's kit actually contains.
+    // Same visual language as the button it replaced — monospace label,
+    // centred, on a plain rectangle in the existing panel blue, greyed to
+    // the existing 0x1a2028/0x3a4552/#5a6572 when the engine says the verb
+    // isn't usable right now.
+    for (let i = 0; i < ACTION_SLOTS.length; i++) {
+      const p = ACTION_SLOTS[i];
+      const btn = this.add
+        .rectangle(p.x, p.y, ACTION_SLOT_W, ACTION_SLOT_H, 0x2e5c7a)
+        .setInteractive({ useHandCursor: true })
+        .on("pointerdown", () => this.runActionSlot(i));
+      btn.setStrokeStyle(1, 0x4a7a9a);
+      const label = this.add.text(p.x, p.y, "", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+      this.actionSlots.push({ btn, label });
+    }
 
     const backBtn = this.add
       .rectangle(835, 20, 200, 26, 0x1a2028)
@@ -151,9 +233,7 @@ export class Battle extends Phaser.Scene {
     if (this.selectedUnitId && unitHere && this.attackable.some((a) => a.instanceId === unitHere.instanceId)) {
       this.mission.attack(this.selectedUnitId, unitHere.instanceId);
       this.selectedUnitId = null;
-      this.reachable = [];
-      this.attackable = [];
-      this.repairable = [];
+      this.clearSelectionHighlights();
       this.render();
       return;
     }
@@ -183,39 +263,147 @@ export class Battle extends Phaser.Scene {
     // Selecting one of your own units.
     if (unitHere && unitHere.side === "player" && !unitHere.downed && unitHere.actionsRemaining > 0) {
       this.selectedUnitId = unitHere.instanceId;
-      this.reachable = this.mission.getReachableTiles(unitHere.instanceId);
-      this.attackable = this.mission.getAttackableFrom(unitHere.instanceId, unitHere.pos);
-      this.repairable = this.mission.getRepairableFrom(unitHere.instanceId, unitHere.pos);
+      this.recomputeSelectionHighlights(unitHere.instanceId);
       this.render();
       return;
     }
 
     // Clicked empty/irrelevant ground — deselect.
     this.selectedUnitId = null;
-    this.reachable = [];
-    this.attackable = [];
-    this.repairable = [];
+    this.clearSelectionHighlights();
     this.render();
   }
 
+  private clearSelectionHighlights() {
+    this.reachable = [];
+    this.attackable = [];
+    this.repairable = [];
+    this.sweepArea = [];
+    this.interdictZone = [];
+    this.screenable = [];
+  }
+
   /**
-   * After a Move or Repair (the two action-costing-but-turn-continuing
-   * actions), keep the unit selected and refresh its highlighted options if
-   * it still has an action left; otherwise deselect. Attack always empties
-   * actionsRemaining itself, so this only ever applies after Move/Repair.
+   * Every "what can this unit do from where it stands" highlight set, in
+   * one place. Each of the ability sets comes back empty from the engine
+   * unless that verb is usable right now, so this scene never needs to know
+   * a cooldown, an action cost, or a once-per-mission rule to decide what
+   * to draw.
+   */
+  private recomputeSelectionHighlights(unitId: string) {
+    const unit = this.mission.unitById(unitId);
+    if (!unit) return;
+    this.reachable = this.mission.getReachableTiles(unitId);
+    this.attackable = this.filterToVisibleHostiles(this.mission.getAttackableFrom(unitId, unit.pos));
+    this.repairable = this.mission.getRepairableFrom(unitId, unit.pos);
+    this.sweepArea = this.mission.getSensorSweepAreaFrom(unitId, unit.pos);
+    this.interdictZone = this.mission.getInterdictedTilesFrom(unitId, unit.pos);
+    this.screenable = this.mission.getScreenableFrom(unitId, unit.pos);
+  }
+
+  /**
+   * After a Move, Repair, Sensor Sweep or Screen (the action-costing-but-
+   * turn-continuing actions), keep the unit selected and refresh its
+   * highlighted options if it still has an action left; otherwise deselect.
+   * Attack, Overwatch, Ambush and Interdict all empty actionsRemaining
+   * themselves and are handled by runActionSlot/handleBoardClick instead.
    */
   private refreshSelectionAfterAction() {
     const unit = this.selectedUnitId ? this.mission.unitById(this.selectedUnitId) : undefined;
     if (unit && !unit.downed && unit.actionsRemaining > 0) {
-      this.reachable = this.mission.getReachableTiles(unit.instanceId);
-      this.attackable = this.mission.getAttackableFrom(unit.instanceId, unit.pos);
-      this.repairable = this.mission.getRepairableFrom(unit.instanceId, unit.pos);
+      this.recomputeSelectionHighlights(unit.instanceId);
     } else {
       this.selectedUnitId = null;
-      this.reachable = [];
-      this.attackable = [];
-      this.repairable = [];
+      this.clearSelectionHighlights();
     }
+  }
+
+  /**
+   * The verbs the selected unit's kit contains, in a stable order, each
+   * carrying the engine's own verdict on whether it's usable right now.
+   * Deliberately lists everything the unit HAS rather than only what it can
+   * do this instant, and greys the rest: a bar whose buttons appear and
+   * disappear as actions are spent is much harder to learn than one whose
+   * buttons go dim, and greying-not-hiding is the precedent the single
+   * OVERWATCH button already set.
+   */
+  private availableActions(): ActionOption[] {
+    const id = this.selectedUnitId;
+    if (!id || this.mission.phase !== "player" || this.mission.outcome !== "ongoing") return [];
+    const unit = this.mission.unitById(id);
+    if (!unit) return [];
+    const m = this.mission;
+    const out: ActionOption[] = [];
+
+    out.push({ label: "OVERWATCH", usable: m.canEnterOverwatch(id), endsTurn: true, run: () => void m.enterOverwatch(id) });
+
+    if (unit.abilities.includes("abil_ambush")) {
+      out.push({ label: "AMBUSH", usable: m.canAmbush(id), endsTurn: true, run: () => void m.ambush(id) });
+    }
+    if (unit.abilities.includes("abil_interdict")) {
+      out.push({ label: "INTERDICT", usable: m.canInterdict(id), endsTurn: true, run: () => void m.interdict(id) });
+    }
+    if (unit.abilities.includes("abil_screen")) {
+      out.push({ label: "SCREEN", usable: m.canScreen(id), endsTurn: false, run: () => void m.screenAllies(id) });
+    }
+    if (unit.abilities.includes("abil_sensor_sweep")) {
+      // The only label that carries a number: a cooldown the player can't
+      // see is a cooldown they'll click into repeatedly.
+      const cd = m.abilityCooldownRemaining(id, "abil_sensor_sweep");
+      out.push({ label: cd > 0 ? `SWEEP ${cd}` : "SWEEP", usable: m.canSensorSweep(id), endsTurn: false, run: () => void m.sensorSweep(id) });
+    }
+    return out.slice(0, ACTION_SLOTS.length);
+  }
+
+  private runActionSlot(index: number) {
+    if (this.mission.outcome !== "ongoing" || this.mission.phase !== "player") return;
+    const option = this.actionOptions[index];
+    if (!option || !option.usable) return;
+    option.run();
+    if (option.endsTurn) {
+      // The unit has nothing left to do, but stays SELECTED (same call the
+      // OVERWATCH button already made) so the HUD can show the player what
+      // it is now doing.
+      this.clearSelectionHighlights();
+    } else {
+      this.refreshSelectionAfterAction();
+    }
+    this.render();
+  }
+
+  /**
+   * Fog of war (Maxime, 22 Aug 2026 — "missions resolve in minutes, XCOM
+   * missions take hours"). engine/ai.ts's hostile AI was already
+   * vision-gated — it never acts on a target it can't see — but nothing on
+   * this side asked the same question: every hostile on the board was
+   * drawn and targetable regardless of whether any player unit could
+   * actually see it. unitsVisibleToSide (engine/ai.ts) is the same
+   * isVisibleTo the AI itself uses, just aggregated across the whole
+   * living player roster; recomputed fresh every call rather than cached,
+   * since it depends on live positions that change with every action and
+   * unit counts here are small enough that this is cheap.
+   *
+   * Deliberately NOT built this pass (flagging so it doesn't read as an
+   * oversight): terrain-tile graying for "unexplored ground" — the map
+   * layout itself was never secret, only unit positions are, so only unit
+   * visibility is gated; a "last-known position" ghost for a hostile that
+   * WAS visible and isn't any more — this is strict current-visibility
+   * only, matching how the AI's own vision already works, no memory on
+   * either side; a vision-radius overlay showing the player their own
+   * sight range — future polish, not required for the fog itself.
+   */
+  private visibleHostileIds(): Set<string> {
+    // The turn argument (ability-depth pass, 23 Aug 2026) is what lets an
+    // abil_sensor_sweep paint show through the fog: a hostile whose
+    // revealedUntilTurn hasn't expired counts as visible to the whole
+    // player side regardless of distance, and regardless of being burrowed.
+    // engine/ai.ts owns that expiry rule; this passes it the clock.
+    return unitsVisibleToSide("player", this.mission.units, this.mission.turn);
+  }
+
+  private filterToVisibleHostiles(units: BattleUnit[]): BattleUnit[] {
+    const visible = this.visibleHostileIds();
+    return units.filter((u) => u.side !== "hostile" || visible.has(u.instanceId));
   }
 
   private render() {
@@ -244,6 +432,33 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(0x22d3ee, 0.4);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
     }
+    // Ability-depth previews for the selected unit. Each set is already
+    // empty unless the engine says that verb is usable from here.
+    for (const c of this.interdictZone) {
+      g.fillStyle(INTERDICT_COLOR, 0.3);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+    }
+    for (const u of this.screenable) {
+      g.fillStyle(SCREEN_COLOR, 0.35);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    // The sweep footprint is drawn as an outline, not a wash: it's a square
+    // (Chebyshev radius) covering a big fraction of the board, and tinting
+    // that many tiles would bury every other highlight under it.
+    if (this.sweepArea.length) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const c of this.sweepArea) {
+        minX = Math.min(minX, c.x);
+        minY = Math.min(minY, c.y);
+        maxX = Math.max(maxX, c.x);
+        maxY = Math.max(maxY, c.y);
+      }
+      g.lineStyle(2, SWEEP_COLOR, 0.85);
+      g.strokeRect(this.boardX + minX * ts + 1, this.boardY + minY * ts + 1, (maxX - minX + 1) * ts - 3, (maxY - minY + 1) * ts - 3);
+    }
     if (this.selectedUnitId) {
       const u = this.mission.unitById(this.selectedUnitId);
       if (u) {
@@ -252,12 +467,50 @@ export class Battle extends Phaser.Scene {
       }
     }
 
+    // Fog of war: a hostile is only ever drawn if at least one living
+    // player unit currently has it in vision — see visibleHostileIds()'s
+    // own doc comment for what this pass does and doesn't cover. Player
+    // units are never hidden from their own side.
+    const visibleHostiles = this.visibleHostileIds();
     for (const unit of this.mission.livingUnits()) {
+      if (unit.side === "hostile" && !visibleHostiles.has(unit.instanceId)) continue;
+      // A braced Tank's kill-box is drawn under the units, not over them,
+      // so a hostile standing in it is still readable.
+      for (const c of this.mission.interdictedTiles(unit.instanceId)) {
+        g.lineStyle(2, INTERDICT_COLOR, 0.75);
+        g.strokeRect(this.boardX + c.x * ts + 2, this.boardY + c.y * ts + 2, ts - 5, ts - 5);
+      }
       this.drawUnit(g, unit, ts);
     }
 
+    this.drawActionBar();
     this.drawHud();
     this.drawOverlayIfNeeded();
+  }
+
+  /**
+   * Fills the contextual action bar from availableActions(): one slot per
+   * verb the selected unit's kit holds, the rest hidden. Greying follows
+   * the engine's canX() verdict, exactly as the single OVERWATCH button it
+   * replaced did.
+   */
+  private drawActionBar() {
+    this.actionOptions = this.availableActions();
+    for (let i = 0; i < this.actionSlots.length; i++) {
+      const slot = this.actionSlots[i];
+      const option = this.actionOptions[i];
+      if (!option) {
+        slot.btn.setVisible(false);
+        slot.label.setVisible(false);
+        continue;
+      }
+      slot.btn.setVisible(true);
+      slot.label.setVisible(true);
+      slot.btn.setFillStyle(option.usable ? 0x2e5c7a : 0x1a2028);
+      slot.btn.setStrokeStyle(1, option.usable ? 0x4a7a9a : 0x3a4552);
+      slot.label.setText(option.label);
+      slot.label.setColor(option.usable ? "#ffffff" : "#5a6572");
+    }
   }
 
   private drawUnit(g: Phaser.GameObjects.Graphics, unit: BattleUnit, ts: number) {
@@ -311,6 +564,51 @@ export class Battle extends Phaser.Scene {
       g.lineBetween(cx - r, cy, cx + r, cy);
     }
 
+    // Overwatch tell: amber targeting brackets at the four corners of the
+    // unit's tile. Deliberately not another ring or another alpha — a
+    // collapsed Bloom already owns the red ring at r+3, and "has acted"
+    // already owns alpha 0.55 (which an overwatching unit also has, since
+    // holding fire spends its turn). Corner brackets sit outside every unit
+    // silhouette in drawUnit above, so they read the same on a Meeps
+    // triangle, a Tank square and a Reeps diamond, and they don't collide
+    // with the shield bar's real estate above the unit either.
+    if (unit.overwatch) {
+      const half = ts * 0.45;
+      const arm = ts * 0.18;
+      g.lineStyle(2, 0xfbbf24, 0.95);
+      for (const [sx, sy] of [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ]) {
+        const x = cx + sx * half;
+        const y = cy + sy * half;
+        g.lineBetween(x, y, x - sx * arm, y);
+        g.lineBetween(x, y, x, y - sy * arm);
+      }
+    }
+
+    // Ability-depth tells (23 Aug 2026). Both are tile-edge marks rather
+    // than more rings or more alpha, for the same reason the overwatch
+    // brackets are: r+3 already belongs to the collapsed-Bloom red ring and
+    // alpha 0.55 already means "has acted."
+    //
+    // Concealed (abil_ambush / abil_screen): a violet frame inset inside
+    // the tile — this unit is on the board but off the Bloom's map.
+    if (unit.concealed) {
+      g.lineStyle(2, CONCEAL_COLOR, 0.95);
+      g.strokeRect(this.boardX + unit.pos.x * ts + 2, this.boardY + unit.pos.y * ts + 2, ts - 5, ts - 5);
+    }
+    // Painted by an unexpired Sensor Sweep: a violet ring wider than the
+    // silhouette, so the player can tell at a glance which contacts they
+    // can only see because Anand ran the array — and which ones will
+    // therefore vanish again when the paint expires.
+    if (unit.side === "hostile" && this.mission.isRevealed(unit.instanceId)) {
+      g.lineStyle(2, SWEEP_COLOR, 0.9);
+      g.strokeCircle(cx, cy, r + 5);
+    }
+
     // HP bar(s) above the unit.
     const barW = ts * 0.8;
     const barX = cx - barW / 2;
@@ -344,6 +642,20 @@ export class Battle extends Phaser.Scene {
     }
   }
 
+  /** Takes as many leading entries as fit in `top..bottom` once wrapped at `charsPerLine`. */
+  private fitLines(lines: string[], top: number, bottom: number, lineH: number, charsPerLine: number): string[] {
+    const budget = Math.floor((bottom - top) / lineH);
+    const out: string[] = [];
+    let used = 0;
+    for (const line of lines) {
+      const wrapped = Math.max(1, Math.ceil(line.length / charsPerLine));
+      if (used + wrapped > budget) break;
+      out.push(line);
+      used += wrapped;
+    }
+    return out;
+  }
+
   private drawHud() {
     const m = this.mission;
     // eliminate_all has no turn-limit fail condition any more (Maxime, 22
@@ -356,17 +668,71 @@ export class Battle extends Phaser.Scene {
       m.mission.objective === "eliminate_all"
         ? `Turn ${m.turn}  (bonus if clear by turn ${m.mission.objectiveParams.turnLimit})  —  ${m.phase} phase`
         : `Turn ${m.turn} / ${m.mission.objectiveParams.turnLimit}  —  ${m.phase} phase`;
-    const lines = [m.mission.displayName, turnLine, "", m.mission.briefing, "", `Objective: ${m.mission.objective}`];
+    // The briefing is the first thing to go when a unit is selected. It's six
+    // wrapped lines of text the player has already read, and the ability-depth
+    // pass added up to five status lines plus four legend lines below it —
+    // which is exactly how much room the briefing was using. Selected-unit
+    // state is live and the briefing isn't, so the briefing yields.
+    const lines = [m.mission.displayName, turnLine, "", `Objective: ${m.mission.objective}`];
+    if (!this.selectedUnitId) lines.splice(3, 0, m.mission.briefing, "");
     if (this.selectedUnitId) {
       const selected = m.unitById(this.selectedUnitId);
-      if (selected) lines.push("", `${selected.displayName}: ${selected.actionsRemaining} action(s) left`);
+      if (selected) {
+        lines.push("", `${selected.displayName}: ${selected.actionsRemaining} action(s) left`);
+        if (selected.overwatch && selected.concealed) lines.push("AMBUSH — unseen, holding a shot");
+        else if (selected.overwatch) lines.push("ON OVERWATCH — holding fire");
+        else if (selected.concealed) lines.push("CONCEALED — the Bloom cannot see this unit");
+        if (selected.braced) lines.push("BRACED — pins hostiles that step alongside");
+        if (selected.abilities.includes("abil_sensor_sweep")) {
+          const cd = m.abilityCooldownRemaining(selected.instanceId, "abil_sensor_sweep");
+          lines.push(cd > 0 ? `Sensor Sweep: ${cd} turn(s) to recharge` : "Sensor Sweep: ready");
+        }
+        if (selected.abilities.includes("abil_screen") && selected.usedScreenThisMission) {
+          lines.push("Screen: spent (once per mission)");
+        }
+      }
     }
-    if (this.repairable.length) {
-      lines.push("", "Cyan tile = Repair target (+HP, instead of attacking)");
-    }
-    this.hudText.setText(lines.join("\n"));
+    // Highlight legend — only for the colours actually on the board right
+    // now, so the panel doesn't turn into a permanent key.
+    if (this.repairable.length) lines.push("", "Cyan tile = Repair target (+HP, instead of attacking)");
+    if (this.screenable.length) lines.push("", `Pink tiles = Screen would conceal ${this.screenable.length} unit(s)`);
+    if (this.interdictZone.length) lines.push("", "Orange tiles = ground Interdict would pin");
+    if (this.sweepArea.length) lines.push("", "Violet box = Sensor Sweep reach");
+    // Standing tallies, so the player can see their firing line is set
+    // without having to re-select each unit. Amber brackets on the board
+    // mark overwatchers, violet frames mark the concealed, an orange ring
+    // marks interdicted ground and a violet ring marks a painted contact
+    // (see drawUnit).
+    const players = m.livingUnits().filter((u) => u.side === "player");
+    const holding = players.filter((u) => u.overwatch).length;
+    const hidden = players.filter((u) => u.concealed).length;
+    const bracing = players.filter((u) => u.braced).length;
+    const painted = m.livingUnits().filter((u) => u.side === "hostile" && m.isRevealed(u.instanceId)).length;
+    if (holding) lines.push("", `Amber brackets = overwatch (${holding})`);
+    if (hidden) lines.push(`Violet frames = concealed (${hidden})`);
+    if (bracing) lines.push(`Orange ring = interdicted ground (${bracing})`);
+    if (painted) lines.push(`Violet rings = swept contacts (${painted})`);
+    // Hard stop at the log's top edge. Same wrapped-line budgeting the log
+    // itself does below, for the same reason: counting ENTRIES rather than
+    // rendered lines is what let the old flat log slice run off the canvas,
+    // and the HUD gained enough conditional lines this pass to have the same
+    // problem in the other direction — a selected vibrissal Munti with a
+    // screen up can produce five status lines and four legend lines on top of
+    // the fixed header. Everything above the cut is ordered most-important-
+    // first (mission, turn, objective, selected unit, then legends, then
+    // standing tallies), so a trim only ever loses the tallies.
+    this.hudText.setText(this.fitLines(lines, HUD_TOP, LOG_TOP, HUD_LINE_H, HUD_CHARS_PER_LINE).join("\n"));
 
-    const tail = m.log.slice(-14);
+    // Fit as many of the most recent log lines as actually fit between the
+    // HUD block and the OVERWATCH button, newest last. This used to be a
+    // flat slice(-14), which counted log ENTRIES, not the wrapped lines
+    // they render as — a run of long entries (the reaction-fire and
+    // Meeps-dodge lines are both long) spilled the panel down past the
+    // buttons and out of the canvas, which is exactly where an overwatch
+    // shot's own line ended up. Budgeting in wrapped lines instead keeps
+    // the newest events on screen whatever their length.
+    // Newest-last, so the tail is fitted in reverse and flipped back.
+    const tail = this.fitLines([...m.log].reverse(), LOG_TOP, LOG_BOTTOM, LOG_LINE_H, LOG_CHARS_PER_LINE).reverse();
     this.logText.setText(tail.join("\n"));
   }
 

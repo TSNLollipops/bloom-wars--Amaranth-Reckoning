@@ -157,13 +157,20 @@ export const AMARANTH_MISSION_4: CampaignMission = {
   playerPilotIds: WARDEN_ROSTER_IDS,
   enemyWaves: [
     {
+      // Explicit coords rather than "enemy_deploy", so the two Undertow
+      // that start deep inside the ruin and the one outside it stay put
+      // exactly where the grid draws its seams. Moved with the map when
+      // Tunnel Rats was enlarged 18x11 -> 24x15 (23 Aug 2026,
+      // data/mapsAmaranth.ts's enlargement-pass header): the interior
+      // seams are the "SS" pair at row 7 of that grid, the third is the
+      // east seam on the same row.
       archetypeId: "bloom_undertow",
       count: 3,
       atTurn: 1,
       spawnAt: [
-        { x: 8, y: 4 },
-        { x: 9, y: 4 },
-        { x: 17, y: 5 },
+        { x: 8, y: 7 },
+        { x: 9, y: 7 },
+        { x: 23, y: 7 },
       ],
       burrowed: true,
     },

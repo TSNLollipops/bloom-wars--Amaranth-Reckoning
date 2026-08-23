@@ -62,6 +62,48 @@ export interface BattleUnit {
   // movedThisTurn/actedThisTurn booleans. Move and Repair cost 1 and don't
   // end the turn; Attack zeroes this out entirely regardless of value.
   actionsRemaining: number;
+  // Overwatch / reaction fire house rule (Maxime, 23 Aug 2026) — set only
+  // by engine/mission.ts's enterOverwatch(), which refuses any non-player
+  // unit, so this is never true on a hostile: hostile-side overwatch is
+  // deliberately out of scope this pass. Cleared either by firing the held
+  // shot or by the owner's next turn starting. See that file's overwatch
+  // block for the full rule set, and for what else is excluded and why.
+  overwatch?: boolean;
+
+  // ---- ability-depth pass (Maxime, 23 Aug 2026), system 3 of 3 after fog
+  // of war (f2e04e4) and overwatch (47ab304). Every one of these is written
+  // ONLY by an engine/mission.ts verb — see that file's ability block for
+  // the rules, and data/abilities.ts for the design reasoning. All optional
+  // so the synthetic BattleUnit literal in
+  // engine/__tests__/testHelpers.ts stays valid unchanged; the three
+  // factories below still initialise abilityCooldowns explicitly.
+
+  /**
+   * Meeps abil_ambush / Munti abil_screen. This unit is not visible to the
+   * opposing side at all — engine/ai.ts's isVisibleTo returns false for it
+   * in exactly the same one-line way it already does for a burrowed Bloom,
+   * so the hostile AI's reflexive and pack tiers cannot target it, path to
+   * it, or count it as a threat. Broken the instant this unit attacks
+   * (resolveAttack), and otherwise cleared at the start of its own next
+   * turn, in the same loop `overwatch` clears in.
+   */
+  concealed?: boolean;
+  /**
+   * Tank abil_interdict. This unit is holding ground: any hostile that
+   * FINISHES a move within INTERDICT_RADIUS of it, and that it can see,
+   * loses its remaining actions. Cleared at the start of its own next turn.
+   */
+  braced?: boolean;
+  /**
+   * abilityId -> the earliest turn number that ability may be used again.
+   * Absent, or a value <= the current turn, means ready. Only
+   * abil_sensor_sweep uses this today; it's a map rather than a named field
+   * so the next cooldown'd ability doesn't need another BattleUnit field.
+   */
+  abilityCooldowns?: Record<string, number>;
+  /** Munti abil_screen, once per mission — deliberately mirrors usedEvacThisMission's shape rather than folding into abilityCooldowns, because "spent for good" is a different fact from "not ready yet." */
+  usedScreenThisMission?: boolean;
+
   chargedThisMove: boolean;
   statusEffects: StatusEffect[];
   usedEvacThisMission: boolean;
@@ -149,7 +191,9 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     actionsRemaining: MAX_ACTIONS_PER_TURN,
     chargedThisMove: false,
     statusEffects: [],
+    abilityCooldowns: {},
     usedEvacThisMission: false,
+    usedScreenThisMission: false,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -192,7 +236,9 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     actionsRemaining: MAX_ACTIONS_PER_TURN,
     chargedThisMove: false,
     statusEffects: [],
+    abilityCooldowns: {},
     usedEvacThisMission: false,
+    usedScreenThisMission: false,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -227,7 +273,9 @@ export function createBloomUnit(bloomArchetypeId: string, pos: Coord, opts?: { b
     actionsRemaining: MAX_ACTIONS_PER_TURN,
     chargedThisMove: false,
     statusEffects: [],
+    abilityCooldowns: {},
     usedEvacThisMission: false,
+    usedScreenThisMission: false,
     spriteKey: arch.spriteKey,
   };
 }

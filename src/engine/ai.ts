@@ -51,26 +51,90 @@ function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
  * §5.3 calls it "board-level heuristics," which reads as intentionally
  * omniscient for a boss, distinct from reflexive's "nearest VISIBLE target."
  *
- * Not covered here: burrow-surfacing on adjacency and the vibrissal/
- * Runemaster "Sensor Sweep" reveal (data/abilities.ts) are still
- * unimplemented — `revealedUntilTurn` exists on BattleUnit but nothing
- * sets it yet. Fine for the current 4-mission slice (no vibrissal pilot in
- * the roster), but flag it before Mission 3's Undertow count grows.
- *
  * Exported (Maxime, 22 Aug 2026 — the Mission 3 sim stalemate fix) so
  * sim/testPlayerAi.ts can ask the same question decideHostileAction itself
  * asks — "can any hostile actually see me right now" — instead of a
  * geometric reachability proxy that doesn't know about vision at all. See
  * that file's own retreat-gate comment for why this specific question is
  * the one that matters.
+ *
+ * ---- ABILITY-DEPTH PASS (23 Aug 2026) ----
+ * Two of the four new abilities (data/abilities.ts) are the two halves of
+ * this predicate, so both land here rather than anywhere else:
+ *
+ * `concealed` (Meeps abil_ambush, Munti abil_screen) is the player side of
+ * the same coin `burrowed` already was — one line, same shape, same effect:
+ * the hostile AI's reflexive and pack tiers, which both filter through this
+ * function, simply cannot see a concealed unit, so they will not target it,
+ * path to it, or count it. It is checked BEFORE the reveal bypass below on
+ * purpose: concealment is only ever set on PLAYER units and reveal only
+ * ever on hostile ones (Mission.sensorSweep refuses to paint its own side),
+ * so the two can't actually meet — but if a future ability ever does set
+ * both, "I am hidden" should not be undone by a sensor sweep the hidden
+ * unit's own side ran.
+ *
+ * `currentTurn` is the abil_sensor_sweep half, and is OPTIONAL on purpose.
+ * Omit it (every existing caller, unchanged) and this behaves exactly as it
+ * did before the pass. Pass it, and a target whose `revealedUntilTurn` has
+ * not yet expired counts as visible regardless of distance AND regardless
+ * of burrow — which is precisely what a sweep buys. Only the PLAYER-facing
+ * paths pass it: unitsVisibleToSide (the fog renderer and attack targeting
+ * in scenes/Battle.ts) and Mission's own overwatch/interdiction triggers.
+ * visibleEnemiesOf and sharedPackTarget below deliberately do not, because
+ * a sweep is the player's intelligence, not a broadcast — nothing should be
+ * able to make a player unit visible to the Bloom by revealing it.
+ *
+ * Still not covered: burrow-surfacing on adjacency, and the Runemaster
+ * track's own `burrowDetection: true` (data/meks.ts), which remains a data
+ * field nothing reads.
  */
-export function isVisibleTo(observer: BattleUnit, target: BattleUnit): boolean {
+export function isVisibleTo(observer: BattleUnit, target: BattleUnit, currentTurn?: number): boolean {
+  if (target.concealed) return false;
+  if (currentTurn !== undefined && target.revealedUntilTurn !== undefined && target.revealedUntilTurn >= currentTurn) return true;
   if (target.burrowed) return false;
   return chebyshevDistance(observer.pos, target.pos) <= observer.vision;
 }
 
 function visibleEnemiesOf(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
   return livingTargets(allUnits, enemySideOf(unit)).filter((t) => isVisibleTo(unit, t));
+}
+
+/**
+ * Fog of war for rendering (Maxime, 22 Aug 2026 — "missions resolve in
+ * minutes, XCOM missions take hours"). The hostile AI above was already
+ * vision-gated (isVisibleTo, reflexiveDecision/packDecision) but nothing on
+ * the player-facing side ever asked the same question — scenes/Battle.ts
+ * drew and targeted every hostile on the board regardless of whether any
+ * player unit could actually see it. This is the party-wide query that
+ * fixes that: the union of isVisibleTo(observer, target) across every
+ * living observer of `side` and every living target of the opposing side —
+ * deliberately side-agnostic (this file is symmetric throughout), even
+ * though the only caller today is the player's rendering layer.
+ *
+ * Not a replacement for anything decideHostileAction's own tiers use —
+ * visibleEnemiesOf/sharedPackTarget/isVisibleTo above are untouched. This
+ * is new, additive, and answers a different question ("what can this whole
+ * side see, in aggregate") than any single unit's own targeting ever
+ * needed to.
+ *
+ * `currentTurn` (ability-depth pass, 23 Aug 2026) is threaded straight
+ * through to isVisibleTo and is optional for the same reason it is there:
+ * omitted, this is byte-for-byte the old behaviour. Supplied, a hostile
+ * painted by an unexpired abil_sensor_sweep counts as seen by the whole
+ * side — which is what makes a swept, still-burrowed Undertow drawable and
+ * clickable in scenes/Battle.ts, and shootable by an overwatcher.
+ */
+export function unitsVisibleToSide(side: BattleUnit["side"], allUnits: BattleUnit[], currentTurn?: number): Set<string> {
+  const observers = livingTargets(allUnits, side);
+  const opposingSide: BattleUnit["side"] = side === "player" ? "hostile" : "player";
+  const targets = livingTargets(allUnits, opposingSide);
+  const visible = new Set<string>();
+  for (const target of targets) {
+    if (observers.some((observer) => isVisibleTo(observer, target, currentTurn))) {
+      visible.add(target.instanceId);
+    }
+  }
+  return visible;
 }
 
 /** Same-side, pack-tier units close enough to share what they've spotted (GDD §5.3's pack-coordination radius, reused as a vision-sharing radius). */
@@ -219,6 +283,15 @@ function packDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit
 
 function emergentDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   // Prioritise the Munti above all other targets (GDD §5.3 / Data Pack §8.1).
+  //
+  // Deliberately NOT vision-gated, and therefore deliberately not
+  // concealment-gated either (ability-depth pass, 23 Aug 2026): this tier
+  // reads every living enemy directly rather than going through
+  // isVisibleTo, so a Heartwood sees through abil_ambush and abil_screen.
+  // That is the same call the fog-of-war pass already made for this tier
+  // and for the same stated reason — GDD §5.3 calls emergent "board-level
+  // heuristics," i.e. intentionally omniscient, for a boss only. If that is
+  // ever revisited, it is one filter on this line, not a new system.
   const targets = livingTargets(allUnits, enemySideOf(unit));
   if (!targets.length) return {};
   const munti = targets.find((t) => t.path === "munti");

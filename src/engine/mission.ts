@@ -26,10 +26,14 @@ import {
   MUNTI_REGEN_RADIUS,
   MUNTI_REGEN_PER_TURN,
   MAX_ACTIONS_PER_TURN,
+  SENSOR_SWEEP_RANGE_BONUS,
+  SENSOR_SWEEP_COOLDOWN_TURNS,
+  INTERDICT_RADIUS,
+  SCREEN_RADIUS,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
-import { decideHostileAction } from "./ai";
+import { decideHostileAction, isVisibleTo } from "./ai";
 import {
   createEventRuntimeState,
   evaluateTurnStart,
@@ -84,6 +88,20 @@ export interface RepairOutcome {
   healerId: string;
   targetId: string;
   amount: number;
+}
+
+/** abil_sensor_sweep result — see Mission.sensorSweep(). `revealedIds` is instanceIds, and can legitimately be empty (a sweep that finds nothing still costs the action and still starts the cooldown). */
+export interface SensorSweepOutcome {
+  sweeperId: string;
+  radius: number;
+  revealedIds: string[];
+  revealedUntilTurn: number;
+}
+
+/** abil_screen result — see Mission.screenAllies(). `concealedIds` always includes the Munti itself. */
+export interface ScreenOutcome {
+  muntiId: string;
+  concealedIds: string[];
 }
 
 // Campaign economy pass (22 Aug 2026, engine/campaignEconomy.ts):
@@ -214,7 +232,17 @@ export class Mission {
     this.deployRoster = deployRoster;
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
-    this.spawnWavesForTurn(1);
+    // Turn 1 goes through the exact same path every later turn does
+    // (endPlayerTurn -> runTurnStartEvents), which already spawns that
+    // turn's waves itself. This used to ALSO call spawnWavesForTurn(1)
+    // explicitly right here, which meant every turn-1 wave in the game
+    // spawned twice — verified 23 Aug 2026 against the mission defs
+    // themselves: Amaranth I.1 put 12 hostiles on the board for a def
+    // that says 6, I.3 put 20 for a def that says 10, and Team One's
+    // Mission 1a put 26 for a def that says 13. Exactly double, every
+    // mission, both campaigns. Removing the redundant call also makes
+    // turn 1 order-consistent with every other turn: events fire first,
+    // then that turn's waves spawn.
     this.runTurnStartEvents();
   }
 
@@ -381,6 +409,84 @@ export class Mission {
     );
   }
 
+  /**
+   * abil_sensor_sweep's footprint from `from`: every in-bounds tile the
+   * sweep would cover. Mirrors getRepairableFrom/getAttackableFrom's shape
+   * (returns empty for a unit that can't sweep right now, so the UI never
+   * has to know a rule), except that a sweep's "targets" are tiles rather
+   * than units — the whole point of it is finding units you can't see yet,
+   * so a list of the hostiles it WOULD reveal would be exactly the
+   * information the player isn't supposed to have before spending the
+   * action.
+   */
+  getSensorSweepAreaFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canSensorSweep(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const r = this.sensorSweepRadius(unit);
+    const tiles: Coord[] = [];
+    for (let y = Math.max(0, from.y - r); y <= Math.min(this.map.height - 1, from.y + r); y++) {
+      for (let x = Math.max(0, from.x - r); x <= Math.min(this.map.width - 1, from.x + r); x++) {
+        tiles.push({ x, y });
+      }
+    }
+    return tiles;
+  }
+
+  /** abil_interdict's kill-box from `from` — the in-bounds tiles a braced Tank would pin a hostile for finishing a move on. Empty if it can't brace right now. */
+  getInterdictedTilesFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canInterdict(unitId)) return [];
+    const tiles: Coord[] = [];
+    for (let y = Math.max(0, from.y - INTERDICT_RADIUS); y <= Math.min(this.map.height - 1, from.y + INTERDICT_RADIUS); y++) {
+      for (let x = Math.max(0, from.x - INTERDICT_RADIUS); x <= Math.min(this.map.width - 1, from.x + INTERDICT_RADIUS); x++) {
+        if (x === from.x && y === from.y) continue; // the Tank's own tile isn't part of the ring
+        tiles.push({ x, y });
+      }
+    }
+    return tiles;
+  }
+
+  /**
+   * The ring a unit that is ALREADY braced is currently covering — the
+   * board tell for abil_interdict, as opposed to getInterdictedTilesFrom's
+   * before-you-commit preview. Two methods rather than one because they
+   * answer opposite questions ("what would this cover" vs "what is this
+   * covering"), and because a braced unit fails canInterdict by definition.
+   * Empty for anything not braced, so scenes/Battle.ts never has to know
+   * that rule either.
+   */
+  interdictedTiles(unitId: string): Coord[] {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed || !unit.braced) return [];
+    const tiles: Coord[] = [];
+    for (let y = Math.max(0, unit.pos.y - INTERDICT_RADIUS); y <= Math.min(this.map.height - 1, unit.pos.y + INTERDICT_RADIUS); y++) {
+      for (let x = Math.max(0, unit.pos.x - INTERDICT_RADIUS); x <= Math.min(this.map.width - 1, unit.pos.x + INTERDICT_RADIUS); x++) {
+        if (x === unit.pos.x && y === unit.pos.y) continue;
+        tiles.push({ x, y });
+      }
+    }
+    return tiles;
+  }
+
+  /** Is this unit currently painted by an unexpired abil_sensor_sweep? The expiry rule lives here, not in the renderer that draws the tell. */
+  isRevealed(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    return unit.revealedUntilTurn !== undefined && unit.revealedUntilTurn >= this.turn;
+  }
+
+  /**
+   * Who abil_screen would actually cover from `from` — the Munti itself
+   * plus every living same-side unit within SCREEN_RADIUS. Includes the
+   * Munti deliberately: it conceals itself too, and a UI highlight that
+   * omitted it would misreport the rule. Empty if it can't screen right now
+   * (no ability, out of actions, or already spent this mission).
+   */
+  getScreenableFrom(unitId: string, from: Coord): BattleUnit[] {
+    if (!this.canScreen(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    return this.livingUnits().filter((t) => t.side === unit.side && chebyshevDistance(from, t.pos) <= SCREEN_RADIUS);
+  }
+
   // ---- actions -------------------------------------------------------
 
   moveUnit(unitId: string, destination: Coord): boolean {
@@ -406,10 +512,37 @@ export class Mission {
     return true;
   }
 
+  /**
+   * The normal, action-costing Attack verb — the only entry point a player
+   * click or an AI decision ever uses. Everything after the action-economy
+   * check lives in resolveAttack() below, which the overwatch reaction shot
+   * (triggerOverwatch) also calls: a reaction shot is the same attack, just
+   * paid for in advance by entering overwatch rather than by an action
+   * available right now.
+   */
   attack(attackerId: string, defenderId: string): AttackOutcome | null {
     const attacker = this.unitById(attackerId);
+    if (!attacker || attacker.actionsRemaining <= 0) return null;
+    return this.resolveAttack(attackerId, defenderId);
+  }
+
+  /**
+   * Every rule an attack has, minus the "do you have an action right now"
+   * question: range, side, terrain/overshield/dodge/Collapse math,
+   * performance + contribution bookkeeping, the log line, and downing.
+   * Deliberately one body rather than two, so an overwatch reaction shot
+   * cannot drift from a normal shot — same POWER table, same full-HP cap,
+   * same counters, same recordPerformance() call, therefore the same
+   * campaign points (engine/campaignEconomy.ts scores kills + fractional
+   * assists straight off unitPerformance/victimContributions, both written
+   * only here).
+   *
+   * `opts.reaction` changes exactly one thing: the wording of the log line.
+   */
+  private resolveAttack(attackerId: string, defenderId: string, opts?: { reaction?: boolean }): AttackOutcome | null {
+    const attacker = this.unitById(attackerId);
     const defender = this.unitById(defenderId);
-    if (!attacker || !defender || attacker.downed || defender.downed || attacker.actionsRemaining <= 0) return null;
+    if (!attacker || !defender || attacker.downed || defender.downed) return null;
     if (attacker.side === defender.side) return null;
     const d = chebyshevDistance(attacker.pos, defender.pos);
     if (d < attacker.attackRange[0] || d > attacker.attackRange[1]) return null;
@@ -463,9 +596,19 @@ export class Mission {
     // Attack always consumes every remaining action and ends the unit's
     // turn, regardless of which action slot it's used in (two-action house
     // rule, Maxime, 22 Aug 2026 — matches XCOM 2: you can heal then heal,
-    // but never heal then shoot then heal again).
+    // but never heal then shoot then heal again). A reaction shot's attacker
+    // is already at 0 (enterOverwatch zeroed it), so this is a no-op there.
     attacker.actionsRemaining = 0;
-    let msg = `${attacker.displayName} attacks ${defender.displayName}`;
+    // Firing gives your position away (ability-depth pass, 23 Aug 2026):
+    // any concealment from abil_ambush or abil_screen ends the instant this
+    // unit attacks, and it ends HERE rather than in attack() so a Meeps'
+    // own ambush shot — a reaction, resolved through this same body —
+    // breaks it too. That is the intended shape of the ability: you get one
+    // shot out of concealment, not a permanent invisible turret.
+    attacker.concealed = false;
+    let msg = opts?.reaction
+      ? `${attacker.displayName} fires overwatch on ${defender.displayName}`
+      : `${attacker.displayName} attacks ${defender.displayName}`;
     msg += outcome.defenderDodged ? " — DODGED (Meeps)" : ` for ${outcome.damage}`;
     if (outcome.countered) {
       msg += outcome.counterDodged ? ", counter DODGED (Meeps)" : ` (countered for ${outcome.counterDamage})`;
@@ -613,6 +756,380 @@ export class Mission {
     return { healerId, targetId, amount };
   }
 
+  // ---- overwatch -----------------------------------------------------
+  //
+  // Overwatch / reaction fire (Maxime, 23 Aug 2026 — "we really need to make
+  // our mission last at least 30min... my xcom mission lasted hours"), the
+  // second of the three agreed systems, after fog of war (commit f2e04e4).
+  // The point isn't extra damage: it's that ending a turn holding position
+  // becomes a real option, so the loop stops being "walk forward, click
+  // attack" and starts being "creep, set up, wait." It's built directly on
+  // top of the fog of war — you hold overwatch precisely because you can't
+  // see what's out there, and the trigger below is vision-gated with the
+  // same isVisibleTo() the hostile AI and the fog renderer both use.
+  //
+  // DELIBERATELY OUT OF SCOPE this pass (flagged, not silently skipped):
+  //   - Hostile-side overwatch. `overwatch` is only ever set by
+  //     enterOverwatch(), which refuses any non-player unit. Nothing in the
+  //     Bloom's own behaviour spec has a hold-fire concept to hang it on:
+  //     GDD §5.3's reflexive tier is "move toward the nearest visible
+  //     target... no retreat, no focus fire, no self-preservation," and pack
+  //     only adds shared targeting. The one phrase that comes close, "hold
+  //     reserves until the player commits," is listed under emergent — boss
+  //     encounters only, explicitly "do not generalise it," and not built.
+  //     So arming the Bloom with overwatch is a design question for Maxime,
+  //     not an implementation gap. The trigger loop below is written
+  //     side-agnostically enough that flipping it on later is a one-line
+  //     change to enterOverwatch's guard.
+  //   - Triggering on anything other than hostile MOVEMENT. A hostile
+  //     attacking, or using an ability, from where it already stands does
+  //     not draw reaction fire. Movement-only is what makes overwatch a
+  //     positional threat rather than a flat retaliation aura.
+  //   - Multiple reaction shots per overwatch. Firing clears the flag —
+  //     it's an ambush, not a turret. (Several DIFFERENT overwatchers can
+  //     each fire once at the same mover; that's the intended crossfire.)
+  //   - Any accuracy or damage penalty on the reaction shot. XCOM applies
+  //     an aim penalty to reaction fire; this pass resolves reaction shots
+  //     at full normal strength through the identical resolveAttack() path.
+  //     That's a tuning knob Maxime may well want later — the number is
+  //     his call, not one to invent here, and the single place it would go
+  //     is resolveAttack's `opts`.
+
+  /**
+   * Can this unit enter overwatch right now? The UI (scenes/Battle.ts)
+   * greys its button off this — the scene owns no rules, so the predicate
+   * lives here next to the verb that enforces it.
+   */
+  canEnterOverwatch(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false; // player-only this pass — see the block comment above
+    if (unit.overwatch) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Enter overwatch instead of acting: hold fire this turn, and take one
+   * free shot at the first hostile that moves into range and sight during
+   * the hostile phase (triggerOverwatch below).
+   *
+   * Costs the unit's ENTIRE remaining action budget and ends its turn, the
+   * same way attack() does (two-action house rule) rather than the 1-action
+   * Move/Repair way — overwatching with an action still in hand would let a
+   * unit shoot, then set overwatch, and get two shots per round out of a
+   * two-action budget.
+   */
+  enterOverwatch(unitId: string): boolean {
+    if (!this.canEnterOverwatch(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    unit.overwatch = true;
+    unit.actionsRemaining = 0;
+    this.log.push(`${unit.displayName} holds overwatch.`);
+    return true;
+  }
+
+  /**
+   * A hostile just finished a move. Every player unit currently holding
+   * overwatch that can both reach it (its own attackRange) and actually see
+   * it (isVisibleTo — the fog-of-war-aware half, and the whole reason this
+   * pairs with commit f2e04e4: an overwatcher cannot reaction-fire at
+   * something nobody on the board can see, exactly as it cannot normally
+   * attack it) fires one shot, in board order.
+   *
+   * Called from exactly one place — moveHostile(), the single choke point
+   * every hostile move goes through — so there is no way to add a hostile
+   * movement path later that silently skips reaction fire.
+   */
+  private triggerOverwatch(mover: BattleUnit): void {
+    if (mover.side !== "hostile" || mover.downed) return;
+    for (const watcher of this.units) {
+      if (mover.downed) return; // an earlier overwatcher already killed it — nothing left to shoot at
+      if (!watcher.overwatch || watcher.downed || watcher.side === mover.side) continue;
+      const d = chebyshevDistance(watcher.pos, mover.pos);
+      if (d < watcher.attackRange[0] || d > watcher.attackRange[1]) continue;
+      // Vision-gated exactly as before, now with the clock threaded in
+      // (ability-depth pass, 23 Aug 2026) so an abil_sensor_sweep paint
+      // counts: a burrower an overwatcher could not otherwise see IS a
+      // legal reaction target for as long as it stays painted, and stops
+      // being one the moment the paint expires.
+      if (!isVisibleTo(watcher, mover, this.turn)) continue;
+      // Clear BEFORE resolving, not after: resolveAttack can re-enter this
+      // object (handleDowned -> unit_downed events -> spawns), and a shot
+      // already in flight must never be able to fire a second time.
+      watcher.overwatch = false;
+      this.resolveAttack(watcher.instanceId, mover.instanceId, { reaction: true });
+    }
+  }
+
+  // ---- ability depth: one new verb per path ---------------------------
+  //
+  // System 3 of the three agreed "make a mission last 30+ minutes" passes
+  // (Maxime, 23 Aug 2026), after fog of war (f2e04e4) and overwatch
+  // (47ab304). The problem this solves is stated in data/abilities.ts's
+  // header: every unit had exactly one verb, so a turn was never a
+  // decision. Four new verbs live below, one per path, each written so
+  // that using it means NOT shooting:
+  //
+  //   sensorSweep(id)  Reeps/vibrissal  1 action, turn continues, 2-turn cooldown
+  //   ambush(id)       Meeps            whole budget, ends turn, unlimited
+  //   interdict(id)    Tank             whole budget, ends turn, unlimited
+  //   screenAllies(id) Munti            1 action, turn continues, once per mission
+  //
+  // Every one of them follows enterOverwatch's shape exactly: a canX()
+  // predicate the UI greys its button off (scenes/Battle.ts owns no rules
+  // and must never re-derive one), then a verb that re-asks the predicate,
+  // mutates, logs, and returns something the caller can check. None of them
+  // touches engine/combat.ts — no new damage formula exists anywhere in
+  // this pass. Between them they reveal, conceal, and take actions away,
+  // which is the whole vocabulary.
+  //
+  // PLAYER-ONLY, every one, exactly like enterOverwatch and for the same
+  // reason: these are the four PATHS' abilities and the Bloom don't have
+  // paths (data/bloom.ts has no `path` field at all). Hostile mechs DO
+  // resolve through arch_<path>_bipedal and therefore now carry
+  // abil_ambush/abil_interdict in their `abilities` array as a side effect
+  // of the archetype assignment — the `side !== "player"` guard in each
+  // predicate below is what makes that inert, and engine/ai.ts's tiers were
+  // deliberately not taught to call any of these.
+  //
+  // DELIBERATELY OUT OF SCOPE, flagged rather than silently skipped:
+  //   - Any AI use of these verbs, per the above.
+  //   - Concealment breaking on anything other than attacking. Moving,
+  //     being healed, and standing in acid do not reveal you; only firing
+  //     does. Simple, and it is what makes Screen-then-reposition work.
+  //   - Interdiction being consumed by a pin (see abil_interdict's comment).
+  //   - abil_cockpit_evac, which remains defined-and-unimplemented. It is
+  //     a reactive interception of a downing, not a turn-economy verb, so
+  //     it is a different piece of work from this pass and is not started
+  //     here.
+
+  /** abil_sensor_sweep's reach for this unit: its own vision, plus the flat overshoot in data/combatTables.ts. */
+  private sensorSweepRadius(unit: BattleUnit): number {
+    return unit.vision + SENSOR_SWEEP_RANGE_BONUS;
+  }
+
+  /** The turn number `abilityId` becomes usable again on this unit (0 = never used / ready). */
+  private cooldownReadyTurn(unit: BattleUnit, abilityId: string): number {
+    return unit.abilityCooldowns?.[abilityId] ?? 0;
+  }
+
+  /** Turns still to wait before `abilityId` is usable on this unit — 0 when it's ready now. Exposed for the HUD. */
+  abilityCooldownRemaining(unitId: string, abilityId: string): number {
+    const unit = this.unitById(unitId);
+    if (!unit) return 0;
+    return Math.max(0, this.cooldownReadyTurn(unit, abilityId) - this.turn);
+  }
+
+  canSensorSweep(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_sensor_sweep")) return false;
+    if (this.cooldownReadyTurn(unit, "abil_sensor_sweep") > this.turn) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Run the sensor array: paint every living hostile inside
+   * sensorSweepRadius() so the whole player side can see it until the end
+   * of the following hostile phase, burrowed ones included.
+   *
+   * `revealedUntilTurn = this.turn` is the literal reading of Data Pack
+   * §6's "until the end of the following enemy turn": a sweep is spent on
+   * the player phase of turn N, and the enemy turn that follows it is the
+   * hostile phase of that same turn N (Mission.turn only increments after
+   * the hostile phase resolves — see runHostileTurn). So the paint covers
+   * the rest of this player turn and the whole hostile phase, and is stale
+   * on turn N+1. Paired with a 2-turn cooldown that guarantees a genuinely
+   * blind turn between sweeps, which is the point: this thins the fog, it
+   * does not delete it.
+   *
+   * Revealing is NOT surfacing. `burrowed` is left alone, so an Undertow
+   * painted here still counts as burrowed for its own surfacing damage
+   * multiplier when it eventually attacks (resolveAttack's bloom branch) —
+   * the sweep tells you where it is, it doesn't drag it out of the ground.
+   *
+   * Costs 1 action and does not end the turn — the cooldown is the real
+   * price. Never paints its own side (see isVisibleTo's note on why that
+   * matters).
+   */
+  sensorSweep(unitId: string): SensorSweepOutcome | null {
+    if (!this.canSensorSweep(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const radius = this.sensorSweepRadius(unit);
+    const revealedIds: string[] = [];
+    for (const target of this.livingUnits()) {
+      if (target.side === unit.side) continue;
+      if (chebyshevDistance(unit.pos, target.pos) > radius) continue;
+      target.revealedUntilTurn = this.turn;
+      revealedIds.push(target.instanceId);
+    }
+    unit.actionsRemaining -= 1;
+    (unit.abilityCooldowns ??= {})["abil_sensor_sweep"] = this.turn + SENSOR_SWEEP_COOLDOWN_TURNS;
+    this.log.push(
+      revealedIds.length
+        ? `${unit.displayName} sweeps (radius ${radius}) — ${revealedIds.length} contact(s) painted.`
+        : `${unit.displayName} sweeps (radius ${radius}) — no contacts.`
+    );
+    return { sweeperId: unitId, radius, revealedIds, revealedUntilTurn: this.turn };
+  }
+
+  canAmbush(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_ambush")) return false;
+    if (unit.overwatch || unit.concealed) return false;
+    // Can't slip away from something standing on top of you. This is the
+    // line that stops Ambush being a strictly-better Overwatch — see
+    // abil_ambush's comment in data/abilities.ts. Uses raw adjacency rather
+    // than isVisibleTo on purpose: a burrowed Undertow you cannot see is
+    // still a thing you are in contact with.
+    const inContact = this.livingUnits().some((u) => u.side !== unit.side && chebyshevDistance(u.pos, unit.pos) <= 1);
+    if (inContact) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Go to ground: concealment plus a held shot. Sets `overwatch` as well as
+   * `concealed`, so the reaction fire runs through triggerOverwatch above
+   * with no second code path at all — an ambush shot IS an overwatch shot,
+   * fired by someone the mover never saw. Firing breaks the concealment
+   * (resolveAttack), which is the whole trade.
+   *
+   * Costs the unit's entire remaining action budget and ends its turn, the
+   * Attack/Overwatch way rather than the Move/Repair way, for exactly the
+   * reason enterOverwatch does it: shoot-then-vanish would be both halves.
+   */
+  ambush(unitId: string): boolean {
+    if (!this.canAmbush(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    unit.concealed = true;
+    unit.overwatch = true;
+    unit.actionsRemaining = 0;
+    this.log.push(`${unit.displayName} goes to ground — concealed, holding a shot.`);
+    return true;
+  }
+
+  canInterdict(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_interdict")) return false;
+    if (unit.braced) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Plant and cover the ground around you until your next turn. The pin
+   * itself is triggerInterdiction() below; this is just the posture.
+   *
+   * Costs the unit's entire remaining action budget and ends its turn —
+   * a 3-move Tank that could still swing after bracing would be picking
+   * up board control for free.
+   */
+  interdict(unitId: string): boolean {
+    if (!this.canInterdict(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    unit.braced = true;
+    unit.actionsRemaining = 0;
+    this.log.push(`${unit.displayName} braces — interdicting the ground around it.`);
+    return true;
+  }
+
+  /**
+   * A hostile just finished a move (moveHostile, the same single choke
+   * point overwatch fires from). If any braced, non-downed player unit is
+   * within INTERDICT_RADIUS of where it stopped AND can actually see it,
+   * the mover loses every remaining action — so runHostileTurn's
+   * move-then-attack pair resolves as move-then-nothing, since attack()
+   * refuses an attacker at zero actions.
+   *
+   * Resolved AFTER triggerOverwatch on purpose: a mover killed by reaction
+   * fire on the way in is simply dead, and pinning a corpse would put a
+   * meaningless line in the log. Vision-gated with the same
+   * isVisibleTo(_, _, turn) overwatch uses, which is what makes a Sensor
+   * Sweep worth something to a Tank: an unpainted burrower walks through an
+   * interdiction untouched, a painted one does not.
+   *
+   * Unlike an overwatch shot, bracing is NOT consumed here — one Tank pins
+   * everything that steps into its ring that phase. Deliberate; see
+   * abil_interdict's comment in data/abilities.ts for the reasoning and for
+   * where to turn it down.
+   */
+  private triggerInterdiction(mover: BattleUnit): void {
+    if (mover.side !== "hostile" || mover.downed) return;
+    if (mover.actionsRemaining <= 0) return;
+    for (const anchor of this.units) {
+      if (!anchor.braced || anchor.downed || anchor.side === mover.side) continue;
+      if (chebyshevDistance(anchor.pos, mover.pos) > INTERDICT_RADIUS) continue;
+      if (!isVisibleTo(anchor, mover, this.turn)) continue;
+      mover.actionsRemaining = 0;
+      this.log.push(`${anchor.displayName} interdicts ${mover.displayName} — pinned, no attack.`);
+      return; // one pin is total; a second anchor has nothing left to take
+    }
+  }
+
+  canScreen(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_screen")) return false;
+    if (unit.usedScreenThisMission) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Put the screen up: conceal this Munti and every living same-side unit
+   * within SCREEN_RADIUS until their own next turns begin. Same
+   * `concealed` flag abil_ambush sets, so it is the same single line in
+   * engine/ai.ts's isVisibleTo doing the work — the Bloom simply have no
+   * target and hold position for a phase.
+   *
+   * Costs 1 action and does NOT end the turn (screen-then-Repair is the
+   * point of a support turn), but is ONCE PER MISSION per Munti, mirroring
+   * abil_cockpit_evac's usedEvacThisMission: an effect that takes the
+   * hostile side's turn away entirely should be spent, not rationed.
+   *
+   * Deliberately does NOT clear anyone's overwatch: a covered unit still
+   * has its held shot, and firing it is what breaks that unit's own cover.
+   */
+  screenAllies(unitId: string): ScreenOutcome | null {
+    if (!this.canScreen(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const covered = this.livingUnits().filter((t) => t.side === unit.side && chebyshevDistance(unit.pos, t.pos) <= SCREEN_RADIUS);
+    for (const u of covered) u.concealed = true;
+    unit.actionsRemaining -= 1;
+    unit.usedScreenThisMission = true;
+    this.log.push(`${unit.displayName} puts up a screen — ${covered.length} unit(s) concealed.`);
+    return { muntiId: unitId, concealedIds: covered.map((u) => u.instanceId) };
+  }
+
+  /**
+   * The single choke point for hostile movement — runHostileTurn() moves
+   * hostiles by calling this and nothing else. Reaction fire hooks in here
+   * rather than at the AI call site so that "a hostile moved" and "the
+   * overwatchers get their shot" cannot come apart: any future hostile
+   * movement (a reposition ability, a fear/rout behaviour, a second AI pass)
+   * routes through this method and is covered for free.
+   */
+  private moveHostile(unit: BattleUnit, path: Coord[]): void {
+    const dest = path[path.length - 1];
+    unit.chargedThisMove = unit.chassis === "centauroid" && isStraightLineCharge(this.map, path, "centauroid");
+    unit.pos = dest;
+    unit.actionsRemaining = Math.max(0, unit.actionsRemaining - 1);
+    for (const step of path.slice(1)) {
+      const fired = evaluateZoneEntered(this.mission.events, step, this.turn, this.eventState);
+      for (const ev of fired) this.applyEventAction(ev.action);
+    }
+    // Reaction fire resolves as part of the move, before control returns to
+    // the caller — see runHostileTurn's ordering comment. Interdiction
+    // (abil_interdict) hangs off this same choke point and resolves second,
+    // so a mover already killed by a reaction shot is never also pinned.
+    this.triggerOverwatch(unit);
+    this.triggerInterdiction(unit);
+  }
+
   private handleDowned(unit: BattleUnit): void {
     this.log.push(`${unit.displayName} is downed.`);
 
@@ -681,16 +1198,19 @@ export class Mission {
       if (unit.downed) continue; // may have died mid-loop
       const decision = decideHostileAction(this.map, unit, this.units);
       if (decision.path && decision.path.length > 1) {
-        const dest = decision.path[decision.path.length - 1];
-        unit.chargedThisMove = unit.chassis === "centauroid" && isStraightLineCharge(this.map, decision.path, "centauroid");
-        unit.pos = dest;
-        unit.actionsRemaining = Math.max(0, unit.actionsRemaining - 1);
-        for (const step of decision.path.slice(1)) {
-          const fired = evaluateZoneEntered(this.mission.events, step, this.turn, this.eventState);
-          for (const ev of fired) this.applyEventAction(ev.action);
-        }
+        this.moveHostile(unit, decision.path);
       }
-      if (decision.attackTargetId) {
+      // Move-then-attack ordering, and the load-bearing half of overwatch
+      // (see the overwatch block above): moveHostile() resolves every
+      // triggered reaction shot BEFORE returning, so by this line a hostile
+      // that was killed walking into an ambush is already `downed` and its
+      // own attack never happens. That's the whole payoff of holding a
+      // firing line — otherwise a mover would still get its hit in from
+      // beyond the grave and overwatch would be pure damage rather than
+      // prevention. attack() would refuse a downed attacker anyway; the
+      // explicit check is here so the ordering is a stated rule rather than
+      // an accident of another method's guard.
+      if (decision.attackTargetId && !unit.downed) {
         this.attack(unit.instanceId, decision.attackTargetId);
       }
       if (this.outcome !== "ongoing") return;
@@ -705,6 +1225,25 @@ export class Mission {
       if (unit.downed) continue;
       unit.actionsRemaining = MAX_ACTIONS_PER_TURN;
       unit.chargedThisMove = false;
+      // Overwatch survives the whole hostile phase — that IS the mechanic —
+      // and expires the moment its owner's next turn begins. Cleared in the
+      // same loop that refreshes actionsRemaining, deliberately: the two are
+      // the same fact ("this unit's turn has started, its held shot is
+      // spent or wasted"), and splitting them is how they'd drift apart.
+      unit.overwatch = false;
+      // Ability-depth pass (23 Aug 2026) — the same fact, for the same
+      // reason, for the two postures added alongside it: abil_ambush's and
+      // abil_screen's concealment, and abil_interdict's brace, each last
+      // exactly one full hostile phase and expire when their owner's next
+      // turn begins. Cleared here rather than in four places so they cannot
+      // drift apart from each other or from `overwatch`.
+      //
+      // `revealedUntilTurn` (abil_sensor_sweep) is deliberately NOT cleared
+      // here: it's a deadline compared against Mission.turn, not a flag, so
+      // a stale value is already inert everywhere it's read and zeroing it
+      // would just be a second place the expiry rule lives.
+      unit.concealed = false;
+      unit.braced = false;
     }
     this.log.push(`--- Turn ${this.turn}: player phase ---`);
     this.runTurnStartEvents();

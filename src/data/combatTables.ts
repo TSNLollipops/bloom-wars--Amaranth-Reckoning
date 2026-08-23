@@ -79,3 +79,33 @@ export const MUNTI_REGEN_PER_TURN = 8;
 // here since that removal wasn't literally asked for, only implied by the
 // XCOM-medic framing — worth confirming it feels right in play.
 export const MAX_ACTIONS_PER_TURN = 2;
+
+// House rule #6, NOT in the Data Pack: the ability-depth pass (Maxime, 23
+// Aug 2026 — "we really need to make our mission last at least 30min"),
+// system 3 of 3 after fog of war and overwatch. One new verb per path; the
+// rules are in data/abilities.ts and engine/mission.ts, only the numbers
+// are here. All four are first-pass values chosen against the class
+// identities (GDD §8.2's triangle: Meeps dive, Reeps chip from range, Tank
+// holds ground, Munti keeps people alive) and every one of them is cheap to
+// retune — none of them feeds engine/combat.ts, because none of these
+// abilities deals damage.
+
+// abil_sensor_sweep (Reeps / any vibrissal chassis). Sweep radius is the
+// sweeping unit's own vision PLUS this, so the ping reaches a little past
+// what the squad can already see — see that ability's own comment for why
+// straight vision radius would have made it worth an action on exactly one
+// mission. The cooldown is what makes it a decision rather than a habit:
+// at 2, there is always one blind turn between sweeps.
+export const SENSOR_SWEEP_RANGE_BONUS = 2;
+export const SENSOR_SWEEP_COOLDOWN_TURNS = 2;
+
+// abil_interdict (Tank). How far the braced Tank's kill-box reaches, in
+// Chebyshev tiles — 1 means "the eight tiles it is standing next to."
+// Anything larger starts pinning hostiles that never actually came into
+// contact with it, which is a different (and much stronger) ability.
+export const INTERDICT_RADIUS = 1;
+
+// abil_screen (Munti). How far the concealment reaches from the Munti, in
+// Chebyshev tiles. Also 1, and for the opposite reason: the squad has to
+// bunch up inside a Bloom swarm's best target shape to get covered at all.
+export const SCREEN_RADIUS = 1;

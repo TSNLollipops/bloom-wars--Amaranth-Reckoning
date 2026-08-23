@@ -18,80 +18,178 @@
 // hand-edit the TypeScript grids" caution in README.md, which is about
 // drift from a *checked-in* ASCII source; there isn't one for these four
 // yet if anyone wants to add one under design/.
+//
+// ---- ENLARGEMENT PASS (Maxime, 23 Aug 2026: "feel free to incrase map
+// size") ----
+// All four grids were re-authored at roughly double area as the map half of
+// the "make a mission last 30+ minutes" work, alongside fog of war (f2e04e4),
+// overwatch (47ab304) and the per-path ability pass. Bigger boards are what
+// makes the other three matter: on a cramped map every hostile is inside
+// somebody's vision on turn 1, so the fog reveals nothing, there is no
+// ground to hold a firing line across, and a Sensor Sweep has nothing to
+// find. The numbers below are measured (Dijkstra on bipedal move cost, the
+// same costs data/tiles.ts uses), not estimated:
+//
+//   map                 old        new        area     deploy->nearest spawn
+//   muster              14 x 9  -> 20 x 12    +90%     12 -> 17 move points
+//   wire_and_mud        16 x 10 -> 22 x 11    +51%     15 -> 17 (and, the
+//                                                      numbers that actually
+//                                                      matter there,
+//                                                      deploy->hold 6 -> 7,
+//                                                      spawn->hold 14 -> 16)
+//   the_low_ground      18 x 11 -> 24 x 15    +82%     20 -> 23
+//   tunnel_rats         18 x 11 -> 24 x 15    +82%      9 ->  9 (deliberately
+//                                                      unchanged — see below)
+//
+// Wire and Mud grew almost entirely sideways (+6 columns, +1 row) and is the
+// smallest increase of the four, because it is the mission whose character
+// is most easily destroyed by space. Two things there are load-bearing and
+// both were found by measurement, not by eye:
+//   - The bypass has to stay a real detour. The room needs to nearly span
+//     the board vertically; give it four spare rows top and bottom instead
+//     of the original's two and the walk around stops being a commitment and
+//     becomes just another lane. Two rows of clearance north and two south
+//     is what the original had, so that is what this kept.
+//   - The hold room has to stay small enough for FIVE MECHS TO DENY. This
+//     was drawn at a 5x6 (30-tile) interior first, and Mission 2 became
+//     unwinnable even when played perfectly: hold_zone needs a player on the
+//     zone AND no hostile on it (engine/mission.ts checkWinLoss), and a room
+//     that big lets Splitfangs pour through the doorway and stand on hold
+//     tiles at the far end while the squad holds the near end. At a 4x5
+//     (20-tile) interior — the same fraction of the board the original's 3x4
+//     was — the squad fills it and plugs the door again. There is a test for
+//     exactly this in engine/__tests__/mapsAmaranth.ts; do not enlarge that
+//     room without re-running it.
+//
+// Area grows far faster than approach distance on purpose. The goal is more
+// ground to manoeuvre in, not more turns spent holding down the move key:
+// the enemy seams moved outward roughly with the map, not to the new far
+// edge. Tunnel Rats keeps its approach at 9 points exactly because that
+// mission's tension is that the Undertow are already right there and simply
+// cannot be seen — walking further before finding nothing would subtract
+// from it, so that map got area and a wider ruin interior and no extra walk.
+//
+// Each mission's tactical character was the constraint the grids were drawn
+// around, not an afterthought:
+//   - Muster stays open tutorial ground: a road ring you can run down, one
+//     rubble knot and two habblock pairs to break line of sight, nothing
+//     that can trap a first-time player.
+//   - Wire and Mud keeps its ONE doorway. See that grid's own comment.
+//   - The Low Ground keeps the mat as the mission: the belt is wider than
+//     the detour around it is cheap, so "go through it" (the briefing's own
+//     words) stays the real answer.
+//   - Tunnel Rats keeps a rubble RING, not a wall — rubble is passable at
+//     extra cost for everyone, so pushing straight through the ring instead
+//     of using the north/south gaps stays a live, priced option.
 import type { MapDefinition, TileType } from "./types";
 import { makeMap } from "./maps";
 
-// ---- Mission 1: Muster — tutorial, open border-post ground ----
+// ---- Mission 1: Muster — tutorial, open border-post ground (20 x 12) ----
+// A road ring around an open middle, habblock pairs north and south for
+// cover, one rubble knot and one habblock pair inside the ring. The three
+// seams sit at cols 18/17 rather than the east edge, so the approach grows
+// by 5 move points, not by 8 — this is still the mission that teaches the
+// controls.
 const MUSTER_TILES: TileType[][] = [
-  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge"],
-  ["ridge", "scrub", "scrub", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "scrub", "scrub", "scrub", "ridge"],
-  ["scrub", "scrub", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub"],
-  ["deploy", "plain", "plain", "road", "road", "road", "road", "road", "road", "road", "plain", "plain", "scrub", "scrub"],
-  ["deploy", "deploy", "plain", "road", "road", "plain", "plain", "plain", "plain", "road", "road", "plain", "scrub", "spawn"],
-  ["deploy", "plain", "plain", "road", "road", "plain", "rubble", "rubble", "plain", "road", "road", "plain", "scrub", "spawn"],
-  ["deploy", "deploy", "plain", "road", "road", "plain", "plain", "plain", "plain", "road", "road", "plain", "plain", "plain"],
-  ["scrub", "scrub", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub"],
-  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge"],
+  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "ridge", "ridge"],
+  ["ridge", "scrub", "scrub", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge"],
+  ["scrub", "scrub", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub"],
+  ["deploy", "plain", "plain", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "deploy", "plain", "road", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "road", "plain", "plain", "spawn", "scrub"],
+  ["deploy", "plain", "plain", "road", "road", "plain", "rubble", "rubble", "plain", "plain", "structure", "structure", "plain", "plain", "road", "road", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "deploy", "plain", "road", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "road", "plain", "plain", "spawn", "scrub"],
+  ["deploy", "plain", "plain", "road", "road", "plain", "rubble", "rubble", "plain", "plain", "structure", "structure", "plain", "plain", "road", "road", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "scrub", "scrub"],
+  ["ridge", "scrub", "scrub", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge"],
+  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge"],
 ];
 
-// ---- Mission 2: Wire and Mud — single-doorway hold zone ----
-// The listening post's hold room sits at cols 6-10 / rows 2-7. The west
-// wall (col 6) is solid on every interior row except row 4 — the one
-// doorway, and the whole point of the mission (Bosk plants himself there).
-// The east wall (col 10) never opens, so hostiles spawning east have to
-// walk all the way around the building (rows 0-1 or 8-9) to reach that same
-// single gap — both sides funnel through one tile.
+// ---- Mission 2: Wire and Mud — single-doorway hold zone (22 x 12) ----
+// The listening post's blockhouse sits at cols 6-11 / rows 2-8. The west
+// wall (col 6) is solid on every interior row except row 5 — the one
+// doorway, and the whole point of the mission (Bosk plants himself there;
+// a unit standing on that tile physically seals the room, since units block
+// movement). The east wall (col 11) never opens, so the two seams at col 12
+// — which sit directly against that sealed east face at the interior's
+// vertical middle, exactly as the old map's two seams did — have to walk
+// the whole way around the building (row 1 or row 9) to reach that same
+// single gap. Both sides funnel through one tile.
+//
+// Column-for-column the west half IS the old map: deploy pads on col 0/1,
+// the doorway at col 6, the hold zone starting at col 7. Everything that
+// was added went east of the blockhouse — the half the hostiles have to
+// walk — which is why the approach around the outside grew (14 -> 16 move
+// points) while the squad's own walk to the door barely did (6 -> 7). The
+// interior grew from 3x4 to 4x5, and no further; see the header for what
+// happens when it grows further than that.
 const WIRE_AND_MUD_TILES: TileType[][] = [
-  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge"],
-  ["ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge"],
-  ["scrub", "scrub", "plain", "plain", "plain", "plain", "wall", "wall", "wall", "wall", "wall", "plain", "plain", "plain", "scrub", "scrub"],
-  ["deploy", "plain", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "wall", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "hold", "hold", "hold", "wall", "spawn", "plain", "plain", "plain", "plain"],
-  ["deploy", "plain", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "wall", "spawn", "plain", "plain", "plain", "plain"],
-  ["deploy", "deploy", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "wall", "plain", "plain", "plain", "plain", "plain"],
-  ["scrub", "scrub", "plain", "plain", "plain", "plain", "wall", "wall", "wall", "wall", "wall", "plain", "plain", "plain", "scrub", "scrub"],
-  ["ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge"],
-  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge"],
+  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "wall", "wall", "wall", "wall", "wall", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "hold", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "hold", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "hold", "hold", "hold", "hold", "wall", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "hold", "wall", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "hold", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "wall", "wall", "wall", "wall", "wall", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge"],
 ];
 
-// ---- Mission 3: The Low Ground — bloom mat flooded the terraces overnight ----
+// ---- Mission 3: The Low Ground — bloom mat flooded the terraces overnight (24 x 15) ----
+// The mat belt spans rows 4-11 and up to 15 columns at its widest. Every
+// mat tile costs 2 move and 5 HP at turn start, and the belt is deliberately
+// wide enough that the clean scrub detour along the north or south edge
+// costs more turns than wading straight across — "nothing to be clever
+// about; go through it" is still the correct read of the briefing.
 const THE_LOW_GROUND_TILES: TileType[][] = [
-  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
-  ["ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge"],
-  ["deploy", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub"],
-  ["deploy", "deploy", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "deploy", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain"],
-  ["plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain"],
-  ["plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain"],
-  ["scrub", "scrub", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "scrub", "scrub", "plain"],
-  ["scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "spawn"],
-  ["ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "spawn"],
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge"],
+  ["deploy", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain"],
+  ["scrub", "scrub", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "ridge", "ridge"],
 ];
 
-// ---- Mission 4: Tunnel Rats — first burrower contact ----
-// A rubble-walled listening-post ruin. The two burrowed Undertow spawn deep
-// inside (row 4); the rubble ring costs extra move but is never a hard
-// wall, so a player unit can push straight through it instead of only
-// using the gaps at top/bottom.
+// ---- Mission 4: Tunnel Rats — first burrower contact (24 x 15) ----
+// A rubble-walled listening-post ruin. The ring runs cols 4-14 / rows 2-12
+// with one three-tile gap due north and one due south; the two burrowed
+// Undertow seams sit deep inside it at row 7, and the third is outside to
+// the east. The rubble costs extra move but is never a hard wall, so a
+// player unit can push straight through the ring instead of only using the
+// gaps — that choice (slow and direct, or fast and around) is the mission.
 const TUNNEL_RATS_TILES: TileType[][] = [
-  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
-  ["ridge", "ridge", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge"],
-  ["deploy", "scrub", "scrub", "rubble", "rubble", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "scrub", "scrub", "plain", "plain", "plain"],
-  ["deploy", "deploy", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "spawn", "spawn", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "deploy", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "spawn"],
-  ["deploy", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "rubble", "rubble", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "scrub", "scrub", "plain", "plain", "plain"],
-  ["ridge", "ridge", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge"],
-  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
-  ["ridge", "ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "spawn"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
-export const map_amaranth_muster = makeMap("map_amaranth_muster", "Muster — Thistledown Watch", 14, 9, MUSTER_TILES);
-export const map_amaranth_wire_and_mud = makeMap("map_amaranth_wire_and_mud", "Wire and Mud — the Listening Post", 16, 10, WIRE_AND_MUD_TILES);
-export const map_amaranth_the_low_ground = makeMap("map_amaranth_the_low_ground", "The Low Ground", 18, 11, THE_LOW_GROUND_TILES);
-export const map_amaranth_tunnel_rats = makeMap("map_amaranth_tunnel_rats", "Tunnel Rats", 18, 11, TUNNEL_RATS_TILES);
+export const map_amaranth_muster = makeMap("map_amaranth_muster", "Muster — Thistledown Watch", 20, 12, MUSTER_TILES);
+export const map_amaranth_wire_and_mud = makeMap("map_amaranth_wire_and_mud", "Wire and Mud — the Listening Post", 22, 11, WIRE_AND_MUD_TILES);
+export const map_amaranth_the_low_ground = makeMap("map_amaranth_the_low_ground", "The Low Ground", 24, 15, THE_LOW_GROUND_TILES);
+export const map_amaranth_tunnel_rats = makeMap("map_amaranth_tunnel_rats", "Tunnel Rats", 24, 15, TUNNEL_RATS_TILES);
 
 export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_muster,

@@ -3,6 +3,20 @@
 // mechs). All values are G tier; tier modifiers (units.ts consumers via
 // engine/combat.ts + TIERS in combat.ts) are applied at runtime, never
 // baked into these rows.
+//
+// Ability-depth pass (23 Aug 2026, data/abilities.ts's own header): each
+// path picks up exactly one new verb, added to the `abilities` array of
+// every archetype on that path and nowhere else, so the new options track
+// the class triangle instead of blurring it —
+//   meeps -> abil_ambush     (go unseen, hold a melee shot)
+//   tank  -> abil_interdict  (pin what walks into your ring)
+//   munti -> abil_screen     (conceal the huddle, once per mission)
+// abil_sensor_sweep is the fourth, and is NOT added anywhere: it was
+// already on all three vibrissal archetypes and stays a chassis ability
+// rather than a path one, exactly as it was written. It is the Reeps' new
+// verb in practice — Cpl. Anand (arch_reeps_vibrissal) is the only pilot
+// in either campaign roster who carries it — it just isn't the Reeps' by
+// data. This pass implements it; it had a definition and no code before.
 import type { UnitArchetype, HostileMechArchetype } from "./types";
 
 export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
@@ -20,7 +34,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 4,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: [],
+    abilities: ["abil_ambush"],
     spriteKey: "shape_triangle_solid",
   },
   arch_meeps_centauroid: {
@@ -37,7 +51,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 4,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_charge"],
+    abilities: ["abil_charge", "abil_ambush"],
     spriteKey: "shape_triangle_double",
   },
   arch_meeps_vibrissal: {
@@ -54,7 +68,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 6,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_sensor_sweep"],
+    abilities: ["abil_sensor_sweep", "abil_ambush"],
     spriteKey: "shape_triangle_whisker",
   },
 
@@ -72,7 +86,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 3,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_overshield"],
+    abilities: ["abil_overshield", "abil_interdict"],
     spriteKey: "shape_square_solid",
   },
   arch_tank_centauroid: {
@@ -89,7 +103,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 3,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_overshield", "abil_charge"],
+    abilities: ["abil_overshield", "abil_charge", "abil_interdict"],
     spriteKey: "shape_square_double",
   },
   arch_tank_vibrissal: {
@@ -106,7 +120,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 5,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_overshield", "abil_sensor_sweep"],
+    abilities: ["abil_overshield", "abil_sensor_sweep", "abil_interdict"],
     spriteKey: "shape_square_whisker",
   },
 
@@ -176,7 +190,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 4,
     canCounter: true, // Y* — counters at range 1 only; see counterMaxRange, NOT attackRange
     counterMaxRange: 1,
-    abilities: ["abil_repair", "abil_cockpit_evac"],
+    abilities: ["abil_repair", "abil_cockpit_evac", "abil_screen"],
     spriteKey: "shape_circlebar_solid",
   },
   arch_munti_centauroid: {
@@ -193,7 +207,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 4,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_repair", "abil_cockpit_evac", "abil_charge"],
+    abilities: ["abil_repair", "abil_cockpit_evac", "abil_charge", "abil_screen"],
     spriteKey: "shape_circlebar_double",
   },
   arch_munti_vibrissal: {
@@ -210,7 +224,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 6,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_repair", "abil_cockpit_evac", "abil_sensor_sweep"],
+    abilities: ["abil_repair", "abil_cockpit_evac", "abil_sensor_sweep", "abil_screen"],
     spriteKey: "shape_circlebar_whisker",
   },
 };
