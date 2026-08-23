@@ -11,10 +11,26 @@
 import Phaser from "phaser";
 import { CAMPAIGNS } from "../data/allCampaigns";
 
+const CARD_SPACING = 92;
+const CARD_HEIGHT = 74;
+const GAME_HEIGHT = 640;
+const SCROLL_BOTTOM_MARGIN = 16;
+
 export class MapSelect extends Phaser.Scene {
   private missionListLayer!: Phaser.GameObjects.Container;
   private tabButtons: { bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text; campaignId: string }[] = [];
   private activeCampaignIndex = 0;
+  // Scroll pass (23 Aug 2026, Amaranth missions 5-8 landing): eight
+  // missions' worth of cards (listTop + 7*CARD_SPACING + half a card) run
+  // to y~835, well past this scene's own 640px canvas height — mission 8's
+  // card wasn't just visually cut off, it was outside the interactive area
+  // entirely and un-clickable. renderMissionList's own layout math is
+  // unchanged; this only adds a mouse-wheel offset to missionListLayer,
+  // clamped so the list can't scroll past its own content in either
+  // direction, plus a mask so scrolled-up cards clip at the list's own top
+  // edge instead of drawing over the fixed header above it.
+  private listScrollMinY = 0;
+  private listMask?: Phaser.Display.Masks.GeometryMask;
 
   constructor() {
     super("MapSelect");
@@ -63,7 +79,22 @@ export class MapSelect extends Phaser.Scene {
     }
 
     this.missionListLayer = this.add.container(0, 0);
-    this.renderMissionList(showTabs ? 156 : 100);
+    const listTop = showTabs ? 156 : 100;
+    this.renderMissionList(listTop);
+
+    // Mask the scrollable area to [listTop, canvas bottom] so a scrolled
+    // card clips at the list's own top edge rather than drawing over the
+    // fixed "THE BLOOM WARS" header, which isn't part of this container.
+    const maskShape = this.make.graphics({});
+    maskShape.fillRect(0, listTop, 960, GAME_HEIGHT - listTop);
+    this.listMask = maskShape.createGeometryMask();
+    this.missionListLayer.setMask(this.listMask);
+
+    this.input.off("wheel"); // same accumulation risk as tabButtons/actionSlots — this scene re-runs create() every visit
+    this.input.on("wheel", (_pointer: unknown, _over: unknown, _dx: number, dy: number) => {
+      const newY = Phaser.Math.Clamp(this.missionListLayer.y - dy * 0.5, this.listScrollMinY, 0);
+      this.missionListLayer.y = newY;
+    });
   }
 
   private selectCampaign(index: number) {
@@ -77,6 +108,7 @@ export class MapSelect extends Phaser.Scene {
   // there's only one campaign and the tabs are skipped entirely.
   private renderMissionList(subtitleY: number) {
     this.missionListLayer.removeAll(true);
+    this.missionListLayer.y = 0; // reset scroll — a campaign switch or re-entry starts back at the top of its own list
     const campaign = CAMPAIGNS[this.activeCampaignIndex];
 
     const subtitle = this.add
@@ -85,6 +117,9 @@ export class MapSelect extends Phaser.Scene {
     this.missionListLayer.add(subtitle);
 
     const listTop = subtitleY + 54;
+    const contentBottom = listTop + (campaign.missions.length - 1) * CARD_SPACING + CARD_HEIGHT / 2 + SCROLL_BOTTOM_MARGIN;
+    this.listScrollMinY = -Math.max(0, contentBottom - GAME_HEIGHT);
+
     campaign.missions.forEach((mission, i) => {
       const y = listTop + i * 92;
       const card = this.add.rectangle(480, y, 860, 74, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552).setInteractive({ useHandCursor: true });

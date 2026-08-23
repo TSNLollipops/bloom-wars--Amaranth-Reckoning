@@ -112,6 +112,36 @@ export const BLOOM: Record<string, BloomArchetype> = {
     colorPalette: ["#D9CBB0", "#A97C4F", "#3DDCFF"],
     spriteKey: "bloom_flyer_membrane",
   },
+  // Independent campaign addition (Amaranth Act I, Mission 8 "The Choir
+  // Sings" — claude/Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md
+  // §8: "a Sirenmaw-descended pack fighting in coordination, pack-tier
+  // intelligence made audible"). Built the same documented way as the
+  // Data Pack's own seven, per §3's own scope note that Act I needs no new
+  // systems, only "two new Bloom encounters built from existing
+  // categories." intelligence: "pack" is load-bearing, not flavour — it's
+  // what makes engine/ai.ts's existing packAllies() coordination apply for
+  // free (same SPLITFANG_PACK_RADIUS, no new engine code), which is the
+  // whole mechanical point of this archetype. Tuned above Sirenmaw
+  // (END 80->110, VIT 70->85, attackPower 25->32) since this is Act I's
+  // mid-boss encounter, not a first-contact threat.
+  bloom_choir: {
+    id: "bloom_choir",
+    displayName: "The Choir",
+    weaponType: "sonic",
+    movementType: "flight_membrane",
+    perception: "thermal",
+    intelligence: "pack",
+    endurance: 110,
+    vitality: 85,
+    moveRange: 6,
+    attackRange: [1, 2],
+    attackPower: 32,
+    vision: 6,
+    swarmSize: [3, 4],
+    onHit: "fx_choir_dissonance",
+    colorPalette: ["#D9CBB0", "#6B4A8A", "#3DDCFF"],
+    spriteKey: "bloom_flyer_choir",
+  },
   bloom_heartwood: {
     id: "bloom_heartwood",
     displayName: "The Heartwood",
@@ -141,6 +171,12 @@ export const BLOOM_ON_HIT_EFFECTS: Record<
   fx_acid_dot: { kind: "acid_dot", magnitude: 8, duration: 2 }, // 8 dmg/turn for 2 turns; converts target tile to bloom_mat
   fx_debuff_attack: { kind: "debuff_attack", magnitude: 0.2, duration: 2 }, // -20% ATK, target + friendlies within 2 tiles; does not stack, longest duration wins
   fx_knockback_1: { kind: "knockback", magnitude: 1, duration: 0 },
+  // The Choir (bloom_choir, Amaranth Act I Mission 8) — same debuff_attack
+  // kind as Sirenmaw's fx_debuff_attack, tuned up (-20%/2 turns ->
+  // -30%/3 turns) since "pack-tier intelligence made audible" is meant to
+  // read as several coordinated voices compounding the disorientation, not
+  // a stronger single hit. Same does-not-stack/longest-duration-wins rule.
+  fx_choir_dissonance: { kind: "debuff_attack", magnitude: 0.3, duration: 3 },
 };
 
 // Data Pack §8.1 special rules not captured by the stat block:

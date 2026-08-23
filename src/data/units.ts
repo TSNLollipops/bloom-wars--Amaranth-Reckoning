@@ -264,3 +264,54 @@ export const HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
     spawnAt: { x: 11, y: 8 },
   },
 };
+
+// Amaranth Act I, Mission 6 ("House Colors") — the opposite of §10.1's
+// discipline above, deliberately: this checkpoint dispute is the mission's
+// whole point, so the game names exactly who these are rather than
+// withholding it. Not Bloom, not ambiguous — a House Amaranth line
+// detachment, first time Warden Company fights something other than the
+// Bloom. `spawnAt` here is the same effectively-unused per-archetype
+// default as the block above (real mission spawning always goes through
+// the wave's own spawnAt/enemy_deploy resolution in engine/mission.ts) —
+// kept only because HostileMechArchetype requires it.
+export const AMARANTH_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
+  hostile_mech_amaranth_01: {
+    id: "hostile_mech_amaranth_01",
+    displayName: "House Amaranth Line Trooper",
+    path: "tank",
+    tier: "G",
+    spawnAt: { x: 15, y: 4 },
+  },
+  hostile_mech_amaranth_02: {
+    id: "hostile_mech_amaranth_02",
+    displayName: "House Amaranth Line Trooper",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 15, y: 7 },
+  },
+  hostile_mech_amaranth_03: {
+    id: "hostile_mech_amaranth_03",
+    displayName: "House Amaranth Line Trooper",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 17, y: 5 },
+  },
+  hostile_mech_amaranth_04: {
+    id: "hostile_mech_amaranth_04",
+    displayName: "House Amaranth Line Trooper",
+    path: "reeps",
+    tier: "G",
+    spawnAt: { x: 17, y: 6 },
+  },
+};
+
+// Merged lookup table, same shape as pilotRegistry.ts's reason for
+// existing: engine/units.ts's createHostileMechUnit needs to resolve IDs
+// from both blocks above by id alone, and without this merge a second
+// hostile-mech source would silently fail to resolve on the battlefield —
+// exactly the pilot-lookup gap the Amaranth roster hit first (see
+// campaignAmaranth.ts's own file header / the build log).
+export const ALL_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
+  ...HOSTILE_MECHS,
+  ...AMARANTH_HOSTILE_MECHS,
+};

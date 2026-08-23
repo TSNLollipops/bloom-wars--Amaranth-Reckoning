@@ -2,7 +2,7 @@
 // Runtime unit instances + effective-stat calculation (Data Pack §5.1's
 // worked example, order of application: base -> tier -> mek).
 import type { Coord, MekArchetype, Path, PilotRecord, Tier } from "../data/types";
-import { UNIT_ARCHETYPES, HOSTILE_MECHS } from "../data/units";
+import { UNIT_ARCHETYPES, ALL_HOSTILE_MECHS } from "../data/units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
@@ -207,7 +207,7 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
 }
 
 export function createHostileMechUnit(hostileMechId: string, pos: Coord): BattleUnit {
-  const mech = HOSTILE_MECHS[hostileMechId];
+  const mech = ALL_HOSTILE_MECHS[hostileMechId];
   if (!mech) throw new Error(`Unknown hostile mech id: ${hostileMechId}`);
   // "All four use the standard bipedal archetypes" — Data Pack §9.
   const archetypeId = `arch_${mech.path}_bipedal`;

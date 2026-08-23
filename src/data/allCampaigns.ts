@@ -29,7 +29,7 @@ export const CAMPAIGNS: CampaignDef[] = [
   {
     id: "amaranth_act1",
     name: "The Amaranth Reckoning — Act I: The Fallow Line",
-    subtitle: "Warden Company. Independent, non-canon parallel campaign — missions 1-4 of Act I.",
+    subtitle: "Warden Company. Independent, non-canon parallel campaign — missions 1-8 of Act I.",
     missions: AMARANTH_ACT1,
   },
 ];

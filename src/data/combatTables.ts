@@ -22,6 +22,20 @@ export const TIERS: Record<Tier, { attack: number; defense: number; hp: number; 
   A: { attack: 140, defense: 132, hp: 130, move: 2 },
 };
 
+// Gear-tier pass (sprites/decor, 23 Aug 2026): scenes/Battle.ts draws one
+// gold pip per step a unit's gear tier sits above G, top-right corner of the
+// sprite (GDD §12). Reuses TIERS' own key order rather than a second
+// hardcoded ladder, so a future tier added to TIERS can't silently drift out
+// of sync with the pip count. G itself draws zero pips — Battle.ts already
+// guards on `pips > 0` — and a unit with no tier (Bloom; see
+// engine/units.ts's BattleUnit.tier) never calls this at all.
+const TIER_ORDER = Object.keys(TIERS) as Tier[];
+
+export function tierPipCount(tier: Tier): number {
+  const idx = TIER_ORDER.indexOf(tier);
+  return idx < 0 ? 0 : idx;
+}
+
 export const CENTAUROID_CHARGE_MULT = 1.25;
 
 // House rule, NOT in the Data Pack: Maxime's call (22 Aug 2026) after

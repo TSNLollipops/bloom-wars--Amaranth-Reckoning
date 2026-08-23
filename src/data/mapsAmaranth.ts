@@ -186,14 +186,120 @@ const TUNNEL_RATS_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
+// ---- Mission 5: Foraging Party — first extraction (22 x 13) ----
+// Deploy sits west (the wire); exit tiles sit east (the return route).
+// A wrecked supply depot — the foraging site itself, rubble knot plus a
+// structure pair — sits dead centre, with three Bloom seams placed between
+// the depot and the exit rather than behind the squad, so getting the
+// extraction unit out means going through where the salvage actually is,
+// not around it. Authored + BFS-validated the same way as missions 1-4
+// (see this file's own header) with a small scratch Node tool rather than
+// hand-counted ASCII — every passable tile confirmed reachable from every
+// deploy pad, same two checks maps.py performs.
+const FORAGING_PARTY_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "exit"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge"],
+];
+
+// ---- Mission 6: House Colors — the checkpoint dispute (20 x 12) ----
+// A border-post gate: two wall segments run the full north/south depth at
+// the midline (col 9), a real barrier, not the slow-but-passable structure
+// tile — flanked by guard-post structure pairs on both the near and far
+// side. One road runs straight through at rows 5-6, the crossing itself;
+// everything either side of it has to go around through open ground, same
+// choice a checkpoint actually presents. Deploy sits west of the gate,
+// House Amaranth's detachment (hostile_mech_amaranth_01-04, data/units.ts)
+// spawns dug in on the far side — first mission Warden Company fights
+// something other than the Bloom.
+const HOUSE_COLORS_TILES: TileType[][] = [
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "wall", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "wall", "plain", "structure", "structure", "plain", "plain", "spawn", "plain", "plain", "plain", "scrub"],
+  ["deploy", "deploy", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "spawn", "road", "road"],
+  ["deploy", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "spawn", "road", "road"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "wall", "plain", "structure", "structure", "plain", "plain", "spawn", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "wall", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+];
+
+// ---- Mission 7: Sporewatch Ridge — hold the knoll (20 x 12) ----
+// The ridge itself (4 defence stars, +1 Reeps range — data/tiles.ts) IS
+// the hold zone, dead centre: the mission's whole point is that holding ON
+// it beats holding beside it. A scrub apron south of the knoll is the
+// Sporethrower push's own approach ground — kept cheap to move through so
+// the push actually arrives at range instead of stalling short of it.
+// Deploy sits north, already behind the high ground.
+const SPOREWATCH_RIDGE_TILES: TileType[][] = [
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "deploy", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "hold", "hold", "hold", "hold", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "hold", "hold", "hold", "hold", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "hold", "hold", "hold", "hold", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "spawn", "spawn", "spawn", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+];
+
+// ---- Mission 8: The Choir Sings — mid-boss, first coordinated pack (22 x 13) ----
+// Deliberately open at the centre — nothing breaks line of sight or the
+// Choir's own pack-tier coordination (engine/ai.ts's packAllies(), same
+// radius Splitfang already uses) once it closes in, because the danger
+// here is the pack itself, not the terrain. Ridge fringes at all four
+// corners give the squad a fallback position, not a whole strategy. The
+// Choir's own seam sits clustered east (a pack, not a scatter, drawn the
+// same way the design doc frames "first coordinated Bloom pack") with two
+// outlying Crawlmass seams north and south of it.
+const THE_CHOIR_SINGS_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "scrub"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "scrub"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "scrub"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "scrub"],
+  ["ridge", "ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
+];
+
 export const map_amaranth_muster = makeMap("map_amaranth_muster", "Muster — Thistledown Watch", 20, 12, MUSTER_TILES);
 export const map_amaranth_wire_and_mud = makeMap("map_amaranth_wire_and_mud", "Wire and Mud — the Listening Post", 22, 11, WIRE_AND_MUD_TILES);
 export const map_amaranth_the_low_ground = makeMap("map_amaranth_the_low_ground", "The Low Ground", 24, 15, THE_LOW_GROUND_TILES);
 export const map_amaranth_tunnel_rats = makeMap("map_amaranth_tunnel_rats", "Tunnel Rats", 24, 15, TUNNEL_RATS_TILES);
+export const map_amaranth_foraging_party = makeMap("map_amaranth_foraging_party", "Foraging Party", 22, 13, FORAGING_PARTY_TILES);
+export const map_amaranth_house_colors = makeMap("map_amaranth_house_colors", "House Colors", 20, 12, HOUSE_COLORS_TILES);
+export const map_amaranth_sporewatch_ridge = makeMap("map_amaranth_sporewatch_ridge", "Sporewatch Ridge", 20, 12, SPOREWATCH_RIDGE_TILES);
+export const map_amaranth_the_choir_sings = makeMap("map_amaranth_the_choir_sings", "The Choir Sings", 22, 13, THE_CHOIR_SINGS_TILES);
 
 export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_muster,
   map_amaranth_wire_and_mud,
   map_amaranth_the_low_ground,
   map_amaranth_tunnel_rats,
+  map_amaranth_foraging_party,
+  map_amaranth_house_colors,
+  map_amaranth_sporewatch_ridge,
+  map_amaranth_the_choir_sings,
 };
