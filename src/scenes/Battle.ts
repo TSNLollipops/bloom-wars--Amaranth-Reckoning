@@ -14,6 +14,8 @@ import { unitsVisibleToSide } from "../engine/ai";
 import { BLOOM } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { createWardenCampaignState, loadCampaignState } from "../engine/campaignState";
+import { TILES } from "../data/tiles";
+import { tierPipCount } from "../data/combatTables";
 
 const TILE_COLORS: Record<TileType, number> = {
   plain: 0x3a4636,
@@ -72,6 +74,9 @@ const ACTION_SLOTS: Coord[] = [
 ];
 const ACTION_SLOT_W = 98;
 const ACTION_SLOT_H = 30;
+
+/** The five silhouettes drawUnit() ever draws — "blob" covers both Bloom units and any pilot/mech archetype missing a path (defensive fallback only). Shared between the fill pass and the outline helpers below it so both draw the exact same geometry. */
+type SilhouetteKind = "blob" | "meeps" | "tank" | "reeps" | "munti";
 
 /** One entry in the contextual action bar. `usable` comes from the engine's own canX() predicate — this scene never re-derives one. */
 interface ActionOption {
@@ -188,6 +193,33 @@ export class Battle extends Phaser.Scene {
     // centred, on a plain rectangle in the existing panel blue, greyed to
     // the existing 0x1a2028/0x3a4552/#5a6572 when the engine says the verb
     // isn't usable right now.
+    //
+    // Bug fix (Maxime, 23 Aug 2026 — "mission 2 didn't have overwatch or
+    // sweep or the ability", then mission 3 "didn't have ability eiter"):
+    // create() runs again every time this scene is (re)started — once per
+    // mission launched from MapSelect/TransporterPad in the same browser
+    // session — and Phaser destroys every GameObject this scene owns on
+    // the way out (Scenes.Systems#shutdown -> DisplayList#shutdown ->
+    // list[i].destroy(true), confirmed against node_modules/phaser's own
+    // source). `actionSlots` is a persistent array field, though, and
+    // without the reset below each create() just PUSHED four more entries
+    // onto it — so after mission 2's create() ran, index 0-3 were mission
+    // 1's now-destroyed buttons and mission 2's real, live buttons sat at
+    // 4-7. drawActionBar() (below) always writes to indices 0-3: it was
+    // therefore calling .setText()/.setFillStyle() on dead GameObjects
+    // every single render() from the second mission onward, which throws
+    // inside Phaser's Text#updateText ("Cannot read properties of null
+    // (reading 'drawImage')") — confirmed via a headless Playwright replay
+    // of exactly this sequence (mission 1 -> mission select -> mission 2).
+    // That exception aborted render() before it reached drawHud() below
+    // drawActionBar() in the call order, which is also why the HUD panel's
+    // unit-info lines and the log went blank alongside the action bar —
+    // one root cause, not two. The fix is just making this the fresh-pool
+    // reset every other per-create() field already gets via reassignment
+    // (this.gfx, this.hudText, ...) — actionSlots is the one field on this
+    // scene built by accumulation instead, and it needed the same
+    // "current create() call owns this from scratch" treatment.
+    this.actionSlots = [];
     for (let i = 0; i < ACTION_SLOTS.length; i++) {
       const p = ACTION_SLOTS[i];
       const btn = this.add
@@ -417,6 +449,7 @@ export class Battle extends Phaser.Scene {
         const tile = map.tiles[y][x];
         g.fillStyle(TILE_COLORS[tile], 1);
         g.fillRect(this.boardX + x * ts, this.boardY + y * ts, ts - 1, ts - 1);
+        this.drawDefenseStars(g, tile, this.boardX + x * ts, this.boardY + y * ts, ts);
       }
     }
 
@@ -513,6 +546,111 @@ export class Battle extends Phaser.Scene {
     }
   }
 
+  /**
+   * GDD §12: "Terrain: flat fills from a nine-colour palette, with defence
+   * stars printed as small dots in the tile corner." TILE_COLORS above only
+   * ever implemented the fill half of that sentence — data/tiles.ts's
+   * TileDef.defenceStars has been sitting unread by this scene since the
+   * placeholder pass. Drawn in the tile's bottom-left corner, deliberately
+   * not top-right, so it never competes with a unit's gear-tier pips below
+   * (also a tile-corner mark, but always top-right, and drawn later so it
+   * sits above whatever's standing on the tile).
+   */
+  private drawDefenseStars(g: Phaser.GameObjects.Graphics, tile: TileType, tileX: number, tileY: number, ts: number) {
+    const stars = TILES[tile].defenceStars;
+    if (stars <= 0) return;
+    const dotR = Math.max(1, ts * 0.045);
+    const pad = ts * 0.12;
+    const spacing = dotR * 2.4;
+    g.fillStyle(0xe8e2d4, 0.55);
+    for (let i = 0; i < stars; i++) {
+      g.fillCircle(tileX + pad + i * spacing, tileY + ts - pad, dotR);
+    }
+  }
+
+  /**
+   * Traces and strokes just the outline of a silhouette at the given
+   * radius — no fill. Shared by drawSpeciesOutline (below) so the hiopi
+   * double-outline pass can re-stroke the exact same geometry at a second,
+   * larger radius instead of hand-duplicating each shape's path.
+   */
+  private strokeSilhouette(g: Phaser.GameObjects.Graphics, kind: SilhouetteKind, cx: number, cy: number, r: number) {
+    if (kind === "blob" || kind === "munti") {
+      g.strokeCircle(cx, cy, r);
+      return;
+    }
+    g.beginPath();
+    if (kind === "meeps") {
+      g.moveTo(cx, cy - r);
+      g.lineTo(cx + r, cy + r);
+      g.lineTo(cx - r, cy + r);
+    } else if (kind === "tank") {
+      g.moveTo(cx - r, cy - r);
+      g.lineTo(cx + r, cy - r);
+      g.lineTo(cx + r, cy + r);
+      g.lineTo(cx - r, cy + r);
+    } else {
+      // reeps
+      g.moveTo(cx, cy - r);
+      g.lineTo(cx + r, cy);
+      g.lineTo(cx, cy + r);
+      g.lineTo(cx - r, cy);
+    }
+    g.closePath();
+    g.strokePath();
+  }
+
+  /**
+   * GDD §12's species-outline table: human = single solid outline, hiopi =
+   * double outline, osnius = single outline + two whisker ticks at the
+   * leading edge. Replaces the old proxy (centauroid alone got a thicker
+   * 3px line; everyone else got the same 1.5px line, which never actually
+   * read as "double" or "whiskered" to a player) with the three genuinely
+   * distinct treatments the table calls for. Keyed off unit.chassis, which
+   * is a 1:1 stand-in for species per data/units.ts's own archetype rows
+   * (human/bipedal, hiopi/centauroid, osnius/bipedal_vibrissal) — so no
+   * separate species field is needed on BattleUnit.
+   */
+  private drawSpeciesOutline(g: Phaser.GameObjects.Graphics, unit: BattleUnit, kind: SilhouetteKind, cx: number, cy: number, r: number) {
+    g.lineStyle(1.5, 0xffffff, 0.9);
+    this.strokeSilhouette(g, kind, cx, cy, r);
+
+    if (unit.chassis === "centauroid") {
+      // Hiopi: a second, thinner pass at a slightly larger radius — a
+      // genuine second line, not just a thicker one.
+      g.lineStyle(1, 0xffffff, 0.55);
+      this.strokeSilhouette(g, kind, cx, cy, r + 2.5);
+    } else if (unit.chassis === "bipedal_vibrissal") {
+      // Osnius: two short whisker ticks off the leading edge — "leading
+      // edge" reads as "top of the silhouette" here since units have no
+      // facing direction on this board. Echoes the sensor-whisker motif
+      // the archetype ids already use (arch_*_vibrissal).
+      const tickLen = r * 0.55;
+      const originY = cy - r * 0.85;
+      g.lineBetween(cx - r * 0.3, originY, cx - r * 0.3 - tickLen * 0.5, originY - tickLen);
+      g.lineBetween(cx + r * 0.3, originY, cx + r * 0.3 + tickLen * 0.5, originY - tickLen);
+    }
+  }
+
+  /**
+   * A dashed ring, faked with short stroked arcs and gaps since Phaser
+   * Graphics has no native dash pattern. Only ever called for a burrowed
+   * Bloom right now (GDD §12: "Burrowed: dashed outline, 40% opacity") —
+   * written as a general helper in case a later state wants the same look.
+   */
+  private drawDashedCircleOutline(g: Phaser.GameObjects.Graphics, cx: number, cy: number, r: number, color: number, alpha: number) {
+    const segments = 10;
+    const gapFraction = 0.45;
+    g.lineStyle(1.5, color, alpha);
+    for (let i = 0; i < segments; i++) {
+      const start = (i / segments) * Math.PI * 2;
+      const end = start + ((Math.PI * 2) / segments) * (1 - gapFraction);
+      g.beginPath();
+      g.arc(cx, cy, r, start, end, false);
+      g.strokePath();
+    }
+  }
+
   private drawUnit(g: Phaser.GameObjects.Graphics, unit: BattleUnit, ts: number) {
     const cx = this.boardX + unit.pos.x * ts + ts / 2;
     const cy = this.boardY + unit.pos.y * ts + ts / 2;
@@ -522,32 +660,29 @@ export class Battle extends Phaser.Scene {
     const color = unit.side === "player" ? PLAYER_COLOR : unit.kind === "mech" ? HOSTILE_MECH_COLOR : parseInt(BLOOM[unit.archetypeId]?.colorPalette[0].replace("#", "") ?? "888888", 16);
 
     g.fillStyle(color, acted ? 0.55 : 1);
-    g.lineStyle(unit.chassis === "centauroid" ? 3 : 1.5, 0xffffff, 0.9);
 
     const path = unit.path;
-    if (unit.kind === "bloom" || !path) {
-      // Bloom placeholder: a blob (circle), dashed/faint if still burrowed.
-      if (unit.burrowed) {
-        g.fillStyle(color, 0.25);
-      }
+    const kind: SilhouetteKind = unit.kind === "bloom" || !path ? "blob" : path === "meeps" ? "meeps" : path === "tank" ? "tank" : path === "reeps" ? "reeps" : "munti";
+    const burrowedBlob = kind === "blob" && unit.burrowed;
+    if (burrowedBlob) {
+      // Bloom placeholder, still underground: fainter fill, per GDD §12
+      // ("Burrowed: dashed outline, 40% opacity") — the outline half of
+      // that rule is drawn below, after the fill branches.
+      g.fillStyle(color, 0.4);
+    }
+
+    if (kind === "blob") {
       g.fillCircle(cx, cy, r);
-      g.strokeCircle(cx, cy, r);
-      if (unit.collapsed) {
-        g.lineStyle(2, 0xff5555, 0.9);
-        g.strokeCircle(cx, cy, r + 3);
-      }
-    } else if (path === "meeps") {
+    } else if (kind === "meeps") {
       g.beginPath();
       g.moveTo(cx, cy - r);
       g.lineTo(cx + r, cy + r);
       g.lineTo(cx - r, cy + r);
       g.closePath();
       g.fillPath();
-      g.strokePath();
-    } else if (path === "tank") {
+    } else if (kind === "tank") {
       g.fillRect(cx - r, cy - r, r * 2, r * 2);
-      g.strokeRect(cx - r, cy - r, r * 2, r * 2);
-    } else if (path === "reeps") {
+    } else if (kind === "reeps") {
       g.beginPath();
       g.moveTo(cx, cy - r);
       g.lineTo(cx + r, cy);
@@ -555,13 +690,55 @@ export class Battle extends Phaser.Scene {
       g.lineTo(cx - r, cy);
       g.closePath();
       g.fillPath();
-      g.strokePath();
     } else {
       // munti — circle with a cross bar
       g.fillCircle(cx, cy, r);
-      g.strokeCircle(cx, cy, r);
+    }
+
+    // Outline pass, separated from the fill pass above so the same
+    // silhouette geometry can be re-stroked at more than one radius (the
+    // hiopi double outline) or swapped for a dashed version (a burrowed
+    // Bloom) without duplicating each shape's fill code.
+    if (burrowedBlob) {
+      this.drawDashedCircleOutline(g, cx, cy, r, 0xffffff, 0.4);
+    } else {
+      this.drawSpeciesOutline(g, unit, kind, cx, cy, r);
+    }
+    if (kind === "munti") {
       g.lineStyle(2, 0xffffff, 0.9);
       g.lineBetween(cx - r, cy, cx + r, cy);
+    }
+    if (unit.collapsed) {
+      // GDD §12 wants a "pulsing rim." Real per-frame animation would mean
+      // driving render() off this scene's update(time) every frame instead
+      // of only on input/state changes — a bigger structural change than
+      // this pass makes, so it's flagged rather than silently shipped as a
+      // single static ring pretending to be the finished spec. Approximated
+      // instead with a static double ring, which at least reads as more
+      // than a plain outline at a glance.
+      g.lineStyle(2, 0xff5555, 0.9);
+      g.strokeCircle(cx, cy, r + 3);
+      g.lineStyle(1, 0xff5555, 0.5);
+      g.strokeCircle(cx, cy, r + 6);
+    }
+
+    // Gear-tier pips (GDD §12: "one pip per step above G, top-right").
+    // engine/units.ts's BattleUnit.tier carries the raw Tier letter for
+    // exactly this; a Bloom unit never has one, so it correctly draws none
+    // — "gear" isn't a Bloom concept.
+    if (unit.tier) {
+      const pips = tierPipCount(unit.tier);
+      if (pips > 0) {
+        const pipR = Math.max(1, ts * 0.05);
+        const originX = this.boardX + unit.pos.x * ts + ts - pipR * 2;
+        const originY = this.boardY + unit.pos.y * ts + pipR * 2;
+        g.fillStyle(0xd4af37, 0.95);
+        for (let i = 0; i < pips; i++) {
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          g.fillCircle(originX - col * pipR * 2.4, originY + row * pipR * 2.4, pipR);
+        }
+      }
     }
 
     // Overwatch tell: amber targeting brackets at the four corners of the

@@ -79,9 +79,18 @@ export interface AttackOutcome {
   counterDodged?: boolean;
 }
 
-/** Meeps house rule roll — true MEEPS_DODGE_CHANCE of the time, false for every non-Meeps path (or undefined path, e.g. Bloom). */
-function rollMeepsDodge(unit: BattleUnit): boolean {
-  return unit.path === "meeps" && Math.random() < MEEPS_DODGE_CHANCE;
+/**
+ * Meeps house rule roll — true MEEPS_DODGE_CHANCE of the time, false for
+ * every non-Meeps path (or undefined path, e.g. Bloom). `source` is whoever
+ * is dealing THIS specific hit (the attacker for a primary hit, the
+ * counter-attacker for a counter-hit) — a Tank source always wins the roll
+ * outright (data/combatTables.ts, House rule #1b, 23 Aug 2026): Meeps
+ * cannot dodge a hit that came from a Tank, whichever direction it's
+ * flying. A Bloom source (attacker.path undefined) is unaffected, same as
+ * before this rule existed.
+ */
+function rollMeepsDodge(unit: BattleUnit, source: BattleUnit): boolean {
+  return unit.path === "meeps" && source.path !== "tank" && Math.random() < MEEPS_DODGE_CHANCE;
 }
 
 export interface RepairOutcome {
@@ -552,8 +561,8 @@ export class Mission {
 
     let outcome: AttackOutcome;
     if (attacker.kind !== "bloom" && defender.kind !== "bloom") {
-      const defenderDodged = rollMeepsDodge(defender);
-      const attackerDodgedCounter = rollMeepsDodge(attacker);
+      const defenderDodged = rollMeepsDodge(defender, attacker);
+      const attackerDodgedCounter = rollMeepsDodge(attacker, defender);
       const r = resolveMechAttack(
         this.map,
         attacker,
@@ -585,7 +594,7 @@ export class Mission {
       // Bloom attacking a mech-shape defender.
       const surfaced = !!attacker.burrowed; // a burrowed unit that is attacking has just surfaced this turn
       if (attacker.burrowed) attacker.burrowed = false;
-      const defenderDodged = rollMeepsDodge(defender);
+      const defenderDodged = rollMeepsDodge(defender, attacker);
       const dmg = bloomDamage(attacker, defender, this.map, sameSideAsDefender, surfaced, defenderDodged);
       applyMechDamage(defender, dmg);
       outcome = { attackerId, defenderId, damage: dmg, countered: false, defenderDowned: defender.downed, defenderDodged };

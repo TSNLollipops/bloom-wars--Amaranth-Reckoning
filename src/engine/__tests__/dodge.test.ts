@@ -68,7 +68,12 @@ describe("Mission.attack — dodge wiring end-to-end", () => {
   it("a forced low Math.random() roll makes a Meeps defender dodge a mech attack and skips damage entirely", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.01); // well under MEEPS_DODGE_CHANCE (0.4)
     const mission = new Mission(MISSION_1A);
-    const attacker = createHostileMechUnit("hostile_mech_01", { x: 5, y: 5 });
+    // hostile_mech_03 (Meeps-path, Data Pack §9) — deliberately NOT
+    // hostile_mech_01 (Tank-path), since a Tank source now always wins this
+    // roll (House rule #1b, below) and would make this generic-dodge test
+    // no longer generic. See "still never dodges when the hit's SOURCE is a
+    // Tank" for that specific case.
+    const attacker = createHostileMechUnit("hostile_mech_03", { x: 5, y: 5 });
     mission.units.push(attacker);
     const meeps = mission.units.find((u) => u.pilotId === "pilot_nagori")!; // Meeps/bipedal
     meeps.pos = { x: 6, y: 5 };
@@ -120,5 +125,55 @@ describe("Mission.attack — dodge wiring end-to-end", () => {
     const outcome = mission.attack(attacker.instanceId, tank.instanceId);
     expect(outcome!.defenderDodged).toBe(false);
     expect(outcome!.damage).toBeGreaterThan(0);
+  });
+
+  // House rule #1b (data/combatTables.ts, Maxime, 23 Aug 2026): a Meeps
+  // cannot dodge a hit whose SOURCE is a Tank — Tank's whole GDD-locked job
+  // is "punishes anything that comes adjacent" (§4.1), and the 40% dodge
+  // was undercutting that for both directions a Tank hit could arrive from.
+  it("a forced low roll still never dodges when the hit's SOURCE is a Tank (primary hit)", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.01); // well under MEEPS_DODGE_CHANCE
+    const mission = new Mission(MISSION_1A);
+    const tankAttacker = createHostileMechUnit("hostile_mech_01", { x: 5, y: 5 }); // hostile_mech_01 is Tank
+    mission.units.push(tankAttacker);
+    const meeps = mission.units.find((u) => u.pilotId === "pilot_nagori")!; // Meeps/bipedal
+    meeps.pos = { x: 6, y: 5 };
+
+    const outcome = mission.attack(tankAttacker.instanceId, meeps.instanceId);
+    expect(outcome!.defenderDodged).toBe(false);
+    expect(outcome!.damage).toBeGreaterThan(0);
+  });
+
+  it("a forced low roll still never dodges a Tank's counter-hit, even though the original attacker is Meeps", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.01); // well under MEEPS_DODGE_CHANCE
+    const mission = new Mission(MISSION_1A);
+    // Needs opposite sides for mission.attack() to allow the swing at all —
+    // pilot_nagori and pilot_thyns are both player-side, so a hostile Tank
+    // stands in as the counter-attacking defender instead.
+    const tankDefender = createHostileMechUnit("hostile_mech_01", { x: 6, y: 5 }); // hostile_mech_01 is Tank
+    mission.units.push(tankDefender);
+    const meeps = mission.units.find((u) => u.pilotId === "pilot_nagori")!; // Meeps/bipedal — the attacker
+    meeps.pos = { x: 5, y: 5 };
+
+    const outcome = mission.attack(meeps.instanceId, tankDefender.instanceId);
+    expect(outcome!.defenderDodged).toBe(false); // meeps is the attacker here, not the defender — nothing to dodge on the primary hit
+    expect(outcome!.countered).toBe(true);
+    expect(outcome!.counterDodged).toBe(false); // the meeps attacker does NOT dodge the tank's counter
+    expect(outcome!.counterDamage).toBeGreaterThan(0);
+  });
+
+  it("Meeps still dodges normally against a non-Tank source, forced-low-roll case unchanged", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.01);
+    const mission = new Mission(MISSION_1A);
+    // hostile_mech_02 is a Meeps-path hostile mech (Data Pack §9) — confirms
+    // the Tank-source carve-out didn't accidentally disable dodge generally.
+    const meepsAttacker = createHostileMechUnit("hostile_mech_02", { x: 5, y: 5 });
+    mission.units.push(meepsAttacker);
+    const meeps = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    meeps.pos = { x: 6, y: 5 };
+
+    const outcome = mission.attack(meepsAttacker.instanceId, meeps.instanceId);
+    expect(outcome!.defenderDodged).toBe(true);
+    expect(outcome!.damage).toBe(0);
   });
 });

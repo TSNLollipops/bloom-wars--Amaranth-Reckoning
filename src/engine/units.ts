@@ -1,7 +1,7 @@
 // src/engine/units.ts
 // Runtime unit instances + effective-stat calculation (Data Pack §5.1's
 // worked example, order of application: base -> tier -> mek).
-import type { Coord, MekArchetype, Path, PilotRecord } from "../data/types";
+import type { Coord, MekArchetype, Path, PilotRecord, Tier } from "../data/types";
 import { UNIT_ARCHETYPES, HOSTILE_MECHS } from "../data/units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
@@ -39,6 +39,13 @@ export interface BattleUnit {
   counterMaxRange: number;
   abilities: string[];
   chassis?: "bipedal" | "centauroid" | "bipedal_vibrissal";
+  // Gear-tier pass (sprites/decor, 23 Aug 2026): the raw Tier letter, kept
+  // alongside the already-tier-adjusted effective* stats instead of being
+  // discarded once TIERS[tier] has been baked into them. Only pilots and
+  // hostile mechs carry one — createBloomUnit never sets this, since "gear
+  // tier" isn't a Bloom concept and scenes/Battle.ts's pip renderer treats
+  // a missing tier as "draw nothing" rather than guessing G.
+  tier?: Tier;
 
   // bloom-shape
   endurance?: number;
@@ -184,6 +191,7 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     counterMaxRange: archetype.counterMaxRange,
     abilities: archetype.abilities,
     chassis: archetype.chassis,
+    tier: pilot.tier,
     shield: 0,
     maxShield: 0,
     tookDamageThisCycle: false,
@@ -229,6 +237,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     counterMaxRange: archetype.counterMaxRange,
     abilities: archetype.abilities,
     chassis: archetype.chassis,
+    tier: mech.tier,
     shield: 0,
     maxShield: 0,
     tookDamageThisCycle: false,

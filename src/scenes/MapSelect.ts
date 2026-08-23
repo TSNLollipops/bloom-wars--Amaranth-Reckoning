@@ -28,6 +28,17 @@ export class MapSelect extends Phaser.Scene {
       .text(480, 76, "engine test pass — pick a mission", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
 
+    // Same accumulation bug as Battle.ts's actionSlots (fixed 23 Aug 2026,
+    // see that file's comment for the full mechanism): create() re-runs
+    // every time this scene restarts, and Phaser destroys the previous
+    // run's GameObjects on the way out but never touches this array on its
+    // own — without the reset, a second visit would push more entries onto
+    // stale, destroyed tab buttons instead of replacing them. Currently
+    // dormant (CAMPAIGNS.length is 1, so showTabs is false and the forEach
+    // below never runs), but it's the identical landmine and this is the
+    // one place it can be defused before a second campaign ever un-archives
+    // and makes the tab row live.
+    this.tabButtons = [];
     const showTabs = CAMPAIGNS.length > 1;
     if (showTabs) {
       const tabWidth = 900 / CAMPAIGNS.length;

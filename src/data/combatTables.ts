@@ -35,6 +35,20 @@ export const CENTAUROID_CHARGE_MULT = 1.25;
 // so the combat-resolver test suite stays 100% reproducible.
 export const MEEPS_DODGE_CHANCE = 0.4;
 
+// House rule #1b, NOT in the Data Pack: Maxime's call (23 Aug 2026), after
+// mission-1/2/3 playtesting — Tank's whole GDD-locked job is to "punish
+// anything that comes adjacent" (§4.1), and that promise rang hollow when a
+// diving Meeps could dodge the counter 40% of the time, or a Tank's own
+// attack against an adjacent Meeps whiffed the same way. Narrow, deliberate
+// fix: Meeps cannot dodge a hit whose SOURCE is a Tank — not attacker path,
+// not defender path, whichever unit is dealing that specific hit. Applies
+// identically whether Tank is the original attacker or the one countering.
+// Does not touch the class triangle itself (Reeps still fully outranges
+// Tank, Tank still cannot reach a Reeps) — see engine/mission.ts's
+// rollMeepsDodge() for the implementation, and
+// claude/Bloom_Wars_Spitball_Ideas.md for the full discussion, including the
+// ranged-Tank idea that was explicitly rejected alongside this fix.
+
 // House rule #2, NOT in the Data Pack: Maxime's call (22 Aug 2026) — Tank's
 // Overshield aura now also grants a real, absorb-before-HP shield pool to
 // itself and adjacent allies, rendered as its own blue bar (see
