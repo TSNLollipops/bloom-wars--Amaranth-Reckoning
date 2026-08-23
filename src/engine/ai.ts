@@ -56,8 +56,15 @@ function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
  * unimplemented — `revealedUntilTurn` exists on BattleUnit but nothing
  * sets it yet. Fine for the current 4-mission slice (no vibrissal pilot in
  * the roster), but flag it before Mission 3's Undertow count grows.
+ *
+ * Exported (Maxime, 22 Aug 2026 — the Mission 3 sim stalemate fix) so
+ * sim/testPlayerAi.ts can ask the same question decideHostileAction itself
+ * asks — "can any hostile actually see me right now" — instead of a
+ * geometric reachability proxy that doesn't know about vision at all. See
+ * that file's own retreat-gate comment for why this specific question is
+ * the one that matters.
  */
-function isVisibleTo(observer: BattleUnit, target: BattleUnit): boolean {
+export function isVisibleTo(observer: BattleUnit, target: BattleUnit): boolean {
   if (target.burrowed) return false;
   return chebyshevDistance(observer.pos, target.pos) <= observer.vision;
 }

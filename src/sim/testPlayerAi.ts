@@ -53,6 +53,7 @@ import {
   estimateDamage,
   bestAttackTargetInRange,
   moveToward,
+  isVisibleTo,
 } from "../engine/ai";
 
 /** Below this HP fraction, prefer disengaging over pressing a fight that isn't a guaranteed kill. */
@@ -200,8 +201,37 @@ export function decideTestPlayerAction(map: MapDefinition, unit: BattleUnit, all
     return { attackTargetId: killNow.instanceId };
   }
 
-  // Low HP, no kill on the table this turn — fall back if there's somewhere safer.
-  if (hpFraction < RETREAT_HP_FRACTION) {
+  // Low HP, no kill on the table this turn — fall back if there's somewhere
+  // safer, but ONLY if something can actually see this unit right now.
+  //
+  // Mission 3 sim-stalemate fix (Maxime, 22 Aug 2026): the last survivor of
+  // a wiped squad, badly wounded and nowhere near the remaining hostile
+  // cluster, would retreat every OTHER turn regardless of whether anything
+  // was anywhere near it — retreatPath only asks "is there a reachable
+  // tile strictly farther than where I am now," which a unit standing in
+  // open, empty space always satisfies. The turn in between, with retreat
+  // exhausted (or, cornered, immediately after), it fell through into the
+  // normal engage logic and advanced toward the fight — then retreated the
+  // full distance right back the next turn since hpFraction never changes
+  // on its own. Two fixed points, zero net progress, forever — confirmed
+  // via a debug instrumentation run: the sole survivor sat at one map
+  // corner while an entire untouched hostile cluster sat frozen at the
+  // other, both sides further apart than anyone's vision stat, for 400+
+  // turns straight.
+  //
+  // Retreating only makes sense against a threat that can actually see you
+  // — decideHostileAction (engine/ai.ts) never acts on a target outside
+  // its own vision (reflexiveDecision: "nothing in sensor range — hold
+  // position"), so a hostile with no line of sight cannot chase or punish
+  // you regardless of raw distance. Gating on isVisibleTo (imported from
+  // engine/ai.ts, the exact same check the real hostile AI itself uses,
+  // not a separate geometric approximation) means: nobody can currently
+  // see me, so there is nothing to retreat FROM — skip straight to closing
+  // the distance instead of pointlessly running from empty space. The
+  // moment a hostile genuinely spots this unit, the gate opens and retreat
+  // behaves exactly as before.
+  const spotted = enemies.some((e) => isVisibleTo(e, unit));
+  if (hpFraction < RETREAT_HP_FRACTION && spotted) {
     const path = retreatPath(map, unit, enemies, allUnits);
     if (path && path.length > 1) {
       log({
