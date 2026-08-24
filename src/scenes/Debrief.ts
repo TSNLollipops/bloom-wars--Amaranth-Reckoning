@@ -28,6 +28,7 @@ import {
   saveCampaignState,
   checkMuntiGuarantee,
   recruitDiscretionary,
+  generateRandomRescuedPilot,
   DISCRETIONARY_RECRUIT_COST,
   type CampaignState,
 } from "../engine/campaignState";
@@ -110,6 +111,7 @@ export class Debrief extends Phaser.Scene {
   private companyResult!: CompanyEarningsResult;
   private muntiFired = false;
   private muntiPilot?: PilotRecord;
+  private rescuedPilot?: PilotRecord;
 
   private viewportTop = 0;
   private viewportBottom = 0;
@@ -175,6 +177,14 @@ export class Debrief extends Phaser.Scene {
     this.muntiFired = muntiResult.recruited;
     this.muntiPilot = muntiResult.pilot;
 
+    // ---- 3a. Rescue-and-recruit bonus objective (Mission 5, Maxime 23 Aug
+    // 2026 — engine/mission.ts's rescueOutcome / campaignState.ts's
+    // generateRandomRescuedPilot) — run once on entry, same shape as the
+    // Munti guarantee just above. Distinct panel/color from it deliberately
+    // (drawRescueCallout below): the Munti guarantee is "we had to do this
+    // or the campaign would be stuck," this is "you earned this."
+    this.rescuedPilot = this.mission.rescueOutcome === "succeeded" ? generateRandomRescuedPilot(this.state) : undefined;
+
     const win = this.mission.outcome === "win";
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
     this.add
@@ -187,6 +197,7 @@ export class Debrief extends Phaser.Scene {
 
     let cursorY = this.drawEarningsPanel(58);
     cursorY = this.drawMuntiCallout(cursorY + 8);
+    cursorY = this.drawRescueCallout(cursorY + 8);
 
     this.add
       .text(480, cursorY + 10, "CAMPAIGN SHOP", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
@@ -259,6 +270,21 @@ export class Debrief extends Phaser.Scene {
         `EMERGENCY REPLACEMENT — ${this.muntiPilot.displayName} assigned, Munti-class, G-tier`,
         { fontFamily: "monospace", fontSize: "12px", color: "#facc15" }
       )
+      .setOrigin(0.5);
+    return top + height;
+  }
+
+  /** Mission 5's rescue-and-recruit bonus objective — mirrors drawMuntiCallout's own shape, green/positive rather than amber/emergency. */
+  private drawRescueCallout(top: number): number {
+    if (!this.rescuedPilot) return top;
+    const height = 40;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14261c, 1).setStrokeStyle(1, 0x4ade80);
+    this.add
+      .text(480, top + height / 2, `RESCUE SUCCESSFUL — ${this.rescuedPilot.displayName} recovered, added to the bench`, {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#4ade80",
+      })
       .setOrigin(0.5);
     return top + height;
   }

@@ -125,6 +125,41 @@ export interface BattleUnit {
    */
   sensorSweepUsesRemaining?: number;
 
+  // ---- Mission 5 rescue-and-recruit pass (Maxime, 23 Aug 2026: "mission 5
+  // is rescue the downed pilot... giving us a free new pilot") — see
+  // createRescuableNpcUnit below and engine/mission.ts's canRescue/
+  // rescueUnit/rescueOutcome, and campaignState.ts's generateRandomRescuedPilot.
+
+  /**
+   * True only on the one synthetic unit createRescuableNpcUnit produces.
+   * `side: "player"` so the hostile AI targets it exactly like any other
+   * player unit (that's the point — real stakes on the rescue) and so
+   * player-side fog-of-war code doesn't have to special-case it, but it is
+   * NOT one of the deploying squad: checkWinLoss's playerAlive filter
+   * explicitly excludes it (a wiped real squad with the NPC still standing
+   * must still read as a loss), it is never selectable in scenes/Battle.ts,
+   * and engine/mission.ts's moveUnit/attack refuse it as an actor the same
+   * way they refuse a downed unit. Cleared implicitly the instant the unit
+   * is rescued — rescueUnit() removes it from `Mission.units` outright
+   * rather than flipping a flag, since a picked-up NPC has nothing further
+   * to render or be attacked as on the board; see BattleUnit.carryingRescueId
+   * below for what tracks it after that point.
+   */
+  npcIncapacitated?: boolean;
+  /**
+   * Set on the RESCUER, not the NPC, the instant rescueUnit() succeeds —
+   * the rescued unit's own instanceId, kept only so a debrief/summary could
+   * look it up if it ever needed to. While set: this unit cannot Attack
+   * (engine/mission.ts's attack() refuses it) — carrying someone out is the
+   * whole reason to be vulnerable right now, the same trade every other
+   * ability-depth verb makes, just enforced as a standing state instead of
+   * a one-turn cost. Cleared only by checkRescueExtraction() succeeding
+   * (reaching an exit tile) or the carrier itself going down (handleDowned
+   * marks the rescue failed at that point; the flag itself is left in place
+   * on the now-downed unit since nothing reads it again after that).
+   */
+  carryingRescueId?: string;
+
   chargedThisMove: boolean;
   statusEffects: StatusEffect[];
   usedEvacThisMission: boolean;
@@ -265,6 +300,73 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     usedScreenThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
+  };
+}
+
+/**
+ * Mission 5's rescue-and-recruit bonus objective (BattleUnit.npcIncapacitated's
+ * own comment has the full rules). Not resolved through data/pilotRegistry.ts
+ * or UNIT_ARCHETYPES — this unit has no PilotRecord and no mek; it exists
+ * only as board state until rescued, at which point it is deleted outright
+ * (engine/mission.ts's rescueUnit()) and a REAL PilotRecord is minted
+ * separately, after the mission ends, by campaignState.ts's
+ * generateRandomRescuedPilot.
+ *
+ * Stat choices, all deliberately modest — "at real risk, not helpless":
+ *   - `path: "meeps"` is NOT a narrative claim about who this pilot turns
+ *     out to be (generateRandomRescuedPilot rolls that fresh, independently,
+ *     once the rescue succeeds) — it exists purely so this unit resolves
+ *     through the same combat formulas as everyone else. resolveMechAttack
+ *     (engine/combat.ts) throws outright on a defender with no `path`, and
+ *     giving it "meeps" happens to also grant MEEPS_DODGE_CHANCE's house
+ *     rule, which reads as a reasonable "hard to finish off" break for a
+ *     downed pilot rather than a design accident.
+ *   - `effectiveDefense: 70`, ten points under baseline (100 = tier G/no
+ *     mek), and `currentHp/maxHp: 50`, under half a G-tier pilot's ~100-115
+ *     — exposed, not paper-thin. A hostile that reaches them can plausibly
+ *     down them in one or two hits; it is not guaranteed.
+ *   - `vision: 0` so this unit contributes nothing to the player side's fog
+ *     of war (engine/ai.ts's unitsVisibleToSide sums every living player
+ *     unit's vision as an observer) — an incapacitated pilot isn't feeding
+ *     the squad intel.
+ *   - `moveRange: 0`, `attackRange: [0, 0]`, `canCounter: false`,
+ *     `abilities: []` — cannot move, attack, or counter even if some future
+ *     code path ever tried; defense-in-depth alongside the explicit
+ *     npcIncapacitated guards in engine/mission.ts.
+ */
+export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleUnit {
+  return {
+    instanceId: nextInstanceId("npc_rescue"),
+    side: "player",
+    kind: "pilot",
+    archetypeId: "npc_rescuable", // not a real UnitArchetype id — never resolved through UNIT_ARCHETYPES; see this function's own header comment
+    displayName,
+    pos,
+    path: "meeps",
+    currentHp: 50,
+    maxHp: 50,
+    effectiveAttack: 0,
+    effectiveDefense: 70,
+    moveRange: 0,
+    attackRange: [0, 0],
+    vision: 0,
+    canCounter: false,
+    counterMaxRange: 0,
+    abilities: [],
+    chassis: "bipedal",
+    shield: 0,
+    maxShield: 0,
+    tookDamageThisCycle: false,
+    downed: false,
+    npcIncapacitated: true,
+    actionsRemaining: 0,
+    chargedThisMove: false,
+    statusEffects: [],
+    abilityCooldowns: {},
+    usedEvacThisMission: false,
+    usedScreenThisMission: false,
+    sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    spriteKey: "shape_npc_downed",
   };
 }
 

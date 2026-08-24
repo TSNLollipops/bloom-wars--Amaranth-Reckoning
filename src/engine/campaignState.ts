@@ -353,8 +353,15 @@ const CLASS_DEFAULT_MEK_TRACK: Record<Path, MekTrack> = {
   meeps: "armorer", // mixed precedent — see comment above
 };
 
-/** Shared by both recruit paths below: mints a brand-new baseline G-tier pilot (and a fresh, unassigned-track-default mek) of the given class and adds both to the campaign state. Never reuses a lost pilot's identity, tier, or mek — a genuinely new record, so there is nothing to carry over by construction (rule 6's own point). */
-function generatePilot(state: CampaignState, targetClass: Path): PilotRecord {
+// data/units.ts archetype ids are arch_<class>_<suffix>, where suffix is
+// "bipedal"/"centauroid"/"vibrissal" — NOT the Chassis type's own value
+// ("bipedal_vibrissal"), which is why this is its own small type rather
+// than importing Chassis from data/types. Kept local to this file since
+// nothing else needs it.
+type ArchetypeChassisSuffix = "bipedal" | "centauroid" | "vibrissal";
+
+/** Shared by both recruit paths below: mints a brand-new baseline G-tier pilot (and a fresh, unassigned-track-default mek) of the given class and adds both to the campaign state. Never reuses a lost pilot's identity, tier, or mek — a genuinely new record, so there is nothing to carry over by construction (rule 6's own point). `chassisSuffix` defaults to "bipedal" — every existing call site (checkMuntiGuarantee, recruitDiscretionary) is unaffected; only generateRandomRescuedPilot below passes a rolled value. */
+function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: ArchetypeChassisSuffix = "bipedal"): PilotRecord {
   const n = state.nextGeneratedId;
   state.nextGeneratedId += 1;
   const callsign = generateCallsign(n);
@@ -372,16 +379,47 @@ function generatePilot(state: CampaignState, targetClass: Path): PilotRecord {
 
   // arch_${class}_bipedal is every class's "standard" archetype — the same
   // convention data/units.ts's own HOSTILE_MECHS comment describes ("All
-  // four use the standard bipedal archetypes," Data Pack §9).
+  // four use the standard bipedal archetypes," Data Pack §9). Every OTHER
+  // caller of this function still gets exactly that (chassisSuffix defaults
+  // to "bipedal"); only a rescue-generated recruit's chassis is ever
+  // anything else.
   const pilot: PilotRecord = {
     id: pilotId,
     displayName: `Recruit "${callsign}"`,
-    archetypeId: `arch_${targetClass}_bipedal`,
+    archetypeId: `arch_${targetClass}_${chassisSuffix}`,
     mekId,
     tier: "G",
   };
   state.pilots[pilotId] = { pilot, status: "active", personalPoints: 0 };
   return pilot;
+}
+
+const ALL_RECRUITABLE_PATHS: Path[] = ["meeps", "tank", "reeps", "munti"];
+const ALL_CHASSIS_SUFFIXES: ArchetypeChassisSuffix[] = ["bipedal", "centauroid", "vibrissal"];
+
+/**
+ * Mission 5's rescue-and-recruit bonus objective (Maxime, 23 Aug 2026 —
+ * asked whether a rescue should hand back a fixed class or a real wildcard:
+ * "Chassis and class, both random." — a genuinely different guarantee from
+ * both existing recruit paths above: checkMuntiGuarantee always wants a
+ * Munti, recruitDiscretionary lets the PLAYER choose the class; this is the
+ * only one where NEITHER axis is chosen by anything except an equal-odds
+ * roll). Call this once, only when a Mission's rescueOutcome reads
+ * "succeeded" (engine/mission.ts) — scenes/Debrief.ts is the one real call
+ * site, mirroring checkMuntiGuarantee's own "run once on entry" shape.
+ *
+ * Lands on the bench, not the active roster (Maxime's own answer, "The
+ * bench") — which for this campaign layer means exactly what it means for
+ * every other generated recruit: `status: "active"` in CampaignState.pilots
+ * with nobody currently required to deploy them. There is no separate
+ * "bench" collection to insert into; see generatePilot's own call above and
+ * campaignState.ts's header for why every pilot here, named or generated,
+ * is stored the same way.
+ */
+export function generateRandomRescuedPilot(state: CampaignState): PilotRecord {
+  const targetClass = ALL_RECRUITABLE_PATHS[Math.floor(Math.random() * ALL_RECRUITABLE_PATHS.length)];
+  const chassisSuffix = ALL_CHASSIS_SUFFIXES[Math.floor(Math.random() * ALL_CHASSIS_SUFFIXES.length)];
+  return generatePilot(state, targetClass, chassisSuffix);
 }
 
 function countActiveMuntis(state: CampaignState): number {

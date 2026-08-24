@@ -145,18 +145,46 @@ export interface MissionEvent {
   guardGroup?: string; // events sharing a guardGroup fire at most once between them
 }
 
+// Mission 3's "clean the bloom patch" pass (Maxime, 23 Aug 2026: "I'm
+// thinking of making clean the bloom patch the objective of mission 3" —
+// upgrading the earlier "cleaning job for munties" idea from a mission-3
+// mechanic to mission 3's actual win condition). One optional layer, NOT a
+// generalized "every mission can carry N bonus objectives" system — Maxime
+// also floated that idea ("if we got other mission with similar layout we
+// can make those objective bonus objective in toher mission"), but there
+// was only one concrete objective type to generalize from at the time this
+// was built, and no debrief/scoring screen yet to actually show a player
+// "you also did the bonus thing" (Bloom_Wars_Amaranth_Act1_Build_Log_v1.md
+// has called that a known gap since day one). `BonusObjective` is written
+// as its own typed shape specifically so a second mission can adopt the
+// same `kind` later without a redesign — see CampaignMission.bonusObjective
+// below and engine/mission.ts's rescueOutcome tracking.
+export interface BonusObjective {
+  kind: "rescue_pilot";
+  npcSpawnAt: Coord;
+  npcDisplayName: string;
+}
+
 export interface CampaignMission {
   id: string;
   displayName: string;
   mapId: string;
   briefing: string;
-  objective: "eliminate_all" | "hold_zone" | "extract_unit";
+  // "clear_bloom" (Mission 3, 23 Aug 2026): win when no bloom_mat tile
+  // remains on the board — see engine/mission.ts's hasBloomMat/
+  // tickBloomRegrowth and data/abilities.ts's abil_clear_bloom. Extends
+  // house rule #5's no-turn-limit-fail shape rather than eliminate_all's
+  // own turnLimit meaning anything new.
+  objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom";
   objectiveParams: { turnLimit: number; holdUntilTurn?: number; extractUnitId?: string };
   playerPilotIds: string[];
   enemyWaves: EnemyWave[];
   events: MissionEvent[];
   rewardPoints: number;
   heirloomCharge: "locked" | "visible_capped" | "available";
+  // Mission 5's rescue-and-recruit pass (23 Aug 2026) — see BonusObjective's
+  // own comment above. Never gates mission win/loss; only ever adds.
+  bonusObjective?: BonusObjective;
 }
 
 export interface AbilityDef {

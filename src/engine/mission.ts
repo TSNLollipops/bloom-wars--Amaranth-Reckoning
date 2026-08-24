@@ -5,7 +5,7 @@
 // Phaser Battle scene call into — so the rules only exist once.
 import type { CampaignMission, Coord, MapDefinition, MekArchetype, PilotRecord, TileType } from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
-import { createPlayerUnit, createHostileMechUnit, createBloomUnit, type BattleUnit } from "./units";
+import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, type BattleUnit } from "./units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import {
@@ -17,6 +17,8 @@ import {
   chebyshevDistance,
   tileAt,
   isStraightLineCharge,
+  neighbors4,
+  inBounds,
 } from "./grid";
 import { resolveMechAttack, resolveAttackOnBloom, bloomDamage, applyMechDamage, applyBloomDamage, tankShieldEligible } from "./combat";
 import {
@@ -30,6 +32,10 @@ import {
   SENSOR_SWEEP_CHARGES_PER_MISSION,
   INTERDICT_RADIUS,
   SCREEN_RADIUS,
+  BLOOM_CLEAR_RADIUS,
+  BLOOM_REGROWTH_FIRST_TURN,
+  BLOOM_REGROWTH_INTERVAL_TURNS,
+  BLOOM_REGROWTH_TILES_PER_TICK,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
@@ -232,15 +238,38 @@ export class Mission {
   log: string[] = [];
   private eventState: EventRuntimeState = createEventRuntimeState();
   private extractedUnitId: string | null = null;
+  // Mission 5's rescue-and-recruit bonus objective (23 Aug 2026) — see
+  // BattleUnit.npcIncapacitated's own comment for the full design. "none"
+  // for every mission without a bonusObjective (the overwhelming majority);
+  // set to "pending" the instant the rescuable NPC spawns, then resolved to
+  // "succeeded" (checkRescueExtraction) or "failed" (handleDowned, if
+  // either the NPC or whoever ends up carrying them goes down first).
+  // Deliberately NEVER read by checkWinLoss — a bonus objective, by
+  // definition, cannot fail the mission itself; scenes/Debrief.ts is the
+  // one place this gets acted on (generateRandomRescuedPilot).
+  rescueOutcome: "none" | "pending" | "succeeded" | "failed" = "none";
 
   constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[]) {
     this.mission = mission;
     const map = MAPS[mission.mapId];
     if (!map) throw new Error(`Unknown map id: ${mission.mapId}`);
-    this.map = map;
+    // Clone the tile grid rather than keeping map's own reference. MAPS[id]
+    // (data/mapRegistry.ts) is one singleton object, shared by every Mission
+    // ever built from this mapId — every test, every npm run sim call, every
+    // real playthrough. Nothing mutated map.tiles before this pass (Mission
+    // 3's clear_bloom objective, tickBloomRegrowth below, is the first thing
+    // in this codebase that ever writes to a tile after a mission starts),
+    // so sharing the reference was latent, not actually wrong, up to now —
+    // from here on, skipping this clone would mean a Munti clearing bloom
+    // mat in one Low Ground playthrough permanently rewrites the map for
+    // every Low Ground mission after it, in the same process. deployZones/
+    // exitTiles/holdZone are never mutated anywhere in this file, so they
+    // stay shared references — only `tiles` needs its own copy per Mission.
+    this.map = { ...map, tiles: map.tiles.map((row) => [...row]) };
     this.deployRoster = deployRoster;
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
+    this.spawnRescuableNpc();
     // Turn 1 goes through the exact same path every later turn does
     // (endPlayerTurn -> runTurnStartEvents), which already spawns that
     // turn's waves itself. This used to ALSO call spawnWavesForTurn(1)
@@ -253,6 +282,14 @@ export class Mission {
     // turn 1 order-consistent with every other turn: events fire first,
     // then that turn's waves spawn.
     this.runTurnStartEvents();
+  }
+
+  /** Mission 5's rescue-and-recruit bonus objective: places the one rescuable NPC on the board and arms rescueOutcome, or is a no-op for every mission without a bonusObjective. */
+  private spawnRescuableNpc(): void {
+    const bonus = this.mission.bonusObjective;
+    if (!bonus || bonus.kind !== "rescue_pilot") return;
+    this.units.push(createRescuableNpcUnit(bonus.npcSpawnAt, bonus.npcDisplayName));
+    this.rescueOutcome = "pending";
   }
 
   private deployPlayerUnits(): void {
@@ -452,6 +489,74 @@ export class Mission {
     );
   }
 
+  // ---- Mission 5's rescue-and-recruit bonus objective (23 Aug 2026) ------
+  //
+  // No ability gate — every player unit can attempt a rescue, the same way
+  // every player unit can Move; this isn't a class verb like Repair. Mirrors
+  // getRepairableFrom/canRescue/rescueUnit's own three-part shape (a
+  // getX() the UI highlights from, a canX() predicate, a verb that
+  // re-checks it) exactly, one adjacency requirement, one action, does not
+  // end the turn — so a unit can reposition to the NPC and rescue them, or
+  // rescue then start walking them out, in the same turn.
+
+  /** The one rescuable NPC, if this unit is adjacent to it and free to act — empty otherwise. UI highlight source, same contract as getRepairableFrom. */
+  getRescuableFrom(unitId: string, from: Coord): BattleUnit[] {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed || unit.actionsRemaining <= 0) return [];
+    if (unit.side !== "player" || unit.carryingRescueId) return [];
+    return this.livingUnits().filter((t) => t.npcIncapacitated && chebyshevDistance(from, t.pos) === 1);
+  }
+
+  canRescue(rescuerId: string, npcId: string): boolean {
+    const rescuer = this.unitById(rescuerId);
+    const npc = this.unitById(npcId);
+    if (!rescuer || !npc || rescuer.downed || rescuer.actionsRemaining <= 0) return false;
+    if (rescuer.side !== "player" || rescuer.carryingRescueId) return false;
+    if (!npc.npcIncapacitated || npc.downed) return false;
+    return chebyshevDistance(rescuer.pos, npc.pos) === 1;
+  }
+
+  /**
+   * Pull the NPC up and start carrying them: the NPC unit is removed from
+   * the board outright (there is nothing further to render or target once
+   * they're "in tow" — see BattleUnit.npcIncapacitated's own comment) and
+   * the rescuer is marked carryingRescueId, which engine/mission.ts's
+   * attack() checks and refuses for as long as it's set. Getting them the
+   * rest of the way to an exit tile is checkRescueExtraction()'s job,
+   * called every player turn end alongside checkExtraction().
+   */
+  rescueUnit(rescuerId: string, npcId: string): { rescuerId: string; npcId: string } | null {
+    if (!this.canRescue(rescuerId, npcId)) return null;
+    const rescuer = this.unitById(rescuerId)!;
+    const npc = this.unitById(npcId)!;
+    rescuer.actionsRemaining -= 1;
+    rescuer.carryingRescueId = npc.instanceId;
+    this.units = this.units.filter((u) => u.instanceId !== npc.instanceId);
+    this.log.push(`${rescuer.displayName} gets ${npc.displayName} up and starts carrying them toward the exit.`);
+    return { rescuerId, npcId };
+  }
+
+  /**
+   * Extraction check for the rescue bonus objective — call every player
+   * turn end, mirrors checkExtraction()'s own shape but never touches
+   * this.outcome (a bonus objective cannot fail the mission). Clears the
+   * carrier's own carryingRescueId on success — attack()'s guard checks
+   * that flag, so a carrier who successfully drops the rescue off goes
+   * back to being a normal combatant for whatever's left of the mission,
+   * rather than being permanently locked out of attacking.
+   */
+  private checkRescueExtraction(): void {
+    if (this.rescueOutcome !== "pending") return;
+    const carrier = this.units.find((u) => u.carryingRescueId);
+    if (!carrier) return;
+    const exits = this.map.exitTiles ?? [];
+    if (exits.some((c) => coordsEqual(c, carrier.pos))) {
+      this.rescueOutcome = "succeeded";
+      carrier.carryingRescueId = undefined;
+      this.log.push(`${carrier.displayName} gets the rescued pilot clear — they're headed home.`);
+    }
+  }
+
   /**
    * abil_sensor_sweep's footprint from `from`: every in-bounds tile the
    * sweep would cover. Mirrors getRepairableFrom/getAttackableFrom's shape
@@ -534,7 +639,12 @@ export class Mission {
 
   moveUnit(unitId: string, destination: Coord): boolean {
     const unit = this.unitById(unitId);
-    if (!unit || unit.downed || unit.actionsRemaining <= 0) return false;
+    // npcIncapacitated (Mission 5's rescue-and-recruit pass): defense in
+    // depth, not load-bearing — moveRange 0 already means reachableTiles
+    // below can never return anything but this unit's own tile, but an
+    // explicit refusal here matches the guard shape every other
+    // downed/inactive-unit check in this file already uses.
+    if (!unit || unit.downed || unit.npcIncapacitated || unit.actionsRemaining <= 0) return false;
     const reachable = reachableTiles(this.map, unit.pos, unit.moveRange, this.movementKindFor(unit), this.occupiedSet(unitId));
     const key = coordKey(destination);
     if (!reachable.has(key)) return false;
@@ -565,7 +675,13 @@ export class Mission {
    */
   attack(attackerId: string, defenderId: string): AttackOutcome | null {
     const attacker = this.unitById(attackerId);
-    if (!attacker || attacker.actionsRemaining <= 0) return null;
+    // carryingRescueId (Mission 5's rescue-and-recruit pass, 23 Aug 2026):
+    // whoever is hauling the rescued NPC cannot attack until they've either
+    // reached an exit tile (checkRescueExtraction clears the flag the
+    // instant that happens — see that method) or gone down trying.
+    // Escorting is the trade; a unit that could still fight while carrying
+    // would get both halves of it for free.
+    if (!attacker || attacker.actionsRemaining <= 0 || attacker.carryingRescueId) return null;
     return this.resolveAttack(attackerId, defenderId);
   }
 
@@ -1160,6 +1276,102 @@ export class Mission {
     return { muntiId: unitId, concealedIds: covered.map((u) => u.instanceId) };
   }
 
+  // ---- abil_clear_bloom (Mission 3's "clean the bloom patch" pass, 23 Aug
+  // 2026) — see data/abilities.ts's own comment for the full design. Same
+  // canX()/getX()/verb shape as every other ability-depth verb above, but a
+  // RADIUS effect on tiles rather than a target-picking one, so it belongs
+  // in the contextual action bar (scenes/Battle.ts) next to Screen and
+  // Sweep, not among the click-a-unit verbs Repair/Rescue are.
+
+  /** Every bloom_mat tile within BLOOM_CLEAR_RADIUS of `from`, Chebyshev — shared by canClearBloom's "is there anything to do" check and clearBloom's own mutation, and exposed via getClearableBloomFrom for the UI preview highlight. */
+  private clearableBloomTiles(from: Coord): Coord[] {
+    const tiles: Coord[] = [];
+    for (let y = Math.max(0, from.y - BLOOM_CLEAR_RADIUS); y <= Math.min(this.map.height - 1, from.y + BLOOM_CLEAR_RADIUS); y++) {
+      for (let x = Math.max(0, from.x - BLOOM_CLEAR_RADIUS); x <= Math.min(this.map.width - 1, from.x + BLOOM_CLEAR_RADIUS); x++) {
+        if (this.map.tiles[y][x] === "bloom_mat") tiles.push({ x, y });
+      }
+    }
+    return tiles;
+  }
+
+  canClearBloom(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_clear_bloom")) return false;
+    if (unit.actionsRemaining <= 0) return false;
+    // Same "usable only when it would actually do something" rule
+    // getRepairableFrom already applies to Repair — greyed rather than a
+    // wasted click that clears nothing.
+    return this.clearableBloomTiles(unit.pos).length > 0;
+  }
+
+  /** UI preview highlight — every tile clearBloom would flip from here, or empty if canClearBloom is false. Mirrors getSensorSweepAreaFrom/getInterdictedTilesFrom's own "ask the engine, never guess" contract. */
+  getClearableBloomFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canClearBloom(unitId)) return [];
+    return this.clearableBloomTiles(from);
+  }
+
+  /**
+   * Convert every bloom_mat tile within BLOOM_CLEAR_RADIUS back to plain
+   * ground. Costs 1 action, does not end the turn (data/abilities.ts's own
+   * comment has the full reasoning) — no per-mission limit or cooldown,
+   * unlike Screen or Sweep: this is the mission's actual job, meant to be
+   * repeated until hasBloomMat() reads false.
+   */
+  clearBloom(unitId: string): { unitId: string; tilesCleared: number } | null {
+    if (!this.canClearBloom(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const tiles = this.clearableBloomTiles(unit.pos);
+    for (const c of tiles) this.map.tiles[c.y][c.x] = "plain";
+    unit.actionsRemaining -= 1;
+    this.log.push(`${unit.displayName} clears ${tiles.length} bloom mat tile(s).`);
+    return { unitId, tilesCleared: tiles.length };
+  }
+
+  /**
+   * The clear_bloom objective's own countervailing pressure (data/combatTables.ts's
+   * BLOOM_REGROWTH_* constants have the full pacing rationale). Fires on
+   * turn BLOOM_REGROWTH_FIRST_TURN and every BLOOM_REGROWTH_INTERVAL_TURNS
+   * after it, converting up to BLOOM_REGROWTH_TILES_PER_TICK clean tiles
+   * adjacent to existing bloom_mat back into bloom_mat.
+   *
+   * Deliberately DETERMINISTIC, not a percentage roll: scans the board in a
+   * fixed row-major order, and for each bloom_mat tile it finds, spreads
+   * into the FIRST cardinal-adjacent plain/scrub neighbour (fixed
+   * right/down/left/up order, from grid.ts's own neighbors4) — the same
+   * "no Math.random on anything a regression test needs to pin down"
+   * discipline the rest of this file's deterministic formulas follow (see
+   * rollMeepsDodge for the one place this file DOES roll, and why that one
+   * is fine to be random: it isn't a board-state mutation a test needs to
+   * reproduce exactly).
+   *
+   * No-op for every mission that isn't clear_bloom — a mission with
+   * bloom_mat as pure terrain flavour (none currently ship, but nothing
+   * stops one) never has this tick running against it.
+   */
+  private tickBloomRegrowth(): void {
+    if (this.mission.objective !== "clear_bloom") return;
+    if (this.turn < BLOOM_REGROWTH_FIRST_TURN) return;
+    if ((this.turn - BLOOM_REGROWTH_FIRST_TURN) % BLOOM_REGROWTH_INTERVAL_TURNS !== 0) return;
+    let spread = 0;
+    for (let y = 0; y < this.map.height && spread < BLOOM_REGROWTH_TILES_PER_TICK; y++) {
+      for (let x = 0; x < this.map.width && spread < BLOOM_REGROWTH_TILES_PER_TICK; x++) {
+        if (this.map.tiles[y][x] !== "bloom_mat") continue;
+        for (const n of neighbors4({ x, y })) {
+          if (!inBounds(this.map, n)) continue;
+          const t = this.map.tiles[n.y][n.x];
+          if (t === "plain" || t === "scrub") {
+            this.map.tiles[n.y][n.x] = "bloom_mat";
+            spread += 1;
+            break;
+          }
+        }
+      }
+    }
+    if (spread > 0) this.log.push(`Bloom mat spreads — ${spread} tile(s) reclaimed.`);
+  }
+
   /**
    * The single choke point for hostile movement — runHostileTurn() moves
    * hostiles by calling this and nothing else. Reaction fire hooks in here
@@ -1187,6 +1399,20 @@ export class Mission {
 
   private handleDowned(unit: BattleUnit): void {
     this.log.push(`${unit.displayName} is downed.`);
+
+    // Mission 5's rescue-and-recruit bonus objective (23 Aug 2026): a
+    // rescue can fail two ways — the NPC themselves is killed before ever
+    // being reached (unit.npcIncapacitated), or whoever picked them up goes
+    // down while still carrying them (unit.carryingRescueId). Either one
+    // ends the attempt; there's no "someone else picks up the body" second
+    // chance this pass. Checked against rescueOutcome === "pending" so a
+    // downing after the rescue already succeeded (carryingRescueId already
+    // cleared by checkRescueExtraction) or on a mission with no rescue at
+    // all (rescueOutcome stays "none") is correctly a no-op here.
+    if (this.rescueOutcome === "pending" && (unit.npcIncapacitated || unit.carryingRescueId)) {
+      this.rescueOutcome = "failed";
+      this.log.push("The rescue attempt fails.");
+    }
 
     // Rule 1 (engine/campaignState.ts): evaluated live, right here, at the
     // exact moment of downing — not deferred to mission end, because the
@@ -1235,6 +1461,7 @@ export class Mission {
   endPlayerTurn(): void {
     if (this.phase !== "player" || this.outcome !== "ongoing") return;
     this.checkExtraction();
+    this.checkRescueExtraction();
     if (this.checkWinLoss()) return;
     this.phase = "hostile";
     this.log.push(`--- Turn ${this.turn}: hostile phase ---`);
@@ -1320,6 +1547,12 @@ export class Mission {
         unit.currentHp = Math.min(unit.maxHp, unit.currentHp + def.turnStartRepair);
       }
     }
+    // Runs after the per-unit tile-damage loop above, deliberately: this
+    // turn's turnStartDamage already resolved against the board as it stood
+    // when the turn started, so a tile tickBloomRegrowth converts to
+    // bloom_mat here doesn't retroactively burn anyone standing on it —
+    // that starts next turn.
+    this.tickBloomRegrowth();
   }
 
   /**
@@ -1380,7 +1613,14 @@ export class Mission {
   private checkWinLoss(): boolean {
     if (this.outcome !== "ongoing") return true;
     const turnLimit = this.mission.objectiveParams.turnLimit;
-    const playerAlive = this.units.filter((u) => u.side === "player" && !u.downed);
+    // !u.npcIncapacitated (Mission 5's rescue-and-recruit bonus objective,
+    // 23 Aug 2026): the rescuable NPC is side "player" so the hostile AI
+    // targets it like anyone else (real stakes on the rescue — see
+    // BattleUnit.npcIncapacitated's own comment), but it is not one of the
+    // deploying squad and must never count toward "is anyone still up" —
+    // a real squad wiped to zero has to read as a loss even if the NPC is
+    // still standing on the board, untouched, waiting to be rescued.
+    const playerAlive = this.units.filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated);
     const hostileAlive = this.units.filter((u) => u.side === "hostile" && !u.downed);
 
     if (!playerAlive.length) {
@@ -1437,6 +1677,28 @@ export class Mission {
         this.outcome = "loss";
         this.log.push("Loss: turn limit reached before extraction.");
         return true;
+      }
+    } else if (this.mission.objective === "clear_bloom") {
+      // Mission 3's "clean the bloom patch" pass (Maxime, 23 Aug 2026:
+      // "making clean the bloom patch the objective of mission 3"). Win the
+      // instant no bloom_mat tile remains anywhere on the board. House rule
+      // #5's shape, extended to a third objective type: turnLimit stays a
+      // bonus-scoring target (Amaranth Appendix B), never a fail line — see
+      // data/combatTables.ts's own comment on why a hard clock isn't needed
+      // here either. tickBloomRegrowth (environmentStep, below) is the
+      // actual countervailing pressure: stall near the edge picking off
+      // Crawlmass and the patch grows back on its own clock, so waiting was
+      // never a free win even without a turn cap.
+      if (!this.hasBloomMat()) return this.finishWin();
+    }
+    return false;
+  }
+
+  /** True if any bloom_mat tile remains anywhere on the board — the clear_bloom objective's own win check, and tickBloomRegrowth's early-exit when the patch is already gone. */
+  private hasBloomMat(): boolean {
+    for (let y = 0; y < this.map.height; y++) {
+      for (let x = 0; x < this.map.width; x++) {
+        if (this.map.tiles[y][x] === "bloom_mat") return true;
       }
     }
     return false;

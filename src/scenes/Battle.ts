@@ -108,6 +108,13 @@ export class Battle extends Phaser.Scene {
   private sweepArea: Coord[] = [];
   private interdictZone: Coord[] = [];
   private screenable: BattleUnit[] = [];
+  // Mission 5's rescue-and-recruit / Mission 3's clean-the-bloom-patch
+  // passes (23 Aug 2026): rescuableNpc follows repairable's own shape
+  // (click a highlighted unit); clearableBloom follows sweepArea/
+  // interdictZone's shape (a preview of what a self-targeted action-bar
+  // button would do, not a click target).
+  private rescuableNpc: BattleUnit[] = [];
+  private clearableBloom: Coord[] = [];
   // The contextual action bar's fixed slot pool, plus the options currently
   // bound to them. Whether a slot is usable is Mission's call (canX()),
   // never this scene's.
@@ -297,6 +304,16 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
+    // Rescuing the downed NPC (Mission 5's rescue-and-recruit bonus
+    // objective, 23 Aug 2026) — same shape as Repair above: costs 1 action,
+    // doesn't end the turn, stays selected afterward.
+    if (this.selectedUnitId && unitHere && this.rescuableNpc.some((a) => a.instanceId === unitHere.instanceId)) {
+      this.mission.rescueUnit(this.selectedUnitId, unitHere.instanceId);
+      this.refreshSelectionAfterAction();
+      this.render();
+      return;
+    }
+
     // Moving the selected unit to a reachable tile. Costs 1 action and
     // doesn't end the turn — stay selected and recompute options if the
     // unit still has an action left (double-move, or move-then-Repair).
@@ -307,8 +324,13 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
-    // Selecting one of your own units.
-    if (unitHere && unitHere.side === "player" && !unitHere.downed && unitHere.actionsRemaining > 0) {
+    // Selecting one of your own units. npcIncapacitated is excluded
+    // (Mission 5's rescue-and-recruit pass) — the downed NPC is side
+    // "player" so the fog-of-war/targeting code doesn't need to special-
+    // case it, but it's not one of the deploying squad and was never meant
+    // to be clickable as an actor; you interact with it only by walking an
+    // actual pilot adjacent and using the Rescue click-target above.
+    if (unitHere && unitHere.side === "player" && !unitHere.downed && !unitHere.npcIncapacitated && unitHere.actionsRemaining > 0) {
       this.selectedUnitId = unitHere.instanceId;
       this.recomputeSelectionHighlights(unitHere.instanceId);
       this.render();
@@ -328,6 +350,8 @@ export class Battle extends Phaser.Scene {
     this.sweepArea = [];
     this.interdictZone = [];
     this.screenable = [];
+    this.rescuableNpc = [];
+    this.clearableBloom = [];
   }
 
   /**
@@ -346,6 +370,8 @@ export class Battle extends Phaser.Scene {
     this.sweepArea = this.mission.getSensorSweepAreaFrom(unitId, unit.pos);
     this.interdictZone = this.mission.getInterdictedTilesFrom(unitId, unit.pos);
     this.screenable = this.mission.getScreenableFrom(unitId, unit.pos);
+    this.rescuableNpc = this.mission.getRescuableFrom(unitId, unit.pos);
+    this.clearableBloom = this.mission.getClearableBloomFrom(unitId, unit.pos);
   }
 
   /**
@@ -392,6 +418,9 @@ export class Battle extends Phaser.Scene {
     }
     if (unit.abilities.includes("abil_screen")) {
       out.push({ label: "SCREEN", usable: m.canScreen(id), endsTurn: false, run: () => void m.screenAllies(id) });
+    }
+    if (unit.abilities.includes("abil_clear_bloom")) {
+      out.push({ label: "CLEAR", usable: m.canClearBloom(id), endsTurn: false, run: () => void m.clearBloom(id) });
     }
     if (unit.abilities.includes("abil_sensor_sweep")) {
       // The only label that carries a number: a budget the player can't
@@ -479,6 +508,19 @@ export class Battle extends Phaser.Scene {
     for (const u of this.repairable) {
       g.fillStyle(0x22d3ee, 0.4);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    // Rescue target / Clear Bloom preview (23 Aug 2026) share one hue —
+    // gold, unused elsewhere on the board — since no mission ever has both
+    // (Mission 5 has the rescue, Mission 3 has the patch) so there is no
+    // real ambiguity between "a unit to click" and "tiles a button would
+    // flip" in practice.
+    for (const u of this.rescuableNpc) {
+      g.fillStyle(0xfacc15, 0.4);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    for (const c of this.clearableBloom) {
+      g.fillStyle(0xfacc15, 0.35);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
     // Ability-depth previews for the selected unit. Each set is already
     // empty unless the engine says that verb is usable from here.
@@ -672,7 +714,18 @@ export class Battle extends Phaser.Scene {
     const r = ts * 0.32;
     const acted = unit.actionsRemaining <= 0 && unit.side === "player";
 
-    const color = unit.side === "player" ? PLAYER_COLOR : unit.kind === "mech" ? HOSTILE_MECH_COLOR : parseInt(BLOOM[unit.archetypeId]?.colorPalette[0].replace("#", "") ?? "888888", 16);
+    // npcIncapacitated (Mission 5's rescue-and-recruit pass, 23 Aug 2026):
+    // side "player" for targeting purposes, but reading as PLAYER_COLOR
+    // would look like one of the deploying squad. A pale, neutral tone
+    // instead — "someone down, not a combatant" — checked before the
+    // ordinary side/kind branch below rather than folded into it.
+    const color = unit.npcIncapacitated
+      ? 0xe8e2d4
+      : unit.side === "player"
+        ? PLAYER_COLOR
+        : unit.kind === "mech"
+          ? HOSTILE_MECH_COLOR
+          : parseInt(BLOOM[unit.archetypeId]?.colorPalette[0].replace("#", "") ?? "888888", 16);
 
     g.fillStyle(color, acted ? 0.55 : 1);
 
@@ -714,7 +767,14 @@ export class Battle extends Phaser.Scene {
     // silhouette geometry can be re-stroked at more than one radius (the
     // hiopi double outline) or swapped for a dashed version (a burrowed
     // Bloom) without duplicating each shape's fill code.
-    if (burrowedBlob) {
+    if (unit.npcIncapacitated) {
+      // Same dashed-outline grammar a burrowed Bloom already uses — "a
+      // distinct state, not a normal actor" reads the same way whether the
+      // reason is "hidden underground" or "down and waiting to be
+      // rescued." Brighter than burrowedBlob's 0.4 alpha since this unit's
+      // own fill isn't dimmed the way a burrowed unit's is.
+      this.drawDashedCircleOutline(g, cx, cy, r, 0xffffff, 0.6);
+    } else if (burrowedBlob) {
       this.drawDashedCircleOutline(g, cx, cy, r, 0xffffff, 0.4);
     } else {
       this.drawSpeciesOutline(g, unit, kind, cx, cy, r);
@@ -882,6 +942,7 @@ export class Battle extends Phaser.Scene {
         if (selected.abilities.includes("abil_screen") && selected.usedScreenThisMission) {
           lines.push("Screen: spent (once per mission)");
         }
+        if (selected.carryingRescueId) lines.push("CARRYING — cannot attack until they're out");
       }
     }
     // Highlight legend — only for the colours actually on the board right
@@ -890,6 +951,8 @@ export class Battle extends Phaser.Scene {
     if (this.screenable.length) lines.push("", `Pink tiles = Screen would conceal ${this.screenable.length} unit(s)`);
     if (this.interdictZone.length) lines.push("", "Orange tiles = ground Interdict would pin");
     if (this.sweepArea.length) lines.push("", "Violet box = Sensor Sweep reach");
+    if (this.rescuableNpc.length) lines.push("", "Gold tile = Rescue (adjacent, downed pilot)");
+    if (this.clearableBloom.length) lines.push("", `Gold tiles = ${this.clearableBloom.length} bloom mat tile(s) Clear would flip`);
     // Standing tallies, so the player can see their firing line is set
     // without having to re-select each unit. Amber brackets on the board
     // mark overwatchers, violet frames mark the concealed, an orange ring
@@ -948,6 +1011,25 @@ export class Battle extends Phaser.Scene {
       ? `Lost to extraction failure: ${this.mission.removedFromRoster.join(", ")}`
       : "";
     const sub = this.add.text(480, 330, extra, { fontFamily: "monospace", fontSize: "13px", color: "#e8e2d4" }).setOrigin(0.5);
+    // Rescue-and-recruit bonus objective (23 Aug 2026) — the actual new
+    // pilot is only minted at Debrief (generateRandomRescuedPilot needs a
+    // live CampaignState, which this scene doesn't hold); this is just the
+    // headline so the player knows to look for it there. null (not a text
+    // object) when there's nothing to say, so the overlayExtras array below
+    // stays clean rather than pushing an empty label.
+    const rescueLine =
+      this.mission.rescueOutcome === "succeeded" || this.mission.rescueOutcome === "failed"
+        ? this.add
+            .text(
+              480,
+              355,
+              this.mission.rescueOutcome === "succeeded"
+                ? "Rescue successful — a new recruit awaits at Debrief."
+                : "The rescue attempt did not succeed.",
+              { fontFamily: "monospace", fontSize: "12px", color: this.mission.rescueOutcome === "succeeded" ? "#4ade80" : "#8a97a6" }
+            )
+            .setOrigin(0.5)
+        : null;
     // Debrief wiring (22 Aug 2026): this outcome overlay used to send the
     // player straight back to MapSelect, skipping the meta layer entirely.
     // It's kept exactly as-is (the win/loss beat is worth seeing, not
@@ -964,6 +1046,6 @@ export class Battle extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.scene.start("Debrief", { mission: this.mission }));
     const btnLabel = this.add.text(480, 390, "continue to debrief", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
-    this.overlay.add([bg, title, sub, btn, btnLabel]);
+    this.overlay.add(rescueLine ? [bg, title, sub, rescueLine, btn, btnLabel] : [bg, title, sub, btn, btnLabel]);
   }
 }

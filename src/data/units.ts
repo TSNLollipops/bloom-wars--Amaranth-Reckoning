@@ -17,6 +17,15 @@
 // verb in practice — Cpl. Anand (arch_reeps_vibrissal) is the only pilot
 // in either campaign roster who carries it — it just isn't the Reeps' by
 // data. This pass implements it; it had a definition and no code before.
+//
+// Mission-3 "clean the bloom patch" pass (23 Aug 2026, data/abilities.ts's
+// own abil_clear_bloom comment): Munti breaks the "exactly one new verb per
+// path" framing above and picks up a second — abil_clear_bloom, on all
+// three Munti archetypes. Deliberate, not a drift: the ability is tied to
+// one specific mission's objective rather than the class-triangle-wide
+// turn-economy verbs above, so it didn't belong in that first list, but
+// it's still a Munti-path ability by the same "matches the archetype's job"
+// logic that put abil_repair/abil_cockpit_evac there originally.
 import type { UnitArchetype, HostileMechArchetype } from "./types";
 
 export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
@@ -190,7 +199,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 4,
     canCounter: true, // Y* — counters at range 1 only; see counterMaxRange, NOT attackRange
     counterMaxRange: 1,
-    abilities: ["abil_repair", "abil_cockpit_evac", "abil_screen"],
+    abilities: ["abil_repair", "abil_cockpit_evac", "abil_screen", "abil_clear_bloom"],
     spriteKey: "shape_circlebar_solid",
   },
   arch_munti_centauroid: {
@@ -207,7 +216,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 4,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_repair", "abil_cockpit_evac", "abil_charge", "abil_screen"],
+    abilities: ["abil_repair", "abil_cockpit_evac", "abil_charge", "abil_screen", "abil_clear_bloom"],
     spriteKey: "shape_circlebar_double",
   },
   arch_munti_vibrissal: {
@@ -224,7 +233,7 @@ export const UNIT_ARCHETYPES: Record<string, UnitArchetype> = {
     vision: 6,
     canCounter: true,
     counterMaxRange: 1,
-    abilities: ["abil_repair", "abil_cockpit_evac", "abil_sensor_sweep", "abil_screen"],
+    abilities: ["abil_repair", "abil_cockpit_evac", "abil_sensor_sweep", "abil_screen", "abil_clear_bloom"],
     spriteKey: "shape_circlebar_whisker",
   },
 };

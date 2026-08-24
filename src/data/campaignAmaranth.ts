@@ -159,8 +159,25 @@ export const AMARANTH_MISSION_3: CampaignMission = {
   displayName: "Amaranth I.3 — The Low Ground",
   mapId: "map_amaranth_the_low_ground",
   briefing:
-    "Bloom mat came up through the low terraces overnight — a supply detail was caught crossing at first light. Command wants the ground burned clean and the detail's fate confirmed. Nothing to be clever about; go through it.",
-  objective: "eliminate_all",
+    "Bloom mat came up through the low terraces overnight — a supply detail was caught crossing at first light. Command wants the ground burned clean. It's spreading while you stand here; don't let it get ahead of you.",
+  // objective swapped eliminate_all -> clear_bloom (Maxime, 23 Aug 2026:
+  // "I'm thinking of making clean the bloom patch the objective of mission
+  // 3" — upgrading the earlier "cleaning job for munties" idea, itself
+  // still unbuilt at the time, straight to the mission's actual win
+  // condition rather than a side mechanic layered under eliminate_all). Win
+  // now reads "no bloom_mat tile left anywhere on the board" (see
+  // engine/mission.ts's checkWinLoss clear_bloom branch); briefing rewritten
+  // to match — the old text ("burned clean and the detail's fate
+  // confirmed") described an elimination sweep through mat terrain, this
+  // one describes actually clearing it.
+  //
+  // Enemy waves are UNCHANGED — 8 Crawlmass + 2 Splitfang still spawn and
+  // still fight for real; they just aren't the win condition any more.
+  // That's deliberate: Lask (Warden Company's one Munti, the only pilot
+  // carrying abil_clear_bloom) has to clear the patch while the rest of the
+  // squad keeps the Bloom off her, which is a materially different tactical
+  // problem than "kill everything" even with the identical hostile roster.
+  objective: "clear_bloom",
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: WARDEN_ROSTER_IDS,
   enemyWaves: [
@@ -242,6 +259,24 @@ export const AMARANTH_MISSION_5: CampaignMission = {
   events: [],
   rewardPoints: 170,
   heirloomCharge: "locked",
+  // Rescue-and-recruit bonus objective (Maxime, 23 Aug 2026: "mission 5 is
+  // rescue the downed pilot... giving us a free new pilot. random chassis"
+  // — then, asked whether class rolls too: "Chassis and class, both
+  // random."). Deliberately layered ON TOP of the extract_unit(Anand)
+  // objective above, not a replacement for it — this mission's own
+  // briefing already sets up exactly this beat ("Salvage detail hit a
+  // wrecked supply cache... and stopped answering the hourly check-in"),
+  // so the missing detail's own survivor is who's found here. Success or
+  // failure never touches this.outcome (see engine/mission.ts's
+  // rescueOutcome) — Anand reaching the treeline is still the entire real
+  // mission; this is strictly a bonus.
+  //
+  // npcSpawnAt {x:13, y:6} — a plain tile immediately east of the wrecked
+  // depot's structure pair (mapsAmaranth.ts's FORAGING_PARTY_TILES, rows
+  // 6-7 cols 11-12), between the depot and the exit tiles, same "getting
+  // out means going through where the salvage actually is" placement the
+  // map's own header describes for the three Bloom spawn seams.
+  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 13, y: 6 }, npcDisplayName: "Downed Pilot" },
 };
 
 export const AMARANTH_MISSION_6: CampaignMission = {

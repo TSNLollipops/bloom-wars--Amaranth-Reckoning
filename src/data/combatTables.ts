@@ -146,3 +146,33 @@ export const INTERDICT_RADIUS = 1;
 // Chebyshev tiles. Also 1, and for the opposite reason: the squad has to
 // bunch up inside a Bloom swarm's best target shape to get covered at all.
 export const SCREEN_RADIUS = 1;
+
+// House rule #7, NOT in the Data Pack: Mission 3's "clean the bloom patch"
+// pass (Maxime, 23 Aug 2026 — see data/types.ts's CampaignMission.objective
+// "clear_bloom" and abil_clear_bloom in data/abilities.ts). Two constants,
+// two opposing forces: a Munti can burn an action to push the patch back,
+// and the patch pushes back on its own on a clock, so standing at the edge
+// picking off Crawlmass forever was never a way to win by default.
+//
+// abil_clear_bloom's own radius, Chebyshev, same convention as
+// INTERDICT_RADIUS/SCREEN_RADIUS above — 1 means "this Munti's own tile
+// plus the eight around it." At radius 1 a single clear can flip up to 9
+// tiles at once, which is intentionally generous: The Low Ground's mat belt
+// (data/mapsAmaranth.ts) is large and Warden Company has exactly one Munti
+// (Lask) to work it, so the ability needs real reach or clearing the whole
+// belt solo is never realistic in one mission.
+export const BLOOM_CLEAR_RADIUS = 1;
+
+// Regrowth pacing — first tick, then repeat interval, then how many NEW
+// tiles convert per tick (engine/mission.ts's tickBloomRegrowth). Kept
+// deliberately small and DETERMINISTIC (no Math.random — see that method's
+// own comment for the exact scan-order rule) rather than a percentage
+// chance per tile: a chance-based spread is much harder to reason about or
+// write a stable regression test against, and the pressure this is meant to
+// create is "don't dawdle," not "the patch might suddenly swallow the
+// board." First-pass numbers, same as MEEPS_DODGE_CHANCE and the ability-
+// depth pass's own constants — worth revisiting once there's real play data
+// on whether one Munti can outpace this comfortably.
+export const BLOOM_REGROWTH_FIRST_TURN = 4;
+export const BLOOM_REGROWTH_INTERVAL_TURNS = 3;
+export const BLOOM_REGROWTH_TILES_PER_TICK = 2;

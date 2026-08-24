@@ -204,6 +204,33 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // exact position the game otherwise spends its whole time teaching
     // you to avoid.
   },
+  abil_clear_bloom: {
+    id: "abil_clear_bloom",
+    displayName: "Clear Bloom",
+    kind: "active",
+    // MUNTI. Mission 3's "clean the bloom patch" pass (Maxime, 23 Aug
+    // 2026 — the mission's objective is now this, see data/types.ts's
+    // CampaignMission.objective "clear_bloom"). Instead of attacking,
+    // convert every bloom_mat tile within BLOOM_CLEAR_RADIUS
+    // (data/combatTables.ts) — this unit's own tile included — back to
+    // plain ground. Nothing about targeting a unit here; it's a radius
+    // effect centered on the Munti, same shape as abil_screen.
+    //
+    // Cost: 1 action, does NOT end the turn — same reasoning as Repair and
+    // Screen: a Munti with two actions free can reposition and clear, or
+    // clear twice from one spot before the patch's own regrowth tick
+    // (engine/mission.ts's tickBloomRegrowth) catches up. No per-mission
+    // limit and no cooldown — unlike Screen or Sensor Sweep this isn't a
+    // resource to ration, it's the mission's actual job, repeated until
+    // the patch is gone.
+    //
+    // Standing inside bloom_mat to clear it still costs the mat's own
+    // turnStartDamage (data/tiles.ts) every turn the Munti lingers there —
+    // that chip damage was already the terrain's rule before this pass and
+    // is not waived for the unit doing the clearing. Clearing the tile a
+    // Munti currently stands on removes that cost starting next turn, not
+    // retroactively.
+  },
   abil_severance: {
     id: "abil_severance",
     displayName: "Severance",
