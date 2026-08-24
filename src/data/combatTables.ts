@@ -122,10 +122,19 @@ export const MAX_ACTIONS_PER_TURN = 2;
 // sweeping unit's own vision PLUS this, so the ping reaches a little past
 // what the squad can already see — see that ability's own comment for why
 // straight vision radius would have made it worth an action on exactly one
-// mission. The cooldown is what makes it a decision rather than a habit:
-// at 2, there is always one blind turn between sweeps.
+// mission.
+//
+// Was a 2-turn cooldown (unlimited uses over a long mission, just gated
+// between them) until Maxime asked for "two scans" on Anand specifically
+// and, asked to clarify, confirmed: "I see double scan as two charge each
+// mission, every mission. yes." (23 Aug 2026) — every mission, every
+// vibrissal pilot, not a Mission-4-only bump. That is a different shape of
+// limit than a cooldown (a resource to spend, not a rate to wait out), so
+// it replaces the cooldown rather than stacking with it — see
+// engine/mission.ts's canSensorSweep/sensorSweep and
+// engine/units.ts's sensorSweepUsesRemaining.
 export const SENSOR_SWEEP_RANGE_BONUS = 2;
-export const SENSOR_SWEEP_COOLDOWN_TURNS = 2;
+export const SENSOR_SWEEP_CHARGES_PER_MISSION = 2;
 
 // abil_interdict (Tank). How far the braced Tank's kill-box reaches, in
 // Chebyshev tiles — 1 means "the eight tiles it is standing next to."

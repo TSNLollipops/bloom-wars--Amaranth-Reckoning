@@ -170,18 +170,33 @@ export class Battle extends Phaser.Scene {
     // unit's status wrote straight over the top of the log.
     this.logText = this.add.text(720, LOG_TOP, "", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: 230 } });
 
+    const doEndTurn = () => {
+      if (this.mission.outcome !== "ongoing") return;
+      this.selectedUnitId = null;
+      this.clearSelectionHighlights();
+      this.mission.endPlayerTurn();
+      this.render();
+    };
     const endTurnBtn = this.add
       .rectangle(835, 600, 200, 32, 0x2e5c7a)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => {
-        if (this.mission.outcome !== "ongoing") return;
-        this.selectedUnitId = null;
-        this.clearSelectionHighlights();
-        this.mission.endPlayerTurn();
-        this.render();
-      });
-    this.add.text(835, 600, "END TURN", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+      .on("pointerdown", doEndTurn);
+    this.add.text(835, 600, "END TURN  [space]", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     endTurnBtn.setStrokeStyle(1, 0x4a7a9a);
+
+    // Spacebar end-turn (XCOM's own binding — Maxime reached for it before
+    // checking whether it existed). Explicit off() first: this scene's own
+    // Scene instance is reused across mission launches (create() re-runs,
+    // it isn't a fresh object — see the actionSlots/tabButtons comments
+    // elsewhere in this file for the identical accumulation risk), so
+    // without it a second mission launched in the same browser session
+    // would stack a second listener and fire doEndTurn() twice per press.
+    // addCapture stops the browser's own default (page scrolls on Space)
+    // from firing alongside the game's own handler — otherwise every end
+    // turn also jumps the page.
+    this.input.keyboard?.addCapture("SPACE");
+    this.input.keyboard?.off("keydown-SPACE");
+    this.input.keyboard?.on("keydown-SPACE", doEndTurn);
 
     // The contextual action bar. This replaced the single, always-present
     // OVERWATCH button (47ab304) when the ability-depth pass took the verb
@@ -379,10 +394,10 @@ export class Battle extends Phaser.Scene {
       out.push({ label: "SCREEN", usable: m.canScreen(id), endsTurn: false, run: () => void m.screenAllies(id) });
     }
     if (unit.abilities.includes("abil_sensor_sweep")) {
-      // The only label that carries a number: a cooldown the player can't
-      // see is a cooldown they'll click into repeatedly.
-      const cd = m.abilityCooldownRemaining(id, "abil_sensor_sweep");
-      out.push({ label: cd > 0 ? `SWEEP ${cd}` : "SWEEP", usable: m.canSensorSweep(id), endsTurn: false, run: () => void m.sensorSweep(id) });
+      // The only label that carries a number: a budget the player can't
+      // see is a budget they'll spend by accident.
+      const charges = m.sensorSweepChargesRemaining(id);
+      out.push({ label: `SWEEP ×${charges}`, usable: m.canSensorSweep(id), endsTurn: false, run: () => void m.sensorSweep(id) });
     }
     return out.slice(0, ACTION_SLOTS.length);
   }
@@ -861,8 +876,8 @@ export class Battle extends Phaser.Scene {
         else if (selected.concealed) lines.push("CONCEALED — the Bloom cannot see this unit");
         if (selected.braced) lines.push("BRACED — pins hostiles that step alongside");
         if (selected.abilities.includes("abil_sensor_sweep")) {
-          const cd = m.abilityCooldownRemaining(selected.instanceId, "abil_sensor_sweep");
-          lines.push(cd > 0 ? `Sensor Sweep: ${cd} turn(s) to recharge` : "Sensor Sweep: ready");
+          const charges = m.sensorSweepChargesRemaining(selected.instanceId);
+          lines.push(charges > 0 ? `Sensor Sweep: ${charges} charge(s) left this mission` : "Sensor Sweep: spent for this mission");
         }
         if (selected.abilities.includes("abil_screen") && selected.usedScreenThisMission) {
           lines.push("Screen: spent (once per mission)");

@@ -6,7 +6,7 @@ import { UNIT_ARCHETYPES, ALL_HOSTILE_MECHS } from "../data/units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
-import { TIERS, MAX_ACTIONS_PER_TURN } from "../data/combatTables";
+import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION } from "../data/combatTables";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
 export type Side = "player" | "hostile";
@@ -103,13 +103,27 @@ export interface BattleUnit {
   braced?: boolean;
   /**
    * abilityId -> the earliest turn number that ability may be used again.
-   * Absent, or a value <= the current turn, means ready. Only
-   * abil_sensor_sweep uses this today; it's a map rather than a named field
-   * so the next cooldown'd ability doesn't need another BattleUnit field.
+   * Absent, or a value <= the current turn, means ready. Nothing uses this
+   * today — abil_sensor_sweep was the one cooldown'd ability and moved to
+   * a per-mission charge count instead (23 Aug 2026, see
+   * sensorSweepUsesRemaining below) — but it's a map rather than a named
+   * field, kept as infrastructure for the next ability that wants a
+   * turn-based cooldown rather than a mission-spend budget.
    */
   abilityCooldowns?: Record<string, number>;
   /** Munti abil_screen, once per mission — deliberately mirrors usedEvacThisMission's shape rather than folding into abilityCooldowns, because "spent for good" is a different fact from "not ready yet." */
   usedScreenThisMission?: boolean;
+  /**
+   * Reeps abil_sensor_sweep, SENSOR_SWEEP_CHARGES_PER_MISSION uses per
+   * mission (data/combatTables.ts) — a spendable budget, not a cooldown,
+   * per Maxime's own framing ("two charge each mission, every mission").
+   * Undefined reads as a full, unspent budget (see canSensorSweep /
+   * sensorSweep in engine/mission.ts), so every factory below still sets it
+   * explicitly for the same reason they set abilityCooldowns/
+   * usedScreenThisMission — a Bloom or hostile mech can never use it, but
+   * the field stays uniform across every BattleUnit regardless of side.
+   */
+  sensorSweepUsesRemaining?: number;
 
   chargedThisMove: boolean;
   statusEffects: StatusEffect[];
@@ -202,6 +216,7 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -248,6 +263,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -285,6 +301,7 @@ export function createBloomUnit(bloomArchetypeId: string, pos: Coord, opts?: { b
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: arch.spriteKey,
   };
 }

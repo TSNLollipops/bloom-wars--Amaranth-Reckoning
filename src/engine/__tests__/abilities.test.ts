@@ -30,7 +30,7 @@ import { unitsVisibleToSide, decideHostileAction } from "../ai";
 import {
   MAX_ACTIONS_PER_TURN,
   SENSOR_SWEEP_RANGE_BONUS,
-  SENSOR_SWEEP_COOLDOWN_TURNS,
+  SENSOR_SWEEP_CHARGES_PER_MISSION,
   INTERDICT_RADIUS,
   SCREEN_RADIUS,
 } from "../../data/combatTables";
@@ -116,7 +116,7 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     expect(out!.revealedIds).not.toContain(far.instanceId);
     expect(near.revealedUntilTurn).toBe(mission.turn);
     expect(far.revealedUntilTurn).toBeUndefined();
-    // 1 action, turn continues — the cooldown is the price, not the budget.
+    // 1 action, turn continues — the charge count is the price, not the action budget.
     expect(anand.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN - 1);
     expect(logsMatching(mission, "sweeps (radius 5) — 1 contact(s) painted.").length).toBe(1);
   });
@@ -160,26 +160,33 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     expect(unitsVisibleToSide("player", mission.units, mission.turn).has(hidden.instanceId)).toBe(false);
   });
 
-  it("enforces its cooldown: unusable this turn and the next, ready again on turn + SENSOR_SWEEP_COOLDOWN_TURNS", () => {
+  it("is a per-mission budget, not a cooldown: usable back-to-back the same turn, spent for good after SENSOR_SWEEP_CHARGES_PER_MISSION uses, and time does not refill it", () => {
     const mission = quietMission();
     const anand = pilot(mission, "pilot_anand", { x: 4, y: 6 });
     anand.vision = 3;
 
+    expect(SENSOR_SWEEP_CHARGES_PER_MISSION).toBe(2); // pins the actual request ("two charge each mission") to the test
+    expect(mission.sensorSweepChargesRemaining(anand.instanceId)).toBe(SENSOR_SWEEP_CHARGES_PER_MISSION);
+
+    // First charge: usable immediately, no cooldown gate — nothing stops a
+    // second sweep the very same turn if a charge remains.
     expect(mission.sensorSweep(anand.instanceId)).not.toBeNull();
-    expect(mission.abilityCooldownRemaining(anand.instanceId, "abil_sensor_sweep")).toBe(SENSOR_SWEEP_COOLDOWN_TURNS);
-    // Still has an action, still refused.
-    expect(anand.actionsRemaining).toBeGreaterThan(0);
+    expect(mission.sensorSweepChargesRemaining(anand.instanceId)).toBe(1);
+    expect(mission.canSensorSweep(anand.instanceId)).toBe(true);
+
+    // Second (last) charge, spent the same turn.
+    expect(mission.sensorSweep(anand.instanceId)).not.toBeNull();
+    expect(mission.sensorSweepChargesRemaining(anand.instanceId)).toBe(0);
+    // Restore a full action budget and confirm it's the charge count, not
+    // the action economy, doing the refusing.
+    anand.actionsRemaining = MAX_ACTIONS_PER_TURN;
     expect(mission.canSensorSweep(anand.instanceId)).toBe(false);
     expect(mission.sensorSweep(anand.instanceId)).toBeNull();
 
-    for (let t = 1; t < SENSOR_SWEEP_COOLDOWN_TURNS; t++) {
-      mission.endPlayerTurn();
-      expect(mission.canSensorSweep(anand.instanceId)).toBe(false);
-    }
-    mission.endPlayerTurn();
-    expect(mission.turn).toBe(1 + SENSOR_SWEEP_COOLDOWN_TURNS);
-    expect(mission.abilityCooldownRemaining(anand.instanceId, "abil_sensor_sweep")).toBe(0);
-    expect(mission.canSensorSweep(anand.instanceId)).toBe(true);
+    // Unlike a cooldown, turns passing do not bring a charge back.
+    for (let t = 0; t < 5; t++) mission.endPlayerTurn();
+    expect(mission.canSensorSweep(anand.instanceId)).toBe(false);
+    expect(mission.sensorSweepChargesRemaining(anand.instanceId)).toBe(0);
   });
 
   it("refuses a unit without the ability, a spent unit, a downed unit, an unknown id, and any hostile", () => {
@@ -216,7 +223,7 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     expect(out!.revealedIds).toEqual([]);
     expect(ally.revealedUntilTurn).toBeUndefined();
     expect(anand.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN - 1);
-    expect(mission.abilityCooldownRemaining(anand.instanceId, "abil_sensor_sweep")).toBe(SENSOR_SWEEP_COOLDOWN_TURNS);
+    expect(mission.sensorSweepChargesRemaining(anand.instanceId)).toBe(SENSOR_SWEEP_CHARGES_PER_MISSION - 1);
     expect(logsMatching(mission, "no contacts.").length).toBe(1);
   });
 
@@ -230,7 +237,12 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     expect(area.length).toBe((r + 1) * (r + 1)); // one quadrant of the square survives the clip
     expect(area.every((c) => c.x >= 0 && c.y >= 0 && c.x < mission.map.width && c.y < mission.map.height)).toBe(true);
 
-    mission.sensorSweep(anand.instanceId);
+    // Spend every charge (not just one — a charge budget survives a single use).
+    for (let i = 0; i < SENSOR_SWEEP_CHARGES_PER_MISSION; i++) {
+      anand.actionsRemaining = MAX_ACTIONS_PER_TURN; // isolate the charge check from the action economy
+      mission.sensorSweep(anand.instanceId);
+    }
+    expect(mission.sensorSweepChargesRemaining(anand.instanceId)).toBe(0);
     expect(mission.getSensorSweepAreaFrom(anand.instanceId, anand.pos)).toEqual([]);
   });
 

@@ -69,6 +69,21 @@
 // cannot be seen — walking further before finding nothing would subtract
 // from it, so that map got area and a wider ruin interior and no extra walk.
 //
+// ---- SECOND PASS, TUNNEL RATS ONLY (Maxime, 23 Aug 2026: "id just make
+// the map bigger") ----
+// 24x15 -> 30x19 (+58% area). Same discipline as the first pass: the ring,
+// its rubble, both gaps, the deploy column and all three Undertow seams are
+// byte-for-byte the same tiles, just uniformly shifted +2 rows by a new pad
+// border (nothing moved sideways, nothing moved closer or further from
+// deploy). Measured again, same method (Dijkstra, bipedal move cost):
+// deploy -> nearest seam is still exactly 9. The added room is a thicker
+// ridge fringe (2 rows top and bottom, solid rock — reads as taller
+// mountains hemming the ruin in, not new ground to search) and 6 extra
+// columns of open ground east of the ring, past the outlying third Undertow
+// seam, which was already the map's loneliest, most exposed spawn — it now
+// has a stretch of nothing behind it instead of butting straight against
+// the old map edge.
+//
 // Each mission's tactical character was the constraint the grids were drawn
 // around, not an afterthought:
 //   - Muster stays open tutorial ground: a road ring you can run down, one
@@ -161,29 +176,35 @@ const THE_LOW_GROUND_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "ridge", "ridge"],
 ];
 
-// ---- Mission 4: Tunnel Rats — first burrower contact (24 x 15) ----
-// A rubble-walled listening-post ruin. The ring runs cols 4-14 / rows 2-12
+// ---- Mission 4: Tunnel Rats — first burrower contact (30 x 19) ----
+// A rubble-walled listening-post ruin. The ring runs cols 4-14 / rows 4-14
 // with one three-tile gap due north and one due south; the two burrowed
-// Undertow seams sit deep inside it at row 7, and the third is outside to
+// Undertow seams sit deep inside it at row 9, and the third is outside to
 // the east. The rubble costs extra move but is never a hard wall, so a
 // player unit can push straight through the ring instead of only using the
 // gaps — that choice (slow and direct, or fast and around) is the mission.
+// Rows 0-1 and 17-18 are the second-pass ridge fringe (see the file header)
+// — solid rock, no path runs through it, added purely for area.
 const TUNNEL_RATS_TILES: TileType[][] = [
-  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
-  ["ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
-  ["scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["scrub", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "spawn"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["scrub", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
-  ["ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
-  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
 // ---- Mission 5: Foraging Party — first extraction (22 x 13) ----
@@ -287,7 +308,7 @@ const THE_CHOIR_SINGS_TILES: TileType[][] = [
 export const map_amaranth_muster = makeMap("map_amaranth_muster", "Muster — Thistledown Watch", 20, 12, MUSTER_TILES);
 export const map_amaranth_wire_and_mud = makeMap("map_amaranth_wire_and_mud", "Wire and Mud — the Listening Post", 22, 11, WIRE_AND_MUD_TILES);
 export const map_amaranth_the_low_ground = makeMap("map_amaranth_the_low_ground", "The Low Ground", 24, 15, THE_LOW_GROUND_TILES);
-export const map_amaranth_tunnel_rats = makeMap("map_amaranth_tunnel_rats", "Tunnel Rats", 24, 15, TUNNEL_RATS_TILES);
+export const map_amaranth_tunnel_rats = makeMap("map_amaranth_tunnel_rats", "Tunnel Rats", 30, 19, TUNNEL_RATS_TILES);
 export const map_amaranth_foraging_party = makeMap("map_amaranth_foraging_party", "Foraging Party", 22, 13, FORAGING_PARTY_TILES);
 export const map_amaranth_house_colors = makeMap("map_amaranth_house_colors", "House Colors", 20, 12, HOUSE_COLORS_TILES);
 export const map_amaranth_sporewatch_ridge = makeMap("map_amaranth_sporewatch_ridge", "Sporewatch Ridge", 20, 12, SPOREWATCH_RIDGE_TILES);

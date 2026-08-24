@@ -83,14 +83,16 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // makes it visible, so an Undertow that attacks out of a revealed
     // burrow still gets its surfacing damage bonus.
     //
-    // Cost: 1 action, does NOT end the turn, SENSOR_SWEEP_COOLDOWN_TURNS
-    // cooldown. Deliberately the cheapest of the four new verbs and the
-    // only one that leaves the turn alive: the cooldown, not the action
-    // price, is what makes it a decision — with a 2-turn cooldown there is
-    // always a blind turn between sweeps, so "sweep now or hold it one
-    // more turn" is the actual question. What the action DOES cost is the
-    // reposition: a 4-move Reeps that sweeps this turn is shooting from
-    // where it already stands or not at all.
+    // Cost: 1 action, does NOT end the turn, SENSOR_SWEEP_CHARGES_PER_MISSION
+    // uses per mission (2, as of 23 Aug 2026 — see combatTables.ts's own
+    // comment for the exact request). Deliberately the cheapest of the four
+    // new verbs and the only one that leaves the turn alive: the charge
+    // count, not the action price, is what makes it a decision — two pings
+    // for the whole mission means "spend one now, or hold it for Tunnel
+    // Rats' Undertow" is the actual question, not "wait two turns and sweep
+    // again for free." What the action DOES cost is the reposition: a
+    // 4-move Reeps that sweeps this turn is shooting from where it already
+    // stands or not at all.
     //
     // TWO DELIBERATE READINGS of the original Data Pack §6 line, flagged
     // rather than quietly assumed:

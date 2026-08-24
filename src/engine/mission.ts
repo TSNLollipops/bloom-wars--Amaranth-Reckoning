@@ -27,7 +27,7 @@ import {
   MUNTI_REGEN_PER_TURN,
   MAX_ACTIONS_PER_TURN,
   SENSOR_SWEEP_RANGE_BONUS,
-  SENSOR_SWEEP_COOLDOWN_TURNS,
+  SENSOR_SWEEP_CHARGES_PER_MISSION,
   INTERDICT_RADIUS,
   SCREEN_RADIUS,
 } from "../data/combatTables";
@@ -99,7 +99,7 @@ export interface RepairOutcome {
   amount: number;
 }
 
-/** abil_sensor_sweep result — see Mission.sensorSweep(). `revealedIds` is instanceIds, and can legitimately be empty (a sweep that finds nothing still costs the action and still starts the cooldown). */
+/** abil_sensor_sweep result — see Mission.sensorSweep(). `revealedIds` is instanceIds, and can legitimately be empty (a sweep that finds nothing still costs the action and still spends a charge). */
 export interface SensorSweepOutcome {
   sweeperId: string;
   radius: number;
@@ -297,20 +297,54 @@ export class Mission {
     }
   }
 
-  /** Spiral out from `origin` to find an unoccupied, passable-ground tile — spawn waves can list far fewer coords than units. */
+  /**
+   * Walk outward from `origin` (4-directional, walls-aware — same stepping
+   * rule as everything else on this grid, see grid.ts's own note on why
+   * movement is cardinal rather than Chebyshev) to find an unoccupied,
+   * passable-ground tile — spawn waves can list far fewer coords than
+   * units, so overflow beyond the first unit at a seam lands here.
+   *
+   * Was a blind Chebyshev-ring search (checked raw coordinate distance
+   * only, never whether a wall stood in between) until a real bug it
+   * caused surfaced during Mission 2's Splitfang-count tuning (Maxime,
+   * 23 Aug 2026): with a 9th unit needing overflow placement near Wire and
+   * Mud's spawn tiles — which sit right up against the hold room's sealed
+   * east wall — the old ring search found (10,3), a hold-zone tile one
+   * wall-thickness away in raw coordinates, and placed a Splitfang there
+   * outright. That unit never walked through the doorway; it spawned
+   * inside the sealed room, no path required, which is exactly the kind
+   * of thing the room's single-doorway design (this file's own
+   * checkWinLoss hold_zone branch, mapsAmaranth.ts's "keeps its ONE
+   * doorway") is supposed to make impossible. A BFS restricted to actually
+   * walkable terrain can't cross a wall to shortcut there, the same way a
+   * real unit's own move budget can't.
+   *
+   * Unit occupancy does NOT block the walk itself — only terrain does —
+   * so this still finds a tile behind a crowd of units instead of
+   * refusing early; occupancy is checked only on the candidate tile
+   * before returning it.
+   */
   private findFreeAdjacent(origin: Coord): Coord {
     const occupied = new Set(this.units.filter((u) => !u.downed).map((u) => coordKey(u.pos)));
-    if (!occupied.has(coordKey(origin))) return origin;
-    for (let r = 1; r < Math.max(this.map.width, this.map.height); r++) {
-      for (let dx = -r; dx <= r; dx++) {
-        for (let dy = -r; dy <= r; dy++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const c = { x: origin.x + dx, y: origin.y + dy };
-          if (c.x < 0 || c.y < 0 || c.x >= this.map.width || c.y >= this.map.height) continue;
-          if (!TILES[tileAt(this.map, c)].passableGround) continue;
-          if (occupied.has(coordKey(c))) continue;
-          return c;
-        }
+    if (!occupied.has(coordKey(origin)) && TILES[tileAt(this.map, origin)].passableGround) return origin;
+    const seen = new Set([coordKey(origin)]);
+    const queue: Coord[] = [origin];
+    while (queue.length) {
+      const c = queue.shift()!;
+      for (const d of [
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 },
+      ]) {
+        const n = { x: c.x + d.x, y: c.y + d.y };
+        if (n.x < 0 || n.y < 0 || n.x >= this.map.width || n.y >= this.map.height) continue;
+        const key = coordKey(n);
+        if (seen.has(key)) continue;
+        if (!TILES[tileAt(this.map, n)].passableGround) continue;
+        seen.add(key);
+        if (!occupied.has(key)) return n;
+        queue.push(n);
       }
     }
     return origin;
@@ -879,7 +913,7 @@ export class Mission {
   // decision. Four new verbs live below, one per path, each written so
   // that using it means NOT shooting:
   //
-  //   sensorSweep(id)  Reeps/vibrissal  1 action, turn continues, 2-turn cooldown
+  //   sensorSweep(id)  Reeps/vibrissal  1 action, turn continues, 2 charges/mission
   //   ambush(id)       Meeps            whole budget, ends turn, unlimited
   //   interdict(id)    Tank             whole budget, ends turn, unlimited
   //   screenAllies(id) Munti            1 action, turn continues, once per mission
@@ -929,12 +963,19 @@ export class Mission {
     return Math.max(0, this.cooldownReadyTurn(unit, abilityId) - this.turn);
   }
 
+  /** Charges of abil_sensor_sweep this unit has left this mission. Exposed for the HUD. Undefined reads as a full, unspent budget — see sensorSweepUsesRemaining's own comment in engine/units.ts. */
+  sensorSweepChargesRemaining(unitId: string): number {
+    const unit = this.unitById(unitId);
+    if (!unit) return 0;
+    return unit.sensorSweepUsesRemaining ?? SENSOR_SWEEP_CHARGES_PER_MISSION;
+  }
+
   canSensorSweep(unitId: string): boolean {
     const unit = this.unitById(unitId);
     if (!unit || unit.downed) return false;
     if (unit.side !== "player") return false;
     if (!unit.abilities.includes("abil_sensor_sweep")) return false;
-    if (this.cooldownReadyTurn(unit, "abil_sensor_sweep") > this.turn) return false;
+    if (this.sensorSweepChargesRemaining(unitId) <= 0) return false;
     return unit.actionsRemaining > 0;
   }
 
@@ -949,16 +990,20 @@ export class Mission {
    * hostile phase of that same turn N (Mission.turn only increments after
    * the hostile phase resolves — see runHostileTurn). So the paint covers
    * the rest of this player turn and the whole hostile phase, and is stale
-   * on turn N+1. Paired with a 2-turn cooldown that guarantees a genuinely
-   * blind turn between sweeps, which is the point: this thins the fog, it
-   * does not delete it.
+   * on turn N+1.
+   *
+   * Limited to SENSOR_SWEEP_CHARGES_PER_MISSION uses per mission (2, as of
+   * 23 Aug 2026 — Maxime: "I see double scan as two charge each mission,
+   * every mission"), not a turn-based cooldown — a budget to spend across
+   * the whole mission rather than a rate you wait out between uses. This
+   * thins the fog, it does not delete it.
    *
    * Revealing is NOT surfacing. `burrowed` is left alone, so an Undertow
    * painted here still counts as burrowed for its own surfacing damage
    * multiplier when it eventually attacks (resolveAttack's bloom branch) —
    * the sweep tells you where it is, it doesn't drag it out of the ground.
    *
-   * Costs 1 action and does not end the turn — the cooldown is the real
+   * Costs 1 action and does not end the turn — the charge is the real
    * price. Never paints its own side (see isVisibleTo's note on why that
    * matters).
    */
@@ -974,11 +1019,12 @@ export class Mission {
       revealedIds.push(target.instanceId);
     }
     unit.actionsRemaining -= 1;
-    (unit.abilityCooldowns ??= {})["abil_sensor_sweep"] = this.turn + SENSOR_SWEEP_COOLDOWN_TURNS;
+    const chargesLeft = this.sensorSweepChargesRemaining(unitId) - 1;
+    unit.sensorSweepUsesRemaining = chargesLeft;
     this.log.push(
       revealedIds.length
-        ? `${unit.displayName} sweeps (radius ${radius}) — ${revealedIds.length} contact(s) painted.`
-        : `${unit.displayName} sweeps (radius ${radius}) — no contacts.`
+        ? `${unit.displayName} sweeps (radius ${radius}) — ${revealedIds.length} contact(s) painted. (${chargesLeft} charge(s) left)`
+        : `${unit.displayName} sweeps (radius ${radius}) — no contacts. (${chargesLeft} charge(s) left)`
     );
     return { sweeperId: unitId, radius, revealedIds, revealedUntilTurn: this.turn };
   }

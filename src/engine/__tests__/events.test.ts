@@ -5,7 +5,8 @@ import { describe, it, expect } from "vitest";
 import { createEventRuntimeState, evaluateTurnStart, evaluateZoneEntered } from "../events";
 import { Mission } from "../mission";
 import { MISSION_1A, MISSION_3 } from "../../data/campaign";
-import { AMARANTH_MISSION_1, AMARANTH_MISSION_3 } from "../../data/campaignAmaranth";
+import { AMARANTH_MISSION_1, AMARANTH_MISSION_2, AMARANTH_MISSION_3 } from "../../data/campaignAmaranth";
+import { coordKey } from "../grid";
 
 describe("MissionEvent evaluator — guardGroup mutual exclusion", () => {
   it("fires via turn_start if the zone is never entered", () => {
@@ -64,6 +65,36 @@ describe("Turn-1 wave spawning — regression: waves used to spawn twice", () =>
     const after = mission.units.filter((u) => u.side === "hostile").length;
     // I.1 has no turn-2 wave, so the count must not grow on its own.
     expect(after).toBeLessThanOrEqual(before);
+  });
+});
+
+describe("Overflow spawn placement — regression: findFreeAdjacent used to cross walls", () => {
+  // Found 23 Aug 2026 while doubling Amaranth I.2's Splitfang count.
+  // findFreeAdjacent (mission.ts) placed spawn overflow by raw Chebyshev
+  // ring distance with no wall check — so once a wave listed more units
+  // than there were collision-free tiles at its spawn origin, the search
+  // could and did land on a tile across a wall from that origin. Wire and
+  // Mud's spawn tiles sit right against the hold room's sealed east wall,
+  // so a Splitfang needing overflow placement spawned INSIDE the sealed
+  // hold zone outright, no doorway required — see AMARANTH_MISSION_2's own
+  // comment for the exact coordinates this produced. Fixed by making
+  // findFreeAdjacent a walls-aware BFS. This asserts the invariant a
+  // sealed room's whole design depends on: nothing hostile ever appears on
+  // a hold-zone tile at the moment of spawning, regardless of how many
+  // units overflow the map's named spawn points.
+  it("a wave big enough to overflow the map's spawn tiles never places a hostile inside a walled-off hold zone", () => {
+    const mission = new Mission(AMARANTH_MISSION_2);
+    const holdKeys = new Set((mission.map.holdZone ?? []).map(coordKey));
+    const onHold = mission.units.filter((u) => u.side === "hostile" && holdKeys.has(coordKey(u.pos)));
+    expect(onHold).toEqual([]);
+
+    // Advance through every wave (turns 1 and 3) so overflow placement for
+    // the SECOND wave — spawning into a board already crowded by the
+    // first — gets exercised too, not just the initial spawn.
+    mission.endPlayerTurn();
+    mission.endPlayerTurn();
+    const stillClear = mission.units.filter((u) => u.side === "hostile" && !u.downed && holdKeys.has(coordKey(u.pos)));
+    expect(stillClear).toEqual([]);
   });
 });
 

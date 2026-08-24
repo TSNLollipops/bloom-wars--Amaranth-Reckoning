@@ -100,7 +100,11 @@ export const AMARANTH_MISSION_1: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 8 },
   playerPilotIds: WARDEN_ROSTER_IDS,
-  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" }],
+  // Doubled 6 -> 12 (Maxime, 23 Aug 2026: "twice as many enemy" — echoing
+  // his own Mission 6 playtest note that a doubled spawn "really felt like
+  // I was fighting a good enemy"). turnLimit and map untouched — Muster
+  // stays the open tutorial ground it was, just with more to clear in it.
+  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" }],
   events: [],
   rewardPoints: 100,
   heirloomCharge: "locked",
@@ -113,11 +117,37 @@ export const AMARANTH_MISSION_2: CampaignMission = {
   briefing:
     "Forward listening post at grid Whiskey-Nine is calling in movement in the wire. Hold the post until the survey detail clears — six turns, then you're stood down. There's exactly one way in or out of that room. Mind the doorway.",
   objective: "hold_zone",
-  objectiveParams: { turnLimit: 10, holdUntilTurn: 6 },
+  // turnLimit 10 -> 12, Splitfang doubled 3+3 -> 6+6 (Maxime, 23 Aug 2026:
+  // "should end at turn 12 and have twice as many enemy"). holdUntilTurn
+  // stays 6, so the squad now holds through six spare turns after the zone
+  // locks instead of four.
+  //
+  // The doubled count first shipped as a partial change (turnLimit only)
+  // because 6+6 broke the door-plug regression test outright — a full
+  // squad wipe where the original 3+3 was a clean win. Root-caused it
+  // properly rather than guessing at wave pacing: NOT bloom_splitfang's
+  // pack targeting (that was a red herring from an early theory), but a
+  // real engine bug in engine/mission.ts's findFreeAdjacent(), the
+  // function that places an overflow spawn when a wave lists more units
+  // than there are collision-free tiles at its origin. It searched by raw
+  // Chebyshev ring distance with no wall check, so once a 9th-or-later
+  // Splitfang needed overflow placement near this map's spawn tiles —
+  // which sit right against the hold room's sealed east wall — it found a
+  // HOLD-ZONE TILE one wall-thickness away in coordinates and spawned a
+  // Splitfang directly inside the sealed room, no doorway required. Fixed
+  // by rewriting findFreeAdjacent as a walls-aware BFS (can't cross a wall
+  // to shortcut, same as a real unit's own move budget can't) — see that
+  // function's own comment in engine/mission.ts for the full story. With
+  // the bug gone, 6+6 (and 9, and everything in between, all re-tested)
+  // wins the door-plug regression cleanly at turn 6 again, and a version
+  // that fights back instead of turtling (src/sim) also wins at turn 6,
+  // costing the Munti (Lask) as a permanent loss along the way — a real
+  // cost, not a broken run.
+  objectiveParams: { turnLimit: 12, holdUntilTurn: 6 },
   playerPilotIds: WARDEN_ROSTER_IDS,
   enemyWaves: [
-    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 3, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 3, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 130,
@@ -164,16 +194,20 @@ export const AMARANTH_MISSION_4: CampaignMission = {
       // that start deep inside the ruin and the one outside it stay put
       // exactly where the grid draws its seams. Moved with the map when
       // Tunnel Rats was enlarged 18x11 -> 24x15 (23 Aug 2026,
-      // data/mapsAmaranth.ts's enlargement-pass header): the interior
-      // seams are the "SS" pair at row 7 of that grid, the third is the
-      // east seam on the same row.
+      // data/mapsAmaranth.ts's enlargement-pass header), and moved again
+      // (row +2 only — same columns) for the second enlargement 24x15 ->
+      // 30x19 (Maxime, same day: "make the map bigger" for this mission
+      // specifically). The interior seams are the "SS" pair at row 9 of
+      // that grid now, the third is the east seam on the same row — the
+      // approach distance from deploy is still measured at exactly 9 move
+      // points, unchanged by either pass; see that file's header.
       archetypeId: "bloom_undertow",
       count: 3,
       atTurn: 1,
       spawnAt: [
-        { x: 8, y: 7 },
-        { x: 9, y: 7 },
-        { x: 23, y: 7 },
+        { x: 8, y: 9 },
+        { x: 9, y: 9 },
+        { x: 23, y: 9 },
       ],
       burrowed: true,
     },
