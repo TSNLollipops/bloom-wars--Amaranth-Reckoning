@@ -10,6 +10,7 @@
 // switcher comes back on its own if a second campaign is ever un-archived.
 import Phaser from "phaser";
 import { CAMPAIGNS } from "../data/allCampaigns";
+import { makeShopButton } from "./shop/ShopPanel";
 
 const CARD_SPACING = 92;
 const CARD_HEIGHT = 74;
@@ -43,6 +44,16 @@ export class MapSelect extends Phaser.Scene {
     this.add
       .text(480, 76, "engine test pass — pick a mission", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
+
+    // Hangar entry point (25 Aug 2026, Maxime: "make me a little box for
+    // the ui I would see in the antfarm... from the mission menu") — fixed
+    // in the header, not inside missionListLayer, so it survives scrolling
+    // and campaign switches and stays reachable without finishing a
+    // mission first (unlike Debrief's copy of the same shop).
+    const hangarLayer = this.add.container(0, 0);
+    makeShopButton(this, hangarLayer, 880, 20, 150, 30, "CAMPAIGN SHOP", true, () => {
+      this.scene.start("Hangar");
+    });
 
     // Same accumulation bug as Battle.ts's actionSlots (fixed 23 Aug 2026,
     // see that file's comment for the full mechanism): create() re-runs
