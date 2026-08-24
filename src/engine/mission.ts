@@ -3,7 +3,15 @@
 // consumer). Owns turn order, the environment step, mission-event wiring,
 // win/loss evaluation, and is the single surface both src/sim and the
 // Phaser Battle scene call into — so the rules only exist once.
-import type { CampaignMission, Coord, MapDefinition, MekArchetype, PilotRecord, TileType } from "../data/types";
+import type {
+  CampaignMission,
+  Coord,
+  MapDefinition,
+  MekArchetype,
+  PilotRecord,
+  RescuePilotBonusObjective,
+  TileType,
+} from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
 import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, type BattleUnit } from "./units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
@@ -240,14 +248,25 @@ export class Mission {
   private extractedUnitId: string | null = null;
   // Mission 5's rescue-and-recruit bonus objective (23 Aug 2026) — see
   // BattleUnit.npcIncapacitated's own comment for the full design. "none"
-  // for every mission without a bonusObjective (the overwhelming majority);
-  // set to "pending" the instant the rescuable NPC spawns, then resolved to
-  // "succeeded" (checkRescueExtraction) or "failed" (handleDowned, if
-  // either the NPC or whoever ends up carrying them goes down first).
-  // Deliberately NEVER read by checkWinLoss — a bonus objective, by
-  // definition, cannot fail the mission itself; scenes/Debrief.ts is the
-  // one place this gets acted on (generateRandomRescuedPilot).
+  // for every mission without a rescue_pilot bonusObjective (the
+  // overwhelming majority); set to "pending" the instant the rescuable NPC
+  // spawns, then resolved to "succeeded" (checkRescueExtraction) or
+  // "failed" (handleDowned, if either the NPC or whoever ends up carrying
+  // them goes down first). Deliberately NEVER read by checkWinLoss — a
+  // bonus objective, by definition, cannot fail the mission itself;
+  // scenes/Debrief.ts is the one place this gets acted on
+  // (generateRandomRescuedPilot, engine/campaignEconomy.ts's
+  // computeBonusObjectivePoints).
   rescueOutcome: "none" | "pending" | "succeeded" | "failed" = "none";
+  // Generalized bonus-objective pass (24 Aug 2026) — clear_bloom_patch's
+  // own outcome tracker, companion to rescueOutcome above. "none" for every
+  // mission without a clear_bloom_patch bonusObjective; "pending" the
+  // instant one is armed (armClearBloomPatch, below); "succeeded" once
+  // every tile in the bonusObjective's own patchTiles reads as something
+  // other than bloom_mat (checkClearBloomPatchComplete). No "failed"
+  // state — see ClearBloomPatchBonusObjective's own comment in
+  // data/types.ts for why this kind has no failure condition to detect.
+  clearBloomPatchOutcome: "none" | "pending" | "succeeded" = "none";
 
   constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[]) {
     this.mission = mission;
@@ -269,7 +288,7 @@ export class Mission {
     this.deployRoster = deployRoster;
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
-    this.spawnRescuableNpc();
+    this.armBonusObjective();
     // Turn 1 goes through the exact same path every later turn does
     // (endPlayerTurn -> runTurnStartEvents), which already spawns that
     // turn's waves itself. This used to ALSO call spawnWavesForTurn(1)
@@ -284,12 +303,39 @@ export class Mission {
     this.runTurnStartEvents();
   }
 
-  /** Mission 5's rescue-and-recruit bonus objective: places the one rescuable NPC on the board and arms rescueOutcome, or is a no-op for every mission without a bonusObjective. */
-  private spawnRescuableNpc(): void {
+  /**
+   * Bonus-objective setup, generalized 24 Aug 2026 (see BonusObjective's
+   * own comment in data/types.ts) — dispatches by `kind` to whichever arm
+   * method actually does the work, or is a no-op for every mission without
+   * a bonusObjective at all. A mission carries at most one bonusObjective,
+   * so at most one of spawnRescuableNpc/armClearBloomPatch ever runs, and
+   * only one of rescueOutcome/clearBloomPatchOutcome ever leaves "none."
+   */
+  private armBonusObjective(): void {
     const bonus = this.mission.bonusObjective;
-    if (!bonus || bonus.kind !== "rescue_pilot") return;
+    if (!bonus) return;
+    if (bonus.kind === "rescue_pilot") this.spawnRescuableNpc(bonus);
+    else this.armClearBloomPatch();
+  }
+
+  /** Mission 5's rescue-and-recruit bonus objective: places the one rescuable NPC on the board and arms rescueOutcome. */
+  private spawnRescuableNpc(bonus: RescuePilotBonusObjective): void {
     this.units.push(createRescuableNpcUnit(bonus.npcSpawnAt, bonus.npcDisplayName));
     this.rescueOutcome = "pending";
+  }
+
+  /**
+   * Generalized 24 Aug 2026: arms clearBloomPatchOutcome. No board setup
+   * needed, unlike spawnRescuableNpc — a clear_bloom_patch bonusObjective's
+   * `patchTiles` names tiles that are already bloom_mat on the map as
+   * authored; abil_clear_bloom (this file's own canClearBloom/
+   * getClearableBloomFrom/clearBloom, further down) is the verb that
+   * clears them, completely unchanged by this pass. Takes no argument —
+   * checkClearBloomPatchComplete (below) re-reads mission.bonusObjective
+   * itself when it actually needs the patch's tile list.
+   */
+  private armClearBloomPatch(): void {
+    this.clearBloomPatchOutcome = "pending";
   }
 
   private deployPlayerUnits(): void {
@@ -554,6 +600,30 @@ export class Mission {
       this.rescueOutcome = "succeeded";
       carrier.carryingRescueId = undefined;
       this.log.push(`${carrier.displayName} gets the rescued pilot clear — they're headed home.`);
+    }
+  }
+
+  /**
+   * Completion check for the clear_bloom_patch bonus objective — call
+   * every player turn end, mirrors checkRescueExtraction's own shape
+   * (never touches this.outcome; a bonus objective cannot end the
+   * mission). Succeeds the instant every tile in the bonusObjective's own
+   * patchTiles reads as something other than bloom_mat — this doesn't
+   * care WHO or WHAT cleared them (abil_clear_bloom is the only verb that
+   * currently does, but the check itself is agnostic, the same way
+   * hasBloomMat() below is). No "failed" branch: an unmet patch at
+   * mission end is simply still "pending" — see
+   * ClearBloomPatchBonusObjective's own comment in data/types.ts for why
+   * this kind has no failure condition to detect.
+   */
+  private checkClearBloomPatchComplete(): void {
+    if (this.clearBloomPatchOutcome !== "pending") return;
+    const bonus = this.mission.bonusObjective;
+    if (!bonus || bonus.kind !== "clear_bloom_patch") return;
+    const allClear = bonus.patchTiles.every((c) => this.map.tiles[c.y][c.x] !== "bloom_mat");
+    if (allClear) {
+      this.clearBloomPatchOutcome = "succeeded";
+      this.log.push("Bonus objective complete — the patch is clear.");
     }
   }
 
@@ -1462,6 +1532,7 @@ export class Mission {
     if (this.phase !== "player" || this.outcome !== "ongoing") return;
     this.checkExtraction();
     this.checkRescueExtraction();
+    this.checkClearBloomPatchComplete();
     if (this.checkWinLoss()) return;
     this.phase = "hostile";
     this.log.push(`--- Turn ${this.turn}: hostile phase ---`);

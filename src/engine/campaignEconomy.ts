@@ -402,3 +402,60 @@ export function applyCompanyEarnings(state: CampaignState, mission: Mission): Co
   state.points += completionBonus.total + coBonus;
   return { completionBonus, coBonus, totalAdded: completionBonus.total + coBonus };
 }
+
+// ---- Company points: earning — bonus objectives -------------------------
+
+/**
+ * Generalized bonus-objective points pass (24 Aug 2026, Maxime: "keep the
+ * rescue pilot and bloom patch thing around we are gonna use those as
+ * special objectif player can complete during mission for extra point").
+ * Reads whichever outcome field on the live Mission actually resolved
+ * (engine/mission.ts's rescueOutcome for a rescue_pilot bonusObjective,
+ * clearBloomPatchOutcome for a clear_bloom_patch one — a mission carries
+ * at most one bonusObjective, so at most one of the two fields is ever
+ * relevant) and returns that objective's own bonusPoints if it succeeded,
+ * 0 for a mission with no bonusObjective at all, a still-pending one, or
+ * (rescue only — clear_bloom_patch has no failure state) a failed one.
+ *
+ * Deliberately NOT gated on mission.outcome === "win", unlike
+ * computeMissionCompletionBonus above — a bonus objective is scored as its
+ * own achievement, independent of whether the mission's own main
+ * objective was won or lost. scenes/Debrief.ts's rescue-callout reveal
+ * already reads this way (`mission.rescueOutcome === "succeeded"`, no
+ * outcome check anywhere near it, predating this function); this just
+ * prices what that condition already governed, rather than changing when
+ * it applies.
+ */
+export function computeBonusObjectivePoints(mission: Mission): number {
+  const bonus = mission.mission.bonusObjective;
+  if (!bonus) return 0;
+  if (bonus.kind === "rescue_pilot") {
+    return mission.rescueOutcome === "succeeded" ? bonus.bonusPoints : 0;
+  }
+  return mission.clearBloomPatchOutcome === "succeeded" ? bonus.bonusPoints : 0;
+}
+
+/**
+ * Adds computeBonusObjectivePoints' result to the COMPANY pool
+ * (state.points), returning the amount added. A bonus objective is
+ * squad-level achievement, not an individual pilot's combat performance
+ * metric, so it's priced through the same pool applyCompanyEarnings feeds
+ * rather than any one pilot's personalPoints — Rourke or whoever else
+ * doesn't personally bank it just for being deployed on the mission that
+ * happened to carry one.
+ *
+ * Kept as its own function/call rather than folded into
+ * applyCompanyEarnings itself: that function's own doc comment already
+ * names it as covering exactly two sources (the completion formula and
+ * the Rourke CO bonus), and a bonus objective's win-independence (see
+ * computeBonusObjectivePoints' own comment above) means it doesn't
+ * actually share that function's gating logic — merging them would just
+ * move an "is this one win-gated or not" branch inside it instead of
+ * keeping the two concerns apart. scenes/Debrief.ts calls both, once
+ * each, at the same point in its own mission-end sequence.
+ */
+export function applyBonusObjectivePoints(state: CampaignState, mission: Mission): number {
+  const amount = computeBonusObjectivePoints(mission);
+  state.points += amount;
+  return amount;
+}

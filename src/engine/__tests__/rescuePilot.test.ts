@@ -22,8 +22,13 @@ describe("spawnRescuableNpc (Mission constructor)", () => {
     expect(mission.rescueOutcome).toBe("pending");
     const npc = mission.units.find((u) => u.npcIncapacitated);
     expect(npc).toBeDefined();
-    expect(npc!.pos).toEqual(AMARANTH_MISSION_5.bonusObjective!.npcSpawnAt);
-    expect(npc!.displayName).toBe(AMARANTH_MISSION_5.bonusObjective!.npcDisplayName);
+    // Narrowed from the generalized BonusObjective union (24 Aug 2026) —
+    // AMARANTH_MISSION_5's own bonusObjective is a rescue_pilot, but the
+    // exported CampaignMission type no longer says so without this check.
+    const bonus = AMARANTH_MISSION_5.bonusObjective!;
+    if (bonus.kind !== "rescue_pilot") throw new Error("expected AMARANTH_MISSION_5's bonusObjective to be rescue_pilot");
+    expect(npc!.pos).toEqual(bonus.npcSpawnAt);
+    expect(npc!.displayName).toBe(bonus.npcDisplayName);
     expect(npc!.side).toBe("player");
   });
 

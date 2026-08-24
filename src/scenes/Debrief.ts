@@ -36,6 +36,7 @@ import {
   computeMissionEarnings,
   applyMissionEarnings,
   applyCompanyEarnings,
+  applyBonusObjectivePoints,
   purchaseTierUpgrade,
   purchaseMekSecondary,
   purchaseSpareParts,
@@ -112,6 +113,12 @@ export class Debrief extends Phaser.Scene {
   private muntiFired = false;
   private muntiPilot?: PilotRecord;
   private rescuedPilot?: PilotRecord;
+  // Generalized bonus-objective pass (24 Aug 2026) — the company-pool
+  // points from whichever bonusObjective kind this mission carried (0 for
+  // a mission with none, or one that didn't resolve to "succeeded"). See
+  // engine/campaignEconomy.ts's computeBonusObjectivePoints for exactly
+  // what this reads.
+  private bonusObjectivePoints = 0;
 
   private viewportTop = 0;
   private viewportBottom = 0;
@@ -171,18 +178,25 @@ export class Debrief extends Phaser.Scene {
     this.earnings = computeMissionEarnings(this.mission);
     applyMissionEarnings(this.state, this.earnings);
     this.companyResult = applyCompanyEarnings(this.state, this.mission);
+    // Generalized bonus-objective pass (24 Aug 2026) — a separate call,
+    // deliberately not folded into applyCompanyEarnings above; see that
+    // function's own doc comment in engine/campaignEconomy.ts for why.
+    this.bonusObjectivePoints = applyBonusObjectivePoints(this.state, this.mission);
 
     // ---- 3. The Munti guarantee, run once on entry -----------------------
     const muntiResult = checkMuntiGuarantee(this.state);
     this.muntiFired = muntiResult.recruited;
     this.muntiPilot = muntiResult.pilot;
 
-    // ---- 3a. Rescue-and-recruit bonus objective (Mission 5, Maxime 23 Aug
-    // 2026 — engine/mission.ts's rescueOutcome / campaignState.ts's
-    // generateRandomRescuedPilot) — run once on entry, same shape as the
-    // Munti guarantee just above. Distinct panel/color from it deliberately
-    // (drawRescueCallout below): the Munti guarantee is "we had to do this
-    // or the campaign would be stuck," this is "you earned this."
+    // ---- 3a. Bonus objective reveal (generalized 24 Aug 2026 — see
+    // data/types.ts's BonusObjective) — run once on entry, same shape as
+    // the Munti guarantee just above. Distinct panel/color from it
+    // deliberately (drawBonusObjectiveCallout below): the Munti guarantee
+    // is "we had to do this or the campaign would be stuck," this is "you
+    // earned this." Rescue keeps its own free-recruit reward on top of
+    // bonusObjectivePoints (Maxime, 24 Aug 2026: "Points on top of the
+    // recruit"); clear_bloom_patch has no reward beyond the points
+    // themselves, so it needs nothing resolved here.
     this.rescuedPilot = this.mission.rescueOutcome === "succeeded" ? generateRandomRescuedPilot(this.state) : undefined;
 
     const win = this.mission.outcome === "win";
@@ -197,7 +211,7 @@ export class Debrief extends Phaser.Scene {
 
     let cursorY = this.drawEarningsPanel(58);
     cursorY = this.drawMuntiCallout(cursorY + 8);
-    cursorY = this.drawRescueCallout(cursorY + 8);
+    cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
 
     this.add
       .text(480, cursorY + 10, "CAMPAIGN SHOP", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
@@ -240,7 +254,7 @@ export class Debrief extends Phaser.Scene {
 
     y += 2;
     this.add
-      .text(CARD_L + 16, y, `Company pool: +${this.companyResult.totalAdded} pts`, {
+      .text(CARD_L + 16, y, `Company pool: +${this.companyResult.totalAdded + this.bonusObjectivePoints} pts`, {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#facc15",
@@ -251,12 +265,25 @@ export class Debrief extends Phaser.Scene {
     return top + height;
   }
 
-  /** Small print under the company-pool total: where those points actually came from — the completion+performance formula's own terms (computeMissionCompletionBonus, engine/campaignEconomy.ts) plus the Rourke CO bonus. */
+  /**
+   * Small print under the company-pool total: where those points actually
+   * came from — the completion+performance formula's own terms
+   * (computeMissionCompletionBonus, engine/campaignEconomy.ts), the Rourke
+   * CO bonus, and (generalized bonus-objective pass, 24 Aug 2026) whatever
+   * bonusObjectivePoints this mission earned, if any.
+   */
   private companyEarningsBreakdown(): string {
     const cb = this.companyResult.completionBonus;
     const coBonus = this.companyResult.coBonus;
-    if (cb.total === 0 && coBonus === 0) return "(no completion bonus — mission was not a win)";
-    return `(completion ${cb.base}, turns ${cb.turnsUnderLimitBonus}, no-downed ${cb.noPilotDownedBonus}, no-parts ${cb.noSparePartsSpentBonus}, no-severance ${cb.noSeveranceBonus}, CO bonus +${coBonus})`;
+    const parts: string[] = [];
+    if (cb.total !== 0 || coBonus !== 0) {
+      parts.push(
+        `completion ${cb.base}, turns ${cb.turnsUnderLimitBonus}, no-downed ${cb.noPilotDownedBonus}, no-parts ${cb.noSparePartsSpentBonus}, no-severance ${cb.noSeveranceBonus}, CO bonus +${coBonus}`
+      );
+    }
+    if (this.bonusObjectivePoints > 0) parts.push(`bonus objective +${this.bonusObjectivePoints}`);
+    if (!parts.length) return "(no completion bonus — mission was not a win)";
+    return `(${parts.join("; ")})`;
   }
 
   private drawMuntiCallout(top: number): number {
@@ -274,18 +301,29 @@ export class Debrief extends Phaser.Scene {
     return top + height;
   }
 
-  /** Mission 5's rescue-and-recruit bonus objective — mirrors drawMuntiCallout's own shape, green/positive rather than amber/emergency. */
-  private drawRescueCallout(top: number): number {
-    if (!this.rescuedPilot) return top;
+  /**
+   * Bonus-objective reveal, generalized 24 Aug 2026 (replaces the old
+   * rescue-only drawRescueCallout — same shape, mirrors drawMuntiCallout's
+   * own panel, green/positive rather than amber/emergency) — one line for
+   * whichever kind this mission's bonusObjective actually was, or a no-op
+   * if it never resolved to "succeeded" (including a mission with no
+   * bonusObjective at all). Rescue keeps its own distinct wording (the
+   * recruit is the headline; points are "on top of" it, per Maxime's own
+   * framing); clear_bloom_patch has nothing but the points to report.
+   */
+  private drawBonusObjectiveCallout(top: number): number {
+    const bonus = this.mission.mission.bonusObjective;
+    if (!bonus) return top;
+    let text: string | null = null;
+    if (bonus.kind === "rescue_pilot" && this.rescuedPilot) {
+      text = `RESCUE SUCCESSFUL — ${this.rescuedPilot.displayName} recovered, added to the bench (+${this.bonusObjectivePoints} pts)`;
+    } else if (bonus.kind === "clear_bloom_patch" && this.mission.clearBloomPatchOutcome === "succeeded") {
+      text = `BONUS OBJECTIVE COMPLETE — patch cleared (+${this.bonusObjectivePoints} pts)`;
+    }
+    if (!text) return top;
     const height = 40;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14261c, 1).setStrokeStyle(1, 0x4ade80);
-    this.add
-      .text(480, top + height / 2, `RESCUE SUCCESSFUL — ${this.rescuedPilot.displayName} recovered, added to the bench`, {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#4ade80",
-      })
-      .setOrigin(0.5);
+    this.add.text(480, top + height / 2, text, { fontFamily: "monospace", fontSize: "12px", color: "#4ade80" }).setOrigin(0.5);
     return top + height;
   }
 

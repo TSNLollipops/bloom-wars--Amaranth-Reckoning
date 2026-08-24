@@ -276,7 +276,17 @@ export const AMARANTH_MISSION_5: CampaignMission = {
   // 6-7 cols 11-12), between the depot and the exit tiles, same "getting
   // out means going through where the salvage actually is" placement the
   // map's own header describes for the three Bloom spawn seams.
-  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 13, y: 6 }, npcDisplayName: "Downed Pilot" },
+  //
+  // bonusPoints (generalized bonus-objective pass, 24 Aug 2026 — Maxime,
+  // asked whether points should replace or add to the free-recruit
+  // reward above: "Points on top of the recruit"). Placeholder balance
+  // number, Maxime's own judgment call, unspecified in the design docs,
+  // flagged exactly like campaignState.ts's DISCRETIONARY_RECRUIT_COST.
+  // Company-pool scale, not personal: sits close to SPARE_PART_COST (40,
+  // engine/campaignEconomy.ts) — enough to feel like a real bonus without
+  // approaching this mission's own rewardPoints (170) for actually
+  // winning it. Pending a real tuning pass once there's actual play data.
+  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 13, y: 6 }, npcDisplayName: "Downed Pilot", bonusPoints: 40 },
 };
 
 export const AMARANTH_MISSION_6: CampaignMission = {

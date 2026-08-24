@@ -148,22 +148,60 @@ export interface MissionEvent {
 // Mission 3's "clean the bloom patch" pass (Maxime, 23 Aug 2026: "I'm
 // thinking of making clean the bloom patch the objective of mission 3" —
 // upgrading the earlier "cleaning job for munties" idea from a mission-3
-// mechanic to mission 3's actual win condition). One optional layer, NOT a
-// generalized "every mission can carry N bonus objectives" system — Maxime
-// also floated that idea ("if we got other mission with similar layout we
-// can make those objective bonus objective in toher mission"), but there
-// was only one concrete objective type to generalize from at the time this
-// was built, and no debrief/scoring screen yet to actually show a player
-// "you also did the bonus thing" (Bloom_Wars_Amaranth_Act1_Build_Log_v1.md
-// has called that a known gap since day one). `BonusObjective` is written
-// as its own typed shape specifically so a second mission can adopt the
-// same `kind` later without a redesign — see CampaignMission.bonusObjective
-// below and engine/mission.ts's rescueOutcome tracking.
-export interface BonusObjective {
+// mechanic to mission 3's actual win condition) first shipped this as one
+// optional layer, deliberately NOT the "every mission can carry N bonus
+// objectives" system Maxime had also floated the same day ("if we got
+// other mission with similar layout we can make those objective bonus
+// objective in toher mission") — there was only one concrete objective
+// type to generalize from at the time, and no debrief/scoring screen yet
+// to show a player "you also did the bonus thing."
+//
+// Generalized 24 Aug 2026, once both existed (Maxime, having just gotten
+// Mission 3's clear_bloom win condition and Mission 5's rescue-and-recruit
+// bonus in the same build: "keep the rescue pilot and bloom patch thing
+// around we are gonna use those as special objectif player can complete
+// during mission for extra point" — then, asked about timing: "built the
+// system to support adding those as 2cd objectif in later mission"). Still
+// a plain discriminated union, not a generic/polymorphic payload field —
+// every other typed shape in this file (EnemyWave, MissionEvent, TileDef)
+// is concrete fields keyed by a `kind`/`type` discriminant rather than a
+// generic bag, and following that same house style is what lets each
+// variant's own fields (npcSpawnAt vs. patchTiles) type-check without a
+// runtime cast anywhere they're read. `CampaignMission.bonusObjective`
+// below stays a single optional field, not an array — one bonus objective
+// per mission, of either kind.
+export interface RescuePilotBonusObjective {
   kind: "rescue_pilot";
   npcSpawnAt: Coord;
   npcDisplayName: string;
+  // Points on top of the recruit reward (Maxime, 24 Aug 2026 — asked
+  // whether points should replace or add to the existing free-recruit
+  // reward: "Points on top of the recruit (Recommended)"). See
+  // engine/mission.ts's rescueOutcome and engine/campaignEconomy.ts's
+  // computeBonusObjectivePoints.
+  bonusPoints: number;
 }
+
+// engine/mission.ts's abil_clear_bloom verb (canClearBloom/
+// getClearableBloomFrom/clearBloom) is already fully generic — it clears
+// whatever bloom_mat tiles exist near the caster on the CURRENT mission's
+// map, regardless of that mission's own `objective`. This variant reuses
+// that exact verb as a bonus objective on any mission: `patchTiles` names
+// a specific, fixed set of tiles that must all read non-bloom_mat for the
+// bonus to succeed — independent of the mission's own win condition, so a
+// mission whose real objective is eliminate_all can still carry a small
+// bloom patch on the side. No "failed" outcome exists for this kind (see
+// engine/mission.ts's clearBloomPatchOutcome) — unlike a rescue, which a
+// hostile can actively deny by killing the NPC or the carrier, nothing on
+// the board can make an uncleared patch fail; it's simply incomplete if
+// the mission ends before every listed tile is clear.
+export interface ClearBloomPatchBonusObjective {
+  kind: "clear_bloom_patch";
+  patchTiles: Coord[];
+  bonusPoints: number;
+}
+
+export type BonusObjective = RescuePilotBonusObjective | ClearBloomPatchBonusObjective;
 
 export interface CampaignMission {
   id: string;
