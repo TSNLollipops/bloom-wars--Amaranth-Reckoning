@@ -1,8 +1,9 @@
 // src/engine/ai.ts
 // Build Brief step 7 / GDD §5.3. Three tiers, each a strategy selected by
 // intelligence (or, for hostile mechs, the "reflexive-equivalent" behaviour
-// Data Pack §9 specifies: nearest target, best damage, no coordination) —
-// not a branch inside one function.
+// Data Pack §9 specifies: nearest target, best damage, no coordination —
+// plus Munti priority within their own vision, 25 Aug 2026, see
+// mechReflexiveDecision below) — not a branch inside one function.
 import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
 import { BLOOM, SPLITFANG_PACK_RADIUS } from "../data/bloom";
@@ -309,6 +310,45 @@ function emergentDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battle
   return { path: moveToward(map, unit, (munti ?? targets[0]).pos, allUnits) };
 }
 
+/**
+ * Hostile mechs only (House Amaranth, and any future human-piloted
+ * hostile) — Maxime, 25 Aug 2026: "in a mech to mech battle its kill the
+ * munties 1st." A human pilot reads the battlefield well enough to know
+ * the medic is the priority kill, even without pack/emergent-tier
+ * coordination — Data Pack §9 already calls hostile-mech behaviour
+ * "reflexive-EQUIVALENT," not identical, which is exactly the gap this
+ * fills.
+ *
+ * Deliberately still vision-gated (visibleEnemiesOf, same as plain
+ * reflexiveDecision) — unlike emergentDecision's boss-only omniscience,
+ * a mech pilot only prioritises a Munti it can actually see. And
+ * deliberately does NOT touch Bloom's own reflexive tier: intelligenceOf
+ * hard-codes every non-bloom unit to "reflexive," so decideHostileAction
+ * below routes mechs here and leaves weak/reflexive-tier Bloom on the
+ * original, dumber reflexiveDecision untouched — Bloom stays
+ * instinct-only, no exception, matching the rest of this project's
+ * established canon.
+ *
+ * Only actually diverts from plain reflexive behaviour when a kill (or a
+ * move-then-kill) on the Munti is available THIS turn — if the Munti is
+ * seen but not reachable into range, this falls straight through to
+ * reflexiveDecision rather than wasting the turn chasing an unreachable
+ * priority target while passing up a real one, the same trade-off
+ * emergentDecision already makes for Heartwood.
+ */
+function mechReflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
+  const targets = visibleEnemiesOf(unit, allUnits);
+  const munti = targets.find((t) => t.path === "munti");
+  if (munti) {
+    const inPlace = bestAttackTargetInRange(map, unit, unit.pos, [munti], allUnits);
+    if (inPlace) return { attackTargetId: inPlace.instanceId };
+
+    const pathToMunti = reachableWithinRangeTile(map, unit, munti.pos, allUnits);
+    if (pathToMunti) return { path: pathToMunti, attackTargetId: munti.instanceId };
+  }
+  return reflexiveDecision(map, unit, allUnits);
+}
+
 export function decideHostileAction(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const tier = intelligenceOf(unit);
   if (tier === "pack") {
@@ -318,6 +358,11 @@ export function decideHostileAction(map: MapDefinition, unit: BattleUnit, allUni
     return nearbyPack ? packDecision(map, unit, allUnits) : reflexiveDecision(map, unit, allUnits);
   }
   if (tier === "emergent") return emergentDecision(map, unit, allUnits);
+  // intelligenceOf hard-codes every non-bloom unit to "reflexive," so this
+  // is the only branch point that can ever see a hostile mech — Munti
+  // priority (mechReflexiveDecision, above) only applies here, never to
+  // Bloom's own reflexive tier.
+  if (unit.kind === "mech") return mechReflexiveDecision(map, unit, allUnits);
   return reflexiveDecision(map, unit, allUnits);
 }
 

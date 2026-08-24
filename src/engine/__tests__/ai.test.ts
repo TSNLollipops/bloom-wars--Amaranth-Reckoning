@@ -8,10 +8,11 @@
 // about the union/aggregation behaviour on top of those, not re-testing
 // Chebyshev distance or the burrow rule from scratch.
 import { describe, it, expect } from "vitest";
-import { unitsVisibleToSide } from "../ai";
+import { unitsVisibleToSide, decideHostileAction } from "../ai";
 import { Mission } from "../mission";
 import { MISSION_1A } from "../../data/campaign";
-import { testUnit } from "./testHelpers";
+import { testUnit, makeUniformMap } from "./testHelpers";
+import { createHostileMechUnit, createBloomUnit } from "../units";
 
 describe("unitsVisibleToSide", () => {
   it("counts a hostile visible to only ONE of several player units (union, not intersection or single-observer)", () => {
@@ -123,5 +124,69 @@ describe("unitsVisibleToSide", () => {
     expect(visible.has(target.instanceId)).toBe(true);
     // Every other hostile is still parked at (900, 900) — not visible.
     expect(visible.size).toBe(1);
+  });
+});
+
+// Hostile-mech Munti priority (Maxime, 25 Aug 2026 — "in a mech to mech
+// battle its kill the munties 1st"). decideHostileAction routes any
+// unit.kind === "mech" through the new mechReflexiveDecision instead of
+// plain reflexiveDecision; this suite is about that routing and the
+// priority behaviour itself, not re-testing bestAttackTargetInRange or
+// moveToward's own math from scratch.
+describe("decideHostileAction — hostile mech Munti priority", () => {
+  it("attacks a Munti already in range instead of a non-Munti target that would take more damage", () => {
+    const map = makeUniformMap("plain", 10, 10);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 5, y: 5 }); // path: meeps, melee
+    const munti = testUnit("munti", { x: 5, y: 6 }, { tierDefense: 500 }); // adjacent, high defense — NOT the best-damage pick
+    const tank = testUnit("tank", { x: 6, y: 5 }); // also adjacent, ordinary defense — the best-damage pick under plain reflexive rules
+
+    const decision = decideHostileAction(map, mech, [mech, munti, tank]);
+    expect(decision.attackTargetId).toBe(munti.instanceId);
+  });
+
+  it("moves into range of a visible-but-out-of-range Munti and attacks it, rather than staying put", () => {
+    const map = makeUniformMap("plain", 20, 20);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 });
+    mech.vision = 10;
+    const munti = testUnit("munti", { x: 4, y: 0 }); // within moveRange+attackRange, not in range from (0,0)
+
+    const decision = decideHostileAction(map, mech, [mech, munti]);
+    expect(decision.attackTargetId).toBe(munti.instanceId);
+    expect(decision.path).toBeDefined();
+    expect(decision.path!.length).toBeGreaterThan(1);
+  });
+
+  it("falls back to a reachable non-Munti target when the visible Munti can't be reached into range this turn", () => {
+    const map = makeUniformMap("plain", 30, 30);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 }); // meeps: moveRange 6, attackRange [1,1]
+    mech.vision = 25;
+    const farMunti = testUnit("munti", { x: 20, y: 0 }); // visible, far past moveRange+attackRange
+    const nearTank = testUnit("tank", { x: 1, y: 0 }); // adjacent — a real, reachable kill this turn
+
+    const decision = decideHostileAction(map, mech, [mech, farMunti, nearTank]);
+    expect(decision.attackTargetId).toBe(nearTank.instanceId);
+  });
+
+  it("does not prioritise a Munti when there isn't one on the enemy side at all (plain reflexive behaviour)", () => {
+    const map = makeUniformMap("plain", 10, 10);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 5, y: 5 });
+    const tank = testUnit("tank", { x: 5, y: 6 } );
+
+    const decision = decideHostileAction(map, mech, [mech, tank]);
+    expect(decision.attackTargetId).toBe(tank.instanceId);
+  });
+
+  it("leaves weak/reflexive-tier Bloom untouched — no Munti priority for kind: 'bloom', Bloom stays instinct-only", () => {
+    const map = makeUniformMap("plain", 10, 10);
+    const crawlmass = createBloomUnit("bloom_crawlmass", { x: 5, y: 5 }); // reflexive-tier Bloom archetype
+    crawlmass.side = "hostile";
+    const munti = testUnit("munti", { x: 5, y: 6 }, { tierDefense: 500 }); // adjacent, would win Munti-priority if it applied
+    const tank = testUnit("tank", { x: 6, y: 5 }); // adjacent, ordinary defense — the actual best-damage pick
+
+    const decision = decideHostileAction(map, crawlmass, [crawlmass, munti, tank]);
+    // Plain reflexive rule ("attack whichever in-range target takes the
+    // most damage") still governs Bloom — the high-defense Munti is NOT
+    // preferred just because it's a Munti.
+    expect(decision.attackTargetId).toBe(tank.instanceId);
   });
 });

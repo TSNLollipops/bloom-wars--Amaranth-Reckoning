@@ -271,11 +271,29 @@ export const AMARANTH_MISSION_5: CampaignMission = {
   // rescueOutcome) — Anand reaching the treeline is still the entire real
   // mission; this is strictly a bonus.
   //
-  // npcSpawnAt {x:13, y:6} — a plain tile immediately east of the wrecked
-  // depot's structure pair (mapsAmaranth.ts's FORAGING_PARTY_TILES, rows
-  // 6-7 cols 11-12), between the depot and the exit tiles, same "getting
-  // out means going through where the salvage actually is" placement the
-  // map's own header describes for the three Bloom spawn seams.
+  // npcSpawnAt — moved from {x:13, y:6} to {x:6, y:6}, 25 Aug 2026. Real
+  // playtesting (Maxime: "couldnt save the downed pilot. he got completely
+  // shredded fast") led to a stat-toughening fix the same day (see
+  // engine/units.ts's createRescuableNpcUnit) — but a live run after that
+  // fix STILL lost the NPC turn 1, and checking the actual map/deploy data
+  // rather than trusting the earlier diagnosis found why: FORAGING_PARTY's
+  // deploy zone sits at column 0; the old spawn point was column 13 — 13
+  // tiles away, farther than any unit's moveRange (Munti 5, fastest unit
+  // Meeps 6) can close in a single turn. No player unit could ever reach
+  // adjacency before at least one full, completely undefended hostile
+  // phase hit it — the real dominant cause, bigger than the stat bug the
+  // first fix addressed. Column 6 is ~6 tiles from deploy (reachable by a
+  // fast unit turn 1, safely reachable by turn 2 for the rest of the
+  // squad) and ~10 tiles from the nearest Bloom spawn seam (14,3)/(16,6)/
+  // (15,9), versus the old spot's 3-tile distance to (16,6). Both fixes
+  // stay in — the toughened stats still matter for whatever exposure is
+  // left once a unit arrives, they just aren't doing the whole job alone
+  // anymore. Fiction adjusted to match: reads as the survivor found
+  // already partway back along the egress route rather than sitting
+  // untouched at the depot itself, which the briefing's own "get everyone
+  // back through the gap" line already supports without contradiction —
+  // no longer "a plain tile immediately east of the wrecked depot," now
+  // partway down that same route home.
   //
   // bonusPoints (generalized bonus-objective pass, 24 Aug 2026 — Maxime,
   // asked whether points should replace or add to the free-recruit
@@ -286,7 +304,7 @@ export const AMARANTH_MISSION_5: CampaignMission = {
   // engine/campaignEconomy.ts) — enough to feel like a real bonus without
   // approaching this mission's own rewardPoints (170) for actually
   // winning it. Pending a real tuning pass once there's actual play data.
-  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 13, y: 6 }, npcDisplayName: "Downed Pilot", bonusPoints: 40 },
+  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 6, y: 6 }, npcDisplayName: "Downed Pilot", bonusPoints: 40 },
 };
 
 export const AMARANTH_MISSION_6: CampaignMission = {
