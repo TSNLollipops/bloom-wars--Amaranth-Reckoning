@@ -312,7 +312,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
  * separately, after the mission ends, by campaignState.ts's
  * generateRandomRescuedPilot.
  *
- * Stat choices, all deliberately modest — "at real risk, not helpless":
+ * Stat choices — "at real risk, not helpless":
  *   - `path: "meeps"` is NOT a narrative claim about who this pilot turns
  *     out to be (generateRandomRescuedPilot rolls that fresh, independently,
  *     once the rescue succeeds) — it exists purely so this unit resolves
@@ -321,10 +321,11 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
  *     giving it "meeps" happens to also grant MEEPS_DODGE_CHANCE's house
  *     rule, which reads as a reasonable "hard to finish off" break for a
  *     downed pilot rather than a design accident.
- *   - `effectiveDefense: 70`, ten points under baseline (100 = tier G/no
- *     mek), and `currentHp/maxHp: 50`, under half a G-tier pilot's ~100-115
- *     — exposed, not paper-thin. A hostile that reaches them can plausibly
- *     down them in one or two hits; it is not guaranteed.
+ *   - `effectiveDefense: 100` (25 Aug 2026, was 70 — see below) and
+ *     `currentHp/maxHp: 70` (was 50), still clearly under a G-tier pilot's
+ *     ~100-115 — exposed, not paper-thin, but no longer a coin-flip
+ *     one-shot. A hostile that reaches them can still plausibly down them
+ *     in two hits; it is not guaranteed in one.
  *   - `vision: 0` so this unit contributes nothing to the player side's fog
  *     of war (engine/ai.ts's unitsVisibleToSide sums every living player
  *     unit's vision as an observer) — an incapacitated pilot isn't feeding
@@ -333,6 +334,24 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
  *     `abilities: []` — cannot move, attack, or counter even if some future
  *     code path ever tried; defense-in-depth alongside the explicit
  *     npcIncapacitated guards in engine/mission.ts.
+ *
+ * 25 Aug 2026 revision (Maxime, after a real Mission 5 playtest: "couldnt
+ * save the downed pilot. he got completely shredded fast"): the original
+ * `effectiveDefense: 70` ("ten points under baseline") undersold its own
+ * bite. Damage in this engine scales by `100 / effectiveDefense`
+ * (engine/combat.ts's `bloomDamage`), not a flat subtraction — 70 defense
+ * is a 1.43x damage-TAKEN multiplier, not a 10% one. Combined with
+ * Mission 5's own wave layout (one of the map's three enemy spawn tiles
+ * sits 3 tiles from the NPC's spawn point, and the wave's round-robin
+ * placement puts a Splitfang and two Crawlmass right there), a single
+ * un-dodged Splitfang hit alone did ~54 damage against 50 max HP — a
+ * near-certain turn-1 kill before the player's own squad, deploying on
+ * the opposite side of a 22-wide map, could possibly intervene. Fixed by
+ * bringing defense up to the real-pilot baseline (removes the damage
+ * amplification entirely) and giving HP a real but modest bump — not by
+ * touching the map, the wave, or the AI's targeting priority, which
+ * remain live options if this alone doesn't hold up in play (Maxime:
+ * "try 2 first, then if that wont work, do 1").
  */
 export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleUnit {
   return {
@@ -343,10 +362,10 @@ export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleU
     displayName,
     pos,
     path: "meeps",
-    currentHp: 50,
-    maxHp: 50,
+    currentHp: 70,
+    maxHp: 70,
     effectiveAttack: 0,
-    effectiveDefense: 70,
+    effectiveDefense: 100,
     moveRange: 0,
     attackRange: [0, 0],
     vision: 0,

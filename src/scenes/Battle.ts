@@ -659,12 +659,19 @@ export class Battle extends Phaser.Scene {
 
   /**
    * GDD §12's species-outline table: human = single solid outline, hiopi =
-   * double outline, osnius = single outline + two whisker ticks at the
-   * leading edge. Replaces the old proxy (centauroid alone got a thicker
-   * 3px line; everyone else got the same 1.5px line, which never actually
-   * read as "double" or "whiskered" to a player) with the three genuinely
-   * distinct treatments the table calls for. Keyed off unit.chassis, which
-   * is a 1:1 stand-in for species per data/units.ts's own archetype rows
+   * legs fanning from the base, osnius = single outline + two whisker
+   * ticks at the leading edge. Hiopi's mark went through two proxies
+   * before this one: first a uniformly-thicker 3px line for centauroid
+   * alone (never read as anything), then a genuine second ring at a
+   * slightly larger radius (23 Aug 2026 — a real second line, but still
+   * just "thicker," not "different creature"). This pass (23 Aug 2026,
+   * Character Visual Identity concept doc §2) replaces the ring with four
+   * short downward strokes off the base of the silhouette — Hiopi are
+   * canonically quadruped/centaur-built, so legs reference that directly
+   * instead of adding line weight. Same tick-mark grammar as the
+   * vibrissal whiskers below, opposite anchor: whiskers reach up from the
+   * top, legs reach down from the base. Keyed off unit.chassis, which is
+   * a 1:1 stand-in for species per data/units.ts's own archetype rows
    * (human/bipedal, hiopi/centauroid, osnius/bipedal_vibrissal) — so no
    * separate species field is needed on BattleUnit.
    */
@@ -673,10 +680,15 @@ export class Battle extends Phaser.Scene {
     this.strokeSilhouette(g, kind, cx, cy, r);
 
     if (unit.chassis === "centauroid") {
-      // Hiopi: a second, thinner pass at a slightly larger radius — a
-      // genuine second line, not just a thicker one.
-      g.lineStyle(1, 0xffffff, 0.55);
-      this.strokeSilhouette(g, kind, cx, cy, r + 2.5);
+      // Hiopi: four short legs fanning down and slightly outward from
+      // the base of the silhouette, suggesting a quadruped stance.
+      const legLen = r * 0.5;
+      const baseY = cy + r * 0.85;
+      const spread = r * 0.35;
+      [-1.5, -0.5, 0.5, 1.5].forEach((i) => {
+        const x = cx + i * spread;
+        g.lineBetween(x, baseY, x + i * 2, baseY + legLen);
+      });
     } else if (unit.chassis === "bipedal_vibrissal") {
       // Osnius: two short whisker ticks off the leading edge — "leading
       // edge" reads as "top of the silhouette" here since units have no
