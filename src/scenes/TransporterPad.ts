@@ -95,9 +95,10 @@ export class TransporterPad extends Phaser.Scene {
   private state!: CampaignState;
 
   // Squad-selection state. When showPicker is false, rosterIds/selected
-  // both just mirror the mission's static playerPilotIds — so
-  // currentDeployIds() always returns the right thing without any caller
-  // needing to branch on showPicker itself.
+  // both just mirror the campaign's own active roster (see the 25 Aug 2026
+  // fix note below on why that's activePilotIds and not the mission's
+  // static playerPilotIds) — so currentDeployIds() always returns the
+  // right thing without any caller needing to branch on showPicker itself.
   private rosterIds: string[] = [];
   private selected: Set<string> = new Set();
   private showPicker = false;
@@ -142,13 +143,32 @@ export class TransporterPad extends Phaser.Scene {
       .map(([id]) => id);
 
     // ---- The actual behavior fork this whole pass is about -------------
-    // At or under the cap: nothing to choose, so nothing changes — deploy
-    // the mission's own static roster exactly as this scene always has.
-    // This is deliberately NOT "the active roster, auto-selected" (a subtle
-    // but real difference once a roster ever has more names than a mission
-    // lists) — it's the literal old code path, preserved byte-for-byte in
-    // effect, because "no behavior change in the common case" was this
-    // pass's own hard requirement.
+    // At or under the cap: nothing to CHOOSE (no picker UI), but this is
+    // still the campaign's own active roster, not the mission's static
+    // playerPilotIds — those are two different lists the instant a named
+    // pilot is permanently lost or a recruit joins, even while the total
+    // count stays at or under the cap.
+    //
+    // Fix, 25 Aug 2026 (Maxime: "I need a new munties, mine died and I got
+    // no replacement" — photographed the actual bug: Lask's pad still
+    // showing, full brightness, after she was permanently lost, with BEAM
+    // DOWN blocked and no sign of the free replacement Munti the Debrief
+    // screen's own Munti guarantee had already generated). Root cause: this
+    // branch used to read `this.missionDef.playerPilotIds` — every Act I
+    // mission's hardcoded five-Warden list, which never changes no matter
+    // what happens to the campaign roster. So a lost pilot always kept
+    // showing up here (this loop draws whatever pilot id it's handed,
+    // never checking CampaignPilotEntry.status), and any replacement
+    // recruit was invisible — not deployable, not even on screen — unless
+    // the active roster happened to climb OVER the cap and force picker
+    // mode on, which is not something a player can infer from anything
+    // this screen shows them. Fixed by using `activePilotIds` here too:
+    // in the untouched common case (no losses, no recruits) it's the exact
+    // same five ids in the exact same order as WARDEN_ROSTER_IDS (both
+    // ultimately derive from WARDEN_PILOTS' own array order), so nothing
+    // changes for a player who's never lost anyone — this only changes
+    // behavior once the roster composition actually has, which is exactly
+    // the case it was silently getting wrong before.
     this.showPicker = activePilotIds.length > ACT1_DEPLOY_CAP;
 
     if (this.showPicker) {
@@ -171,7 +191,7 @@ export class TransporterPad extends Phaser.Scene {
         )
         .setOrigin(0.5);
     } else {
-      this.rosterIds = this.missionDef.playerPilotIds;
+      this.rosterIds = activePilotIds;
       this.selected = new Set(this.rosterIds);
     }
 
