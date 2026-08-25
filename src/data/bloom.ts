@@ -159,6 +159,49 @@ export const BLOOM: Record<string, BloomArchetype> = {
     colorPalette: ["#1A1A24", "#5C4A78", "#6B4358"],
     spriteKey: "bloom_mass_large",
   },
+  // Independent campaign addition (Amaranth Act III, Mission 35 "The Last
+  // Ring" — claude/Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md
+  // §8: "The Cradle (Act 3 final threat) — the source, growing beneath
+  // Meridian, emergent-tier, the campaign's true final boss, largest
+  // Endurance wall in the campaign, built to make the Collapse rule do
+  // maximum horror work." Same lineage as bloom_heartwood — same
+  // weaponType/movementType/perception/intelligence, i.e. this campaign's
+  // reading of "the Cradle" is "what the Heartwood becomes at the actual
+  // source" rather than an unrelated new creature, same relationship
+  // bloom_choir already has to bloom_sirenmaw. Every stat pushed past
+  // Heartwood's own: END 400->560 (+40%, the same escalation ratio Choir
+  // used over Sirenmaw and Mission 32's own assetMaxHp used over the
+  // protect_asset default) — "largest Endurance wall in the campaign" is
+  // load-bearing spec, not flavor, so this has to strictly exceed 400.
+  // VIT nudged 60->70, not dropped further: still low enough to stay
+  // Severance-vulnerable (GDD §8's own "designed answer to the Gallcyst and
+  // the Heartwood," extended here to the thing they were both leading up
+  // to) and still reads as "grinds forever, then a sudden real collapse"
+  // per the Collapse rule's own shape, just survivable enough that a
+  // single lucky hit after a long siege doesn't feel cheap. attackPower
+  // 60->75, attackRange [1,4]->[1,5], vision 8->9 — a bigger, farther-
+  // reaching threat, same onHit (fx_knockback_1, proven at Heartwood's own
+  // magnitude — no empirical basis yet for a bigger knockback value, so
+  // not inventing one). See this mission's own comment in
+  // campaignAmaranth.ts for the hold_zone-not-eliminate_all interpretation
+  // call this stat block feeds into.
+  bloom_cradle: {
+    id: "bloom_cradle",
+    displayName: "The Cradle",
+    weaponType: "concussive",
+    movementType: "sessile",
+    perception: "seismic",
+    intelligence: "emergent",
+    endurance: 560,
+    vitality: 70,
+    moveRange: 0,
+    attackRange: [1, 5],
+    attackPower: 75,
+    vision: 9,
+    onHit: "fx_knockback_1",
+    colorPalette: ["#0D0D14", "#7A3AA0", "#8B1E3F"],
+    spriteKey: "bloom_cradle_colossal",
+  },
 };
 
 // Data Pack §8.1 — on-hit effects and special rules, as engine-consumable

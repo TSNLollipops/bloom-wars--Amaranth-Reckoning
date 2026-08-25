@@ -62,18 +62,17 @@ export const CAMPAIGNS: CampaignDef[] = [
   {
     id: "amaranth_act3",
     name: "The Amaranth Reckoning — Act III: The Last Ring",
-    // Underway, not complete — batch 5 (25 Aug 2026) built missions 25-28
-    // of 12. Maxime confirmed (25 Aug 2026, in chat) Act III runs the full
-    // 25-36 the Independent Campaign doc's own Act III section names,
-    // mirroring Act I/II's 12-mission scale — the "is it just 25-28 or
-    // does it run to 32+" open question from this batch's build-log
-    // addendum is resolved. Missions 29-36 (The Outer Ring Falls, Ashes of
-    // the Second Ring, The Last Convoy, Hold at the Spire, The Innermost
-    // Ring, No Word from the Fleet, The Last Ring, Until Relief) are not
-    // built yet — two of them need real design conversations before they
-    // can be (a "scripted strategic loss" mission and a multi-unit
-    // extract_unit), not silent scope growth. See chat, 25 Aug 2026.
-    subtitle: "Warden Company. Meridian's Oath, the withdrawal, Marrow's closing turn — missions 25-28 built, 12 planned (25-36).",
+    // Complete as of batch 7 (25 Aug 2026) — all 12 of Act III's missions,
+    // and with it the full 36-mission campaign (Act I: batch 3, Act II:
+    // batch 4). Maxime confirmed (25 Aug 2026, in chat) Act III runs the
+    // full 25-36 the Independent Campaign doc's own Act III section names,
+    // mirroring Act I/II's 12-mission scale. Missions 33-36 (The Innermost
+    // Ring, No Word from the Fleet, The Last Ring, Until Relief) close out
+    // the campaign with its finale — The Cradle (data/bloom.ts's own
+    // bloom_cradle) debuting in Mission 35, and Mission 36's own
+    // objective_complete epilogue closing the story out. See the build log
+    // addendum for the batch's full build/tuning history.
+    subtitle: "Warden Company. Meridian's Oath, the withdrawal, The Cradle, the relief fleet — Act III complete, missions 25-36 of 36. Campaign complete.",
     missions: AMARANTH_ACT3,
   },
 ];

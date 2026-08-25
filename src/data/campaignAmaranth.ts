@@ -2188,6 +2188,312 @@ export const AMARANTH_MISSION_32: CampaignMission = {
   bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
 };
 
+// ---- Batch 7 (missions 33-36, Act III finale, 25 Aug 2026) ----
+// The campaign's actual finale — Independent Campaign doc's own Act III
+// mission list, §8's Cradle entry (data/bloom.ts's own bloom_cradle
+// comment has the full stat derivation). Maps built and BFS-validated via
+// a throwaway gen_maps7.py script, same disciplined-then-deleted
+// convention as every prior batch — see the build log addendum for the
+// validation summary and sim-tuning numbers.
+//
+// Mission 35's own interpretation call, decided here rather than left
+// implicit: hold_zone, NOT eliminate_all. The Independent Campaign doc
+// tags it "[final boss breaches]," not "[eliminate_all boss]" the way
+// Mission 21 tagged the Heartwood fight — and mechanically, checkWinLoss's
+// hold_zone branch (engine/mission.ts) only ever reads holdZone/turn state,
+// never hostileAlive.length, so The Cradle's own survival or death never
+// enters the win/loss check either way. The Cradle is sessile (moveRange 0,
+// data/bloom.ts) and spawned in a sealed alcove that is deliberately NOT
+// tagged "hold" (see mapsAmaranth.ts's own comment on THE_LAST_RING_TILES)
+// — it can never itself stand on the zone and trigger the hostileOnHold
+// loss, and a player who kills it gets nothing the win condition checks
+// for. That is a deliberate reading, not an oversight: this mission is
+// about surviving the breach, not about landing the killing blow — the
+// killing blow, if the campaign ever wants one on-screen, belongs to a
+// future scripted beat, not to this objective type. Killing it is still a
+// completely reasonable way to play (560 Endurance is a lot to burn down
+// while also holding a doorway, so most runs won't bother), just never
+// required.
+export const AMARANTH_MISSION_33: CampaignMission = {
+  id: "mission_amaranth_33",
+  displayName: "Amaranth III.33 — The Innermost Ring",
+  mapId: "map_amaranth_the_innermost_ring",
+  briefing:
+    "This is the last room behind Meridian's own wall with a door that still shuts. Everything the outer rings bought Warden Company, it bought for this — not to win this ground back, just to still be standing on it when the ring finally stops closing. Five waves, one door. After this one, there's nowhere left to fall back to.",
+  objective: "hold_zone",
+  // Reuses the single-doorway walled-room shape Missions 27/29/32 already
+  // proved out (see mapsAmaranth.ts's own header on this batch) rather than
+  // a first-time two-doorway room — "multi-wave" comes from five distinct
+  // wave entries escalating across the mission instead of a riskier room
+  // topology. holdUntilTurn/turnLimit pushed past every prior hold_zone
+  // mission's own numbers (Mission 32's 22 was the previous ceiling) to
+  // match "tone shifts from win to survive."
+  //
+  // First-draft counts (12/6/5/8/5, holdUntilTurn 12) went 20/20 win at
+  // exactly turn 12 every time, and wave 5 (spawned turn 13) never even got
+  // a chance to matter — holdUntilTurn ended the mission before it arrived.
+  // Pushed counts up (14/7/6/10/6) and holdUntilTurn out to 16 so all five
+  // waves are live; re-sim came back 16/20 win (80%), real variance in the
+  // failure mode (2 losses from a hostile slipping onto the hold zone
+  // uncontested, 2 from the turn limit expiring first) — real risk, not a
+  // formality, for the toughest hold_zone mission before the finale.
+  //
+  // Every enemyWaves spawnAt coordinate below sits within 2-3 tiles
+  // (Chebyshev) of the hold room's own tiles (x=15-19, y=6-9,
+  // THE_INNERMOST_RING_TILES) rather than on the map's own decorative
+  // far-edge "spawn" tiles (x=25) — Mission 27/29's own build-log lesson
+  // confirmed engine/ai.ts's reflexive/pack tiers are vision-gated
+  // (Crawlmass vision 3, Splitfang 4, Sporethrower 5) and never move at all
+  // without a visible target, and this engine's vision check is pure
+  // Chebyshev distance, not line-of-sight — walls block movement, not
+  // sight, so a close spawn point still needs real pathing around the
+  // room's own walls to actually arrive, which is what keeps the "closing
+  // in from multiple directions" read honest despite the short distances.
+  objectiveParams: { turnLimit: 22, holdUntilTurn: 16 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 14, atTurn: 1, spawnAt: [{ x: 13, y: 4 }, { x: 17, y: 4 }, { x: 13, y: 11 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 1, spawnAt: [{ x: 13, y: 4 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_sporethrower", count: 6, atTurn: 5, spawnAt: [{ x: 21, y: 7 }, { x: 17, y: 4 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 9, spawnAt: [{ x: 17, y: 4 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 13, spawnAt: [{ x: 13, y: 4 }, { x: 21, y: 7 }] },
+  ],
+  events: [
+    {
+      id: "ev_innermost_ring_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Last door with a lock on it. Everything behind us is people, not ground — hold here.”" },
+      once: true,
+    },
+    {
+      id: "ev_innermost_ring_midpoint",
+      trigger: { type: "turn_start", turn: 9 },
+      action: { type: "dialogue", text: "Anand: “That's the fourth wave, not the second one slowing down. Whatever's organizing them isn't done.”" },
+      once: true,
+    },
+    {
+      id: "ev_innermost_ring_withdrawal",
+      trigger: { type: "objective_complete" },
+      action: { type: "dialogue", text: "Bosk: “Door's still ours. Whatever comes next, it comes through us first.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 620,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_34: CampaignMission = {
+  id: "mission_amaranth_34",
+  displayName: "Amaranth III.34 — No Word from the Fleet",
+  mapId: "map_amaranth_no_word_from_the_fleet",
+  briefing:
+    "Command promised a relief fleet three days ago. Anand's had every receiver in the company listening since, and there's nothing — no signal, no static, no confirmation it ever launched. Whatever's still out there past the ring doesn't need a fleet's timetable. It's already here, from every direction at once.",
+  // Survive N Turns, same shape as Mission 9's own precedent (data/types.ts's
+  // CampaignMission.objective comment) — squad wipe is the only loss
+  // condition, reaching turnLimit alive is an automatic win. No hold/defend
+  // zone on this map (deriveZones finds none — see mapsAmaranth.ts's own
+  // comment on NO_WORD_FROM_THE_FLEET_TILES); an open field is the point,
+  // since there's nothing here to plug or protect except the squad itself.
+  objective: "survive_n_turns",
+  // turnLimit pushed past Mission 9's own "cheapest ask" 10 — this is Act
+  // III's darkest-hour beat, not the objective type's first outing, and a
+  // 12-pilot squad (ACT3_DEFAULT_SQUAD) can absorb more than Warden
+  // Company's original five ever could.
+  //
+  // First-draft counts (10/4/4/6/4, 28 total) went 20/20 win with zero
+  // player losses — real combat, but no real risk, wrong for "darkest
+  // hour." Roughly doubling (16/8/8/10/8, 50 total) overcorrected hard to
+  // 0/20 win, full squad wipes by turn 8-12 every run — the same steep
+  // sensitivity Mission 32's own tuning history already flagged, rediscovered
+  // here rather than assumed away. Landed on a ~20% bump from the original
+  // (12/5/5/7/5, 35 total): 12/20 win (60%), losses landing right at turns
+  // 12-13, one turn short of the turnLimit-14 finish line — the "so close"
+  // failure shape this mission's own darkest-hour framing wants.
+  objectiveParams: { turnLimit: 14 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  // Every spawnAt coordinate sits within 3-4 tiles (Chebyshev) of the
+  // deploy block's own center (x=11-14, y=6-9, NO_WORD_FROM_THE_FLEET_TILES)
+  // rather than the map's own decorative edge "spawn" tiles — same reason
+  // as Mission 33's own comment: this engine's AI never moves without a
+  // visible target, and survive_n_turns has no hold room to eventually walk
+  // the squad into, so the pressure has to already be in range from turn 1
+  // for the mission to read as "surrounded," not "waiting."
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 13, y: 10 }, { x: 9, y: 7 }, { x: 16, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 13, y: 10 }] },
+    { archetypeId: "bloom_sporethrower", count: 5, atTurn: 5, spawnAt: [{ x: 8, y: 7 }, { x: 17, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 7, atTurn: 8, spawnAt: [{ x: 12, y: 3 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 11, spawnAt: [{ x: 8, y: 7 }, { x: 17, y: 7 }] },
+  ],
+  events: [
+    {
+      id: "ev_no_word_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “Still nothing on any band. Not jammed this time — I'd know jammed. This is just quiet.”" },
+      once: true,
+    },
+    {
+      id: "ev_no_word_midpoint",
+      trigger: { type: "turn_start", turn: 7 },
+      action: { type: "dialogue", text: "Rourke: “Nobody's coming to pull us out of this one. We hold it ourselves, or we don't.”" },
+      once: true,
+    },
+    {
+      id: "ev_no_word_late",
+      trigger: { type: "turn_start", turn: 12 },
+      action: { type: "dialogue", text: "Bosk: “Two turns. I've held worse ground on less than two turns.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 650,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_35: CampaignMission = {
+  id: "mission_amaranth_35",
+  displayName: "Amaranth III.35 — The Last Ring",
+  mapId: "map_amaranth_the_last_ring",
+  briefing:
+    "Anand's reading the same heartbeat signature Cut the Root found under House Amaranth's terraces, except this one's the size of the chamber it's grown in — and it's not staying under Meridian anymore. Hold the innermost line while it breaches. Nobody's asking the company to put it down. Just to still be standing here after it's done trying.",
+  objective: "hold_zone",
+  // See this batch's own header comment (above AMARANTH_MISSION_33) for
+  // the full hold_zone-not-eliminate_all reasoning — this is where that
+  // call actually gets used. Same proven single-doorway room shape again;
+  // THE_LAST_RING_TILES' own comment (mapsAmaranth.ts) covers the sealed
+  // Cradle pocket at (18,12), directly under the room and centered so its
+  // attackRange [1,5] (data/bloom.ts) covers every hold tile, not just a
+  // slice of the room — a first draft placed it beside the east wall
+  // instead and 20 sim runs never logged a single Cradle attack, a real
+  // bug (see that map comment for the finding). holdUntilTurn/turnLimit
+  // both pushed one notch past Mission 33's own numbers — the campaign's
+  // toughest hold yet. Sim-tested at 11/20 win (55%) after the Cradle
+  // repositioning fix, with real permanent losses even on wins (the
+  // Cradle's own attacks land 56-68 damage a hit, close to a full-HP kill
+  // on most archetypes) — see this batch's build log addendum for the
+  // full numbers.
+  objectiveParams: { turnLimit: 22, holdUntilTurn: 16 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 13, y: 5 }, { x: 17, y: 5 }, { x: 13, y: 12 }, { x: 17, y: 12 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 13, y: 5 }, { x: 13, y: 12 }] },
+    { archetypeId: "bloom_sporethrower", count: 5, atTurn: 6, spawnAt: [{ x: 22, y: 8 }, { x: 17, y: 5 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 9, spawnAt: [{ x: 17, y: 5 }, { x: 17, y: 12 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 12, spawnAt: [{ x: 22, y: 8 }, { x: 13, y: 12 }] },
+  ],
+  events: [
+    {
+      id: "ev_last_ring_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “This is the last ring. Whatever's under Meridian, it doesn't get to come up through us.”" },
+      once: true,
+    },
+    {
+      id: "ev_last_ring_warning",
+      trigger: { type: "turn_start", turn: 4 },
+      action: { type: "dialogue", text: "Anand: “That signature's still growing, and it's close to the surface now. I don't think it's staying under much longer.”" },
+      once: true,
+    },
+    // The Cradle's own debut — spawned mid-siege, not present at turn 1
+    // (see this mission's own objectiveParams comment and this batch's
+    // header comment above Mission 33 for why). archetypeIds/at both
+    // single-element arrays; burrowed omitted (defaults false, correct for
+    // a sessile archetype — burrowed/surfacing is Undertow's own mechanic,
+    // data/bloom.ts's special-rules comment, not the Cradle's).
+    {
+      id: "ev_the_cradle_breaches",
+      trigger: { type: "turn_start", turn: 6 },
+      action: { type: "dialogue", text: "Anand: “Contact — it's through the floor, right under the room! It's not moving, but it is NOT small, and it can reach every one of us from there!”" },
+      once: true,
+    },
+    {
+      id: "ev_the_cradle_spawn",
+      trigger: { type: "turn_start", turn: 6 },
+      action: { type: "spawn", archetypeIds: ["bloom_cradle"], at: [{ x: 18, y: 12 }] },
+      once: true,
+    },
+  ],
+  rewardPoints: 780,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_36: CampaignMission = {
+  id: "mission_amaranth_36",
+  displayName: "Amaranth III.36 — Until Relief",
+  mapId: "map_amaranth_until_relief",
+  briefing:
+    "The relief fleet finally answered — a real countdown this time, not a promise. Everything the Bloom has left in this sector is coming to make sure Warden Company doesn't last long enough to see it arrive. Hold until the clock runs out. That's the whole plan, and it's the only one left.",
+  // Survive N Turns again, same shape as Mission 34 — this is deliberately
+  // NOT a second Cradle encounter (see this batch's header comment on
+  // Mission 35's own hold_zone-not-eliminate_all call): "Until Relief" is a
+  // mission about time, not about a specific threat, and repeating the
+  // Cradle here would make Mission 35's own confrontation read as
+  // incomplete rather than as the campaign's real climax. This is the
+  // swarm at large, at the largest scale the campaign ever throws it.
+  objective: "survive_n_turns",
+  objectiveParams: { turnLimit: 16 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  // Same close-spawn discipline as Mission 34's own comment — every
+  // coordinate sits within 3-4 tiles (Chebyshev) of the deploy block's own
+  // center (x=12-17, y=7-10, UNTIL_RELIEF_TILES).
+  //
+  // Same knife-edge sensitivity Mission 34 hit, rediscovered a third time
+  // this batch: first-draft "biggest yet" counts (14/6/6/10/8/2, 46 total)
+  // went 0/20 win, every run a full wipe by turn 9-15. Cutting to 10/4/4/7/6/2
+  // (33 total) overcorrected to 20/20 win. A middle step (12/5/5/8/7/2, 39
+  // total) landed at 16/20 win (80%) — meaningfully harder than a formality
+  // but still reads as the triumphant final stand rather than the hardest
+  // fight in the game, which stays Mission 35's own Cradle siege (55% win).
+  // If this ever gets revisited, retest in small steps — the swing from
+  // 33 to 46 total (a 39% increase) was enough to go from certain win to
+  // certain loss.
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }, { x: 10, y: 8 }, { x: 19, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }] },
+    { archetypeId: "bloom_sporethrower", count: 5, atTurn: 4, spawnAt: [{ x: 10, y: 8 }, { x: 19, y: 8 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 7, spawnAt: [{ x: 11, y: 5 }, { x: 18, y: 5 }, { x: 11, y: 11 }, { x: 18, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 10, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }, { x: 10, y: 8 }, { x: 19, y: 8 }] },
+    { archetypeId: "bloom_gallcyst", count: 2, atTurn: 13, spawnAt: [{ x: 11, y: 8 }, { x: 18, y: 8 }] },
+  ],
+  events: [
+    {
+      id: "ev_until_relief_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Fleet's inbound, clock's running. We just have to still be here when it lands.”" },
+      once: true,
+    },
+    {
+      id: "ev_until_relief_midpoint",
+      trigger: { type: "turn_start", turn: 8 },
+      action: { type: "dialogue", text: "Anand: “Countdown's holding steady. So is everything they're throwing at us — don't slow down now.”" },
+      once: true,
+    },
+    {
+      id: "ev_until_relief_late",
+      trigger: { type: "turn_start", turn: 14 },
+      action: { type: "dialogue", text: "Bosk: “That's the fleet's own burn signature, not another wave. Two turns, Company. Two.”" },
+      once: true,
+    },
+    // Epilogue — Independent Campaign doc, Act III mission list's own
+    // closing line: "the Reach holds, changed for good; nobody calls it the
+    // Amaranth Reach anymore." Delivered only on a genuine win, same
+    // dialogue-after-the-fact technique Missions 28/29 already established
+    // for a scripted-feeling beat that never actually overrides whether the
+    // fight itself was won or lost.
+    {
+      id: "ev_until_relief_epilogue",
+      trigger: { type: "objective_complete" },
+      action: { type: "dialogue", text: "Rourke: “The Reach holds. Changed for good, maybe — but it holds. Nobody's going to call it the Amaranth Reach anymore, and I don't think anybody's going to miss the name.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 900,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
 export const AMARANTH_ACT3: CampaignMission[] = [
   AMARANTH_MISSION_25,
   AMARANTH_MISSION_26,
@@ -2197,6 +2503,10 @@ export const AMARANTH_ACT3: CampaignMission[] = [
   AMARANTH_MISSION_30,
   AMARANTH_MISSION_31,
   AMARANTH_MISSION_32,
+  AMARANTH_MISSION_33,
+  AMARANTH_MISSION_34,
+  AMARANTH_MISSION_35,
+  AMARANTH_MISSION_36,
 ];
 
 export const AMARANTH_MISSIONS_BY_ID: Record<string, CampaignMission> = Object.fromEntries(
