@@ -279,6 +279,35 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // The Heirloom. See engine/combat.ts SEVERANCE and Data Pack §11.5.
     // Not attached to any archetype — it belongs to the Party.
   },
+  abil_fire_support: {
+    id: "abil_fire_support",
+    displayName: "Fire Support",
+    kind: "active",
+    // NOT attached to any archetype's own kit — this is an off-board asset
+    // (Providence's own guns), not a mech's ability, so it doesn't belong
+    // to a Path the way Ambush/Interdict/Screen/Taunt do. Granted to every
+    // deployed unit via CampaignMission.bonusAbilityUnlocks the same
+    // mission-gated mechanism Taunt uses (data/types.ts), starting Mission
+    // 14 "Steel Rain" — "First Providence call-ins." See
+    // data/campaignAmaranth.ts's own mission 14 entry for the actual grant
+    // (all four paths, not one).
+    //
+    // Effect: call in a strike centered on any visible tile within this
+    // unit's own attack range — every living hostile within
+    // FIRE_SUPPORT_RADIUS (data/combatTables.ts) Chebyshev of that tile
+    // takes FIRE_SUPPORT_DAMAGE flat, no defense/cover mitigation, no
+    // retaliation (it's off-board, nothing to shoot back at). Costs this
+    // unit's entire remaining action budget and ends the turn — same tier
+    // as Ambush/Interdict/Taunt, not the 1-action Screen/Clear-Bloom tier;
+    // calling in a strike and then still moving/shooting in the same turn
+    // would be a strictly-better Attack, not a real tradeoff.
+    //
+    // Charges are shared squad-wide, not per-unit (Mission.
+    // fireSupportChargesRemaining, engine/mission.ts) — there's one ship,
+    // not one radio per pilot. FIRE_SUPPORT_CHARGES_PER_MISSION (2) is the
+    // whole squad's budget for the mission, spent by whichever unit calls
+    // it in first. See engine/mission.ts's canFireSupport/fireSupport.
+  },
 };
 
 // Data Pack §11.5. The Heirloom's own mechanics — hits friend and foe

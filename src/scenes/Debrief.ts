@@ -27,6 +27,7 @@ import {
   saveCampaignState,
   checkMuntiGuarantee,
   generateRandomRescuedPilot,
+  integrateSecondLance,
   type CampaignState,
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
@@ -43,6 +44,7 @@ export class Debrief extends Phaser.Scene {
   private companyResult!: CompanyEarningsResult;
   private muntiFired = false;
   private muntiPilot?: PilotRecord;
+  private secondLancePilots?: PilotRecord[];
   private rescuedPilot?: PilotRecord;
   // Generalized bonus-objective pass (24 Aug 2026) — the company-pool
   // points from whichever bonusObjective kind this mission carried (0 for
@@ -120,7 +122,20 @@ export class Debrief extends Phaser.Scene {
     // themselves, so it needs nothing resolved here.
     this.rescuedPilot = this.mission.rescueOutcome === "succeeded" ? generateRandomRescuedPilot(this.state) : undefined;
 
+    // ---- 3b. Second Lance integration (Act II opening, 25 Aug 2026) ------
+    // See engine/campaignState.ts's integrateSecondLance for the full
+    // reasoning on why this specific beat (Mission 12 won, Act I's own
+    // finale) rather than any point in Act II proper. Run-once-on-entry,
+    // same shape as the Munti guarantee just above; a loss on Mission 12
+    // does not integrate the lance — the campaign doc frames Act II as
+    // opening on that win specifically ("Warden Company forms around
+    // Rourke's survivors AND a second lance" reads as one beat, not two).
     const win = this.mission.outcome === "win";
+    if (this.mission.mission.id === "mission_amaranth_12" && win) {
+      const result = integrateSecondLance(this.state);
+      this.secondLancePilots = result.integrated ? result.pilots : undefined;
+    }
+
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
     this.add
       .text(480, 40, `${this.mission.mission.displayName} — ${win ? "MISSION COMPLETE" : "MISSION FAILED"}`, {
@@ -133,6 +148,7 @@ export class Debrief extends Phaser.Scene {
     let cursorY = this.drawEarningsPanel(58);
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
+    cursorY = this.drawSecondLanceCallout(cursorY + 8);
 
     this.add
       .text(480, cursorY + 10, "CAMPAIGN SHOP", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
@@ -265,4 +281,32 @@ export class Debrief extends Phaser.Scene {
     return top + height;
   }
 
+  /**
+   * Second Lance integration reveal (25 Aug 2026) — fires exactly once,
+   * on the same Mission 12 win that triggers integrateSecondLance itself.
+   * Two lines rather than one: the panel is wider news than a single
+   * recruit (five pilots, a roster-doubling story beat), so it gets its
+   * own two-row layout instead of squeezing into the Munti/bonus
+   * callouts' single-line shape.
+   */
+  private drawSecondLanceCallout(top: number): number {
+    if (!this.secondLancePilots) return top;
+    const height = 56;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
+    this.add
+      .text(480, top + 16, "THE SECOND LANCE HAS ARRIVED — 5 pilots added to the roster", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#4ade80",
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(480, top + 36, this.secondLancePilots.map((p) => p.displayName.split("—")[1]?.trim() ?? p.displayName).join("   "), {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#8a97a6",
+      })
+      .setOrigin(0.5);
+    return top + height;
+  }
 }

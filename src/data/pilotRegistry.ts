@@ -12,16 +12,29 @@
 // `??`s at every call site.
 import type { MekArchetype, PilotRecord } from "./types";
 import { PILOTS, MEKS, ROSTER_DEPTH_PILOTS, ROSTER_DEPTH_MEKS } from "./meks";
-import { WARDEN_PILOTS, WARDEN_MEKS } from "./campaignAmaranth";
+import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS } from "./campaignAmaranth";
 
+// Second Lance (25 Aug 2026, Act II batch 2) — the exact pilot-lookup gap
+// this file's own header already names, hit again: integrateSecondLance
+// (engine/campaignState.ts) adds these to a live CampaignState.pilots at
+// runtime, but that's a separate list from this static build-time index,
+// which is what createPlayerUnit (engine/units.ts) actually resolves
+// through on the no-deployRoster path (every test, npm run sim, and any
+// direct `new Mission(missionDef)` call — see that method's own comment).
+// Missing this entry doesn't fail quietly, either — Mission 13's own
+// playerPilotIds includes three Second Lance ids the moment it's written,
+// so the very first `npm run sim -- mission_amaranth_13` throws
+// "Unknown pilot id" outright rather than silently deploying the wrong
+// squad, which is how this got caught before it shipped.
 const PILOT_INDEX: Record<string, PilotRecord> = Object.fromEntries(
-  [...PILOTS, ...ROSTER_DEPTH_PILOTS, ...WARDEN_PILOTS].map((p) => [p.id, p])
+  [...PILOTS, ...ROSTER_DEPTH_PILOTS, ...WARDEN_PILOTS, ...SECOND_LANCE_PILOTS].map((p) => [p.id, p])
 );
 
 const MEK_INDEX: Record<string, MekArchetype> = {
   ...MEKS,
   ...ROSTER_DEPTH_MEKS,
   ...WARDEN_MEKS,
+  ...SECOND_LANCE_MEKS,
 };
 
 export function findPilot(pilotId: string | undefined): PilotRecord | undefined {

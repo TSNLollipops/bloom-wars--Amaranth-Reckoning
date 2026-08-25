@@ -52,3 +52,25 @@ export function findCriticalRepairTarget(unit: BattleUnit, allUnits: BattleUnit[
 export function findRoutineRepairTarget(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit | undefined {
   return worstAdjacentAlly(unit, allUnits, ROUTINE_ALLY_HP_FRACTION);
 }
+
+// ---- Rescue bonus objective (25 Aug 2026, Phase 2 of
+// claude/Bloom_Wars_Player_AI_Ability_And_Objective_Plan_v1.md) ----
+//
+// createRescuableNpcUnit (engine/units.ts) flags the one rescuable NPC with
+// npcIncapacitated:true and side:"player" — already visible in `allUnits`
+// like any other unit, no Mission reference needed to find it. Once
+// engine/mission.ts's rescueUnit() actually picks them up it removes them
+// from Mission.units outright (that function's own comment: "there is
+// nothing further to render or target once they're 'in tow'"), so these two
+// helpers naturally stop finding anyone the instant the rescue is resolved
+// — no separate "already claimed" bookkeeping needed here.
+
+/** A same-side, adjacent, uncarried rescuable NPC — mirrors worstAdjacentAlly's own adjacency contract above. This is only the Player AI's own cheap "worth attempting" read; engine/mission.ts's real getRescuableFrom/canRescue re-validate authoritatively once run.ts calls rescueUnit(). */
+export function findAdjacentRescuableNpc(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit | undefined {
+  return allUnits.find((t) => t.npcIncapacitated && !t.downed && chebyshevDistance(unit.pos, t.pos) === 1);
+}
+
+/** The one rescuable NPC anywhere still on the board, uncarried — for pathing toward them before they're reachable this turn. undefined once picked up (see this section's header) or on a mission with no rescue_pilot bonusObjective at all. */
+export function findRescuableNpcOnBoard(allUnits: BattleUnit[]): BattleUnit | undefined {
+  return allUnits.find((t) => t.npcIncapacitated && !t.downed);
+}

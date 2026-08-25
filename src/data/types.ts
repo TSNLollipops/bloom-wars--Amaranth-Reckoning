@@ -213,7 +213,43 @@ export interface CampaignMission {
   // tickBloomRegrowth and data/abilities.ts's abil_clear_bloom. Extends
   // house rule #5's no-turn-limit-fail shape rather than eliminate_all's
   // own turnLimit meaning anything new.
-  objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom";
+  //
+  // "survive_n_turns" (Mission 9 "Cut Off," 25 Aug 2026 — Independent
+  // Campaign doc, Appendix A: "win at turn count with objective(s) intact,"
+  // Build Brief §6's own "cheapest ask" flag). Win the instant `turn`
+  // reaches `objectiveParams.turnLimit` with the squad not wiped — squad
+  // wipe already ends every mission unconditionally (checkWinLoss's
+  // `playerAlive.length` check runs before any objective-specific branch),
+  // so nothing extra needs to stay "intact" for this simplest version; a
+  // mission that layers on a real asset/zone to also protect would extend
+  // this branch, not this comment. Deliberately reuses turnLimit itself as
+  // the survive-until count rather than adding a new field — hold_zone's
+  // own holdUntilTurn already defaults to turnLimit when unset for exactly
+  // this reason (a mission with nothing more specific to name than "the
+  // turn count" always lands on the same number either way). See
+  // engine/mission.ts's checkWinLoss for the win check and
+  // sim/playerAi/index.ts's header for why the Player AI has no dedicated
+  // heuristic for this yet (falls through to ordinary combat/retreat/regroup
+  // logic, which is a reasonable "survive" strategy on its own — a real
+  // survive-specific heuristic, e.g. favoring defensible terrain over
+  // pursuit as the clock runs down, is Player AI plan Phase 6, deferred
+  // until there was an objective to build it for).
+  // "contested_landing" (Mission 15 "Landfall," 25 Aug 2026 — Independent
+  // Campaign doc, Act II: "Contested Landing [new objective type]. Opposed
+  // drop; the D-Day beat." Walked through with Maxime before building:
+  // mechanically identical to eliminate_all (win when no hostile remains,
+  // lose only on a squad wipe, same house-rule-#5 no-turn-limit-fail
+  // treatment) — "the whole tension is front-loaded into a rough, chaotic
+  // opening" is a map/wave-design property (hostiles already positioned
+  // at/near the deploy zone at turn 1, no grace period before contact),
+  // not a new win-condition, and Maxime's own choice when asked ("Deploy
+  // under fire") confirmed that reading. Kept as a real, distinct union
+  // member anyway rather than silently reusing "eliminate_all" — the HUD
+  // already renders `mission.objective` as a raw label with zero
+  // formatting (scenes/Battle.ts's drawHud), so a fifth value costs
+  // nothing to display, and Act III may build a real opposed-drop mechanic
+  // on top of this name later without a rename.
+  objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing";
   objectiveParams: { turnLimit: number; holdUntilTurn?: number; extractUnitId?: string };
   playerPilotIds: string[];
   enemyWaves: EnemyWave[];

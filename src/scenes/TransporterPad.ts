@@ -63,6 +63,37 @@ const PATH_COLORS: Record<Path, number> = {
  */
 export const ACT1_DEPLOY_CAP = 5;
 
+/**
+ * Act II's own deploy cap (25 Aug 2026, batch 2 / Mission 13 "New Colors,
+ * Old Wounds" — the campaign doc's own §10 squad-scaling table, "5-8
+ * deploy out of 10," now actually built rather than just referenced by
+ * ACT1_DEPLOY_CAP's own comment). No enforced minimum — nothing in this
+ * screen or canLaunchMission checks for "at least 5"; the only hard floor
+ * is the existing "at least one active, living Munti" gate, same as Act I.
+ * Deploying fewer than the max is a real, allowed choice (a smaller squad
+ * for a smaller fight), not a mistake this screen blocks — kept simple on
+ * purpose rather than inventing a second validation rule nothing has asked
+ * for yet.
+ */
+export const ACT2_DEPLOY_CAP = 8;
+
+/**
+ * Resolves which deploy cap applies to a given mission id. Team One's own
+ * missions (`mission_1a`, `mission_2`, ...) and anything that doesn't match
+ * the `mission_amaranth_N` shape fall back to ACT1_DEPLOY_CAP, same
+ * behavior as before this function existed — this only changes anything
+ * for Amaranth missions 13 and up. Act III's own number isn't decided yet
+ * (the campaign doc's §10 table doesn't fix one) — reusing ACT2_DEPLOY_CAP
+ * for missions 25+ rather than inventing a placeholder third constant;
+ * revisit when Act III's own batch actually specs it.
+ */
+export function deployCapForMission(missionId: string): number {
+  const match = missionId.match(/^mission_amaranth_(\d+)$/);
+  if (!match) return ACT1_DEPLOY_CAP;
+  const n = Number(match[1]);
+  return n <= 12 ? ACT1_DEPLOY_CAP : ACT2_DEPLOY_CAP;
+}
+
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
 }
@@ -103,6 +134,10 @@ export class TransporterPad extends Phaser.Scene {
   private selected: Set<string> = new Set();
   private showPicker = false;
   private capWarning = false;
+  // Set in create() from deployCapForMission(this.missionId) — Act I stays
+  // exactly ACT1_DEPLOY_CAP, Act II+ gets ACT2_DEPLOY_CAP. See that
+  // function's own comment above.
+  private deployCap = ACT1_DEPLOY_CAP;
 
   private squadLayer!: Phaser.GameObjects.Container;
   private launchLayer!: Phaser.GameObjects.Container;
@@ -169,24 +204,25 @@ export class TransporterPad extends Phaser.Scene {
     // changes for a player who's never lost anyone — this only changes
     // behavior once the roster composition actually has, which is exactly
     // the case it was silently getting wrong before.
-    this.showPicker = activePilotIds.length > ACT1_DEPLOY_CAP;
+    this.deployCap = deployCapForMission(this.missionId);
+    this.showPicker = activePilotIds.length > this.deployCap;
 
     if (this.showPicker) {
       this.rosterIds = activePilotIds;
-      // Default selection: the first ACT1_DEPLOY_CAP active pilots in
-      // roster order. For the one campaign this repo ships, that's the
-      // original five Wardens (Munti included), so the gate starts
-      // cleared and a player who never touches the picker still deploys
-      // exactly the squad they always did. Bench slots (recruits beyond
-      // the cap) start excluded, not auto-included — swapping a proven
-      // pilot for a fresh G-tier recruit is the player's call to make, not
-      // a default this screen makes for them.
-      this.selected = new Set(activePilotIds.slice(0, ACT1_DEPLOY_CAP));
+      // Default selection: the first `deployCap` active pilots in roster
+      // order. For a fresh Act I campaign that's the original five
+      // Wardens (Munti included), so the gate starts cleared and a player
+      // who never touches the picker still deploys exactly the squad they
+      // always did. Bench slots (recruits, or the Second Lance once it
+      // joins) start excluded, not auto-included — swapping a proven pilot
+      // for someone new is the player's call to make, not a default this
+      // screen makes for them.
+      this.selected = new Set(activePilotIds.slice(0, this.deployCap));
       this.add
         .text(
           480,
           100,
-          `select up to ${ACT1_DEPLOY_CAP} — click a pad to toggle. bench pilots earn no personal points while sitting out.`,
+          `select up to ${this.deployCap} — click a pad to toggle. bench pilots earn no personal points while sitting out.`,
           { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }
         )
         .setOrigin(0.5);
@@ -211,7 +247,7 @@ export class TransporterPad extends Phaser.Scene {
     if (this.selected.has(pilotId)) {
       this.selected.delete(pilotId);
       this.capWarning = false;
-    } else if (this.selected.size >= ACT1_DEPLOY_CAP) {
+    } else if (this.selected.size >= this.deployCap) {
       // Over the cap is blocked, not silently ignored — redrawLaunchSection
       // below surfaces this as the reason line until the next successful
       // toggle clears it.
@@ -384,10 +420,10 @@ export class TransporterPad extends Phaser.Scene {
     let reason: string;
     let color: string;
     if (this.capWarning) {
-      reason = `deploy cap reached — Act I allows at most ${ACT1_DEPLOY_CAP} at once. Deselect a pilot to add another.`;
+      reason = `deploy cap reached — this mission allows at most ${this.deployCap} at once. Deselect a pilot to add another.`;
       color = "#ef4444";
     } else if (launchCheck.ok) {
-      reason = this.showPicker ? `${deployIds.length}/${ACT1_DEPLOY_CAP} selected — squad cleared for deployment` : "squad cleared for deployment";
+      reason = this.showPicker ? `${deployIds.length}/${this.deployCap} selected — squad cleared for deployment` : "squad cleared for deployment";
       color = "#6b7a8a";
     } else {
       reason = launchCheck.reason ?? "deploy blocked";

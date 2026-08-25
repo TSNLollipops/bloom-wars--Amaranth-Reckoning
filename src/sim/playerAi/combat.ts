@@ -14,6 +14,7 @@ import type { BattleUnit } from "../../engine/units";
 import { chebyshevDistance, chassisToMovementKind, reachableTiles, reconstructPath, coordKey, distanceField, tileAt } from "../../engine/grid";
 import { estimateDamage, occupiedSet, moveToward, isVisibleTo } from "../../engine/ai";
 import { TILES } from "../../data/tiles";
+import { BLOOM_CLEAR_RADIUS } from "../../data/combatTables";
 
 /** Below this HP fraction, prefer disengaging over pressing a fight that isn't a guaranteed kill. */
 export const RETREAT_HP_FRACTION = 0.3;
@@ -346,4 +347,35 @@ export function cohesiveMoveToward(map: MapDefinition, unit: BattleUnit, target:
     }
   }
   return reconstructPath(reachable, bestTile);
+}
+
+// ---- Objective awareness (25 Aug 2026, Phase 1/2 of
+// claude/Bloom_Wars_Player_AI_Ability_And_Objective_Plan_v1.md — Maxime:
+// "keep the plan in mind do what you recommend") ----
+
+/** The closest of a list of candidate tiles to `from`, Chebyshev — shared by every objective-awareness branch in index.ts that needs "which one do I head toward" (a hold zone's own tiles, an exit tile for extract_unit/rescue_carry). Every call site already guards against an empty `coords`. */
+export function nearestCoord(from: Coord, coords: Coord[]): Coord {
+  return coords.reduce((best, c) => (chebyshevDistance(from, c) < chebyshevDistance(from, best) ? c : best));
+}
+
+/**
+ * True if any bloom_mat tile is within BLOOM_CLEAR_RADIUS (Chebyshev) of
+ * `pos` — mirrors engine/mission.ts's private clearableBloomTiles()/
+ * canClearBloom() exactly (same bounding-box-then-filter shape), but reads
+ * straight off `map` instead of going through a Mission reference. That's
+ * deliberate, not a shortcut: canClearBloom's OTHER checks
+ * (unit.abilities.includes("abil_clear_bloom"), side, downed,
+ * actionsRemaining) are all already plain fields on the `unit` this
+ * function's one caller (index.ts's clear_bloom branch) already has in
+ * hand, so nothing here actually needed a live Mission instance — see
+ * types.ts's PlayerAiMissionContext comment for the one thing that
+ * genuinely does (which objective this mission has at all).
+ */
+export function hasClearableBloomNearby(map: MapDefinition, pos: Coord): boolean {
+  for (let y = Math.max(0, pos.y - BLOOM_CLEAR_RADIUS); y <= Math.min(map.height - 1, pos.y + BLOOM_CLEAR_RADIUS); y++) {
+    for (let x = Math.max(0, pos.x - BLOOM_CLEAR_RADIUS); x <= Math.min(map.width - 1, pos.x + BLOOM_CLEAR_RADIUS); x++) {
+      if (map.tiles[y][x] === "bloom_mat") return true;
+    }
+  }
+  return false;
 }

@@ -1,17 +1,40 @@
 // src/data/campaignAmaranth.ts
-// "The Amaranth Reckoning" — Act I: The Fallow Line, missions 1-8 (of the
-// act's 12; the full 36-mission campaign concept is design-only for now —
-// see claude/Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md /
+// "The Amaranth Reckoning" — Act I: The Fallow Line, all 12 missions (of the
+// full 36-mission campaign concept — see
+// claude/Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md /
 // design/Bloom_Wars_The_Amaranth_Reckoning.docx §Appendix C: "Build Act 1
 // first as its own small vertical slice"). Independent, non-canon, parallel
 // continuity to the Team One slice in data/campaign.ts — different roster,
-// different maps, same engine, same objective types (§3: "Act I: no new
-// systems" — missions 5-8 stayed true to that: extract_unit/eliminate_all/
-// hold_zone all already existed, so this stayed a content pass, same as
-// 1-4). Missions 9-12 (Cut Off's new Survive N Turns objective type, the
-// Amaranth Betrayal, the Long Walk Back, and the act finale where Bosk's
-// scripted death is only a plan under §6a's permadeath rule) aren't built
-// yet.
+// different maps, same engine.
+//
+// Missions 9-12 (25 Aug 2026, Maxime: "lets do mission 9-36, do them in
+// batch of 4... map can be as big as nessessary... try to weave in the two
+// extra objective we added in, rescue and bloom patch") complete Act I.
+// §3's "Act I: no new systems" held for 1-8 but not for all twelve — Cut Off
+// is the one real ask the design doc itself named ("one new objective type
+// (Survive N Turns, already flagged cheap in Build Brief §6)"); see
+// data/types.ts's CampaignMission.objective comment and
+// engine/mission.ts's checkWinLoss for what actually got built for it, which
+// turned out to be genuinely small (reuse turnLimit itself as the
+// survive-until count, no new field). The two bonus-objective kinds
+// (rescue_pilot, clear_bloom_patch) needed no new engine work at all —
+// they're the exact same generic verbs Missions 3/5 already exercise,
+// applied here because the fiction happens to fit: Cut Off's isolation
+// suits a stranded signals officer, and House Amaranth's own ward-crop
+// terraces (design doc §5) suit a small encroaching patch left untended.
+// Missions 10 and 11 carry no bonus objective — one of each kind across a
+// four-mission batch reads as "these exist and recur," not "every mission
+// needs one," and the finale (12) stays focused on its own stakes.
+//
+// §6a's permadeath correction is why Mission 12's briefing/events below
+// never name a specific pilot for "whoever covers the gate" — the doc's own
+// words: "every named death written into the mission list... is now a
+// *plan*, not a *guarantee*... Whoever writes each mission's actual text
+// needs to handle 'whichever pilot is left in that role.'" No scripted
+// forced-loss event was added here for that reason; Mission 12 is a real,
+// winnable (and losable) hold_zone mission, the hardest one in the act on
+// its own numbers — whatever happens to whichever pilot happens live,
+// through the existing permadeath check, same as any other mission.
 //
 // Warden Company doesn't have that name yet at this point in the story —
 // it's still just Rourke's five-mech lance holding a stretch of the Fallow
@@ -20,7 +43,7 @@
 // this file will keep being called even after the in-fiction renaming in
 // Act II — see the design doc's own note that the unit keeps a name it
 // technically hasn't earned yet, on purpose, on both sides of that line.
-import type { CampaignMission, MekArchetype, PilotRecord } from "./types";
+import type { CampaignMission, MekArchetype, Path, PilotRecord } from "./types";
 
 // ---- Roster (§6): five pilots, all tier G, no Heirloom charge until the
 // scripted unlock at Mission 12 (§9, §10 squad-scaling table) — every
@@ -90,6 +113,118 @@ export const WARDEN_MEKS: Record<string, MekArchetype> = {
 };
 
 const WARDEN_ROSTER_IDS = WARDEN_PILOTS.map((p) => p.id);
+
+// ---- Second Lance (§10, Act II, 25 Aug 2026): "Warden Company forms
+// around Rourke's survivors and a second lance." Five more named pilots,
+// joining the campaign roster via engine/campaignState.ts's
+// integrateSecondLance() the moment Mission 12 (Act I's own finale) is
+// won — see that function's own comment for why that specific beat, not a
+// mid-Act-II reward, is where "integrating the second lance" actually
+// happens. This is also what gives Mission 13 onward a real 10-pilot
+// roster to pick a squad from — see scenes/TransporterPad.ts's
+// deployCapForMission for the other half of composition choice.
+//
+// A deliberately different path spread from Warden Company's own
+// (2 Meeps/1 Tank/1 Reeps/1 Munti) rather than a mirror of it — the whole
+// point of a composition choice is that the two lances aren't
+// interchangeable. Combined 10-pilot roster ends up 3 Meeps/2 Tank/
+// 3 Reeps/2 Munti — a second Munti in particular means a squad can, for
+// the first time, choose to bring two healers or none at all, rather than
+// Warden Company's own one-Munti-or-nothing shape.
+export const SECOND_LANCE_PILOTS: PilotRecord[] = [
+  {
+    id: "pilot_okafor",
+    displayName: "Sgt. Wren Okafor — “Ledger”",
+    archetypeId: "arch_tank_bipedal",
+    mekId: "mek_okafor",
+    tier: "G",
+  },
+  {
+    id: "pilot_solheim",
+    displayName: "Cpl. Nadia Solheim — “Static”",
+    archetypeId: "arch_reeps_bipedal",
+    mekId: "mek_solheim",
+    tier: "G",
+  },
+  {
+    id: "pilot_tarrant",
+    displayName: "Pvt. Yusuf Tarrant — “Kestrel”",
+    archetypeId: "arch_meeps_centauroid", // Hiopi, same chassis family as Iyari
+    mekId: "mek_tarrant",
+    tier: "G",
+  },
+  {
+    id: "pilot_vashti",
+    displayName: "Spec. Elin Vashti — “Driftwood”",
+    archetypeId: "arch_munti_vibrissal", // Osnius/vibrissal — the roster's second Munti
+    mekId: "mek_vashti",
+    tier: "G",
+  },
+  {
+    id: "pilot_reyes",
+    displayName: "Cpl. Damon Reyes — “Hardpan”",
+    archetypeId: "arch_reeps_centauroid",
+    mekId: "mek_reyes",
+    tier: "G",
+  },
+];
+
+// Track assignments, same build-time-call discipline as WARDEN_MEKS above:
+// Okafor (veteran, holds the line) gets Armorer, mirroring Bosk's own
+// track. Solheim and Reyes (both Reeps, the lance's ranged pair) split
+// between Runemaster (Solheim — vision, matches a sharpshooter's own
+// instinct) and Fabricator (Reyes — spare-parts redeploy, a scavenger's
+// track, not yet used anywhere in either roster). Tarrant (young, fast)
+// gets Armorer like Iyari. Vashti (the second Munti) gets Fieldwright,
+// same as every Munti in either roster so far.
+export const SECOND_LANCE_MEKS: Record<string, MekArchetype> = {
+  mek_okafor: { id: "mek_okafor", displayName: "Okafor's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_solheim: { id: "mek_solheim", displayName: "Solheim's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_tarrant: { id: "mek_tarrant", displayName: "Tarrant's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_vashti: { id: "mek_vashti", displayName: "Vashti's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_reyes: { id: "mek_reyes", displayName: "Reyes's Mek", primary: "fabricator", secondary: null, spareParts: 0 },
+};
+
+export const SECOND_LANCE_ROSTER_IDS = SECOND_LANCE_PILOTS.map((p) => p.id);
+
+// Act II's own static playerPilotIds default (25 Aug 2026) — read only by
+// `npm run sim`/tests/any direct `new Mission(missionDef)` call with no
+// deployRoster (see engine/mission.ts's deployPlayerUnits comment); a real
+// playthrough always goes through scenes/TransporterPad.ts's picker
+// instead, which reads the campaign's actual live roster, not this. Picked
+// as a genuine 8-of-10 composition (2 bench: Tarrant, Reyes) rather than
+// "all five Wardens plus three Second Lance alphabetically" specifically so
+// the sim exercises the same choice a player faces — including the
+// two-Munti case the roster doc flags (Lask + Vashti both deployed). Kept
+// IDENTICAL across all four Act II missions built this pass so a stress-test
+// run compares mission-to-mission on a fixed squad rather than a moving
+// one; a real campaign obviously won't stay this static once losses and
+// picker choices start diverging it.
+const ACT2_DEFAULT_SQUAD = [
+  "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
+  "pilot_okafor", "pilot_solheim", "pilot_vashti",
+];
+
+// bonusAbilityUnlocks are per-mission-deploy, not a persistent campaign
+// flag (engine/mission.ts's applyBonusAbilityUnlocks reads only
+// `this.mission.bonusAbilityUnlocks`) — every mission after an unlock has
+// to keep repeating it or the unit simply doesn't have the ability that
+// mission, same pattern Act I already established for abil_taunt (Missions
+// 9-12 above). Broken out as shared constants here so four missions'
+// worth of repetition can't drift out of sync with each other by a typo.
+const TAUNT_UNLOCK: { path: Path; abilityId: string }[] = [{ path: "meeps", abilityId: "abil_taunt" }];
+// abil_fire_support (Mission 14 "Steel Rain," see data/abilities.ts's own
+// design comment) granted to all four paths at once, not just one — unlike
+// Taunt, which is Meeps-flavoured specifically, fire support is Providence's
+// own capability, called in by whichever unit is looking at the target,
+// regardless of what they pilot.
+const FIRE_SUPPORT_UNLOCKS: { path: Path; abilityId: string }[] = [
+  { path: "meeps", abilityId: "abil_fire_support" },
+  { path: "tank", abilityId: "abil_fire_support" },
+  { path: "reeps", abilityId: "abil_fire_support" },
+  { path: "munti", abilityId: "abil_fire_support" },
+];
+const ACT2_UNLOCKS_FROM_14: { path: Path; abilityId: string }[] = [...TAUNT_UNLOCK, ...FIRE_SUPPORT_UNLOCKS];
 
 export const AMARANTH_MISSION_1: CampaignMission = {
   id: "mission_amaranth_1",
@@ -390,6 +525,172 @@ export const AMARANTH_MISSION_8: CampaignMission = {
   bonusAbilityUnlocks: [{ path: "meeps", abilityId: "abil_taunt" }],
 };
 
+export const AMARANTH_MISSION_9: CampaignMission = {
+  id: "mission_amaranth_9",
+  displayName: "Amaranth I.9 — Cut Off",
+  mapId: "map_amaranth_cut_off",
+  briefing:
+    "Comms went dark at 0300 — no storm, no jamming signature, just silence where the relay used to be. Command doesn't know where you are and right now you don't know what's coming. Hold what you're standing on until somebody on the other end fixes whatever broke. Nobody's coming until then.",
+  // Survive N Turns (new objective type, this pass — see data/types.ts's
+  // CampaignMission.objective comment). turnLimit doubles as the
+  // survive-until count directly; kept modest (10) for the type's first
+  // outing, matching Build Brief §6's own "cheapest ask" framing rather
+  // than opening with the act's hardest number.
+  objective: "survive_n_turns",
+  objectiveParams: { turnLimit: 10 },
+  playerPilotIds: WARDEN_ROSTER_IDS,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Gallcyst (data/bloom.ts: move 0) — the map's own two fixed seams
+    // ((8,4) and (13,9) in CUT_OFF_TILES) so the sessile turrets land
+    // exactly where they're dug in, not wherever "enemy_deploy" happens to
+    // scatter them. First Gallcyst contact in the act — introduced here
+    // rather than at the finale so Mission 12 isn't the first time the
+    // squad sees a stationary acid threat as well as everything else new
+    // that mission brings.
+    { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 8, y: 4 }, { x: 13, y: 9 }] },
+  ],
+  events: [
+    {
+      id: "ev_cut_off_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “No traffic on any band. Not jammed — just nothing transmitting. That's not weather.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 220,
+  heirloomCharge: "locked",
+  // rescue_pilot bonus (weave-in pass, see file header) — a stranded
+  // signals officer, found trying to raise anyone at all on a dead relay.
+  // Ties directly into the mission's own premise rather than being a bonus
+  // that happens to be bolted on. npcSpawnAt kept close to deploy (4 tiles,
+  // reachable turn 1 by every unit including the Munti) — Mission 5's own
+  // post-playtest fix (this file's own comment on AMARANTH_MISSION_5)
+  // already established why a distant spawn gets an NPC killed before
+  // anyone can reach them.
+  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 7, y: 8 }, npcDisplayName: "Downed Signals Officer", bonusPoints: 45 },
+  bonusAbilityUnlocks: [{ path: "meeps", abilityId: "abil_taunt" }],
+};
+
+export const AMARANTH_MISSION_10: CampaignMission = {
+  id: "mission_amaranth_10",
+  displayName: "Amaranth I.10 — The Amaranth Betrayal",
+  mapId: "map_amaranth_the_amaranth_betrayal",
+  briefing:
+    "House Amaranth held the east face of this line beside you for six weeks. This morning their positions are empty — no orders, no word, gear left where it sat. Foxfire's forward of the gap they left open. Get her out before whatever they were actually watching for gets there first.",
+  objective: "extract_unit",
+  objectiveParams: { turnLimit: 14, extractUnitId: "pilot_iyari" },
+  playerPilotIds: WARDEN_ROSTER_IDS,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+  ],
+  events: [
+    {
+      id: "ev_amaranth_betrayal_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Bosk: “Whole company's worth of gear, sitting in the dirt. They didn't evacuate this position. They ran from it.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 230,
+  heirloomCharge: "locked",
+  // clear_bloom_patch bonus (weave-in pass, see file header) — a small
+  // patch already taking root in House Amaranth's own abandoned terraces,
+  // the same ward-crop ground the design doc's §5 backstory is built on.
+  // patchTiles matches THE_AMARANTH_BETRAYAL_TILES's bloom_mat rect exactly
+  // (data/mapsAmaranth.ts) — off the direct deploy->exit line, a real
+  // detour rather than sitting on the critical path.
+  bonusObjective: {
+    kind: "clear_bloom_patch",
+    patchTiles: [
+      { x: 13, y: 9 }, { x: 14, y: 9 }, { x: 15, y: 9 }, { x: 16, y: 9 },
+      { x: 13, y: 10 }, { x: 14, y: 10 }, { x: 15, y: 10 }, { x: 16, y: 10 },
+    ],
+    bonusPoints: 45,
+  },
+  bonusAbilityUnlocks: [{ path: "meeps", abilityId: "abil_taunt" }],
+};
+
+export const AMARANTH_MISSION_11: CampaignMission = {
+  id: "mission_amaranth_11",
+  displayName: "Amaranth I.11 — The Long Walk Back",
+  mapId: "map_amaranth_the_long_walk_back",
+  briefing:
+    "The line's not holding and command knows it — the order's already down to fall back to the second position. Patch is still forward. The ground between here and home is ground the Line already lost once. Walking it a second time isn't going to be quiet, and nobody's promised it stays empty behind you either.",
+  objective: "extract_unit",
+  // turnLimit 18 — the biggest number in the act so far, matched to the
+  // map's own length (data/mapsAmaranth.ts's THE_LONG_WALK_BACK_TILES, the
+  // batch's one deliberately large grid): deploy to exit is roughly 30 move
+  // points in a straight line before the bridge bottleneck even factors in.
+  objectiveParams: { turnLimit: 18, extractUnitId: "pilot_lask" },
+  playerPilotIds: WARDEN_ROSTER_IDS,
+  enemyWaves: [
+    // Blocking the route home — Splitfang at the map's Zone B seams.
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 21, y: 2 }, { x: 21, y: 10 }] },
+    // Guarding the one bridge — Crawlmass planted right at its approaches,
+    // not "enemy_deploy" (which would just as happily strand them in the
+    // surrounding sump they can't cross either).
+    { archetypeId: "bloom_crawlmass", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 5 }, { x: 15, y: 7 }] },
+    // The pursuit — lands turn 3, exactly where deploy just was. Nothing
+    // chases the squad mechanically; a wave arriving a few turns later at
+    // the tile they started on reads as pursuit without needing to be one.
+    { archetypeId: "bloom_crawlmass", count: 3, atTurn: 3, spawnAt: [{ x: 28, y: 3 }, { x: 28, y: 9 }] },
+  ],
+  events: [
+    {
+      id: "ev_long_walk_back_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Everyone who held this ground before us already left it. Eyes open the whole way.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 250,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: [{ path: "meeps", abilityId: "abil_taunt" }],
+};
+
+export const AMARANTH_MISSION_12: CampaignMission = {
+  id: "mission_amaranth_12",
+  displayName: "Amaranth I.12 — The Fallow Line",
+  mapId: "map_amaranth_the_fallow_line",
+  briefing:
+    "Thistledown Watch — same ground the lance mustered on, dug in properly now, trench and rubble where there used to be open field. Whatever's coming is coming from every side but the one you walked in from. Hold the line as long as the line can be held.",
+  // Act finale, hold_zone. Deliberately NOT a scripted forced loss — see
+  // this file's own header on §6a's permadeath correction. holdUntilTurn
+  // 10 is the longest hold in the act (Missions 2 and 7 both asked for 6);
+  // the biggest single encounter in the act (15 hostiles across 4 waves,
+  // two of them new-to-the-act) is what makes that number hard, not a
+  // scripted outcome layered on top of it.
+  objective: "hold_zone",
+  objectiveParams: { turnLimit: 16, holdUntilTurn: 10 },
+  playerPilotIds: WARDEN_ROSTER_IDS,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    // The Choir returns partway through — the act's mid-boss (Mission 8),
+    // reprised once the position's already under real pressure rather than
+    // at the open.
+    { archetypeId: "bloom_choir", count: 3, atTurn: 4, spawnAt: "enemy_deploy" },
+    // Sirenmaw — first contact in the act, held back for the finale's own
+    // last push rather than introduced earlier and spent. Flying (ignores
+    // terrain cost), so the trenchworks that slow everything else don't
+    // slow this.
+    { archetypeId: "bloom_sirenmaw", count: 2, atTurn: 6, spawnAt: "enemy_deploy" },
+  ],
+  events: [
+    {
+      id: "ev_the_fallow_line_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Same ground we mustered on. Didn't think we'd be digging in on it again this soon.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 280,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: [{ path: "meeps", abilityId: "abil_taunt" }],
+};
+
 export const AMARANTH_ACT1: CampaignMission[] = [
   AMARANTH_MISSION_1,
   AMARANTH_MISSION_2,
@@ -399,8 +700,194 @@ export const AMARANTH_ACT1: CampaignMission[] = [
   AMARANTH_MISSION_6,
   AMARANTH_MISSION_7,
   AMARANTH_MISSION_8,
+  AMARANTH_MISSION_9,
+  AMARANTH_MISSION_10,
+  AMARANTH_MISSION_11,
+  AMARANTH_MISSION_12,
+];
+
+// ---- ACT II — TWO FIRES (25 Aug 2026, batch 2 / missions 13-16, Maxime:
+// "add the next 4 now") ----
+// "WW2-style mobile combined-arms war. Warden Company forms around Rourke's
+// survivors and a second lance. Ship fire support arrives. The enemy is now
+// unmistakably two enemies." (Independent Campaign doc, Act II header).
+// Every heirloomCharge below stays "locked", same as every Act I mission —
+// NOT because the Heirloom doesn't narratively unlock at Mission 12 (the
+// design doc says it does), but because engine/campaignEconomy.ts's own
+// noSeveranceBonus is scored off `heirloomCharge === "available"` as a
+// STAND-IN for "was Severance actually used" (see that function's own note
+// 3), and Severance itself still isn't built as a usable ability anywhere
+// in engine/combat.ts. Shipping "available" here would silently hand every
+// Act II mission a free +25 points with no matching mechanic behind it —
+// a real economy bug, not a narrative choice — so this stays "locked" until
+// Severance itself gets built, independent of the fiction's own timeline.
+export const AMARANTH_MISSION_13: CampaignMission = {
+  id: "mission_amaranth_13",
+  displayName: "Amaranth II.13 — New Colors, Old Wounds",
+  mapId: "map_amaranth_new_colors",
+  briefing:
+    "The second lance transfers in this morning — five more mechs, five more names, none of them yours yet. Command wants a live-fire shakedown before anyone calls this one company. Simple ground, simple objective: clear it, together, and find out who you actually are now.",
+  objective: "eliminate_all",
+  // Act II opener, deliberately un-clever — same "prove everyone can fight
+  // together" read Mission 1's own Muster had for the original five (see
+  // this map's own header comment in data/mapsAmaranth.ts). Enemy count
+  // scaled for an 8-pilot squad rather than linearly off Mission 1's 12 —
+  // tuned against the actual sim, not just arithmetic (see the build log
+  // addendum for this batch's real numbers).
+  objectiveParams: { turnLimit: 12 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+  ],
+  events: [
+    {
+      id: "ev_new_colors_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Whatever patch you're wearing, wear it after this one's clear. Everybody fights the same fight today.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 290,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: TAUNT_UNLOCK,
+};
+
+export const AMARANTH_MISSION_14: CampaignMission = {
+  id: "mission_amaranth_14",
+  displayName: "Amaranth II.14 — Steel Rain",
+  mapId: "map_amaranth_steel_rain",
+  briefing:
+    "Providence is finally close enough to the line to put ordnance where you point it — First Providence call-ins, live as of this morning. The ground ahead is already cratered from whoever hit it before you got here. Push through, and use what's overhead. It doesn't have unlimited patience, and neither does the schedule.",
+  // First Providence call-in (Independent Campaign doc §14) — see
+  // data/abilities.ts's abil_fire_support and data/combatTables.ts's
+  // FIRE_SUPPORT_* constants for the full "minimal standalone ability, not
+  // the CIC/Energy hub economy" design conversation (Maxime, asked
+  // directly: confirmed minimal-standalone over the full hub). Manual-only,
+  // same precedent as abil_taunt — sim/playerAi never calls it (see
+  // sim/playerAi/types.ts's own PlayerAiDecision.action comment), so this
+  // mission's own stress-test numbers below are a real measure of whether
+  // it's beatable WITHOUT fire support, which is the correct bar: a bonus
+  // tool for a human player, not a crutch the bot needs to pass.
+  objectiveParams: { turnLimit: 14 },
+  objective: "eliminate_all",
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Two fixed Gallcyst seams, held out of "enemy_deploy" resolution same
+    // as Cut Off's own pair (Mission 9) — a sessile turret has to land
+    // exactly where the map's dug-in position actually is, not wherever
+    // "enemy_deploy" happens to scatter it. Coordinates match
+    // STEEL_RAIN_TILES' own central ridge gap in data/mapsAmaranth.ts.
+    { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 7 }, { x: 15, y: 8 }] },
+  ],
+  events: [
+    {
+      id: "ev_steel_rain_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Providence Actual: “Warden Company, Providence. You've got eyes on the ground and we've got the guns — call it and we'll put it there.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 300,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_15: CampaignMission = {
+  id: "mission_amaranth_15",
+  displayName: "Amaranth II.15 — Landfall",
+  mapId: "map_amaranth_landfall",
+  briefing:
+    "There's no beachhead to secure — there's just the beach, and whoever's already dug in above it. The ramp drops the second the craft stops moving. No recon window, no softening barrage, no turn to get your bearings. You are under fire before your boots are down.",
+  // Contested Landing (new objective type, this pass — see
+  // data/types.ts's CampaignMission.objective comment for the full "deploy
+  // under fire" design conversation, confirmed directly with Maxime over
+  // AskUserQuestion: hostiles already positioned at/near the deploy zone at
+  // turn 1, no grace period, mechanically eliminate_all-shaped). The design
+  // lives entirely in LANDFALL_TILES' own layout (data/mapsAmaranth.ts) —
+  // spawn tiles 4 tiles from the deploy column, well inside a first-turn
+  // hostile-phase move+attack for most of what's waiting there — not in any
+  // new win-condition code; checkWinLoss's contested_landing branch
+  // (engine/mission.ts) is byte-for-byte eliminate_all's own check.
+  objective: "contested_landing",
+  objectiveParams: { turnLimit: 14 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    // A second landing wave, turn 3 — reinforcements arriving behind the
+    // squad's own beachhead rather than a scripted "pursuit," same device
+    // The Long Walk Back used for its own turn-3 wave (Mission 11).
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+  ],
+  events: [
+    {
+      id: "ev_landfall_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Okafor: “Ramp's down! Move, move — nobody's dying on the sand!”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 310,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_16: CampaignMission = {
+  id: "mission_amaranth_16",
+  displayName: "Amaranth II.16 — Collaborators",
+  mapId: "map_amaranth_collaborators",
+  briefing:
+    "This depot's House Amaranth colors, House Amaranth crews — and every one of them shooting back. Command's briefing calls them collaborators. The intelligence read underneath that word is uglier: most of this garrison didn't volunteer for either side of this. Clear the depot. What you do with whoever's left standing is still your call to make.",
+  objective: "eliminate_all",
+  // House Amaranth conscripts (data/units.ts's AMARANTH_CONSCRIPT_MECHS,
+  // deliberately named apart from Mission 6's "Line Trooper" veterans — see
+  // that constant's own comment) — the campaign doc's own flagged
+  // "moral-complexity bonus objective" for this mission (Independent
+  // Campaign doc Act II list; claude/Bloom_Wars_Spitball_Ideas.md ties it
+  // to the recurring House Amaranth thread). bonusObjective below reuses
+  // the existing rescue_pilot shape — same mechanics as Missions 5 and 9's
+  // rescue (an incapacitated unit, picked up, carried to an exit tile),
+  // reframed in fiction as a conscript trying to get out from under this
+  // rather than a friendly pilot. Zero new engine code either way; the
+  // shape already generalizes. Flagging this reuse explicitly rather than
+  // presenting it as obviously-the-only-option — a different mission could
+  // reasonably want a bespoke "captive" mechanic instead (a surrender
+  // prompt, a dialogue choice), which this pass does not build.
+  objectiveParams: { turnLimit: 12 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "hostile_mech_amaranth_conscript_01", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_02", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_03", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_04", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
+  ],
+  events: [
+    {
+      id: "ev_collaborators_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “Reading their formation — that's not veteran spacing. Command briefed us on collaborators. I'm not sure that's what's actually down there.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 320,
+  heirloomCharge: "locked",
+  // npcSpawnAt kept close to deploy (5 tiles), same fix as Mission 5's own
+  // post-playtest lesson (this file's own comment on AMARANTH_MISSION_5) —
+  // a distant spawn gets the NPC killed before anyone can reach them.
+  bonusObjective: { kind: "rescue_pilot", npcSpawnAt: { x: 5, y: 6 }, npcDisplayName: "Amaranth Conscript, Surrendering", bonusPoints: 45 },
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_ACT2: CampaignMission[] = [
+  AMARANTH_MISSION_13,
+  AMARANTH_MISSION_14,
+  AMARANTH_MISSION_15,
+  AMARANTH_MISSION_16,
 ];
 
 export const AMARANTH_MISSIONS_BY_ID: Record<string, CampaignMission> = Object.fromEntries(
-  AMARANTH_ACT1.map((m) => [m.id, m])
+  [...AMARANTH_ACT1, ...AMARANTH_ACT2].map((m) => [m.id, m])
 );

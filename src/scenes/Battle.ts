@@ -47,6 +47,7 @@ const SWEEP_COLOR = 0xa855f7; // abil_sensor_sweep footprint + painted-contact r
 const CONCEAL_COLOR = 0xc084fc; // abil_ambush / abil_screen — this unit is not seen
 const INTERDICT_COLOR = 0xfb923c; // abil_interdict kill-box
 const SCREEN_COLOR = 0xf472b6; // abil_screen coverage preview
+const FIRE_SUPPORT_COLOR = 0x38bdf8; // abil_fire_support — a distinct sky blue, chosen apart from every hue above so an armed strike's click-target wash never reads as a repaint of an existing verb (Sweep's own violet, Interdict's orange, Screen's pink)
 
 // Right-hand panel layout. The log occupies the band between the HUD block
 // and the contextual action bar; drawHud() budgets its lines against it.
@@ -60,19 +61,33 @@ const HUD_CHARS_PER_LINE = 31;
 const LOG_LINE_H = 13;
 const LOG_CHARS_PER_LINE = 38;
 
-// The contextual action bar (ability-depth pass): a 2x2 grid of slots above
-// END TURN, filled per selected unit with only the verbs that unit's kit
-// actually contains. Four slots is headroom — the widest kit in the game is
-// three (a vibrissal Munti: OVERWATCH + SCREEN + SWEEP). Kept as a fixed
-// pool of Phaser objects rather than created/destroyed per selection, so
-// nothing leaks and render() stays a pure refresh.
+// The contextual action bar (ability-depth pass): a grid of slots above END
+// TURN, filled per selected unit with only the verbs that unit's kit
+// actually contains. Grown from a 2x2 (4-slot) grid to 3x2 (6 slots) on
+// abil_fire_support's own addition (25 Aug 2026, Mission 14 "Steel Rain")
+// — a vibrissal Munti's kit (OVERWATCH + SCREEN + CLEAR + SWEEP, already
+// four before this pass — the previous "widest kit is three" comment here
+// undercounted Clear Bloom) hits FIVE the moment fire support's per-path
+// unlock (data/campaignAmaranth.ts's FIRE_SUPPORT_UNLOCKS, granted to every
+// path, not just one) reaches that same unit, and the old 4-slot pool
+// silently dropped whichever entry availableActions() pushed last —
+// exactly the FIRE button, on exactly the Munti this batch's own default
+// squad deploys (Vashti, arch_munti_vibrissal). Caught by reasoning through
+// the actual archetype data rather than assuming the file's own comment was
+// still accurate. Three columns fit the same 720-950px right-panel width
+// hudText/logText already use, so nothing else on this panel needed to
+// move. Kept as a fixed pool of Phaser objects rather than created/
+// destroyed per selection, so nothing leaks and render() stays a pure
+// refresh.
 const ACTION_SLOTS: Coord[] = [
-  { x: 784, y: 524 },
-  { x: 886, y: 524 },
-  { x: 784, y: 560 },
-  { x: 886, y: 560 },
+  { x: 757, y: 524 },
+  { x: 835, y: 524 },
+  { x: 913, y: 524 },
+  { x: 757, y: 560 },
+  { x: 835, y: 560 },
+  { x: 913, y: 560 },
 ];
-const ACTION_SLOT_W = 98;
+const ACTION_SLOT_W = 70;
 const ACTION_SLOT_H = 30;
 
 /** The five silhouettes drawUnit() ever draws — "blob" covers both Bloom units and any pilot/mech archetype missing a path (defensive fallback only). Shared between the fill pass and the outline helpers below it so both draw the exact same geometry. */
@@ -115,6 +130,18 @@ export class Battle extends Phaser.Scene {
   // button would do, not a click target).
   private rescuableNpc: BattleUnit[] = [];
   private clearableBloom: Coord[] = [];
+  // abil_fire_support (25 Aug 2026, Mission 14 "Steel Rain") — the one
+  // action-bar verb that needs a genuine two-click flow instead of "click
+  // the button, it runs": pressing FIRE arms fireSupportTargeting and fills
+  // fireSupportRange (engine/mission.ts's getFireSupportAreaFrom) rather
+  // than calling Mission.fireSupport() immediately, since the strike's
+  // target is an arbitrary tile the player has to choose, not the caster's
+  // own position or an adjacent unit. handleBoardClick's fire-support
+  // branch has to run BEFORE the reachable/attackable/repairable checks —
+  // the range this covers overlaps all three, and an armed strike should
+  // win that click, not get reinterpreted as a move.
+  private fireSupportTargeting = false;
+  private fireSupportRange: Coord[] = [];
   // The contextual action bar's fixed slot pool, plus the options currently
   // bound to them. Whether a slot is usable is Mission's call (canX()),
   // never this scene's.
@@ -249,7 +276,11 @@ export class Battle extends Phaser.Scene {
         .setInteractive({ useHandCursor: true })
         .on("pointerdown", () => this.runActionSlot(i));
       btn.setStrokeStyle(1, 0x4a7a9a);
-      const label = this.add.text(p.x, p.y, "", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+      // 10px, down from the 4-slot grid's 11px (25 Aug 2026, fire support's
+      // 3x2 layout) — narrower 70px buttons need the extra margin so
+      // "OVERWATCH"/"INTERDICT" (the longest labels, 9 characters) don't
+      // crowd the button edge.
+      const label = this.add.text(p.x, p.y, "", { fontFamily: "monospace", fontSize: "10px", color: "#ffffff" }).setOrigin(0.5);
       this.actionSlots.push({ btn, label });
     }
 
@@ -282,6 +313,34 @@ export class Battle extends Phaser.Scene {
     if (!tile) return;
 
     const unitHere = this.mission.livingUnits().find((u) => u.pos.x === tile.x && u.pos.y === tile.y);
+
+    // Fire support, armed (25 Aug 2026, Mission 14 "Steel Rain") — checked
+    // FIRST, ahead of attack/repair/rescue/move: fireSupportRange overlaps
+    // all of those (it's every tile in vision, occupied or not), and an
+    // armed strike has to win an ambiguous click rather than silently
+    // getting reinterpreted as a move onto the same tile.
+    if (this.selectedUnitId && this.fireSupportTargeting) {
+      if (this.fireSupportRange.some((c) => coordKey(c) === coordKey(tile))) {
+        // Ends the turn itself here (mission.fireSupport already zeroed
+        // actionsRemaining) — same shape as the attack branch just below,
+        // not the stay-selected shape Repair/Rescue/Move use.
+        this.mission.fireSupport(this.selectedUnitId, tile);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      // Clicked outside the strike radius — cancel targeting (an escape
+      // hatch, same idea as clicking empty ground to deselect elsewhere in
+      // this method) rather than leaving the board stuck mid-arm, then fall
+      // through to the normal click handling below using this same tile —
+      // restoring the selected unit's ordinary highlights first so a click
+      // that lands on, say, an attackable enemy still resolves as an attack
+      // in the same click instead of requiring a second one.
+      this.fireSupportTargeting = false;
+      this.fireSupportRange = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
 
     // Attacking an enemy currently highlighted as attackable.
     if (this.selectedUnitId && unitHere && this.attackable.some((a) => a.instanceId === unitHere.instanceId)) {
@@ -352,6 +411,8 @@ export class Battle extends Phaser.Scene {
     this.screenable = [];
     this.rescuableNpc = [];
     this.clearableBloom = [];
+    this.fireSupportTargeting = false;
+    this.fireSupportRange = [];
   }
 
   /**
@@ -362,6 +423,14 @@ export class Battle extends Phaser.Scene {
    * to draw.
    */
   private recomputeSelectionHighlights(unitId: string) {
+    // Fire support armed (25 Aug 2026): bail out before touching any other
+    // highlight set. Without this guard, refreshSelectionAfterAction's call
+    // into this method — which runs right after the FIRE button's own
+    // run() arms targeting, since that option's endsTurn is false — would
+    // immediately repopulate reachable/attackable/repairable/etc. from the
+    // engine again, undoing the suppression that same run() just did and
+    // leaving a confusing mix of washes on the board mid-targeting.
+    if (this.fireSupportTargeting) return;
     const unit = this.mission.unitById(unitId);
     if (!unit) return;
     this.reachable = this.mission.getReachableTiles(unitId);
@@ -430,6 +499,40 @@ export class Battle extends Phaser.Scene {
       // see is a budget they'll spend by accident.
       const charges = m.sensorSweepChargesRemaining(id);
       out.push({ label: `SWEEP ×${charges}`, usable: m.canSensorSweep(id), endsTurn: false, run: () => void m.sensorSweep(id) });
+    }
+    if (unit.abilities.includes("abil_fire_support")) {
+      // fireSupportChargesRemaining is squad-wide, not per-unit (unlike
+      // Sweep's own ×N above) — every eligible unit's button shows the same
+      // number for that reason, and the HUD legend line (see the "Amber
+      // tiles" text below) spells out "shared" so the number doesn't read
+      // as a personal allowance. run() arms targeting rather than calling
+      // Mission.fireSupport() directly — see fireSupportTargeting's own
+      // field comment for why this one verb needs a second click.
+      const charges = m.fireSupportChargesRemaining;
+      out.push({
+        label: `FIRE ×${charges}`,
+        usable: m.canFireSupport(id),
+        endsTurn: false,
+        run: () => {
+          this.fireSupportTargeting = true;
+          this.fireSupportRange = m.getFireSupportAreaFrom(id, unit.pos);
+          // Suppress every other highlight while armed — reachable/
+          // attackable/repairable all overlap fireSupportRange (it's every
+          // tile in vision, occupied or not) and refreshSelectionAfterAction
+          // (called right after run() returns, since this option's own
+          // endsTurn is false) would otherwise repopulate them straight
+          // back, leaving a confusing mix of washes on the board during
+          // what is otherwise a locked-in two-click sequence.
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+        },
+      });
     }
     return out.slice(0, ACTION_SLOTS.length);
   }
@@ -551,6 +654,17 @@ export class Battle extends Phaser.Scene {
       }
       g.lineStyle(2, SWEEP_COLOR, 0.85);
       g.strokeRect(this.boardX + minX * ts + 1, this.boardY + minY * ts + 1, (maxX - minX + 1) * ts - 3, (maxY - minY + 1) * ts - 3);
+    }
+    // Fire support targeting (25 Aug 2026) — a filled wash, not an outline
+    // like Sweep's box just above: unlike Sweep, this IS the click target
+    // set (every other highlight is suppressed while armed — see
+    // recomputeSelectionHighlights' own guard — so there's nothing else on
+    // the board competing for attention here), and a player has to be able
+    // to see exactly which tile they're about to click, not just the
+    // footprint's outer edge.
+    for (const c of this.fireSupportRange) {
+      g.fillStyle(FIRE_SUPPORT_COLOR, 0.3);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
     if (this.selectedUnitId) {
       const u = this.mission.unitById(this.selectedUnitId);
@@ -972,6 +1086,7 @@ export class Battle extends Phaser.Scene {
     if (this.sweepArea.length) lines.push("", "Violet box = Sensor Sweep reach");
     if (this.rescuableNpc.length) lines.push("", "Gold tile = Rescue (adjacent, downed pilot)");
     if (this.clearableBloom.length) lines.push("", `Gold tiles = ${this.clearableBloom.length} bloom mat tile(s) Clear would flip`);
+    if (this.fireSupportTargeting) lines.push("", `Blue tiles = Fire Support strike center (shared, ${m.fireSupportChargesRemaining} charge(s) left) — click to call it in, or click elsewhere to cancel`);
     // Standing tallies, so the player can see their firing line is set
     // without having to re-select each unit. Amber brackets on the board
     // mark overwatchers, violet frames mark the concealed, an orange ring

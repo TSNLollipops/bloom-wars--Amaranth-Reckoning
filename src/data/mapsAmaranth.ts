@@ -99,6 +99,20 @@
 import type { MapDefinition, TileType } from "./types";
 import { makeMap } from "./maps";
 
+// ---- MISSIONS 9-12 PASS (25 Aug 2026, Maxime: "lets do mission 9-36, do
+// them in batch of 4... map can be as big as nessessary") ----
+// Same authoring discipline as 1-8 above: hand-built ASCII/TS grids, checked
+// rectangular, known-vocabulary, and BFS-reachable from every deploy pad to
+// every spawn/hold/exit tile before being transcribed here — this batch's
+// checking was done with a small scratch Node/tsx tool (mirrors
+// engine/__tests__/mapsAmaranth.test.ts's own floodFrom exactly, since that
+// suite is what actually enforces the promise on every `npm test` from here
+// on), not eyeballed. "As big as necessary" was taken as permission to size
+// each map to what its own mission asks for rather than to a shared target —
+// Cut Off stays compact (an encircled position reads smaller, not bigger);
+// The Long Walk Back is the batch's one genuinely large map, because a
+// fighting withdrawal is the one mission whose whole character is distance.
+
 // ---- Mission 1: Muster — tutorial, open border-post ground (20 x 12) ----
 // A road ring around an open middle, habblock pairs north and south for
 // cover, one rubble knot and one habblock pair inside the ring. The three
@@ -305,6 +319,111 @@ const THE_CHOIR_SINGS_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "ridge", "ridge"],
 ];
 
+// ---- Mission 9: Cut Off — the encircled position (22 x 14) ----
+// Deploy sits on the outpost's own west face; the position itself (a
+// structure/rubble knot with a ridge shoulder) is dead centre. A sump belt
+// seals the south — the literal reason there's no walking away that
+// direction — leaving north and east open to Bloom pressure, which is
+// where the seven spawn tiles sit. Two of those (8,4) and (13,9) carry
+// Gallcyst specifically (data/bloom.ts: move 0) rather than "enemy_deploy",
+// so the sessile turrets land exactly where they're dug in relative to the
+// position rather than wherever the general pool happens to distribute
+// them — the same reasoning Mission 4's fixed Undertow seams already
+// established for a placement-sensitive spawn.
+const CUT_OFF_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "deploy", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "deploy", "plain", "plain", "plain", "plain", "structure", "structure", "rubble", "rubble", "plain", "ridge", "ridge", "plain", "plain", "plain", "spawn", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "rubble", "rubble", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "spawn", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+];
+
+// ---- Mission 10: The Amaranth Betrayal — the abandoned checkpoint (24 x 13) ----
+// The joint position House Amaranth just pulled out of, wide open where
+// House Colors' own checkpoint (data/mapsAmaranth.ts's HOUSE_COLORS_TILES)
+// was sealed — that's the point: nobody's holding this gate any more. The
+// terraces (§5's ward-crop backstory) show as a small bloom_mat patch south
+// of the crossing, off the direct deploy->exit line — clear_bloom_patch
+// bonus territory (campaignAmaranth.ts), a real detour, not the job.
+const THE_AMARANTH_BETRAYAL_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "deploy", "plain", "plain", "plain", "plain", "road", "road", "road", "road", "road", "road", "road", "plain", "plain", "plain", "plain", "exit", "exit", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "plain", "spawn", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+];
+
+// ---- Mission 11: The Long Walk Back — the fighting withdrawal (34 x 13) ----
+// The batch's one deliberately large map (see this file's header) — deploy
+// sits far east, in the lost ground just abandoned, exit sits far west, at
+// home lines, with three distinct zones between them: open contested ground
+// (Splitfang blocking the route), a river crossing with exactly one bridge
+// (the whole map's bottleneck — a sump band the full interior height except
+// one 3-tile road), and a last ridge-framed stretch into the exit. A second
+// Crawlmass wave lands turn 3 back at the abandoned position itself
+// (campaignAmaranth.ts's AMARANTH_MISSION_11) — nothing chases the squad
+// mechanically, but something arriving exactly where they just stood, a
+// couple of turns after they left it, reads as pursuit without needing one.
+const THE_LONG_WALK_BACK_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "sump", "sump", "sump", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "sump", "sump", "sump", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "sump", "sump", "sump", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "exit", "exit", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "road", "road", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "deploy", "deploy", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "exit", "exit", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "road", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "deploy", "deploy", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "exit", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "road", "road", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "deploy", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "sump", "sump", "sump", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "sump", "sump", "sump", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "ridge", "ridge", "plain", "plain", "plain", "plain", "sump", "sump", "sump", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+];
+
+// ---- Mission 12: The Fallow Line — Thistledown Watch, dug in (26 x 14) ----
+// Act finale. Same ground Muster opened the act on (map_amaranth_muster's
+// own subtitle, "Thistledown Watch") — not the same map (hold_zone needs a
+// hold tile Muster's grid never had, and this position reads as fortified,
+// not open tutorial ground any more), but a deliberate echo: a redoubt
+// where Muster's rubble knot used to be a plain habblock pair, ridge-ringed
+// the way Sporewatch Ridge's knoll was ("the ridge IS the zone"), trench
+// rubble screening both approaches. Seams ring three full sides — the
+// biggest encirclement in the act — leaving only the west, Warden's own
+// supply line, clear.
+const THE_FALLOW_LINE_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "rubble", "rubble", "plain", "plain", "plain", "spawn", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "ridge", "hold", "hold", "hold", "hold", "ridge", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "ridge", "hold", "hold", "hold", "hold", "ridge", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "deploy", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "rubble", "rubble", "plain", "plain", "plain", "spawn", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+];
+
 export const map_amaranth_muster = makeMap("map_amaranth_muster", "Muster — Thistledown Watch", 20, 12, MUSTER_TILES);
 export const map_amaranth_wire_and_mud = makeMap("map_amaranth_wire_and_mud", "Wire and Mud — the Listening Post", 22, 11, WIRE_AND_MUD_TILES);
 export const map_amaranth_the_low_ground = makeMap("map_amaranth_the_low_ground", "The Low Ground", 24, 15, THE_LOW_GROUND_TILES);
@@ -313,6 +432,10 @@ export const map_amaranth_foraging_party = makeMap("map_amaranth_foraging_party"
 export const map_amaranth_house_colors = makeMap("map_amaranth_house_colors", "House Colors", 20, 12, HOUSE_COLORS_TILES);
 export const map_amaranth_sporewatch_ridge = makeMap("map_amaranth_sporewatch_ridge", "Sporewatch Ridge", 20, 12, SPOREWATCH_RIDGE_TILES);
 export const map_amaranth_the_choir_sings = makeMap("map_amaranth_the_choir_sings", "The Choir Sings", 22, 13, THE_CHOIR_SINGS_TILES);
+export const map_amaranth_cut_off = makeMap("map_amaranth_cut_off", "Cut Off", 22, 14, CUT_OFF_TILES);
+export const map_amaranth_the_amaranth_betrayal = makeMap("map_amaranth_the_amaranth_betrayal", "The Amaranth Betrayal", 24, 13, THE_AMARANTH_BETRAYAL_TILES);
+export const map_amaranth_the_long_walk_back = makeMap("map_amaranth_the_long_walk_back", "The Long Walk Back", 34, 13, THE_LONG_WALK_BACK_TILES);
+export const map_amaranth_the_fallow_line = makeMap("map_amaranth_the_fallow_line", "The Fallow Line — Thistledown Watch", 26, 14, THE_FALLOW_LINE_TILES);
 
 export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_muster,
@@ -323,4 +446,8 @@ export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_house_colors,
   map_amaranth_sporewatch_ridge,
   map_amaranth_the_choir_sings,
+  map_amaranth_cut_off,
+  map_amaranth_the_amaranth_betrayal,
+  map_amaranth_the_long_walk_back,
+  map_amaranth_the_fallow_line,
 };

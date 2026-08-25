@@ -44,6 +44,9 @@ import {
   BLOOM_REGROWTH_FIRST_TURN,
   BLOOM_REGROWTH_INTERVAL_TURNS,
   BLOOM_REGROWTH_TILES_PER_TICK,
+  FIRE_SUPPORT_CHARGES_PER_MISSION,
+  FIRE_SUPPORT_RADIUS,
+  FIRE_SUPPORT_DAMAGE,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
@@ -267,6 +270,16 @@ export class Mission {
   // state — see ClearBloomPatchBonusObjective's own comment in
   // data/types.ts for why this kind has no failure condition to detect.
   clearBloomPatchOutcome: "none" | "pending" | "succeeded" = "none";
+  // abil_fire_support's shared squad-wide charge pool (25 Aug 2026, Mission
+  // 14 "Steel Rain" — see data/abilities.ts's own comment for the full
+  // design). Unlike usedScreenThisMission/sensorSweepUsesRemaining, which
+  // live on the individual BattleUnit, this lives on Mission itself — one
+  // ship, one shared budget, spent by whichever unit calls it in first.
+  // Initialized to FIRE_SUPPORT_CHARGES_PER_MISSION for every mission
+  // (harmless on a mission whose deployed units never carry
+  // abil_fire_support at all — canFireSupport's own ability check means
+  // this counter simply never gets read on Missions 1-13).
+  fireSupportChargesRemaining: number = FIRE_SUPPORT_CHARGES_PER_MISSION;
 
   constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[]) {
     this.mission = mission;
@@ -1398,6 +1411,92 @@ export class Mission {
     return { muntiId: unitId, concealedIds: covered.map((u) => u.instanceId) };
   }
 
+  // ---- abil_fire_support (25 Aug 2026, Mission 14 "Steel Rain") — see
+  // data/abilities.ts's own comment for the full design. Same canX()/verb
+  // shape as Screen just above, but the resource lives on Mission itself
+  // (fireSupportChargesRemaining, shared squad-wide) rather than on the
+  // calling unit, and the target is a tile, not another unit — closer in
+  // shape to Clear Bloom's radius effect below than to Screen's own
+  // "centered on the caster" reach.
+
+  canFireSupport(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_fire_support")) return false;
+    if (this.fireSupportChargesRemaining <= 0) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every in-bounds tile a fire support call-in could target from `from` —
+   * fireSupport()'s own vision-range check, enumerated as a click target
+   * set rather than asked one tile at a time. Mirrors
+   * getSensorSweepAreaFrom's exact shape (a square box, `unit.vision` tiles
+   * in every direction, clipped to the board) — Chebyshev distance <= r is
+   * precisely that square, so the same loop answers both questions. Unlike
+   * every other getXFrom preview in this file, this ISN'T "what a
+   * self-targeted button would immediately do" — scenes/Battle.ts uses this
+   * one to arm a genuine two-click flow (press FIRE, then click a tile in
+   * the returned set), since a strike's target is an arbitrary tile, not a
+   * unit or the caster's own position.
+   */
+  getFireSupportAreaFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canFireSupport(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const r = unit.vision;
+    const tiles: Coord[] = [];
+    for (let y = Math.max(0, from.y - r); y <= Math.min(this.map.height - 1, from.y + r); y++) {
+      for (let x = Math.max(0, from.x - r); x <= Math.min(this.map.width - 1, from.x + r); x++) {
+        tiles.push({ x, y });
+      }
+    }
+    return tiles;
+  }
+
+  /**
+   * Call in a strike on `target`: every living hostile within
+   * FIRE_SUPPORT_RADIUS (Chebyshev) of that tile takes FIRE_SUPPORT_DAMAGE
+   * flat — no defense/cover mitigation, no retaliation, applied directly
+   * rather than through resolveMechAttack/resolveAttackOnBloom (this is an
+   * off-board strike, not a mech's own weapon). `target` must be within the
+   * calling unit's own vision (reusing the same Chebyshev vision-range math
+   * fog of war already uses elsewhere in this file, rather than inventing a
+   * separate line-of-sight check for one ability) — you can only radio in
+   * coordinates you can actually see.
+   *
+   * Costs this unit's entire remaining action budget and ends the turn
+   * (same tier as Ambush/Interdict/Taunt), and spends one of the squad's
+   * shared FIRE_SUPPORT_CHARGES_PER_MISSION charges regardless of how many
+   * hostiles the strike actually hits (including zero — calling in a
+   * strike on an empty tile still burns the charge; a real player reading
+   * the board wrong pays for it, same as a wasted Overwatch).
+   */
+  fireSupport(unitId: string, target: Coord): { hitIds: string[]; killedIds: string[] } | null {
+    if (!this.canFireSupport(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    if (chebyshevDistance(unit.pos, target) > unit.vision) return null;
+
+    const hit = this.livingUnits().filter((u) => u.side === "hostile" && chebyshevDistance(u.pos, target) <= FIRE_SUPPORT_RADIUS);
+    const killedIds: string[] = [];
+    for (const victim of hit) {
+      if (victim.kind === "bloom") applyBloomDamage(victim, FIRE_SUPPORT_DAMAGE);
+      else applyMechDamage(victim, FIRE_SUPPORT_DAMAGE);
+      this.recordContribution(victim.instanceId, unit.pilotId, FIRE_SUPPORT_DAMAGE);
+      if (victim.downed) {
+        killedIds.push(victim.instanceId);
+        this.resolveKill(victim.instanceId, unit.pilotId);
+      }
+    }
+    this.fireSupportChargesRemaining -= 1;
+    unit.actionsRemaining = 0;
+    this.log.push(
+      `${unit.displayName} calls in fire support on (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${this.fireSupportChargesRemaining} charge(s) left).`
+    );
+    for (const victim of hit) if (victim.downed) this.handleDowned(victim);
+    return { hitIds: hit.map((u) => u.instanceId), killedIds };
+  }
+
   // ---- abil_clear_bloom (Mission 3's "clean the bloom patch" pass, 23 Aug
   // 2026) — see data/abilities.ts's own comment for the full design. Same
   // canX()/getX()/verb shape as every other ability-depth verb above, but a
@@ -1817,6 +1916,26 @@ export class Mission {
       // Crawlmass and the patch grows back on its own clock, so waiting was
       // never a free win even without a turn cap.
       if (!this.hasBloomMat()) return this.finishWin();
+    } else if (this.mission.objective === "survive_n_turns") {
+      // Survive N Turns (Mission 9 "Cut Off," 25 Aug 2026) — see
+      // data/types.ts's CampaignMission.objective comment for the full
+      // reasoning. Squad wipe already returned above (`!playerAlive.length`)
+      // before this branch is ever reached, so reaching the turn count at
+      // all means winning it — no separate loss-on-timeout branch the way
+      // hold_zone/extract_unit have, because there is no other way to lose
+      // this objective than the wipe already checked for every objective.
+      if (this.turn >= turnLimit) return this.finishWin();
+    } else if (this.mission.objective === "contested_landing") {
+      // Contested Landing (Mission 15 "Landfall," 25 Aug 2026) — see
+      // data/types.ts's CampaignMission.objective comment for the design
+      // conversation. Byte-for-byte the same win check as eliminate_all,
+      // deliberately: the "opposed drop" identity lives entirely in the
+      // mission's own map/wave design (hostiles already at the deploy
+      // zone at turn 1), not in a different win condition, and house rule
+      // #5's no-turn-limit-fail treatment applies here too — a chaotic
+      // opening several turns long is the whole point, not something a
+      // clock should be able to cut short.
+      if (!hostileAlive.length) return this.finishWin();
     }
     return false;
   }

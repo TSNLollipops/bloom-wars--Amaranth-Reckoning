@@ -52,7 +52,7 @@
 // directly instead of ids) but is out of scope here.
 import type { MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
 import { UNIT_ARCHETYPES } from "../data/units";
-import { WARDEN_PILOTS, WARDEN_MEKS } from "../data/campaignAmaranth";
+import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS } from "../data/campaignAmaranth";
 import { findPilot } from "../data/pilotRegistry";
 import type { BattleUnit } from "./units";
 
@@ -485,4 +485,39 @@ export function recruitDiscretionary(state: CampaignState, targetClass: Path): R
   state.points -= DISCRETIONARY_RECRUIT_COST;
   const pilot = generatePilot(state, targetClass);
   return { ok: true, pilot };
+}
+
+// ---- 7. Second Lance integration (Act II opening, 25 Aug 2026) ---------
+
+export interface SecondLanceResult {
+  integrated: boolean;
+  pilots?: PilotRecord[];
+}
+
+/**
+ * Adds the five Second Lance pilots (data/campaignAmaranth.ts's
+ * SECOND_LANCE_PILOTS/SECOND_LANCE_MEKS) to the campaign roster as active,
+ * deployable pilots — the mechanical half of "Warden Company forms around
+ * Rourke's survivors and a second lance" (Independent Campaign doc, Act
+ * II's own opening line). Free, unconditional, cannot fail, same shape as
+ * checkMuntiGuarantee — this is a scripted story beat, not a purchase.
+ *
+ * Call site (scenes/Debrief.ts) fires this once, gated on
+ * `mission.mission.id === "mission_amaranth_12" && mission.outcome ===
+ * "win"` — Mission 12 is Act I's own finale (Thistledown Watch, Rourke's
+ * promotion to Captain), and the campaign doc frames the second lance as
+ * arriving at that exact act transition, not as a reward doled out
+ * partway through Act II. Idempotent by construction, same technique
+ * generatePilot's callers rely on elsewhere: checks whether the first
+ * Second Lance pilot id is already in the roster before adding anything,
+ * so a player who reaches Mission 12's debrief screen more than once in
+ * the same browser session (a retry, a reload) never gets five duplicate
+ * entries — matches this codebase's existing "check the actual state,
+ * don't assume a screen renders exactly once" discipline.
+ */
+export function integrateSecondLance(state: CampaignState): SecondLanceResult {
+  if (state.pilots[SECOND_LANCE_PILOTS[0].id]) return { integrated: false };
+  for (const p of SECOND_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
+  for (const [id, m] of Object.entries(SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
+  return { integrated: true, pilots: SECOND_LANCE_PILOTS };
 }

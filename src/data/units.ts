@@ -314,6 +314,53 @@ export const AMARANTH_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
   },
 };
 
+// Amaranth Act II, Mission 16 ("Collaborators," 25 Aug 2026) — House
+// Amaranth conscripts, not the Line Troopers above. Same "named on purpose"
+// discipline as AMARANTH_HOSTILE_MECHS' own comment (the opposite of Team
+// One's Unmarked Mechs), but a deliberately different displayName from
+// "House Amaranth Line Trooper" — the campaign doc's own moral-complexity
+// flag for this mission (Appendix, and claude/Bloom_Wars_Spitball_Ideas.md's
+// note tying it to the recurring House Amaranth thread) reads differently
+// if the game calls them by the same name as Mission 6's professional
+// detachment. These are conscripts: forced levies, not volunteers — the
+// fight is exactly as lethal, but who's on the other end of it isn't the
+// same, and the name is the only lever this pass has to say so without
+// writing a dialogue system. Tier kept at "G", matching every other hostile
+// mech archetype in this file — no combat data exists yet for a
+// conscript-vs-veteran stat split, and inventing one here would be a
+// balance claim this pass has no evidence for. One per path, same 4-unit
+// shape as Mission 6's own line detachment.
+export const AMARANTH_CONSCRIPT_MECHS: Record<string, HostileMechArchetype> = {
+  hostile_mech_amaranth_conscript_01: {
+    id: "hostile_mech_amaranth_conscript_01",
+    displayName: "House Amaranth Conscript",
+    path: "tank",
+    tier: "G",
+    spawnAt: { x: 22, y: 3 },
+  },
+  hostile_mech_amaranth_conscript_02: {
+    id: "hostile_mech_amaranth_conscript_02",
+    displayName: "House Amaranth Conscript",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 22, y: 6 },
+  },
+  hostile_mech_amaranth_conscript_03: {
+    id: "hostile_mech_amaranth_conscript_03",
+    displayName: "House Amaranth Conscript",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 22, y: 7 },
+  },
+  hostile_mech_amaranth_conscript_04: {
+    id: "hostile_mech_amaranth_conscript_04",
+    displayName: "House Amaranth Conscript",
+    path: "reeps",
+    tier: "G",
+    spawnAt: { x: 22, y: 10 },
+  },
+};
+
 // Merged lookup table, same shape as pilotRegistry.ts's reason for
 // existing: engine/units.ts's createHostileMechUnit needs to resolve IDs
 // from both blocks above by id alone, and without this merge a second
@@ -323,4 +370,5 @@ export const AMARANTH_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
 export const ALL_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
   ...HOSTILE_MECHS,
   ...AMARANTH_HOSTILE_MECHS,
+  ...AMARANTH_CONSCRIPT_MECHS,
 };

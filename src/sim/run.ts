@@ -24,6 +24,20 @@
 // do. guard caps this at 4 sub-decisions per unit per turn as a backstop,
 // not because 4 is a meaningful number.
 //
+// Extended 25 Aug 2026 (Phase 1 of the objective-awareness pass — see
+// playerAi/index.ts's own header) to also re-ask after decision.action:
+// clearBloom() and rescueUnit() share repairUnit's exact "costs 1 action,
+// does not end the turn" contract (both functions' own doc comments say so
+// explicitly), so a Munti that just cleared bloom_mat, or a unit that just
+// picked up the rescue, should get the same shot at a follow-up move/attack
+// a healer already gets.
+//
+// decidePlayerAiAction's new 5th argument, `m` itself, satisfies
+// PlayerAiMissionContext structurally — Mission already exposes exactly the
+// nested shape that type asks for (mission.objective, mission.map.holdZone,
+// etc.), so no adapter object is built here; see that type's own comment
+// in sim/playerAi/types.ts.
+//
 // Pass --ai-log (optionally --ai-log=path.json) to also dump every
 // decision the test player AI made this run as JSON — useful for eyeballing
 // *why* a run went the way it did, and per Maxime, a starting point if any
@@ -61,15 +75,31 @@ while (m.outcome === "ongoing" && guard < 500) {
     let subGuard = 0;
     while (unit.actionsRemaining > 0 && subGuard < 4) {
       subGuard += 1;
-      const decision = decidePlayerAiAction(m.map, unit, m.units, m.turn);
+      const decision = decidePlayerAiAction(m.map, unit, m.units, m.turn, m);
       if (decision.path && decision.path.length > 1) {
         m.moveUnit(unit.instanceId, decision.path[decision.path.length - 1]);
       }
-      const repaired = Boolean(decision.repairTargetId);
+      const repeatable = Boolean(decision.repairTargetId) || Boolean(decision.action);
       if (decision.repairTargetId) m.repairUnit(unit.instanceId, decision.repairTargetId);
       if (decision.attackTargetId) m.attack(unit.instanceId, decision.attackTargetId);
+      // action dispatch (25 Aug 2026, Phase 1) — the only two verbs
+      // decidePlayerAiAction can return today; see playerAi/types.ts's own
+      // comment on PlayerAiDecision.action for why more aren't here yet.
+      if (decision.action === "clear_bloom") m.clearBloom(unit.instanceId);
+      if (decision.action === "rescue") {
+        // Exactly one rescuable NPC ever exists on a mission at a time
+        // (BonusObjective's own comment: "a mission carries at most one
+        // bonusObjective") — decidePlayerAiAction doesn't need to name
+        // which one, this is the only candidate there ever is.
+        const npc = m.units.find((u) => u.npcIncapacitated);
+        if (npc) m.rescueUnit(unit.instanceId, npc.instanceId);
+      }
+      // Screen (25 Aug 2026, same pass as use_screen in playerAi/index.ts) —
+      // screenAllies() re-validates canScreen itself, same belt-and-braces
+      // pattern as clearBloom/rescueUnit above.
+      if (decision.action === "screen") m.screenAllies(unit.instanceId);
       if (m.outcome !== "ongoing" || unit.downed) break;
-      if (!repaired) break; // see the header comment above for why only a repair earns another sub-decision
+      if (!repeatable) break; // see the header comment above for why only these earn another sub-decision
     }
     if (m.outcome !== "ongoing") break;
   }
@@ -100,8 +130,16 @@ const counts: Record<PlayerAiReason, number> = {
   kill: 0,
   repair_critical_ally: 0,
   repair_ally: 0,
+  clear_bloom: 0,
+  use_screen: 0,
   focus_weak: 0,
   advance_into_range: 0,
+  seek_rescue: 0,
+  rescue_pickup: 0,
+  rescue_carry: 0,
+  hold_zone: 0,
+  extract_to_exit: 0,
+  escort_to_exit: 0,
   seek_fight: 0,
   regroup_low_hp: 0,
   retreat_low_hp: 0,

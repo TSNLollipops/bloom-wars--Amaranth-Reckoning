@@ -163,6 +163,37 @@ export const SCREEN_RADIUS = 1;
 // belt solo is never realistic in one mission.
 export const BLOOM_CLEAR_RADIUS = 1;
 
+// abil_fire_support (25 Aug 2026, batch 2 / Mission 14 "Steel Rain" —
+// "First Providence call-ins"). Minimal standalone version per Maxime's
+// call when this was flagged: a real, usable ability now, not gated behind
+// the Antfarm Carrier Hub's own CIC/Energy economy (`claude/
+// Bloom_Wars_Antfarm_Carrier_Hub_v1.md` §2/§5), which is still 100% paper —
+// nothing there exists to hang a dependency on yet. Same shape as Screen/
+// Sensor Sweep (a resource to spend, not a rate to wait out), but the
+// resource itself is shared squad-wide rather than per-unit — there is
+// only one ship, so `Mission.fireSupportChargesRemaining` (engine/
+// mission.ts) is one shared counter any eligible unit can spend from,
+// unlike usedScreenThisMission/sensorSweepUsesRemaining which live on the
+// individual unit. See engine/mission.ts's canFireSupport/fireSupport for
+// the actual verb.
+export const FIRE_SUPPORT_CHARGES_PER_MISSION = 2;
+// Chebyshev radius of the strike, centered on the called-in tile — same
+// "3x3 area" convention as SCREEN_RADIUS/BLOOM_CLEAR_RADIUS above.
+export const FIRE_SUPPORT_RADIUS = 1;
+// Flat damage to every living hostile in the strike radius, applied
+// directly rather than through the normal attack-resolution formula
+// (bloomDamage's 100/effectiveDefense scaling, engine/combat.ts) — this is
+// an off-board strike, not a mech's own weapon, so it isn't subject to a
+// mech's attack stat or a Bloom's defense stat either. Tuned to land
+// meaningfully above Crawlmass's 40 endurance (an outright kill) while
+// still leaving tougher single targets (Choir's 110, Gallcyst's 140)
+// standing — a real dent, not a delete button, on the harder half of the
+// current roster. A first-pass placeholder number, same as every other
+// unweighted balance constant in this file — not run through combat_sim.py
+// or any equivalent, since none of the ability-depth constants before it
+// were either (Screen/Taunt/Interdict all shipped the same way).
+export const FIRE_SUPPORT_DAMAGE = 60;
+
 // Regrowth pacing — first tick, then repeat interval, then how many NEW
 // tiles convert per tick (engine/mission.ts's tickBloomRegrowth). Kept
 // deliberately small and DETERMINISTIC (no Math.random — see that method's
