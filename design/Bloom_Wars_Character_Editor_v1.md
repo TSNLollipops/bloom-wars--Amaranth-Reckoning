@@ -44,13 +44,11 @@ At creation, the player picks one animal as the pilot's **primary read** — the
 
 This is the good news: nothing structural needs to change. Favorability (Antfarm §13.2) is already designed as one number per relationship, not a property of any specific named character — "a simple bar like in DAO," farmed the same way for anyone: fielded together on missions, Rec Room minigames (Poker, Fletchers, the peg game), sharing a drink at the ship bar. A created pilot slots into that exactly the way Rourke or Bosk does. No special case, no separate system — the karma the ask refers to already exists and already generalizes.
 
-Two real open questions this doc does need to raise, though, because they only become visible at the scale this doc is actually aiming for:
+One real design call this doc needs to make, because it only becomes visible at the scale this doc is actually aiming for:
 
-**Pair-scaling.** Favorability is per-*pair*, not per-pilot. A hand-authored cast of ~20 by Act III (Antfarm §10) already implies up to 190 possible pairs if every pair were tracked. A player-built roster of 50 pushes that past 1,200. Pre-populating a full relationship matrix for a roster that size is real memory/data weight for numbers that mostly never matter — most pairs of pilots will never be fielded together. **Recommendation, easy to veto:** lazy-init. A pair's Favorability value doesn't exist until the first mission that fields both of them, and starts neutral from there. Cheaper to build, cheaper to store, and arguably more correct narratively — you don't have a relationship with someone you've never worked alongside.
+**Pair-scaling — resolved, 25 Aug 2026.** Favorability is per-*pair*, not per-pilot. A hand-authored cast of ~20 by Act III (Antfarm §10) already implies up to 190 possible pairs if every pair were tracked. A player-built roster of 50 pushes that past 1,200. Pre-populating a full relationship matrix for a roster that size is real memory/data weight for numbers that mostly never matter — most pairs of pilots will never be fielded together. Maxime: "oh yeah, better to make them be generated only when they interact." Locked: **lazy-init.** A pair's Favorability value doesn't exist until the first mission that fields both of them, and starts neutral from there — nothing is pre-populated, nothing is computed for a pair that's never actually shared a mission.
 
-**Default standing for a brand-new pilot.** Same answer, same reasoning: neutral/unset toward everyone, including named pilots, until they're actually fielded together. No pilot starts "liked" or "disliked" by construction of being new.
-
-Neither of these is decided here — they're flagged because a roster of 50 makes them real questions in a way a roster of 5 or 10 never surfaced.
+**Default standing for a brand-new pilot** falls out of the same call rather than needing a separate one: neutral/unset toward everyone, including named pilots, until they're actually fielded together. No pilot starts "liked" or "disliked" by construction of being new — there's no value to start them at until lazy-init creates one.
 
 ## 4. Roster generation — solving the "50" problem directly
 
@@ -77,7 +75,6 @@ Spitball Ideas already flagged this in the abstract, for the mod-kit idea genera
 
 - The animal-label preset table's actual Planet-position/pillar-weight values (§2) — proposal only.
 - Whether one animal label is enough per pilot, or two is the right ceiling for "complicated" ones (§2).
-- The Favorability pair-scaling and default-standing proposals (§3) — recommended, not locked.
 - Rolled-name weighting, and the name bank itself (§4).
 - The walkable hub (§5) — already its own flagged, unscoped system elsewhere; not touched here.
 - The canon-vs-custom separation question Spitball Ideas already raised for the mod kit generally — this doc doesn't resolve it, though it's worth noting that anything built through this editor is obviously workshop/custom content by construction, which may do most of that separation's work for free.
@@ -87,7 +84,7 @@ Spitball Ideas already flagged this in the abstract, for the mod-kit idea genera
 
 Design only, per Maxime's own explicit choice this session over starting code. Same sequencing rule as the Reaction Engine and the rest of the hub/social layer: nothing here builds before the hard tactical loop is proven.
 
-If and when this does get greenlit, the cheapest real first slice is Layer 1 (already effectively designed, close to what the emergency-recruit path already does) plus Layer 2's animal-label picker (small — the vocabulary already exists, this is a UI pick and a lookup table, not new mechanics). The two pieces with real engineering weight are the Favorability pair-scaling decision and the JSON/runtime-data migration (§6) — both worth a small prototype before committing, rather than discovering the cost mid-build.
+If and when this does get greenlit, the cheapest real first slice is Layer 1 (already effectively designed, close to what the emergency-recruit path already does) plus Layer 2's animal-label picker (small — the vocabulary already exists, this is a UI pick and a lookup table, not new mechanics). The two pieces with real engineering weight are the lazy-init Favorability store (§3) and the JSON/runtime-data migration (§6) — both worth a small prototype before committing, rather than discovering the cost mid-build.
 
 ## Cross-references
 
