@@ -2,14 +2,27 @@
 // Headless mission harness — Build Brief step 9. Runs a full mission with
 // both sides on AI, no renderer, printing a turn log. `npm run sim -- mission_1a`
 //
-// Player side now autoplays with testPlayerAi.ts instead of the real
-// hostile-AI tiers (Maxime, 22 Aug 2026). Reusing decideHostileAction for
-// both sides stopped working once engine/ai.ts's reflexive/pack tiers got
-// vision-gated — a fully blind reflexive bot just stands at deploy forever
-// on maps where the first wave starts outside anyone's vision (Mission 1a).
-// testPlayerAi.ts is a small heuristic "decent test dummy" built to keep
-// this harness actually reaching a result — see that file's header for
-// what it does and deliberately doesn't do.
+// Player side now autoplays with the Player AI engine (src/sim/playerAi/)
+// instead of the real hostile-AI tiers (Maxime, 22 Aug 2026). Reusing
+// decideHostileAction for both sides stopped working once engine/ai.ts's
+// reflexive/pack tiers got vision-gated — a fully blind reflexive bot just
+// stands at deploy forever on maps where the first wave starts outside
+// anyone's vision (Mission 1a). The Player AI engine is a heuristic "decent
+// test dummy" built to keep this harness actually reaching a result — see
+// that module's own header (src/sim/playerAi/index.ts) for what it does
+// and deliberately doesn't do.
+//
+// Per-unit action loop (25 Aug 2026, part of the same pass that taught the
+// engine to repair): a unit gets re-asked for a decision as long as it
+// still has actions left AND its last decision was a repair. Every other
+// decision shape (attack, retreat, seek_fight, hold) either already
+// consumes every remaining action (attack) or is deliberately left as the
+// unit's one thing for the turn (see playerAi/index.ts's retreat-gate
+// comment for why re-deciding after a pure move risks undoing it) — repair
+// is the one case where "heal, then still have an action left to fight or
+// move" is both safe to re-evaluate and exactly what a real Munti would
+// do. guard caps this at 4 sub-decisions per unit per turn as a backstop,
+// not because 4 is a meaningful number.
 //
 // Pass --ai-log (optionally --ai-log=path.json) to also dump every
 // decision the test player AI made this run as JSON — useful for eyeballing
@@ -17,7 +30,7 @@
 // of this gets reused for multiplayer-map bot opponents later.
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission } from "../engine/mission";
-import { decideTestPlayerAction, resetTestAiLog, testAiLog, type TestAiReason } from "./testPlayerAi";
+import { decidePlayerAiAction, resetPlayerAiLog, playerAiLog, type PlayerAiReason } from "./playerAi";
 import { writeFileSync } from "node:fs";
 
 const missionId = process.argv[2] ?? "mission_1a";
@@ -30,7 +43,7 @@ if (!mission) {
   process.exit(1);
 }
 
-resetTestAiLog();
+resetPlayerAiLog();
 
 const m = new Mission(mission);
 console.log(`=== ${mission.displayName} ===`);
@@ -45,11 +58,19 @@ while (m.outcome === "ongoing" && guard < 500) {
   // unchanged, this is exactly what actually plays in the game.
   for (const unit of m.livingUnits().filter((u) => u.side === "player")) {
     if (unit.downed || unit.actionsRemaining <= 0) continue;
-    const decision = decideTestPlayerAction(m.map, unit, m.units, m.turn);
-    if (decision.path && decision.path.length > 1) {
-      m.moveUnit(unit.instanceId, decision.path[decision.path.length - 1]);
+    let subGuard = 0;
+    while (unit.actionsRemaining > 0 && subGuard < 4) {
+      subGuard += 1;
+      const decision = decidePlayerAiAction(m.map, unit, m.units, m.turn);
+      if (decision.path && decision.path.length > 1) {
+        m.moveUnit(unit.instanceId, decision.path[decision.path.length - 1]);
+      }
+      const repaired = Boolean(decision.repairTargetId);
+      if (decision.repairTargetId) m.repairUnit(unit.instanceId, decision.repairTargetId);
+      if (decision.attackTargetId) m.attack(unit.instanceId, decision.attackTargetId);
+      if (m.outcome !== "ongoing" || unit.downed) break;
+      if (!repaired) break; // see the header comment above for why only a repair earns another sub-decision
     }
-    if (decision.attackTargetId) m.attack(unit.instanceId, decision.attackTargetId);
     if (m.outcome !== "ongoing") break;
   }
   if (m.outcome !== "ongoing") break;
@@ -73,9 +94,12 @@ if (m.permanentLosses.length) {
 }
 
 // Compact summary of what the test player AI actually did, always printed —
-// a quick read on whether units mostly fought, mostly chased, or mostly ran.
-const counts: Record<TestAiReason, number> = {
+// a quick read on whether units mostly fought, mostly chased, mostly ran,
+// or (25 Aug 2026) mostly patched each other up.
+const counts: Record<PlayerAiReason, number> = {
   kill: 0,
+  repair_critical_ally: 0,
+  repair_ally: 0,
   focus_weak: 0,
   advance_into_range: 0,
   seek_fight: 0,
@@ -83,14 +107,14 @@ const counts: Record<TestAiReason, number> = {
   hold_cornered: 0,
   hold_no_target: 0,
 };
-for (const entry of testAiLog) counts[entry.reason] += 1;
+for (const entry of playerAiLog) counts[entry.reason] += 1;
 console.log("");
-console.log(`Player AI decisions (${testAiLog.length} total): ${Object.entries(counts)
+console.log(`Player AI decisions (${playerAiLog.length} total): ${Object.entries(counts)
   .filter(([, n]) => n > 0)
   .map(([reason, n]) => `${reason}=${n}`)
   .join(", ")}`);
 
 if (aiLogPath) {
-  writeFileSync(aiLogPath, JSON.stringify(testAiLog, null, 2));
+  writeFileSync(aiLogPath, JSON.stringify(playerAiLog, null, 2));
   console.log(`Full AI decision log written to ${aiLogPath}`);
 }

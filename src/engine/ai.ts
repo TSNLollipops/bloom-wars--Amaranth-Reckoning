@@ -24,11 +24,11 @@ export function intelligenceOf(unit: BattleUnit): IntelligenceTier {
 
 // livingTargets/occupiedSet/estimateDamage/bestAttackTargetInRange/moveToward/
 // reachableWithinRangeTile are exported (in addition to being used inside
-// this file) so src/sim/testPlayerAi.ts — a testing-only stand-in for a
-// human player, NOT part of decideHostileAction's tier logic — can reuse
-// the same damage math and pathfinding instead of forking it. Nothing here
-// changes for the real hostile AI; this is purely making the building
-// blocks reusable.
+// this file) so src/sim/playerAi/ (25 Aug 2026 restructure of the former
+// src/sim/testPlayerAi.ts) — a testing-only stand-in for a human player,
+// NOT part of decideHostileAction's tier logic — can reuse the same damage
+// math and pathfinding instead of forking it. Nothing here changes for the
+// real hostile AI; this is purely making the building blocks reusable.
 export function livingTargets(units: BattleUnit[], side: BattleUnit["side"]): BattleUnit[] {
   return units.filter((u) => u.side === side && !u.downed);
 }
@@ -53,11 +53,12 @@ function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
  * omniscient for a boss, distinct from reflexive's "nearest VISIBLE target."
  *
  * Exported (Maxime, 22 Aug 2026 — the Mission 3 sim stalemate fix) so
- * sim/testPlayerAi.ts can ask the same question decideHostileAction itself
- * asks — "can any hostile actually see me right now" — instead of a
- * geometric reachability proxy that doesn't know about vision at all. See
- * that file's own retreat-gate comment for why this specific question is
- * the one that matters.
+ * sim/playerAi/ (25 Aug 2026 restructure of the former sim/testPlayerAi.ts)
+ * can ask the same question decideHostileAction itself asks — "can any
+ * hostile actually see me right now" — instead of a geometric reachability
+ * proxy that doesn't know about vision at all. See that module's own
+ * retreat-gate comment for why this specific question is the one that
+ * matters.
  *
  * ---- ABILITY-DEPTH PASS (23 Aug 2026) ----
  * Two of the four new abilities (data/abilities.ts) are the two halves of

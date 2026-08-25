@@ -14,8 +14,8 @@
 // The last block is a different kind of check and the reason this file
 // exists at all rather than just a linting script: Mission 2 is a hold_zone
 // mission, and the headless harness (src/sim) plays it with an
-// objective-BLIND bot (sim/testPlayerAi.ts's header lists objective play as
-// explicitly out of scope) — it only ever "held" the room by coincidentally
+// objective-BLIND bot (sim/playerAi/index.ts's header lists objective play
+// as explicitly out of scope) — it only ever "held" the room by coincidentally
 // standing on a hold tile while shooting at something. That makes the sim
 // useless as evidence that an enlarged Mission 2 is still winnable, so the
 // evidence lives here instead: walk the squad through the doorway the way a

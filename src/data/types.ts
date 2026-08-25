@@ -223,6 +223,22 @@ export interface CampaignMission {
   // Mission 5's rescue-and-recruit pass (23 Aug 2026) — see BonusObjective's
   // own comment above. Never gates mission win/loss; only ever adds.
   bonusObjective?: BonusObjective;
+  // Stub, 25 Aug 2026 (Maxime, on missions 9-36: "I want the combat side to
+  // be done, with the open nodes for the social interaction that will be
+  // the best part of the game imho" — then, asked whether to build the
+  // actual node system now or just leave a slot: "Stub an empty hook field
+  // now"). A free-form label ONLY — nothing reads this field yet, and
+  // nothing should start reading it before there's a real system behind
+  // it. That system is `claude/Bloom_Wars_NPC_Reaction_Engine_v1.md`
+  // (confirmed formula, explicitly "zero code, not scheduled") or whatever
+  // it feeds — Favorability (Antfarm Carrier Hub §13.2), Stress (§11.4), or
+  // an in-mission talk/fight/ambush choice (Spitball Ideas). This field
+  // exists so a mission authored between now and whenever that engine gets
+  // built has somewhere to name "there's a social beat here" without a
+  // structural rework across every mission file later. Purely descriptive
+  // today, e.g. "marrow_distant_sighting" or "bosk_last_words" — not an id
+  // into any table, not validated, not required.
+  socialHook?: string;
 }
 
 export interface AbilityDef {
