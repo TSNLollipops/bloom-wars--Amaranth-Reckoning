@@ -98,13 +98,46 @@
 // (low HP, no kill/repair available) close on the nearest living ally
 // instead of the enemy — see the `regroup_low_hp` branch below.
 //
+// ---- Terrain, cover, focus fire, same day (cont'd) ----
+// Maxime: "can you teach the ai to traverse terrain, use cover, focus
+// fire, bait?" Three of four landed this pass — see combat.ts's own
+// header (terrain/cover) and its focus-fire section for the full
+// reasoning. Short version: cover was a real gap, not a new mechanic —
+// data/tiles.ts's defenceStars already gives every attack a genuine
+// 10%-per-star damage reduction, the positioning code just never asked
+// which reachable tile was actually defensible. Folded into
+// retreatPath/reachableIntoRangePreferringSafety (combat.ts) as a scoring
+// nudge, not a hard override — a genuinely better tactical position (a
+// safer retreat, a better kiting range) still wins; cover only breaks
+// ties. Focus fire replaces bestAttackTargetInRange (engine/ai.ts's
+// attacker-relative "who do I hit hardest," the correct answer for the
+// real hostile AI it's shared with) with focusFireTargetInRange
+// (combat.ts) — the squad's shared, attacker-INDEPENDENT priority target,
+// so different units asking "who do I shoot" in the same turn actually
+// converge on finishing the same enemy instead of splitting damage across
+// two half-dead ones.
+//
+// Bait is NOT this pass. Flagged rather than attempted: everything above
+// is a reactive heuristic (score the tiles/targets I can already see);
+// bait is fundamentally a different kind of thing — deliberately
+// exposing a unit and predicting how the hostile AI will respond to it,
+// which means actually running decideHostileAction (engine/ai.ts) against
+// hypothetical player positions before committing to one, not just
+// scoring the position itself. It also has a real prerequisite this
+// engine doesn't have yet: overwatch usage. A bait unit's whole point is
+// usually "step out far enough that something takes the bait, while an
+// ally is already braced to punish it" — and this engine has never once
+// called enterOverwatch. Worth doing right, not worth guessing at in the
+// same pass as three lower-risk, already-well-understood fixes — see the
+// build log addendum for the actual ask back to Maxime on this.
+//
 // Every decision is logged to `playerAiLog` — reused for exactly the
 // reason the original file's header gave: "a starting point if any of this
 // gets reused for multiplayer-map bot opponents later." Call
 // `resetPlayerAiLog()` before a run; read `playerAiLog` after.
 import type { MapDefinition } from "../../data/types";
 import type { BattleUnit } from "../../engine/units";
-import { livingTargets, bestAttackTargetInRange, moveToward, isVisibleTo } from "../../engine/ai";
+import { livingTargets, isVisibleTo } from "../../engine/ai";
 import {
   RETREAT_HP_FRACTION,
   lastStep,
@@ -114,6 +147,8 @@ import {
   reachableIntoRangePreferringSafety,
   cohesiveMoveToward,
   nearestLivingAlly,
+  focusFireTargetInRange,
+  regroupPath,
 } from "./combat";
 import { findCriticalRepairTarget, findRoutineRepairTarget } from "./support";
 import type { PlayerAiDecision, PlayerAiLogEntry } from "./types";
@@ -232,6 +267,53 @@ export function decidePlayerAiAction(map: MapDefinition, unit: BattleUnit, allUn
     // fall through — no safe retreat, so fight from here same as normal
   }
 
+  // Critically wounded, no kill on the table — regroup toward the squad's
+  // healer BEFORE considering any further offense, not after (Maxime, 25
+  // Aug 2026 — same "wierd mission 1 is easy" thread, found by a stress-test
+  // log that outlasted the fix above). This used to sit much lower in the
+  // priority order, only reached once focus_weak/advance_into_range both
+  // came up empty — which sounds safe, but "empty" meant "literally zero
+  // damage possible," and it turns out that's a much narrower bar than
+  // "worth doing." resolveAttackOnBloom (engine/combat.ts) scales an
+  // attacker's own damage by ITS OWN currentHp/maxHp fraction (a flagged,
+  // not-fully-validated placeholder formula, but it's what's live) — so a
+  // unit at 4% hp still finds a real, positive-damage target almost every
+  // turn, just for a few points at a time. Confirmed against a captured
+  // 290-turn WIN (Mission 1): Farsight sat at 4% hp from turn ~13 onward,
+  // unspotted the entire time (so retreat_low_hp above never even fired),
+  // and focus_weak kept finding SOME crawlmass she could tickle for a
+  // handful of damage every single turn — 273 of 340 total decisions that
+  // run — because the old priority order only ever asked "can I hurt
+  // anything," never "is this worth doing given how close to dead I am."
+  // No real player grinds out 3-damage pokes at 4% hp when nothing is
+  // chasing them; they fall back to the medic. Guaranteed kills are
+  // already exempted (the killNow check at the top of this function is
+  // unconditional and always wins regardless of hp) — this only affects
+  // marginal, non-lethal offense. Same regroupPath (combat.ts) and same
+  // "only take real progress" guard as before — a unit that can't get any
+  // closer to its squad falls straight through to the normal combat chain
+  // below, so this can't stall a lone survivor with nowhere left to go.
+  if (hpFraction < RETREAT_HP_FRACTION) {
+    const ally = nearestLivingAlly(unit, allUnits);
+    const pathToSquad = ally ? regroupPath(map, unit, ally, enemies, allUnits, turn) : null;
+    if (pathToSquad && pathToSquad.length > 1) {
+      log({
+        turn,
+        unitId: unit.instanceId,
+        displayName: unit.displayName,
+        hpFraction,
+        reason: "regroup_low_hp",
+        targetId: ally!.instanceId,
+        targetName: ally!.displayName,
+        destination: lastStep(pathToSquad),
+        note: `${Math.round(hpFraction * 100)}% hp, prioritizing the squad over marginal offense`,
+      });
+      return { path: pathToSquad };
+    }
+    // No living ally, or already as close to one as this turn can get —
+    // nothing better to do than fall through to the normal chain below.
+  }
+
   // Still no kill, and no critical repair fired — a routine top-up beats
   // chip-damaging a target that isn't dying to this attack anyway. Lower
   // priority than the critical check above on purpose: this only matters
@@ -251,8 +333,11 @@ export function decidePlayerAiAction(map: MapDefinition, unit: BattleUnit, allUn
     return { repairTargetId: routine.instanceId };
   }
 
-  // No kill, no repair in place — attack the weakest reachable target instead (focus fire).
-  const inPlace = bestAttackTargetInRange(map, unit, unit.pos, [weakestTarget(enemies), ...enemies], allUnits);
+  // No kill, no repair in place — attack the squad's shared priority target
+  // instead (focusFireTargetInRange, not bestAttackTargetInRange — see
+  // combat.ts's own header for why this unit's own "who do I hit hardest"
+  // isn't the right question for a coordinated squad).
+  const inPlace = focusFireTargetInRange(map, unit, unit.pos, enemies, allUnits);
   if (inPlace) {
     log({
       turn,
@@ -271,67 +356,39 @@ export function decidePlayerAiAction(map: MapDefinition, unit: BattleUnit, allUn
   const pathIntoRange = reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits);
   if (pathIntoRange) {
     const dest = lastStep(pathIntoRange);
-    const atDest = findLethalTargetFrom(map, unit, dest, enemies, allUnits) ?? bestAttackTargetInRange(map, unit, dest, enemies, allUnits);
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "advance_into_range",
-      targetId: atDest?.instanceId,
-      targetName: atDest?.displayName,
-      destination: dest,
-    });
-    return { path: pathIntoRange, attackTargetId: atDest?.instanceId };
-  }
-
-  // Still too far to attack from anywhere reachable this turn.
-  //
-  // Low HP + unspotted (Maxime, 25 Aug 2026 — "wierd mission 1 is easy"):
-  // this is the exact branch that was oscillating a wounded unit between
-  // two tiles forever. The old code fell straight through to chasing the
-  // enemy here regardless of HP — nothing currently threatens this unit
-  // (that's what "unspotted" means), so the very next turn it would walk
-  // right back into someone's sight, get re-spotted, retreat again next
-  // turn, and repeat. A unit that's already broken contact while hurt and
-  // has nothing to kill or heal from here should close on its own squad
-  // instead of soloing back toward the fight — regrouping is what actually
-  // breaks the cycle, not just capping how far it chases (see below).
-  if (hpFraction < RETREAT_HP_FRACTION) {
-    const ally = nearestLivingAlly(unit, allUnits);
-    const regroupPath = ally ? moveToward(map, unit, ally.pos, allUnits) : undefined;
-    // ONLY take this branch if regrouping is actual, real progress
-    // (regroupPath.length > 1 — the unit is genuinely closer to its squad
-    // than it was). Found the hard way: a unit already standing as close
-    // to its nearest ally as the map allows (adjacent, or blocked) kept
-    // re-choosing this branch every single turn forever, since nothing
-    // about "am I hurt / am I unspotted / is there a living ally" ever
-    // changes on its own — that deadlocked an entire Mission 1 sim run at
-    // the 500-turn guard (regroup_low_hp fired 979 of 1030 total decisions
-    // that run, every single one a no-op). If regrouping can't make
-    // progress, there's genuinely nothing better to do than the same
-    // cohesion-capped chase everyone else falls through to below — a real
-    // player boxed into a corner with nowhere left to fall back to has to
-    // commit too, and that's a live, resolving turn instead of a mission
-    // that never ends.
-    if (regroupPath && regroupPath.length > 1) {
+    const atDest = findLethalTargetFrom(map, unit, dest, enemies, allUnits) ?? focusFireTargetInRange(map, unit, dest, enemies, allUnits);
+    // Only commit to this branch if it's actually worth something — a real
+    // move (path.length > 1) or a target worth shooting once there. A
+    // reachable-into-range tile that turns out to just be "stay exactly
+    // where I already am, and there's nothing here worth shooting" (the
+    // damageable-only filter in focusFireTargetInRange can now correctly
+    // say so — see that function's own header) used to still return here
+    // and short-circuit the whole decision, permanently pre-empting the
+    // low-hp regroup fallback below every single turn. Found via the same
+    // 500-turn ONGOING run as that filter itself.
+    if (pathIntoRange.length > 1 || atDest) {
       log({
         turn,
         unitId: unit.instanceId,
         displayName: unit.displayName,
         hpFraction,
-        reason: "regroup_low_hp",
-        targetId: ally!.instanceId,
-        targetName: ally!.displayName,
-        destination: lastStep(regroupPath),
-        note: `${Math.round(hpFraction * 100)}% hp, nothing to kill/heal from here`,
+        reason: "advance_into_range",
+        targetId: atDest?.instanceId,
+        targetName: atDest?.displayName,
+        destination: dest,
       });
-      return { path: regroupPath };
+      return { path: pathIntoRange, attackTargetId: atDest?.instanceId };
     }
-    // Either no living ally left (lone survivor) or already as close to
-    // one as this turn can get — fall through to the same cohesion-capped
-    // chase everyone else gets.
+    // Already here, and nothing here is worth attacking — fall through
+    // instead of returning a no-op decision.
   }
+
+  // Still too far to attack from anywhere reachable this turn. A
+  // critically wounded unit already had its shot at regrouping toward the
+  // squad above (before offense was even considered) — if that couldn't
+  // make progress then, it can't now either (nothing about the board
+  // changed in between), so there's no second regroup check here. Just the
+  // same cohesion-capped chase everyone else falls through to.
 
   // Close the distance on the weakest target — cohesion-capped (Maxime, 25
   // Aug 2026 — see combat.ts's own header for the full Mission 1 diagnosis)

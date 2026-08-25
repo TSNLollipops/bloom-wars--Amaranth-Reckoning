@@ -365,7 +365,7 @@ export const AMARANTH_MISSION_8: CampaignMission = {
   displayName: "Amaranth I.8 — The Choir Sings",
   mapId: "map_amaranth_the_choir_sings",
   briefing:
-    "Command's never heard anything like what came over the listening post's feed last night — dozens of voices, all one voice. Whatever it is, it's coordinated, and it's coming down the open ground north of the Line. Don't get spread out.",
+    "Command's never heard anything like what came over the listening post's feed last night — dozens of voices, all one voice. Whatever it is, it's coordinated, and it's coming down the open ground north of the Line. Don't get spread out. If it really is a swarm, the ones who scatter thinnest are the ones it converges on first.",
   objective: "eliminate_all",
   // Act I's mid-boss (Independent Campaign §8) — the first Bloom encounter
   // built with intelligence: "pack" specifically for its coordination,
@@ -381,6 +381,13 @@ export const AMARANTH_MISSION_8: CampaignMission = {
   events: [],
   rewardPoints: 210,
   heirloomCharge: "locked",
+  // abil_taunt (25 Aug 2026, Maxime: "only give them the ability for this
+  // mission onward") — the last line of the briefing above foreshadows
+  // the swarm, XCOM-alert style, without spelling out the counter; the
+  // action bar just quietly has a new option from here on. See
+  // CampaignMission.bonusAbilityUnlocks (data/types.ts) for the mechanism
+  // and its own note on why "onward" isn't solved campaign-wide yet.
+  bonusAbilityUnlocks: [{ path: "meeps", abilityId: "abil_taunt" }],
 };
 
 export const AMARANTH_ACT1: CampaignMission[] = [

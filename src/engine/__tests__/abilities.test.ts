@@ -23,7 +23,7 @@
 // mutation to isolate one scenario on an otherwise quiet board.
 import { describe, it, expect } from "vitest";
 import { Mission } from "../mission";
-import { AMARANTH_MISSION_1 } from "../../data/campaignAmaranth";
+import { AMARANTH_MISSION_1, AMARANTH_MISSION_8 } from "../../data/campaignAmaranth";
 import { createHostileMechUnit, createBloomUnit, type BattleUnit } from "../units";
 import { chebyshevDistance } from "../grid";
 import { unitsVisibleToSide, decideHostileAction } from "../ai";
@@ -413,6 +413,122 @@ describe("Mission.ambush (abil_ambush — Meeps)", () => {
     expect(rourke.overwatch).toBe(false);
     expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN);
     expect(logsMatching(mission, "fires overwatch").length).toBe(0);
+  });
+});
+
+// =====================================================================
+// abil_taunt — Meeps, mission-gated (25 Aug 2026, Maxime: "only give them
+// the ability for this mission onward" — mission 8, The Choir Sings)
+// =====================================================================
+
+/**
+ * Mirrors quietMission() but built on Mission 8 instead of Mission 1 —
+ * abil_taunt only exists on a Meeps from here on
+ * (CampaignMission.bonusAbilityUnlocks, applied at deploy time by
+ * Mission.applyBonusAbilityUnlocks), so a test that actually exercises
+ * the ability needs a mission where there's something to grant.
+ */
+function quietMission8(): Mission {
+  const mission = new Mission(AMARANTH_MISSION_8);
+  for (const u of mission.units) {
+    if (u.side === "hostile") u.downed = true;
+    else u.pos = { ...PARK[u.pilotId!] };
+  }
+  const keeper = createHostileMechUnit("hostile_mech_01", { x: 19, y: 11 });
+  keeper.vision = 0;
+  keeper.moveRange = 0;
+  mission.units.push(keeper);
+  return mission;
+}
+
+describe("Mission.taunt (abil_taunt — Meeps, mission 8 onward)", () => {
+  it("is NOT in a Meeps' kit before mission 8 — the mission gate actually gates", () => {
+    const mission = quietMission();
+    const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
+    expect(rourke.abilities).not.toContain("abil_taunt");
+    expect(mission.canTaunt(rourke.instanceId)).toBe(false);
+    expect(mission.taunt(rourke.instanceId)).toBe(false);
+  });
+
+  it("IS in a Meeps' kit from mission 8 on, layered alongside the normal kit rather than replacing it", () => {
+    const mission = quietMission8();
+    const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
+    expect(rourke.abilities).toContain("abil_taunt");
+    expect(rourke.abilities).toContain("abil_ambush"); // still has its ordinary Meeps kit too
+  });
+
+  it("does not mutate the shared, static archetype data — a Mission 1 build afterward still sees no abil_taunt", () => {
+    quietMission8();
+    const mission1 = quietMission();
+    const rourke1 = pilot(mission1, "pilot_rourke", { x: 9, y: 1 });
+    expect(rourke1.abilities).not.toContain("abil_taunt");
+  });
+
+  it("draws every eye, spends the whole budget, ends the turn, and logs it", () => {
+    const mission = quietMission8();
+    const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
+
+    expect(mission.canTaunt(rourke.instanceId)).toBe(true);
+    expect(mission.taunt(rourke.instanceId)).toBe(true);
+
+    expect(rourke.taunting).toBe(true);
+    expect(rourke.actionsRemaining).toBe(0);
+    expect(logsMatching(mission, "draws every eye — taunting.").length).toBe(1);
+  });
+
+  it("is ONCE PER MISSION — refused on the second use even with turns to spare", () => {
+    const mission = quietMission8();
+    const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
+
+    expect(mission.taunt(rourke.instanceId)).toBe(true);
+    expect(rourke.usedTauntThisMission).toBe(true);
+    expect(mission.canTaunt(rourke.instanceId)).toBe(false);
+    expect(mission.taunt(rourke.instanceId)).toBe(false);
+
+    mission.endPlayerTurn();
+
+    expect(mission.turn).toBe(2);
+    expect(mission.canTaunt(rourke.instanceId)).toBe(false); // spent, not cooling
+    expect(mission.taunt(rourke.instanceId)).toBe(false);
+    expect(logsMatching(mission, "draws every eye").length).toBe(1);
+  });
+
+  it("refuses a unit without the ability, a unit out of actions, a downed unit, an unknown id, and any hostile", () => {
+    const mission = quietMission8();
+    const bosk = pilot(mission, "pilot_bosk", { x: 9, y: 1 }); // Tank — no abil_taunt, mission 8 or not
+    expect(bosk.abilities).not.toContain("abil_taunt");
+    expect(mission.canTaunt(bosk.instanceId)).toBe(false);
+    expect(mission.taunt(bosk.instanceId)).toBe(false);
+
+    expect(mission.taunt("no_such_unit")).toBe(false);
+
+    const hostile = mover(mission, { x: 15, y: 8 });
+    hostile.abilities = ["abil_taunt"];
+    expect(mission.canTaunt(hostile.instanceId)).toBe(false);
+    expect(mission.taunt(hostile.instanceId)).toBe(false);
+    expect(hostile.taunting).toBeFalsy();
+
+    const rourke = pilot(mission, "pilot_rourke", { x: 12, y: 1 });
+    rourke.actionsRemaining = 0;
+    expect(mission.canTaunt(rourke.instanceId)).toBe(false);
+    rourke.actionsRemaining = MAX_ACTIONS_PER_TURN;
+    rourke.downed = true;
+    expect(mission.canTaunt(rourke.instanceId)).toBe(false);
+  });
+
+  it("expires at the taunter's next turn start, same loop as concealed/braced", () => {
+    const mission = quietMission8();
+    const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
+    mission.taunt(rourke.instanceId);
+    expect(rourke.taunting).toBe(true);
+
+    mission.endPlayerTurn(); // nothing on the board can act on it — the keeper is blind
+
+    expect(mission.turn).toBe(2);
+    expect(rourke.taunting).toBe(false);
+    expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN);
+    // But the one use is still gone for the rest of the mission:
+    expect(mission.canTaunt(rourke.instanceId)).toBe(false);
   });
 });
 

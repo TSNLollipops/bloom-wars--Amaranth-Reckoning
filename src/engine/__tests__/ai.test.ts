@@ -190,3 +190,74 @@ describe("decideHostileAction — hostile mech Munti priority", () => {
     expect(decision.attackTargetId).toBe(tank.instanceId);
   });
 });
+
+// abil_taunt (Meeps, 25 Aug 2026, mission 8 onward — see
+// CampaignMission.bonusAbilityUnlocks). `taunting` is a plain flag on
+// BattleUnit, set only by Mission.taunt() in real play — this suite sets
+// it directly and is entirely about decideHostileAction honoring it ahead
+// of every tier's own pick, including Munti priority. The verb itself
+// (canTaunt/taunt/once-per-mission/ends-turn) is covered in
+// abilities.test.ts, matching that file's own split between "the posture"
+// and "what the posture does to targeting."
+describe("decideHostileAction — abil_taunt overrides every tier's own pick", () => {
+  it("mech-reflexive tier: a taunting unit outranks Munti priority", () => {
+    const map = makeUniformMap("plain", 10, 10);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 5, y: 5 });
+    const munti = testUnit("munti", { x: 5, y: 6 }); // adjacent — would win Munti-priority on its own
+    const taunter = testUnit("meeps", { x: 6, y: 5 }); // also adjacent
+    taunter.taunting = true;
+
+    const decision = decideHostileAction(map, mech, [mech, munti, taunter]);
+    expect(decision.attackTargetId).toBe(taunter.instanceId);
+  });
+
+  it("mech-reflexive tier: falls back to Munti priority when the taunter can't be reached into range this turn", () => {
+    const map = makeUniformMap("plain", 30, 30);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 }); // meeps: moveRange 6, attackRange [1,1]
+    mech.vision = 25;
+    const farTaunter = testUnit("tank", { x: 20, y: 0 }); // visible, far past moveRange+attackRange
+    farTaunter.taunting = true;
+    const nearMunti = testUnit("munti", { x: 1, y: 0 }); // adjacent — a real, reachable kill this turn
+
+    const decision = decideHostileAction(map, mech, [mech, farTaunter, nearMunti]);
+    expect(decision.attackTargetId).toBe(nearMunti.instanceId);
+  });
+
+  it("plain reflexive tier: a taunting unit outranks the best-damage pick", () => {
+    const map = makeUniformMap("plain", 10, 10);
+    const crawlmass = createBloomUnit("bloom_crawlmass", { x: 5, y: 5 });
+    crawlmass.side = "hostile";
+    const taunter = testUnit("munti", { x: 5, y: 6 }, { tierDefense: 500 }); // adjacent, high defense — would lose the best-damage pick on its own
+    taunter.taunting = true;
+    const tank = testUnit("tank", { x: 6, y: 5 }); // adjacent, ordinary defense — the best-damage pick under plain reflexive rules
+
+    const decision = decideHostileAction(map, crawlmass, [crawlmass, taunter, tank]);
+    expect(decision.attackTargetId).toBe(taunter.instanceId);
+  });
+
+  it("pack tier: a taunting unit outranks the pack's own lowest-HP×DEF pick", () => {
+    const map = makeUniformMap("plain", 10, 10);
+    const choir = createBloomUnit("bloom_choir", { x: 5, y: 5 });
+    choir.side = "hostile";
+    const packmate = createBloomUnit("bloom_choir", { x: 6, y: 5 }); // within SPLITFANG_PACK_RADIUS, same pack-tier intelligence — makes packDecision route through the shared target
+    packmate.side = "hostile";
+    const taunter = testUnit("tank", { x: 5, y: 6 }); // adjacent, ordinary HP×DEF — would lose the pack's own pick on its own
+    taunter.taunting = true;
+    const weakest = testUnit("munti", { x: 6, y: 6 }, { tierDefense: 20 }); // adjacent, deliberately the lowest HP×DEF — the pack's own pick without taunt
+
+    const decision = decideHostileAction(map, choir, [choir, packmate, taunter, weakest]);
+    expect(decision.attackTargetId).toBe(taunter.instanceId);
+  });
+
+  it("has no effect on a taunting unit the hostile can't see — taunt does not grant visibility", () => {
+    const map = makeUniformMap("plain", 30, 30);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 });
+    mech.vision = 5;
+    const unseenTaunter = testUnit("meeps", { x: 20, y: 0 }); // far outside vision
+    unseenTaunter.taunting = true;
+    const nearTank = testUnit("tank", { x: 1, y: 0 }); // adjacent — the only actually visible target
+
+    const decision = decideHostileAction(map, mech, [mech, unseenTaunter, nearTank]);
+    expect(decision.attackTargetId).toBe(nearTank.instanceId);
+  });
+});

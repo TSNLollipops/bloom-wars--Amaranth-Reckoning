@@ -349,7 +349,9 @@ export class Mission {
       // recruit.
       this.deployRoster.forEach((entry, i) => {
         const pos = pads[i % pads.length];
-        this.units.push(createPlayerUnit(entry.pilotId, pos, { pilot: entry.pilot, mek: entry.mek }));
+        const unit = createPlayerUnit(entry.pilotId, pos, { pilot: entry.pilot, mek: entry.mek });
+        this.applyBonusAbilityUnlocks(unit);
+        this.units.push(unit);
         this.unitPerformance[entry.pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
       });
       return;
@@ -359,9 +361,28 @@ export class Mission {
     // through the static, build-time roster/registry.
     this.mission.playerPilotIds.forEach((pilotId, i) => {
       const pos = pads[i % pads.length];
-      this.units.push(createPlayerUnit(pilotId, pos));
+      const unit = createPlayerUnit(pilotId, pos);
+      this.applyBonusAbilityUnlocks(unit);
+      this.units.push(unit);
       this.unitPerformance[pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
     });
+  }
+
+  /**
+   * CampaignMission.bonusAbilityUnlocks (data/types.ts) — a mission-gated
+   * ability grant, layered on top of the unit's normal per-archetype kit
+   * rather than baked into UNIT_ARCHETYPES, so it never touches the
+   * static data every other mission also reads. Builds a NEW abilities
+   * array; `archetype.abilities` (what createPlayerUnit copied the
+   * reference from) is shared, static data and must never be mutated in
+   * place.
+   */
+  private applyBonusAbilityUnlocks(unit: BattleUnit): void {
+    const unlocks = this.mission.bonusAbilityUnlocks;
+    if (!unlocks || !unit.path) return;
+    const grants = unlocks.filter((u) => u.path === unit.path && !unit.abilities.includes(u.abilityId));
+    if (!grants.length) return;
+    unit.abilities = [...unit.abilities, ...grants.map((g) => g.abilityId)];
   }
 
   private spawnWavesForTurn(turn: number): void {
@@ -1252,6 +1273,37 @@ export class Mission {
     return true;
   }
 
+  canTaunt(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_taunt")) return false;
+    if (unit.usedTauntThisMission) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Draw every eye. The redirect itself lives in engine/ai.ts — each of
+   * the four targeting functions checks `taunting` before its own normal
+   * pick — this method only sets the posture and spends the mission's one
+   * use of it.
+   *
+   * Costs the unit's entire remaining action budget and ends its turn,
+   * same tier as Ambush/Interdict/Overwatch: this is a full commitment,
+   * not a cheap add-on to an attack. See abil_taunt's own comment in
+   * data/abilities.ts for why it carries no defensive bonus to go with
+   * the redirect.
+   */
+  taunt(unitId: string): boolean {
+    if (!this.canTaunt(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    unit.taunting = true;
+    unit.usedTauntThisMission = true;
+    unit.actionsRemaining = 0;
+    this.log.push(`${unit.displayName} draws every eye — taunting.`);
+    return true;
+  }
+
   canInterdict(unitId: string): boolean {
     const unit = this.unitById(unitId);
     if (!unit || unit.downed) return false;
@@ -1597,6 +1649,10 @@ export class Mission {
       // would just be a second place the expiry rule lives.
       unit.concealed = false;
       unit.braced = false;
+      // abil_taunt (25 Aug 2026) — same fact, same reason, same loop: the
+      // redirect lasts exactly one hostile phase and expires when this
+      // unit's own next turn begins.
+      unit.taunting = false;
     }
     this.log.push(`--- Turn ${this.turn}: player phase ---`);
     this.runTurnStartEvents();

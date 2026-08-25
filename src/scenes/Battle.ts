@@ -416,6 +416,9 @@ export class Battle extends Phaser.Scene {
     if (unit.abilities.includes("abil_interdict")) {
       out.push({ label: "INTERDICT", usable: m.canInterdict(id), endsTurn: true, run: () => void m.interdict(id) });
     }
+    if (unit.abilities.includes("abil_taunt")) {
+      out.push({ label: "TAUNT", usable: m.canTaunt(id), endsTurn: true, run: () => void m.taunt(id) });
+    }
     if (unit.abilities.includes("abil_screen")) {
       out.push({ label: "SCREEN", usable: m.canScreen(id), endsTurn: false, run: () => void m.screenAllies(id) });
     }
@@ -947,6 +950,10 @@ export class Battle extends Phaser.Scene {
         else if (selected.overwatch) lines.push("ON OVERWATCH — holding fire");
         else if (selected.concealed) lines.push("CONCEALED — the Bloom cannot see this unit");
         if (selected.braced) lines.push("BRACED — pins hostiles that step alongside");
+        if (selected.taunting) lines.push("TAUNTING — every hostile that can see this unit targets it first");
+        if (selected.abilities.includes("abil_taunt") && selected.usedTauntThisMission) {
+          lines.push("Taunt: spent (once per mission)");
+        }
         if (selected.abilities.includes("abil_sensor_sweep")) {
           const charges = m.sensorSweepChargesRemaining(selected.instanceId);
           lines.push(charges > 0 ? `Sensor Sweep: ${charges} charge(s) left this mission` : "Sensor Sweep: spent for this mission");

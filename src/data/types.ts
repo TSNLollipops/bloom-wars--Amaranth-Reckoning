@@ -239,6 +239,26 @@ export interface CampaignMission {
   // today, e.g. "marrow_distant_sighting" or "bosk_last_words" — not an id
   // into any table, not validated, not required.
   socialHook?: string;
+  // Mission-gated ability unlock (Taunt pass, 25 Aug 2026 — Maxime: "only
+  // give them the ability for this mission onward"). CampaignState today
+  // has no notion of "which mission number are we on" (rourkeRank's own
+  // comment already flags the same gap for rank-up triggers), and
+  // engine/mission.ts deliberately never imports a specific named
+  // campaign's mission array — it only ever works from whatever
+  // CampaignMission it's handed, so a real generic solution belongs on
+  // the mission data itself, not as an id-parsing shortcut in the engine.
+  // deployPlayerUnits() reads this at deploy time and layers the named
+  // ability onto every living player unit of the given path, on top of
+  // (never replacing) that unit's normal per-archetype kit.
+  //
+  // "Onward" is intentionally NOT solved generically here — there is no
+  // campaign-state-level persistent unlock set, on purpose. Only mission 8
+  // carries this field today because missions 9-12 don't exist yet; when
+  // they're built, carry the same entry onto each of them too. If that
+  // ever gets tedious (a real "unlocked once, applies to every mission
+  // after" need), that's the moment to promote this into CampaignState —
+  // not before, per this project's own scope-flagging rule.
+  bonusAbilityUnlocks?: { path: Path; abilityId: string }[];
 }
 
 export interface AbilityDef {

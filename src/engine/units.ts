@@ -102,6 +102,16 @@ export interface BattleUnit {
    */
   braced?: boolean;
   /**
+   * Meeps abil_taunt (25 Aug 2026). Every hostile targeting function that
+   * is choosing among multiple already-visible targets picks this unit
+   * first — see engine/ai.ts's taunting-check at the top of
+   * reflexiveDecision/sharedPackTarget/mechReflexiveDecision/
+   * emergentDecision. Does not grant visibility on its own; a hostile that
+   * cannot see this unit is unaffected. Cleared at the start of this
+   * unit's own next turn, same loop as concealed/braced.
+   */
+  taunting?: boolean;
+  /**
    * abilityId -> the earliest turn number that ability may be used again.
    * Absent, or a value <= the current turn, means ready. Nothing uses this
    * today — abil_sensor_sweep was the one cooldown'd ability and moved to
@@ -113,6 +123,8 @@ export interface BattleUnit {
   abilityCooldowns?: Record<string, number>;
   /** Munti abil_screen, once per mission — deliberately mirrors usedEvacThisMission's shape rather than folding into abilityCooldowns, because "spent for good" is a different fact from "not ready yet." */
   usedScreenThisMission?: boolean;
+  /** Meeps abil_taunt, once per mission — same shape and same reason as usedScreenThisMission. */
+  usedTauntThisMission?: boolean;
   /**
    * Reeps abil_sensor_sweep, SENSOR_SWEEP_CHARGES_PER_MISSION uses per
    * mission (data/combatTables.ts) — a spendable budget, not a cooldown,
@@ -251,6 +263,7 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
@@ -298,6 +311,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
@@ -384,6 +398,7 @@ export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleU
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: "shape_npc_downed",
   };
@@ -422,6 +437,7 @@ export function createBloomUnit(bloomArchetypeId: string, pos: Coord, opts?: { b
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
+    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: arch.spriteKey,
   };

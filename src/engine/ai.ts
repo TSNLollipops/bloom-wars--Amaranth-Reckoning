@@ -4,6 +4,12 @@
 // Data Pack §9 specifies: nearest target, best damage, no coordination —
 // plus Munti priority within their own vision, 25 Aug 2026, see
 // mechReflexiveDecision below) — not a branch inside one function.
+//
+// abil_taunt (Meeps, 25 Aug 2026, mission 8 onward — see
+// CampaignMission.bonusAbilityUnlocks): a `taunting` player unit outranks
+// every tier's own pick, including Munti priority. One check at the top
+// of each of reflexiveDecision / sharedPackTarget / mechReflexiveDecision
+// / emergentDecision — not a fifth tier, and not a new targeting system.
 import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
 import { BLOOM, SPLITFANG_PACK_RADIUS } from "../data/bloom";
@@ -239,16 +245,24 @@ export function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, t
 function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const targets = visibleEnemiesOf(unit, allUnits);
   if (!targets.length) return {}; // nothing in sensor range — hold position rather than beeline the whole board
-  targets.sort((a, b) => chebyshevDistance(unit.pos, a.pos) - chebyshevDistance(unit.pos, b.pos));
-  const nearest = targets[0];
 
-  const inPlaceTarget = bestAttackTargetInRange(map, unit, unit.pos, targets, allUnits);
+  // abil_taunt (25 Aug 2026): a visible taunting unit wins the "who do I
+  // go after" choice outright — same singleton-list trick
+  // mechReflexiveDecision/emergentDecision use below for a priority Munti
+  // target, so bestAttackTargetInRange has nothing else in scope to weigh
+  // it against.
+  const taunter = targets.find((t) => t.taunting);
+  const pool = taunter ? [taunter] : targets;
+  pool.sort((a, b) => chebyshevDistance(unit.pos, a.pos) - chebyshevDistance(unit.pos, b.pos));
+  const nearest = pool[0];
+
+  const inPlaceTarget = bestAttackTargetInRange(map, unit, unit.pos, pool, allUnits);
   if (inPlaceTarget) return { attackTargetId: inPlaceTarget.instanceId };
 
   const pathIntoRange = reachableWithinRangeTile(map, unit, nearest.pos, allUnits);
   if (pathIntoRange) {
     const dest = pathIntoRange[pathIntoRange.length - 1];
-    const target = bestAttackTargetInRange(map, unit, dest, targets, allUnits);
+    const target = bestAttackTargetInRange(map, unit, dest, pool, allUnits);
     return { path: pathIntoRange, attackTargetId: target?.instanceId };
   }
 
@@ -264,6 +278,10 @@ function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: Battl
   const enemies = livingTargets(allUnits, enemySideOf(unit));
   const targets = enemies.filter((t) => spotters.some((s) => isVisibleTo(s, t)));
   if (!targets.length) return undefined;
+  // abil_taunt (25 Aug 2026): overrides the pack's own "lowest HP x DEF"
+  // pick below, the same way it overrides every other tier's pick.
+  const taunter = targets.find((t) => t.taunting);
+  if (taunter) return taunter;
   // "lowest (HP x DEF) wins" — GDD §5.3.
   return targets.reduce((best, t) => (t.currentHp * t.effectiveDefense < best.currentHp * best.effectiveDefense ? t : best));
 }
@@ -296,19 +314,26 @@ function emergentDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battle
   // ever revisited, it is one filter on this line, not a new system.
   const targets = livingTargets(allUnits, enemySideOf(unit));
   if (!targets.length) return {};
+  // abil_taunt (25 Aug 2026): outranks Munti-priority below, same as
+  // mechReflexiveDecision. Deliberately inherits this tier's own
+  // omniscience (no isVisibleTo gate, see the comment above this
+  // function) rather than adding one of its own — a taunting unit isn't
+  // newly hidden from a boss that already sees everything on the board.
+  const taunter = targets.find((t) => t.taunting);
   const munti = targets.find((t) => t.path === "munti");
+  const priority = taunter ?? munti;
 
   const [minR, maxR] = unit.attackRange;
-  if (munti) {
-    const d = chebyshevDistance(unit.pos, munti.pos);
-    if (d >= minR && d <= maxR) return { attackTargetId: munti.instanceId };
+  if (priority) {
+    const d = chebyshevDistance(unit.pos, priority.pos);
+    if (d >= minR && d <= maxR) return { attackTargetId: priority.instanceId };
   }
   const inRange = bestAttackTargetInRange(map, unit, unit.pos, targets, allUnits);
   if (inRange) return { attackTargetId: inRange.instanceId };
   // The Heartwood (the only emergent unit in the slice) has moveRange 0 —
   // it never repositions. If nothing valid is in range, it passes.
   if (unit.moveRange === 0) return {};
-  return { path: moveToward(map, unit, (munti ?? targets[0]).pos, allUnits) };
+  return { path: moveToward(map, unit, (priority ?? targets[0]).pos, allUnits) };
 }
 
 /**
@@ -339,6 +364,20 @@ function emergentDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battle
  */
 function mechReflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const targets = visibleEnemiesOf(unit, allUnits);
+
+  // abil_taunt (25 Aug 2026) outranks the Munti-priority check right
+  // below it — overriding "kill the munties 1st" when it matters is the
+  // entire point of the ability. Same reach-check shape as the Munti
+  // branch: only actually diverts if the taunting unit is reachable-into-
+  // range THIS turn, else falls through exactly like Munti-priority does.
+  const taunter = targets.find((t) => t.taunting);
+  if (taunter) {
+    const inPlace = bestAttackTargetInRange(map, unit, unit.pos, [taunter], allUnits);
+    if (inPlace) return { attackTargetId: inPlace.instanceId };
+    const pathToTaunter = reachableWithinRangeTile(map, unit, taunter.pos, allUnits);
+    if (pathToTaunter) return { path: pathToTaunter, attackTargetId: taunter.instanceId };
+  }
+
   const munti = targets.find((t) => t.path === "munti");
   if (munti) {
     const inPlace = bestAttackTargetInRange(map, unit, unit.pos, [munti], allUnits);

@@ -231,6 +231,47 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // Munti currently stands on removes that cost starting next turn, not
     // retroactively.
   },
+  abil_taunt: {
+    id: "abil_taunt",
+    displayName: "Taunt",
+    kind: "active",
+    // MEEPS. Mission-gated, not a chassis/path unlock like everything
+    // else here — see CampaignMission.bonusAbilityUnlocks (data/types.ts)
+    // for why, and data/campaignAmaranth.ts's mission 8 for where it's
+    // actually granted. Every other Meeps chassis already carries
+    // abil_ambush, whose whole job is "vanish so the Bloom cannot target
+    // this unit." Taunt is the opposite half of that same idea, not a
+    // second idea: the same fast diver choosing to become the loudest
+    // thing on the field instead of the quietest one.
+    //
+    // Effect: until this unit's own next turn, every hostile-side
+    // targeting rule that is currently deciding between multiple visible
+    // targets picks this unit first, full stop — ahead of the mech/boss
+    // "kill the Munti" priority check (Maxime, 25 Aug 2026), ahead of a
+    // Splitfang/Choir pack's shared "lowest HP x DEF" pick, ahead of plain
+    // reflexive's nearest-target rule. It does not make this unit visible
+    // to anything that couldn't already see it — no shouting across the
+    // map, no bypassing fog of war. It only wins the choice among
+    // whichever hostiles already have eyes on it. See engine/ai.ts's
+    // `taunting`-check at the top of each of the four targeting
+    // functions.
+    //
+    // Deliberately carries NO defensive bonus — no brace, no damage
+    // reduction. The trade is already asymmetric in the right direction
+    // without one: a downed Meeps just restocks next mission at no real
+    // cost, but a downed Munti (no emergency-replacement system for a
+    // combat loss mid-campaign the way the permadeath/recruit-phase
+    // system covers a permanent loss) eats a real setback. Softening the
+    // risk on the Meeps side would blunt exactly the "real emergency,
+    // real cost" gamble this was built to be.
+    //
+    // Cost: the unit's ENTIRE remaining action budget, ends its turn —
+    // same tier as Ambush/Interdict/Overwatch, not the 1-action Screen/
+    // Sweep tier. ONCE PER MISSION per Meeps (usedTauntThisMission),
+    // mirroring abil_cockpit_evac and abil_screen: an effect that can
+    // reliably pull a whole enemy phase off the Munti is spent, not
+    // rationed.
+  },
   abil_severance: {
     id: "abil_severance",
     displayName: "Severance",
