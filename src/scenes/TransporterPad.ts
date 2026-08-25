@@ -42,7 +42,11 @@ import { canLaunchMission, createWardenCampaignState, loadCampaignState, saveCam
 // anywhere yet), chosen from the same blue-grey family as MapSelect's
 // card palette rather than Battle's board colours, which encode side
 // (player/hostile), not class.
-const PATH_COLORS: Record<Path, number> = {
+// Exported 25 Aug 2026 so scenes/Hub.ts can draw the same placeholder-
+// portrait convention (coloured circle + initials, GDD §12.2) for its own
+// NPCs instead of re-deriving it — same colours, same initials logic,
+// still no real art pipeline behind either.
+export const PATH_COLORS: Record<Path, number> = {
   meeps: 0x4a7a9a,
   tank: 0x8a7a5f,
   reeps: 0x5c8a5a,
@@ -120,7 +124,7 @@ function capitalize(s: string): string {
  * Falls back gracefully for anything that doesn't fit that shape (a
  * generated recruit's `Recruit "Callsign"`, or a single bare word).
  */
-function pilotInitials(displayName: string): string {
+export function pilotInitials(displayName: string): string {
   const namePart = displayName.split("—")[0].trim();
   const words = namePart
     .split(/\s+/)

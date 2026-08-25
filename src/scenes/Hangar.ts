@@ -72,5 +72,16 @@ export class Hangar extends Phaser.Scene {
       saveCampaignState(this.state);
       this.scene.start("MapSelect");
     });
+    // Entry point for the Hub scene prototype (Walkable Hub Build Plan
+    // Phase 1, 25 Aug 2026). Own row, above the balance/back-button row —
+    // sharing that row would overlap the "Company Points" label, which
+    // starts right at CARD_L and has no fixed width to dodge. Labeled
+    // PROTOTYPE deliberately — this doesn't claim the Antfarm's actual
+    // Hangar Deck fiction is live, same discipline this file's own header
+    // already holds itself to.
+    makeShopButton(this, this.footerLayer, 480, 572, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
+      saveCampaignState(this.state);
+      this.scene.start("Hub");
+    });
   }
 }
