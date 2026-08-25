@@ -17,7 +17,8 @@ export type PlayerAiReason =
   | "repair_ally" // an adjacent ally is hurt enough to be worth healing instead of chip-damaging a target that isn't dying this turn anyway
   | "focus_weak" // attacked the weakest in-range target (no kill, no repair, available)
   | "advance_into_range" // moved to close distance, attacking on arrival if possible
-  | "seek_fight" // nothing in range yet, closing distance on the weakest target
+  | "seek_fight" // nothing in range yet, closing distance on the weakest target (cohesion-capped — see combat.ts's cohesiveMoveToward)
+  | "regroup_low_hp" // low HP, unspotted, no kill/repair available — closing on the nearest living ally instead of chasing the enemy alone
   | "retreat_low_hp" // below RETREAT_HP_FRACTION with no kill available — fell back
   | "hold_cornered" // wanted to retreat but nowhere safer was reachable — fought anyway
   | "hold_no_target"; // no living enemies at all

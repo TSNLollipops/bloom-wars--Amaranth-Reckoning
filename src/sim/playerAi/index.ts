@@ -76,6 +76,28 @@
 //     will make this gap matter more, not less — flagged for a future pass
 //     once those missions are actually being built, not guessed at now.
 //
+// ---- Squad cohesion + regroup fix, same day (cont'd) ----
+// Maxime playtested and called it: "wierd mission 1 is easy" — Mission 1
+// (6 Crawlmass vs. a 5-unit squad) was losing in sim, and it shouldn't be
+// close. Root-caused against the actual turn log rather than guessed at:
+// two distinct bugs, both pre-existing (confirmed against the pre-restructure
+// AI via git history, same result either way — this pass didn't introduce
+// either one). See combat.ts's own header for the full Mission-1 evidence.
+// (1) seek_fight had no concept of the squad at all — a fast unit (Meeps,
+// move 6) would sprint alone toward the nearest enemy while a slow one
+// (Tank, move 3) fell three-plus tiles behind, so the squad fought as two
+// separate, isolated clusters from turn 2 onward and Lask (the only unit
+// that can heal) never once ended up adjacent to a hurt ally the whole
+// mission. Fixed with cohesiveMoveToward (combat.ts): seek_fight now caps
+// how far a unit will advance ahead of its nearest living ally. (2) a
+// wounded, unspotted unit with nothing to kill or heal fell straight
+// through to normal chase logic, which walked it right back into the
+// enemy's sight the very next turn — Rourke's actual sim coordinates
+// ping-ponged between two tiles for five turns straight doing nothing
+// while her squad died around her. Fixed by having that specific case
+// (low HP, no kill/repair available) close on the nearest living ally
+// instead of the enemy — see the `regroup_low_hp` branch below.
+//
 // Every decision is logged to `playerAiLog` — reused for exactly the
 // reason the original file's header gave: "a starting point if any of this
 // gets reused for multiplayer-map bot opponents later." Call
@@ -83,7 +105,16 @@
 import type { MapDefinition } from "../../data/types";
 import type { BattleUnit } from "../../engine/units";
 import { livingTargets, bestAttackTargetInRange, moveToward, isVisibleTo } from "../../engine/ai";
-import { RETREAT_HP_FRACTION, lastStep, weakestTarget, findLethalTargetFrom, retreatPath, reachableIntoRangePreferringSafety } from "./combat";
+import {
+  RETREAT_HP_FRACTION,
+  lastStep,
+  weakestTarget,
+  findLethalTargetFrom,
+  retreatPath,
+  reachableIntoRangePreferringSafety,
+  cohesiveMoveToward,
+  nearestLivingAlly,
+} from "./combat";
 import { findCriticalRepairTarget, findRoutineRepairTarget } from "./support";
 import type { PlayerAiDecision, PlayerAiLogEntry } from "./types";
 
@@ -254,8 +285,59 @@ export function decidePlayerAiAction(map: MapDefinition, unit: BattleUnit, allUn
     return { path: pathIntoRange, attackTargetId: atDest?.instanceId };
   }
 
-  // Still too far — just close the distance.
-  const path = moveToward(map, unit, goal.pos, allUnits);
+  // Still too far to attack from anywhere reachable this turn.
+  //
+  // Low HP + unspotted (Maxime, 25 Aug 2026 — "wierd mission 1 is easy"):
+  // this is the exact branch that was oscillating a wounded unit between
+  // two tiles forever. The old code fell straight through to chasing the
+  // enemy here regardless of HP — nothing currently threatens this unit
+  // (that's what "unspotted" means), so the very next turn it would walk
+  // right back into someone's sight, get re-spotted, retreat again next
+  // turn, and repeat. A unit that's already broken contact while hurt and
+  // has nothing to kill or heal from here should close on its own squad
+  // instead of soloing back toward the fight — regrouping is what actually
+  // breaks the cycle, not just capping how far it chases (see below).
+  if (hpFraction < RETREAT_HP_FRACTION) {
+    const ally = nearestLivingAlly(unit, allUnits);
+    const regroupPath = ally ? moveToward(map, unit, ally.pos, allUnits) : undefined;
+    // ONLY take this branch if regrouping is actual, real progress
+    // (regroupPath.length > 1 — the unit is genuinely closer to its squad
+    // than it was). Found the hard way: a unit already standing as close
+    // to its nearest ally as the map allows (adjacent, or blocked) kept
+    // re-choosing this branch every single turn forever, since nothing
+    // about "am I hurt / am I unspotted / is there a living ally" ever
+    // changes on its own — that deadlocked an entire Mission 1 sim run at
+    // the 500-turn guard (regroup_low_hp fired 979 of 1030 total decisions
+    // that run, every single one a no-op). If regrouping can't make
+    // progress, there's genuinely nothing better to do than the same
+    // cohesion-capped chase everyone else falls through to below — a real
+    // player boxed into a corner with nowhere left to fall back to has to
+    // commit too, and that's a live, resolving turn instead of a mission
+    // that never ends.
+    if (regroupPath && regroupPath.length > 1) {
+      log({
+        turn,
+        unitId: unit.instanceId,
+        displayName: unit.displayName,
+        hpFraction,
+        reason: "regroup_low_hp",
+        targetId: ally!.instanceId,
+        targetName: ally!.displayName,
+        destination: lastStep(regroupPath),
+        note: `${Math.round(hpFraction * 100)}% hp, nothing to kill/heal from here`,
+      });
+      return { path: regroupPath };
+    }
+    // Either no living ally left (lone survivor) or already as close to
+    // one as this turn can get — fall through to the same cohesion-capped
+    // chase everyone else gets.
+  }
+
+  // Close the distance on the weakest target — cohesion-capped (Maxime, 25
+  // Aug 2026 — see combat.ts's own header for the full Mission 1 diagnosis)
+  // so a fast unit doesn't sprint alone into a fight the rest of the squad
+  // is turns away from reaching.
+  const path = cohesiveMoveToward(map, unit, goal.pos, allUnits);
   log({
     turn,
     unitId: unit.instanceId,
