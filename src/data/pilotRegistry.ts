@@ -12,7 +12,7 @@
 // `??`s at every call site.
 import type { MekArchetype, PilotRecord } from "./types";
 import { PILOTS, MEKS, ROSTER_DEPTH_PILOTS, ROSTER_DEPTH_MEKS } from "./meks";
-import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS } from "./campaignAmaranth";
+import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "./campaignAmaranth";
 
 // Second Lance (25 Aug 2026, Act II batch 2) — the exact pilot-lookup gap
 // this file's own header already names, hit again: integrateSecondLance
@@ -26,8 +26,14 @@ import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS } fr
 // so the very first `npm run sim -- mission_amaranth_13` throws
 // "Unknown pilot id" outright rather than silently deploying the wrong
 // squad, which is how this got caught before it shipped.
+//
+// Third Lance (25 Aug 2026, same-day Act III correction) — same gap, hit
+// a third time on schedule: ACT3_DEFAULT_SQUAD (campaignAmaranth.ts)
+// includes Third Lance ids starting with Mission 25, so this entry is
+// what keeps `npm run sim -- mission_amaranth_25` resolving them instead
+// of throwing "Unknown pilot id."
 const PILOT_INDEX: Record<string, PilotRecord> = Object.fromEntries(
-  [...PILOTS, ...ROSTER_DEPTH_PILOTS, ...WARDEN_PILOTS, ...SECOND_LANCE_PILOTS].map((p) => [p.id, p])
+  [...PILOTS, ...ROSTER_DEPTH_PILOTS, ...WARDEN_PILOTS, ...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS].map((p) => [p.id, p])
 );
 
 const MEK_INDEX: Record<string, MekArchetype> = {
@@ -35,6 +41,7 @@ const MEK_INDEX: Record<string, MekArchetype> = {
   ...ROSTER_DEPTH_MEKS,
   ...WARDEN_MEKS,
   ...SECOND_LANCE_MEKS,
+  ...THIRD_LANCE_MEKS,
 };
 
 export function findPilot(pilotId: string | undefined): PilotRecord | undefined {

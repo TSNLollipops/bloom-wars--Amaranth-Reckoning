@@ -110,3 +110,60 @@ describe("Two-action-per-turn house rule", () => {
     expect(unit.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN);
   });
 });
+
+// getMovePath (25 Aug 2026): the read-only path lookup Battle.ts's walk
+// animation calls before moveUnit, so it can animate the same route
+// moveUnit is about to commit instantly. Mirrors moveUnit's own guards and
+// reachability computation exactly, but must never mutate anything — these
+// tests exist specifically to pin that down, not just that it returns a
+// sensible path.
+describe("getMovePath — read-only path lookup for the walk animation", () => {
+  it("returns the real route from the unit's current tile to a reachable destination, without moving the unit or spending its action", () => {
+    const mission = new Mission(MISSION_1A);
+    const unit = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    unit.pos = { x: 5, y: 5 };
+    const before = unit.actionsRemaining;
+
+    const path = mission.getMovePath(unit.instanceId, { x: 7, y: 5 });
+    expect(path).not.toBeNull();
+    expect(path![0]).toEqual({ x: 5, y: 5 });
+    expect(path![path!.length - 1]).toEqual({ x: 7, y: 5 });
+
+    // Nothing committed — this is a lookup, not a move.
+    expect(unit.pos).toEqual({ x: 5, y: 5 });
+    expect(unit.actionsRemaining).toBe(before);
+  });
+
+  it("agrees with moveUnit on what's reachable — same destination, same final position when moveUnit actually runs afterward", () => {
+    const mission = new Mission(MISSION_1A);
+    const unit = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    unit.pos = { x: 5, y: 5 };
+    const dest = { x: 6, y: 5 };
+
+    const path = mission.getMovePath(unit.instanceId, dest);
+    expect(path).not.toBeNull();
+
+    expect(mission.moveUnit(unit.instanceId, dest)).toBe(true);
+    expect(unit.pos).toEqual(dest);
+    expect(unit.pos).toEqual(path![path!.length - 1]);
+  });
+
+  it("returns null for a tile outside the unit's reachable set, same as moveUnit refusing it", () => {
+    const mission = new Mission(MISSION_1A);
+    const unit = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    unit.pos = { x: 5, y: 5 };
+    const farAway = { x: 5 + unit.moveRange * 5, y: 5 };
+
+    expect(mission.getMovePath(unit.instanceId, farAway)).toBeNull();
+    expect(mission.moveUnit(unit.instanceId, farAway)).toBe(false);
+  });
+
+  it("returns null once the unit is out of actions, same guard moveUnit itself uses", () => {
+    const mission = new Mission(MISSION_1A);
+    const unit = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    unit.pos = { x: 5, y: 5 };
+    unit.actionsRemaining = 0;
+
+    expect(mission.getMovePath(unit.instanceId, { x: 6, y: 5 })).toBeNull();
+  });
+});

@@ -23,6 +23,7 @@ export type TileType =
   | "spawn"
   | "exit"
   | "hold"
+  | "dock"
   | "wall";
 
 export interface TileDef {
@@ -117,6 +118,19 @@ export interface MapDefinition {
   height: number;
   tiles: TileType[][];
   deployZones: { player: Coord[]; enemy: Coord[] };
+  // "protect_asset" (Mission 22 "Ash on the Water," 25 Aug 2026 —
+  // Independent Campaign doc, Appendix A: "a non-player off-board asset (a
+  // ship) with its own damage state, implicitly defended"). Walked through
+  // AskUserQuestion before building: zone-tick was the recommended and
+  // chosen shape — the Providence isn't a unit on the board, it's a
+  // perimeter. Deliberately a NEW field rather than reusing holdZone: the
+  // two read oppositely (hold_zone wants a PLAYER standing there;
+  // protect_asset wants no HOSTILE standing there), and a mission using one
+  // could plausibly want the other's tiles to differ, so overloading one
+  // field's meaning across both objective types risked exactly the kind of
+  // confusion this project's own process notes warn about. See
+  // engine/mission.ts's tickAssetDamage/checkWinLoss for the actual verb.
+  defendZone?: Coord[];
   exitTiles?: Coord[];
   holdZone?: Coord[];
 }
@@ -137,7 +151,16 @@ export interface MissionEvent {
     | { type: "unit_downed"; unitId: string }
     | { type: "objective_complete" };
   action:
-    | { type: "spawn"; archetypeIds: string[]; at: Coord[]; tier?: Tier }
+    // burrowed? (Mission 21 "Cut the Root," 25 Aug 2026): the Heartwood's
+    // own Data Pack §8.1 special rule ("every 2 turns from turn 3, spawns 2
+    // Undertow burrowed at the map's spawn seams") is the first scripted
+    // spawn event this game has ever needed to be a burrower — every prior
+    // "spawn" event action (all reveal/dialogue-adjacent flavor, never a
+    // burrowing archetype) went through createBloomUnit's default
+    // (unburrowed) path with nobody noticing the gap. One optional field,
+    // defaults to false so every existing event keeps its exact behavior —
+    // see engine/mission.ts's applyEventAction for the one-line pass-through.
+    | { type: "spawn"; archetypeIds: string[]; at: Coord[]; tier?: Tier; burrowed?: boolean }
     | { type: "reveal"; at: Coord[] }
     | { type: "dialogue"; text: string }
     | { type: "remove_from_roster"; unitIds: string[] };
@@ -249,8 +272,35 @@ export interface CampaignMission {
   // formatting (scenes/Battle.ts's drawHud), so a fifth value costs
   // nothing to display, and Act III may build a real opposed-drop mechanic
   // on top of this name later without a rename.
-  objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing";
-  objectiveParams: { turnLimit: number; holdUntilTurn?: number; extractUnitId?: string };
+  // "protect_asset" (Mission 22 "Ash on the Water," 25 Aug 2026 —
+  // Independent Campaign doc, Appendix A: "a non-player off-board asset (a
+  // ship) with its own damage state, implicitly defended," Act II's
+  // "rehearsal for Act 3's capital-ship stakes"). Walked through
+  // AskUserQuestion before building — chosen shape (of three offered):
+  // zone-tick. A defended perimeter (MapDefinition.defendZone, new field
+  // just above) reuses the hold_zone COORDINATE concept but not its field —
+  // ship HP (Mission.assetHp/assetMaxHp, engine/mission.ts) ticks down once
+  // per turn (environmentStep's new tickAssetDamage, same call site as
+  // tickBloomRegrowth) by PROTECT_ASSET_TICK_DAMAGE per hostile that ended
+  // its turn inside the zone — not per hostile that attacked anything, so
+  // good positioning/kiting hostiles away from the perimeter is what keeps
+  // the ship alive, the same way keeping a Munti out of a pack's reach
+  // already matters everywhere else in this game. Same house-rule-#5 shape
+  // as eliminate_all: reaching turnLimit is a WIN if assetHp is still above
+  // zero (or the board clears early), never a timeout loss — the real loss
+  // condition is assetHp hitting 0, checked in checkWinLoss.
+  objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing" | "protect_asset";
+  objectiveParams: {
+    turnLimit: number;
+    holdUntilTurn?: number;
+    extractUnitId?: string;
+    // protect_asset only — defaults to PROTECT_ASSET_DEFAULT_MAX_HP
+    // (data/combatTables.ts) when unset, so most protect_asset missions
+    // never need to name this explicitly; a per-mission override exists
+    // because Appendix A already names a second protect_asset mission
+    // (32, Act III) that may want a different ship-toughness feel than 22.
+    assetMaxHp?: number;
+  };
   playerPilotIds: string[];
   enemyWaves: EnemyWave[];
   events: MissionEvent[];

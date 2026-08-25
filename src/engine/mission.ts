@@ -47,6 +47,8 @@ import {
   FIRE_SUPPORT_CHARGES_PER_MISSION,
   FIRE_SUPPORT_RADIUS,
   FIRE_SUPPORT_DAMAGE,
+  PROTECT_ASSET_DEFAULT_MAX_HP,
+  PROTECT_ASSET_TICK_DAMAGE,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
@@ -280,9 +282,22 @@ export class Mission {
   // abil_fire_support at all — canFireSupport's own ability check means
   // this counter simply never gets read on Missions 1-13).
   fireSupportChargesRemaining: number = FIRE_SUPPORT_CHARGES_PER_MISSION;
+  // Protect Asset (Mission 22, 25 Aug 2026) — see data/types.ts's
+  // CampaignMission.objective comment for the full design. Field-default
+  // here is just a safe placeholder; the real per-mission value is set in
+  // the constructor body below from objectiveParams.assetMaxHp (or
+  // PROTECT_ASSET_DEFAULT_MAX_HP if the mission doesn't override it), since
+  // that needs `mission` to already be assigned. Harmless on every mission
+  // that isn't protect_asset — nothing reads either field otherwise.
+  assetMaxHp: number = PROTECT_ASSET_DEFAULT_MAX_HP;
+  assetHp: number = PROTECT_ASSET_DEFAULT_MAX_HP;
 
   constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[]) {
     this.mission = mission;
+    if (mission.objective === "protect_asset") {
+      this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
+      this.assetHp = this.assetMaxHp;
+    }
     const map = MAPS[mission.mapId];
     if (!map) throw new Error(`Unknown map id: ${mission.mapId}`);
     // Clone the tile grid rather than keeping map's own reference. MAPS[id]
@@ -481,8 +496,16 @@ export class Mission {
           this.units.push(createHostileMechUnit(archId, pos));
           this.log.push(`Event: ${archId} deploys at (${pos.x},${pos.y})`);
         } else {
-          this.units.push(createBloomUnit(archId, pos));
-          this.log.push(`Event: ${archId} spawns at (${pos.x},${pos.y})`);
+          // burrowed (Mission 21 "Cut the Root," 25 Aug 2026) — see
+          // data/types.ts's spawn action comment. Passed straight through
+          // to createBloomUnit exactly like EnemyWave's own burrowed field
+          // already does (spawnWavesForTurn, above); defaults to false so
+          // every event authored before this pass keeps its exact
+          // unburrowed behavior.
+          this.units.push(createBloomUnit(archId, pos, { burrowed: !!action.burrowed }));
+          this.log.push(
+            `Event: ${archId} ${action.burrowed ? "surfaces burrowed" : "spawns"} at (${pos.x},${pos.y})`
+          );
         }
       });
     } else if (action.type === "remove_from_roster") {
@@ -740,6 +763,30 @@ export class Mission {
   }
 
   // ---- actions -------------------------------------------------------
+
+  /**
+   * Read-only path lookup, added for Battle.ts's walk animation (25 Aug
+   * 2026 — "the walk thing should be a feature like xcom pause when the
+   * unit move, allowing you to have moment when the board is in flux" —
+   * Maxime). Mirrors moveUnit's own reachability/path computation exactly
+   * but mutates nothing: no action spent, no position change, no events
+   * fired. Battle.ts calls this BEFORE calling moveUnit so it can animate
+   * the unit stepping tile-by-tile toward the same destination moveUnit is
+   * about to commit instantly — the two calls see identical board state
+   * because nothing happens in between them. Kept as its own method rather
+   * than having moveUnit return the path directly: moveUnit's `boolean`
+   * return is asserted against with `.toBe(true)`/`.toBe(false)` across
+   * several existing test files, and changing that shape would touch all
+   * of them for a rendering-only need.
+   */
+  getMovePath(unitId: string, destination: Coord): Coord[] | null {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed || unit.npcIncapacitated || unit.actionsRemaining <= 0) return null;
+    const reachable = reachableTiles(this.map, unit.pos, unit.moveRange, this.movementKindFor(unit), this.occupiedSet(unitId));
+    const key = coordKey(destination);
+    if (!reachable.has(key)) return null;
+    return reconstructPath(reachable, destination);
+  }
 
   moveUnit(unitId: string, destination: Coord): boolean {
     const unit = this.unitById(unitId);
@@ -1779,6 +1826,39 @@ export class Mission {
     // bloom_mat here doesn't retroactively burn anyone standing on it —
     // that starts next turn.
     this.tickBloomRegrowth();
+    this.tickAssetDamage();
+  }
+
+  /**
+   * Protect Asset (Mission 22, 25 Aug 2026) — see data/types.ts's
+   * CampaignMission.objective comment for the full design. Once per turn
+   * (same call site as tickBloomRegrowth, right after it — order between
+   * the two never matters, no mission is both clear_bloom and
+   * protect_asset), counts every living hostile currently standing on a
+   * MapDefinition.defendZone tile and applies PROTECT_ASSET_TICK_DAMAGE per
+   * hostile found there. Deliberately position-based, not
+   * attack-based — a hostile that reaches the perimeter costs the ship HP
+   * just by being there, so kiting one away from the zone (even without
+   * killing it) is real, valid play, the same way it already is for
+   * hold_zone's own zone check.
+   *
+   * No-op for every mission that isn't protect_asset, same guard shape as
+   * tickBloomRegrowth right above it.
+   */
+  private tickAssetDamage(): void {
+    if (this.mission.objective !== "protect_asset") return;
+    const zone = this.map.defendZone ?? [];
+    if (!zone.length) return;
+    const zoneKeys = new Set(zone.map(coordKey));
+    const hostilesInZone = this.units.filter(
+      (u) => u.side === "hostile" && !u.downed && zoneKeys.has(coordKey(u.pos))
+    ).length;
+    if (!hostilesInZone) return;
+    const damage = hostilesInZone * PROTECT_ASSET_TICK_DAMAGE;
+    this.assetHp = Math.max(0, this.assetHp - damage);
+    this.log.push(
+      `The Providence takes ${damage} damage — ${hostilesInZone} hostile(s) reached the perimeter (${this.assetHp}/${this.assetMaxHp} HP remaining).`
+    );
   }
 
   /**
@@ -1936,6 +2016,23 @@ export class Mission {
       // opening several turns long is the whole point, not something a
       // clock should be able to cut short.
       if (!hostileAlive.length) return this.finishWin();
+    } else if (this.mission.objective === "protect_asset") {
+      // Protect Asset (Mission 22 "Ash on the Water," 25 Aug 2026) — see
+      // data/types.ts's CampaignMission.objective comment for the full
+      // design, and tickAssetDamage (environmentStep) for where assetHp
+      // actually moves. This branch only ever READS assetHp — same split
+      // as clear_bloom/tickBloomRegrowth (the tick mutates board/asset
+      // state once per turn, checkWinLoss reads the result on every call).
+      // House rule #5 shape again: reaching turnLimit is a WIN as long as
+      // the ship is still standing, never a timeout loss on its own — the
+      // real, and only, loss condition is assetHp hitting 0.
+      if (this.assetHp <= 0) {
+        this.outcome = "loss";
+        this.log.push("Loss: the Providence has taken critical damage.");
+        return true;
+      }
+      if (!hostileAlive.length) return this.finishWin();
+      if (this.turn > turnLimit) return this.finishWin();
     }
     return false;
   }

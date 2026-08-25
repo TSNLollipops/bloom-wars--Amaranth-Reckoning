@@ -28,6 +28,7 @@ import {
   checkMuntiGuarantee,
   generateRandomRescuedPilot,
   integrateSecondLance,
+  integrateThirdLance,
   type CampaignState,
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
@@ -45,6 +46,7 @@ export class Debrief extends Phaser.Scene {
   private muntiFired = false;
   private muntiPilot?: PilotRecord;
   private secondLancePilots?: PilotRecord[];
+  private thirdLancePilots?: PilotRecord[];
   private rescuedPilot?: PilotRecord;
   // Generalized bonus-objective pass (24 Aug 2026) — the company-pool
   // points from whichever bonusObjective kind this mission carried (0 for
@@ -136,6 +138,16 @@ export class Debrief extends Phaser.Scene {
       this.secondLancePilots = result.integrated ? result.pilots : undefined;
     }
 
+    // ---- 3c. Third Lance integration (Act III opening, 25 Aug 2026 —
+    // same-day correction) — mirrors 3b exactly, one mission later: see
+    // engine/campaignState.ts's integrateThirdLance for the full
+    // reasoning on why Mission 24 (Act II's own finale, Rourke's
+    // promotion to Major) is the trigger.
+    if (this.mission.mission.id === "mission_amaranth_24" && win) {
+      const result = integrateThirdLance(this.state);
+      this.thirdLancePilots = result.integrated ? result.pilots : undefined;
+    }
+
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
     this.add
       .text(480, 40, `${this.mission.mission.displayName} — ${win ? "MISSION COMPLETE" : "MISSION FAILED"}`, {
@@ -149,6 +161,7 @@ export class Debrief extends Phaser.Scene {
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
     cursorY = this.drawSecondLanceCallout(cursorY + 8);
+    cursorY = this.drawThirdLanceCallout(cursorY + 8);
 
     this.add
       .text(480, cursorY + 10, "CAMPAIGN SHOP", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
@@ -302,6 +315,32 @@ export class Debrief extends Phaser.Scene {
       .setOrigin(0.5);
     this.add
       .text(480, top + 36, this.secondLancePilots.map((p) => p.displayName.split("—")[1]?.trim() ?? p.displayName).join("   "), {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#8a97a6",
+      })
+      .setOrigin(0.5);
+    return top + height;
+  }
+
+  /**
+   * Third Lance integration reveal (25 Aug 2026, same-day correction) —
+   * mirrors drawSecondLanceCallout exactly, fires once on the same
+   * Mission 24 win that triggers integrateThirdLance itself.
+   */
+  private drawThirdLanceCallout(top: number): number {
+    if (!this.thirdLancePilots) return top;
+    const height = 56;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
+    this.add
+      .text(480, top + 16, "THE THIRD LANCE HAS ARRIVED — 5 pilots added to the roster", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#4ade80",
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(480, top + 36, this.thirdLancePilots.map((p) => p.displayName.split("—")[1]?.trim() ?? p.displayName).join("   "), {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#8a97a6",

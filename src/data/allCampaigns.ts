@@ -10,7 +10,7 @@
 // them.
 import type { CampaignMission } from "./types";
 import { MISSIONS_BY_ID as TEAM_ONE_MISSIONS_BY_ID } from "./campaign";
-import { AMARANTH_ACT1, AMARANTH_ACT2, AMARANTH_MISSIONS_BY_ID } from "./campaignAmaranth";
+import { AMARANTH_ACT1, AMARANTH_ACT2, AMARANTH_ACT3, AMARANTH_MISSIONS_BY_ID } from "./campaignAmaranth";
 
 export interface CampaignDef {
   id: string;
@@ -48,16 +48,33 @@ export const CAMPAIGNS: CampaignDef[] = [
   {
     id: "amaranth_act2",
     name: "The Amaranth Reckoning — Act II: Two Fires",
-    // In progress as of this pass — 8 of Act II's eventual 12 (missions
-    // 13-24, Independent Campaign doc). Second Lance integration
-    // (engine/campaignState.ts's integrateSecondLance) fires off a Mission
-    // 12 win regardless of which CampaignDef tab a player is looking at, so
-    // starting Act II from a fresh save before finishing Act I is possible
-    // but will show a 5-pilot roster with no picker until Mission 12 is
-    // actually won — not blocked here, since nothing else in this campaign
-    // enforces mission order either.
-    subtitle: "Warden Company. Two lances, ship fire support — Act II in progress, missions 13-20 of 24.",
+    // Complete as of this pass (batch 4, missions 21-24, 25 Aug 2026) —
+    // all 12 of Act II's missions per the Independent Campaign doc. Second
+    // Lance integration (engine/campaignState.ts's integrateSecondLance)
+    // fires off a Mission 12 win regardless of which CampaignDef tab a
+    // player is looking at, so starting Act II from a fresh save before
+    // finishing Act I is possible but will show a 5-pilot roster with no
+    // picker until Mission 12 is actually won — not blocked here, since
+    // nothing else in this campaign enforces mission order either.
+    subtitle: "Warden Company. Two lances, ship fire support — Act II complete, missions 13-24 of 24.",
     missions: AMARANTH_ACT2,
+  },
+  {
+    id: "amaranth_act3",
+    name: "The Amaranth Reckoning — Act III: The Last Ring",
+    // Underway, not complete — batch 5 (25 Aug 2026) built missions 25-28
+    // of 12. Maxime confirmed (25 Aug 2026, in chat) Act III runs the full
+    // 25-36 the Independent Campaign doc's own Act III section names,
+    // mirroring Act I/II's 12-mission scale — the "is it just 25-28 or
+    // does it run to 32+" open question from this batch's build-log
+    // addendum is resolved. Missions 29-36 (The Outer Ring Falls, Ashes of
+    // the Second Ring, The Last Convoy, Hold at the Spire, The Innermost
+    // Ring, No Word from the Fleet, The Last Ring, Until Relief) are not
+    // built yet — two of them need real design conversations before they
+    // can be (a "scripted strategic loss" mission and a multi-unit
+    // extract_unit), not silent scope growth. See chat, 25 Aug 2026.
+    subtitle: "Warden Company. Meridian's Oath, the withdrawal, Marrow's closing turn — missions 25-28 built, 12 planned (25-36).",
+    missions: AMARANTH_ACT3,
   },
 ];
 

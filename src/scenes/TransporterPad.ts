@@ -78,20 +78,31 @@ export const ACT1_DEPLOY_CAP = 5;
 export const ACT2_DEPLOY_CAP = 8;
 
 /**
+ * Act III's own deploy cap (25 Aug 2026, same-day correction, batch 5) —
+ * set once the Third Lance made a real 15-pilot roster exist (Maxime:
+ * "1 lance act 1, then 2 lance, act 2 tthen 3 act 3... to go with the
+ * rank incrase of MC and the difficulty spike"; then, on the cap itself,
+ * "fine tune mission for it"). 12, not the full 15 — same "genuine
+ * subset, not everyone" shape as ACT2_DEPLOY_CAP's own 8-of-10, and
+ * lands inside the campaign doc's own §10 "typical deploy 8-12" range
+ * for Act III rather than picking a number that range doesn't cover.
+ */
+export const ACT3_DEPLOY_CAP = 12;
+
+/**
  * Resolves which deploy cap applies to a given mission id. Team One's own
  * missions (`mission_1a`, `mission_2`, ...) and anything that doesn't match
  * the `mission_amaranth_N` shape fall back to ACT1_DEPLOY_CAP, same
  * behavior as before this function existed — this only changes anything
- * for Amaranth missions 13 and up. Act III's own number isn't decided yet
- * (the campaign doc's §10 table doesn't fix one) — reusing ACT2_DEPLOY_CAP
- * for missions 25+ rather than inventing a placeholder third constant;
- * revisit when Act III's own batch actually specs it.
+ * for Amaranth missions 13 and up.
  */
 export function deployCapForMission(missionId: string): number {
   const match = missionId.match(/^mission_amaranth_(\d+)$/);
   if (!match) return ACT1_DEPLOY_CAP;
   const n = Number(match[1]);
-  return n <= 12 ? ACT1_DEPLOY_CAP : ACT2_DEPLOY_CAP;
+  if (n <= 12) return ACT1_DEPLOY_CAP;
+  if (n <= 24) return ACT2_DEPLOY_CAP;
+  return ACT3_DEPLOY_CAP;
 }
 
 function capitalize(s: string): string {
@@ -134,9 +145,9 @@ export class TransporterPad extends Phaser.Scene {
   private selected: Set<string> = new Set();
   private showPicker = false;
   private capWarning = false;
-  // Set in create() from deployCapForMission(this.missionId) — Act I stays
-  // exactly ACT1_DEPLOY_CAP, Act II+ gets ACT2_DEPLOY_CAP. See that
-  // function's own comment above.
+  // Set in create() from deployCapForMission(this.missionId) — Act I gets
+  // ACT1_DEPLOY_CAP, Act II gets ACT2_DEPLOY_CAP, Act III gets
+  // ACT3_DEPLOY_CAP. See that function's own comment above.
   private deployCap = ACT1_DEPLOY_CAP;
 
   private squadLayer!: Phaser.GameObjects.Container;

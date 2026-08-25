@@ -396,7 +396,22 @@ export function decidePlayerAiAction(
   ) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
-      const dest = nearestCoord(unit.pos, exits);
+      // openExits (Mission 23 "The Amaranth Accord," 25 Aug 2026 — see this
+      // mission's own build-log tuning note for the full stall this fixes):
+      // nearestCoord picks a single geometric target with no regard for
+      // whether anything is already standing on it. An ally parked on the
+      // literal nearest exit tile (easy to happen — every unit converging
+      // from the same direction tends to resolve to the same "nearest"
+      // tile) left the extraction target permanently unable to improve its
+      // distance to that one blocked coordinate, stalling the WHOLE squad
+      // for the rest of the mission, not just this unit. Filtering to
+      // unoccupied exit tiles first, falling back to the full set only if
+      // every exit tile happens to be occupied, is the narrow fix — it
+      // doesn't touch cohesiveMoveToward's own pathing/lead-cap logic.
+      const openExits = exits.filter(
+        (c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y)
+      );
+      const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
       const path = cohesiveMoveToward(map, unit, dest, allUnits);
       if (path.length > 1) {
         log({
@@ -660,7 +675,12 @@ export function decidePlayerAiAction(
   if (context.mission.objective === "extract_unit" && unit.instanceId === context.mission.objectiveParams.extractUnitId) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
-      const dest = nearestCoord(unit.pos, exits);
+      // openExits — same fix, same reason as the unspotted/low-hp branch
+      // above (see that branch's own comment for the full stall story).
+      const openExits = exits.filter(
+        (c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y)
+      );
+      const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
       const path = cohesiveMoveToward(map, unit, dest, allUnits);
       log({
         turn,

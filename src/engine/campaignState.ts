@@ -52,7 +52,7 @@
 // directly instead of ids) but is out of scope here.
 import type { MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
 import { UNIT_ARCHETYPES } from "../data/units";
-import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS } from "../data/campaignAmaranth";
+import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "../data/campaignAmaranth";
 import { findPilot } from "../data/pilotRegistry";
 import type { BattleUnit } from "./units";
 
@@ -520,4 +520,37 @@ export function integrateSecondLance(state: CampaignState): SecondLanceResult {
   for (const p of SECOND_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
   return { integrated: true, pilots: SECOND_LANCE_PILOTS };
+}
+
+// ---- 8. Third Lance integration (Act III opening, 25 Aug 2026 — same-day
+// correction, batch 5) ----
+
+export interface ThirdLanceResult {
+  integrated: boolean;
+  pilots?: PilotRecord[];
+}
+
+/**
+ * Adds the five Third Lance pilots (data/campaignAmaranth.ts's
+ * THIRD_LANCE_PILOTS/THIRD_LANCE_MEKS) to the campaign roster, mirroring
+ * integrateSecondLance above line for line — same free/unconditional/
+ * idempotent shape, same reasoning for why a scripted story beat rather
+ * than a purchase.
+ *
+ * Call site (scenes/Debrief.ts) fires this once, gated on
+ * `mission.mission.id === "mission_amaranth_24" && mission.outcome ===
+ * "win"` — Mission 24 is Act II's own finale AND the mission where Rourke
+ * is promoted to Major (Independent Campaign doc, Mission 24: "Rourke
+ * promoted to Major"). Maxime's own words when asked when the third lance
+ * should join: "just add the ne wlance on promotion" — this is that
+ * promotion. One mission earlier than Second Lance's own Mission-12-win
+ * trigger relative to its act boundary is not a mismatch: Mission 24 IS
+ * Act II's finale, exactly as Mission 12 is Act I's, so both lances
+ * integrate on "the previous act's own last mission, won."
+ */
+export function integrateThirdLance(state: CampaignState): ThirdLanceResult {
+  if (state.pilots[THIRD_LANCE_PILOTS[0].id]) return { integrated: false };
+  for (const p of THIRD_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
+  for (const [id, m] of Object.entries(THIRD_LANCE_MEKS)) state.meks[id] = { ...m };
+  return { integrated: true, pilots: THIRD_LANCE_PILOTS };
 }

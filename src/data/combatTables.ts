@@ -207,3 +207,21 @@ export const FIRE_SUPPORT_DAMAGE = 60;
 export const BLOOM_REGROWTH_FIRST_TURN = 4;
 export const BLOOM_REGROWTH_INTERVAL_TURNS = 3;
 export const BLOOM_REGROWTH_TILES_PER_TICK = 2;
+
+// Protect Asset (Mission 22 "Ash on the Water," 25 Aug 2026) — see
+// data/types.ts's CampaignMission.objective comment for the full design.
+// Zone-tick, chosen via AskUserQuestion over an on-board defendable unit
+// or a flat hostile-headcount tick. Default ship toughness: enough turns
+// of "a couple hostiles got through" to be recoverable, not enough that a
+// squad that's fully lost the perimeter can coast to the turn limit
+// anyway — a first-pass placeholder, same status as every other
+// unweighted balance constant in this file, subject to real npm run sim
+// tuning per mission same as everything else in this batch.
+export const PROTECT_ASSET_DEFAULT_MAX_HP = 300;
+// Per hostile, per turn, that ends its turn anywhere inside
+// MapDefinition.defendZone — deliberately NOT per hostile that attacks
+// anything, so the pressure is "keep the perimeter clear," not "keep the
+// ship's own HP topped up between hits." A tank-tough perimeter breach
+// only ever wants ONE hostile through per turn to hurt (this number), not
+// a whole swarm parked there to combo it.
+export const PROTECT_ASSET_TICK_DAMAGE = 25;

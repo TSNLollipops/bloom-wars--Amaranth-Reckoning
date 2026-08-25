@@ -16,6 +16,7 @@ export function deriveZones(tiles: TileType[][]) {
   const enemy: Coord[] = [];
   const exitTiles: Coord[] = [];
   const holdZone: Coord[] = [];
+  const defendZone: Coord[] = [];
   for (let y = 0; y < tiles.length; y++) {
     for (let x = 0; x < tiles[y].length; x++) {
       const t = tiles[y][x];
@@ -23,9 +24,13 @@ export function deriveZones(tiles: TileType[][]) {
       else if (t === "spawn") enemy.push({ x, y });
       else if (t === "exit") exitTiles.push({ x, y });
       else if (t === "hold") holdZone.push({ x, y });
+      // dock (Mission 22, 25 Aug 2026) — Protect Asset's own defended
+      // perimeter, same "derive it from the tile grid" discipline as every
+      // other zone here, see data/tiles.ts's own comment on the tile.
+      else if (t === "dock") defendZone.push({ x, y });
     }
   }
-  return { player, enemy, exitTiles, holdZone };
+  return { player, enemy, exitTiles, holdZone, defendZone };
 }
 
 // Exported so a second maps file (data/mapsAmaranth.ts) doesn't fork this
@@ -42,6 +47,7 @@ export function makeMap(id: string, name: string, width: number, height: number,
     deployZones: { player: zones.player, enemy: zones.enemy },
     exitTiles: zones.exitTiles.length ? zones.exitTiles : undefined,
     holdZone: zones.holdZone.length ? zones.holdZone : undefined,
+    defendZone: zones.defendZone.length ? zones.defendZone : undefined,
   };
 }
 

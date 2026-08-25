@@ -69,7 +69,7 @@ export interface PlayerAiMissionContext {
   // right Player AI behavior for it. Literal added purely for structural
   // typing.
   readonly mission: {
-    readonly objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing";
+    readonly objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing" | "protect_asset";
     readonly objectiveParams: { extractUnitId?: string };
     readonly bonusObjective?: { kind: "rescue_pilot" } | { kind: "clear_bloom_patch" };
   };

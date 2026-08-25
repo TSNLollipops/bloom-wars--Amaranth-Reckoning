@@ -30,6 +30,11 @@ const TILE_COLORS: Record<TileType, number> = {
   spawn: 0x7a2430,
   exit: 0x3d8a4a,
   hold: 0x8a7a2a,
+  // dock (Mission 22, "Ash on the Water," 25 Aug 2026) — Protect Asset's
+  // defended perimeter tile. Blue-leaning like deploy's own 0x2e5c7a (both
+  // read as "friendly infrastructure"), shifted brighter/more teal so the
+  // two are still visually distinct on the same board.
+  dock: 0x2e8a7a,
   wall: 0x151515,
 };
 
@@ -142,6 +147,26 @@ export class Battle extends Phaser.Scene {
   // win that click, not get reinterpreted as a move.
   private fireSupportTargeting = false;
   private fireSupportRange: Coord[] = [];
+  // Walk animation (25 Aug 2026 — "the walk thing should be a feature like
+  // xcom pause when the unit move. allowing you to have moment when the
+  // board is in flux," Maxime). This is a deliberate, narrow exception to
+  // this file's own header rule ("what's drawn is only ever a reflection
+  // of that engine state"): mission.moveUnit() already commits the real
+  // move instantly (unit.pos, actionsRemaining, zone events — all resolved
+  // before the animation ever starts), and animatingVisualPos is a pure
+  // rendering overlay on top of that — nothing else in the scene or engine
+  // ever reads it, so it can't desync targeting, reachability, or combat.
+  // It exists only so drawUnit() can draw ONE unit (animatingUnitId) a few
+  // tile-widths behind where the engine already believes it is, for the
+  // half-second or so it takes to visually step there.
+  private animatingUnitId: string | null = null;
+  private animatingVisualPos: { x: number; y: number } | null = null;
+  // Input lock for the duration of a walk animation — handleBoardClick,
+  // doEndTurn and runActionSlot all bail out early on this, the same way
+  // they already bail out on `mission.outcome !== "ongoing"`. This is the
+  // actual feature Maxime asked for (XCOM's own "board is in flux, you
+  // can't act yet" beat), not just a side effect of the animation existing.
+  private isAnimatingMove = false;
   // The contextual action bar's fixed slot pool, plus the options currently
   // bound to them. Whether a slot is usable is Mission's call (canX()),
   // never this scene's.
@@ -206,6 +231,7 @@ export class Battle extends Phaser.Scene {
 
     const doEndTurn = () => {
       if (this.mission.outcome !== "ongoing") return;
+      if (this.isAnimatingMove) return; // board's mid-walk — same "can't act yet" beat as handleBoardClick
       this.selectedUnitId = null;
       this.clearSelectionHighlights();
       this.mission.endPlayerTurn();
@@ -309,6 +335,11 @@ export class Battle extends Phaser.Scene {
   private handleBoardClick(px: number, py: number) {
     if (this.mission.outcome !== "ongoing") return;
     if (this.mission.phase !== "player") return;
+    // Walk animation lock (25 Aug 2026): the whole point of the feature is
+    // a moment the player can't act in while the board's in flux, so every
+    // click is ignored outright — not queued — until the current move
+    // finishes playing out. See animatingUnitId's own field comment.
+    if (this.isAnimatingMove) return;
     const tile = this.pixelToTile(px, py);
     if (!tile) return;
 
@@ -374,11 +405,41 @@ export class Battle extends Phaser.Scene {
     }
 
     // Moving the selected unit to a reachable tile. Costs 1 action and
-    // doesn't end the turn — stay selected and recompute options if the
-    // unit still has an action left (double-move, or move-then-Repair).
+    // doesn't end the turn — stay selected and recompute options once the
+    // walk animation finishes, if the unit still has an action left
+    // (double-move, or move-then-Repair).
+    //
+    // Walk animation (25 Aug 2026): getMovePath is called BEFORE moveUnit
+    // on purpose, while the board is still in its pre-move state, so the
+    // path matches exactly what moveUnit is about to compute internally
+    // and commit instantly. The engine's own idea of the unit's position
+    // is correct and final the moment moveUnit returns; only the DRAWING
+    // lags behind it, on purpose, for the length of the animation — see
+    // animatingUnitId's field comment for why that's safe.
     if (this.selectedUnitId && this.reachable.some((c) => coordKey(c) === coordKey(tile)) && !unitHere) {
-      this.mission.moveUnit(this.selectedUnitId, tile);
-      this.refreshSelectionAfterAction();
+      const walkUnitId = this.selectedUnitId;
+      const walkPath = this.mission.getMovePath(walkUnitId, tile);
+      this.mission.moveUnit(walkUnitId, tile);
+      // Clear the reachable/attackable/etc. washes now rather than after
+      // the animation — they were computed from the tile the unit is
+      // about to leave, so leaving them up while it visibly walks away
+      // from them would read as stale, not as "the board is in flux."
+      // selectedUnitId itself is untouched, so the HUD panel keeps showing
+      // this unit while it's mid-step.
+      this.clearSelectionHighlights();
+      if (walkPath && walkPath.length > 1) {
+        this.animateWalk(walkUnitId, walkPath, () => {
+          this.refreshSelectionAfterAction();
+          this.render();
+        });
+      } else {
+        // Defensive fallback only — getMovePath mirrors moveUnit's own
+        // reachability check against the same, unchanged board state, so
+        // this shouldn't actually happen. If it ever does, fall back to
+        // the old instant behaviour rather than leaving the unit stuck
+        // mid-selection with no path to animate.
+        this.refreshSelectionAfterAction();
+      }
       this.render();
       return;
     }
@@ -400,6 +461,57 @@ export class Battle extends Phaser.Scene {
     this.selectedUnitId = null;
     this.clearSelectionHighlights();
     this.render();
+  }
+
+  /**
+   * XCOM-style walk animation (25 Aug 2026): "the walk thing should be a
+   * feature like xcom pause when the unit move. allowing you to have
+   * moment when the board is in flux" — Maxime, in response to the unit
+   * jumping straight to its destination tile with nothing in between.
+   *
+   * Steps animatingVisualPos through every tile of `path` in order,
+   * calling render() on each tween tick so drawUnit() draws the moving
+   * unit a bit behind where the engine already committed it (see
+   * animatingUnitId's own field comment — the engine's move already
+   * happened; only this drawing lags). `isAnimatingMove` is what actually
+   * blocks input for the duration — this method's only other job is
+   * turning that lock off again and calling `onComplete` once the last
+   * tile is reached.
+   *
+   * STEP_MS is a per-tile duration, not a total — a long move animates
+   * longer than a short one, which is the "distance should look like
+   * distance" behaviour XCOM itself has, rather than every move taking the
+   * same total time regardless of how far it went.
+   */
+  private animateWalk(unitId: string, path: Coord[], onComplete: () => void) {
+    const STEP_MS = 130;
+    this.isAnimatingMove = true;
+    this.animatingUnitId = unitId;
+    const visual = { x: path[0].x, y: path[0].y };
+    this.animatingVisualPos = visual;
+
+    let i = 0;
+    const stepToNext = () => {
+      if (i >= path.length - 1) {
+        this.isAnimatingMove = false;
+        this.animatingUnitId = null;
+        this.animatingVisualPos = null;
+        onComplete();
+        return;
+      }
+      const to = path[i + 1];
+      i++;
+      this.tweens.add({
+        targets: visual,
+        x: to.x,
+        y: to.y,
+        duration: STEP_MS,
+        ease: "Linear",
+        onUpdate: () => this.render(),
+        onComplete: stepToNext,
+      });
+    };
+    stepToNext();
   }
 
   private clearSelectionHighlights() {
@@ -539,6 +651,7 @@ export class Battle extends Phaser.Scene {
 
   private runActionSlot(index: number) {
     if (this.mission.outcome !== "ongoing" || this.mission.phase !== "player") return;
+    if (this.isAnimatingMove) return; // same lock as handleBoardClick — see animatingUnitId's field comment
     const option = this.actionOptions[index];
     if (!option || !option.usable) return;
     option.run();
@@ -669,8 +782,14 @@ export class Battle extends Phaser.Scene {
     if (this.selectedUnitId) {
       const u = this.mission.unitById(this.selectedUnitId);
       if (u) {
+        // Walk animation: travels with the unit's own visual position
+        // while it's mid-step, same override drawUnit() uses — otherwise
+        // this box would sit at the (already-committed) destination the
+        // whole time while the unit's own silhouette is still walking
+        // toward it, two readings of "where is it" disagreeing on screen.
+        const selPos = u.instanceId === this.animatingUnitId && this.animatingVisualPos ? this.animatingVisualPos : u.pos;
         g.lineStyle(2, 0xffffff, 0.9);
-        g.strokeRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+        g.strokeRect(this.boardX + selPos.x * ts, this.boardY + selPos.y * ts, ts - 1, ts - 1);
       }
     }
 
@@ -838,8 +957,17 @@ export class Battle extends Phaser.Scene {
   }
 
   private drawUnit(g: Phaser.GameObjects.Graphics, unit: BattleUnit, ts: number) {
-    const cx = this.boardX + unit.pos.x * ts + ts / 2;
-    const cy = this.boardY + unit.pos.y * ts + ts / 2;
+    // Walk animation (25 Aug 2026): draw THIS unit at its animated visual
+    // position, continuous tile coordinates, instead of unit.pos, while
+    // it's the one currently walking — see animatingUnitId's field
+    // comment. Every other unit, and this unit outside of its own move,
+    // draws from unit.pos exactly as before. `pos` is used for every
+    // position calculation in this function from here down (pips, the
+    // concealed-frame outline) so nothing drawn for this unit floats away
+    // from its own silhouette mid-step.
+    const pos = unit.instanceId === this.animatingUnitId && this.animatingVisualPos ? this.animatingVisualPos : unit.pos;
+    const cx = this.boardX + pos.x * ts + ts / 2;
+    const cy = this.boardY + pos.y * ts + ts / 2;
     const r = ts * 0.32;
     const acted = unit.actionsRemaining <= 0 && unit.side === "player";
 
@@ -934,8 +1062,8 @@ export class Battle extends Phaser.Scene {
       const pips = tierPipCount(unit.tier);
       if (pips > 0) {
         const pipR = Math.max(1, ts * 0.05);
-        const originX = this.boardX + unit.pos.x * ts + ts - pipR * 2;
-        const originY = this.boardY + unit.pos.y * ts + pipR * 2;
+        const originX = this.boardX + pos.x * ts + ts - pipR * 2;
+        const originY = this.boardY + pos.y * ts + pipR * 2;
         g.fillStyle(0xd4af37, 0.95);
         for (let i = 0; i < pips; i++) {
           const col = i % 3;
@@ -979,7 +1107,7 @@ export class Battle extends Phaser.Scene {
     // the tile — this unit is on the board but off the Bloom's map.
     if (unit.concealed) {
       g.lineStyle(2, CONCEAL_COLOR, 0.95);
-      g.strokeRect(this.boardX + unit.pos.x * ts + 2, this.boardY + unit.pos.y * ts + 2, ts - 5, ts - 5);
+      g.strokeRect(this.boardX + pos.x * ts + 2, this.boardY + pos.y * ts + 2, ts - 5, ts - 5);
     }
     // Painted by an unexpired Sensor Sweep: a violet ring wider than the
     // silhouette, so the player can tell at a glance which contacts they
@@ -1055,6 +1183,12 @@ export class Battle extends Phaser.Scene {
     // which is exactly how much room the briefing was using. Selected-unit
     // state is live and the briefing isn't, so the briefing yields.
     const lines = [m.mission.displayName, turnLine, "", `Objective: ${m.mission.objective}`];
+    // Protect Asset (Mission 22, 25 Aug 2026) — the ship's HP has no other
+    // on-screen representation (it's not a unit, per data/types.ts's own
+    // "off-board asset" framing), so this is the only place a player can
+    // see it. Always shown, not just while a unit is selected, same as the
+    // Objective line right above it.
+    if (m.mission.objective === "protect_asset") lines.push(`Providence: ${m.assetHp}/${m.assetMaxHp} HP`);
     if (!this.selectedUnitId) lines.splice(3, 0, m.mission.briefing, "");
     if (this.selectedUnitId) {
       const selected = m.unitById(this.selectedUnitId);

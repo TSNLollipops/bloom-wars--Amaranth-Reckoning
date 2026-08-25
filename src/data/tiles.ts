@@ -90,6 +90,20 @@ export const TILES: Record<TileType, TileDef> = {
     defenceStars: 2,
     passableGround: true,
   },
+  // Protect Asset (Mission 22 "Ash on the Water," 25 Aug 2026) — the
+  // Providence's own defended perimeter, MapDefinition.defendZone's tile
+  // source, derived by maps.ts's deriveZones exactly like hold/exit/deploy/
+  // spawn already are. A hostile standing here at turn-end is what
+  // Mission.tickAssetDamage actually counts, not an attack against
+  // anything — passable, ordinary cover value, nothing about the tile
+  // itself is special beyond marking the zone.
+  dock: {
+    id: "dock",
+    displayName: "Dock perimeter",
+    moveCost: { bipedal: 1, centauroid: 1, flying: 1 },
+    defenceStars: 2,
+    passableGround: true,
+  },
   wall: {
     id: "wall",
     displayName: "Blockhouse wall",

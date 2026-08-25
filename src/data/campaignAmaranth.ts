@@ -187,6 +187,97 @@ export const SECOND_LANCE_MEKS: Record<string, MekArchetype> = {
 
 export const SECOND_LANCE_ROSTER_IDS = SECOND_LANCE_PILOTS.map((p) => p.id);
 
+// ---- Third Lance (§10, Act III, 25 Aug 2026 — correction made same day
+// as the rest of batch 5). Maxime's actual original plan, clarified in
+// chat after batch 5 shipped: "my original plan was to allow player to
+// field 1 lance act 1, then 2 lance, act 2 tthen 3 act 3. to go with the
+// rank incrase of MC and the difficulty spike" — then, asked when the
+// third lance should join and whether to retune missions 25-28 for it:
+// "just add the ne wlance on promotion. fine tune mission for it. both
+// part[s]." "On promotion" = the same beat Second Lance uses: Mission 24
+// is Act II's own finale AND the mission where Rourke is promoted to
+// Major (Independent Campaign doc, Mission 24's own line: "Rourke
+// promoted to Major"), so this integrates on that win, exactly one
+// integration function and one Debrief call site earlier than Second
+// Lance's own Mission-12 pattern, mirrored line for line below.
+//
+// This also corrects a real doc/plan mismatch, not just adds content:
+// the Independent Campaign doc's own §10 squad-scaling table currently
+// says Act III is "~20 (4 lances)" — that was never Maxime's actual plan.
+// 5 pilots/lance × 3 lances = 15, matching his 1/2/3 framing exactly
+// against what's already built (Act I = 5, Act II = 10). §10 needs
+// updating to match this, not the other way around — flagged here and
+// in this batch's build-log addendum.
+//
+// A third distinct path spread, same "lances aren't interchangeable"
+// principle as Second Lance's own header comment: 2 Tank/1 Meeps/1 Reeps/
+// 1 Munti here (vs. Warden's 2 Meeps/1 Tank/1 Reeps/1 Munti and Second
+// Lance's 1 Meeps/1 Tank/2 Reeps/1 Munti) — leans toward frontline
+// survivability, which fits "difficulty spike" as a design reason, not
+// just a flavor one. Combined 15-pilot roster ends up a clean 4 Meeps/
+// 4 Tank/4 Reeps/3 Munti. Also completes a small deliberate detail: Munti
+// now has one pilot on each of the three chassis families (Lask/bipedal,
+// Vashti/vibrissal, Yeun/centauroid below) — not required by anything,
+// just a tidy coincidence worth having noticed rather than broken by
+// picking a fourth chassis at random.
+export const THIRD_LANCE_PILOTS: PilotRecord[] = [
+  {
+    id: "pilot_kova",
+    displayName: "Sgt. Mireille Kova — “Bastion”",
+    archetypeId: "arch_tank_vibrissal",
+    mekId: "mek_kova",
+    tier: "G",
+  },
+  {
+    id: "pilot_ness",
+    displayName: "Cpl. Aurelio Ness — “Rampart”",
+    archetypeId: "arch_tank_centauroid",
+    mekId: "mek_ness",
+    tier: "G",
+  },
+  {
+    id: "pilot_onwuka",
+    displayName: "Pvt. Sable Onwuka — “Whiplash”",
+    archetypeId: "arch_meeps_vibrissal",
+    mekId: "mek_onwuka",
+    tier: "G",
+  },
+  {
+    id: "pilot_delgado",
+    displayName: "Spec. Rasha Delgado — “Longshot”",
+    archetypeId: "arch_reeps_bipedal",
+    mekId: "mek_delgado",
+    tier: "G",
+  },
+  {
+    id: "pilot_yeun",
+    displayName: "Cpl. Faro Yeun — “Splint”",
+    archetypeId: "arch_munti_centauroid",
+    mekId: "mek_yeun",
+    tier: "G",
+  },
+];
+
+// Track assignments: both Tanks get Armorer, continuing a clean rule that
+// now holds across all three lances (Bosk, Okafor, Kova, Ness — every
+// Tank pilot in this campaign is Armorer). Onwuka (Meeps) gets Armorer
+// too, same as Iyari/Tarrant — Rourke stays the one Runemaster exception
+// among Meeps, unchanged. Yeun (Munti) gets Fieldwright, same clean rule
+// as Lask/Vashti — every Munti in this campaign is Fieldwright. Delgado
+// (Reeps) gets Quartermaster — the one MekTrack neither prior lance has
+// used yet (fabricator/armorer/runemaster/fieldwright all already appear
+// above), same "introduce the next unused track" beat Second Lance's own
+// Reyes/Fabricator pairing already set as precedent.
+export const THIRD_LANCE_MEKS: Record<string, MekArchetype> = {
+  mek_kova: { id: "mek_kova", displayName: "Kova's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_ness: { id: "mek_ness", displayName: "Ness's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_onwuka: { id: "mek_onwuka", displayName: "Onwuka's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_delgado: { id: "mek_delgado", displayName: "Delgado's Mek", primary: "quartermaster", secondary: null, spareParts: 0 },
+  mek_yeun: { id: "mek_yeun", displayName: "Yeun's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+};
+
+export const THIRD_LANCE_ROSTER_IDS = THIRD_LANCE_PILOTS.map((p) => p.id);
+
 // Act II's own static playerPilotIds default (25 Aug 2026) — read only by
 // `npm run sim`/tests/any direct `new Mission(missionDef)` call with no
 // deployRoster (see engine/mission.ts's deployPlayerUnits comment); a real
@@ -203,6 +294,21 @@ export const SECOND_LANCE_ROSTER_IDS = SECOND_LANCE_PILOTS.map((p) => p.id);
 const ACT2_DEFAULT_SQUAD = [
   "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
   "pilot_okafor", "pilot_solheim", "pilot_vashti",
+];
+
+// Act III's own static playerPilotIds default (25 Aug 2026, same-day
+// correction) — same role as ACT2_DEFAULT_SQUAD above (sim/test only,
+// never read by a real playthrough), now a genuine 12-of-15 composition
+// against ACT3_DEPLOY_CAP (scenes/TransporterPad.ts) rather than
+// ACT2_DEFAULT_SQUAD's 8-of-10. Bench: Tarrant and Reyes again (Second
+// Lance's own perpetual reserve pair, unchanged since Act II) plus Ness
+// (Third Lance's second Tank) — chosen so this squad deploys three
+// Munti at once (Lask + Vashti + Yeun), a genuine new edge case past Act
+// II's own "two Munti" coverage, on top of the size increase itself.
+const ACT3_DEFAULT_SQUAD = [
+  "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
+  "pilot_okafor", "pilot_solheim", "pilot_vashti",
+  "pilot_kova", "pilot_onwuka", "pilot_delgado", "pilot_yeun",
 ];
 
 // bonusAbilityUnlocks are per-mission-deploy, not a persistent campaign
@@ -1077,6 +1183,234 @@ export const AMARANTH_MISSION_20: CampaignMission = {
   bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
 };
 
+// ---- ACT II — TWO FIRES continued (25 Aug 2026, batch 4 / missions 21-24,
+// Maxime: "alright cool do next pass") — completes Act II at 24/24.
+// Maps built via /home/claude/work/bloom-wars/gen_maps4.py, same discipline
+// as every prior batch; all four validated clean first pass (see this
+// batch's build-log addendum).
+//
+// Cut the Root is this batch's real content: bloom_heartwood (data/bloom.ts)
+// has been fully defined — endurance 400, sessile, Munti-prioritising via
+// engine/ai.ts's emergentDecision() — since before Act I shipped, and never
+// used anywhere. Its own documented special rule ("every 2 turns from turn
+// 3, spawns 2 Undertow burrowed at the map's spawn seams") is built here as
+// pure mission data through the existing generic MissionEvent system, once
+// one small real gap was closed: the "spawn" event action never threaded a
+// burrowed flag through to createBloomUnit (every existing spawn event was
+// flavor/reveal, never a burrower) — see data/types.ts's MissionEvent
+// action comment and engine/mission.ts's applyEventAction for the fix. Not
+// treated as a scope-flag conversation: a small extension to a generic
+// capability, not a new system.
+//
+// Ash on the Water is the one genuine new system this batch: protect_asset
+// (data/types.ts's CampaignMission.objective, MapDefinition.defendZone,
+// engine/mission.ts's tickAssetDamage/checkWinLoss). Walked through
+// AskUserQuestion before building — "Zone-tick damage" was the recommended
+// and chosen shape: the Providence's dock perimeter (ASH_ON_THE_WATER_TILES'
+// own "dock"-tagged tiles) ticks PROTECT_ASSET_TICK_DAMAGE (25, see
+// data/combatTables.ts) off assetHp per hostile that ends its turn inside
+// it, once per turn. Reaching turnLimit is a WIN as long as assetHp > 0 —
+// the only loss condition is assetHp hitting 0, never a timeout.
+export const AMARANTH_MISSION_21: CampaignMission = {
+  id: "mission_amaranth_21",
+  displayName: "Amaranth II.21 — Cut the Root",
+  mapId: "map_amaranth_cut_the_root",
+  briefing:
+    "Whatever's rooted under the terraces isn't spreading anymore — it's settled. Anand's reading one enormous signature dead center of a walled chamber, not moving, not hiding. It doesn't have to. Cut the root, or it keeps feeding everything Wellroot's been growing since Mission 17.",
+  objective: "eliminate_all",
+  objectiveParams: { turnLimit: 16 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    // The Heartwood itself — single spawn tile, dead center of the walled
+    // root chamber CUT_THE_ROOT_TILES builds for it. moveRange 0 per
+    // data/bloom.ts, so it never leaves this tile; the fight comes to it.
+    { archetypeId: "bloom_heartwood", count: 1, atTurn: 1, spawnAt: [{ x: 22, y: 7 }] },
+    // No opening escort — see this mission's build-log tuning note for why.
+    // First sim pass (6 Crawlmass, open-field coords) produced a 0% win
+    // rate that had nothing to do with the escort's own numbers: the squad
+    // spent turns 1-4 mopping up Crawlmass, reached the chamber around
+    // turn 5 right as reinforcement pressure was already building, and
+    // then — this is the real finding — never landed a single attack on
+    // the Heartwood in the entire 15-turn loss. The player AI's
+    // focus_weak heuristic always prefers the freshly-spawned, low-HP
+    // Undertow over a 400-Endurance stationary target, and with a fresh
+    // pair arriving every 2 turns forever, that preference never lets up.
+    // Cutting the escort entirely buys the squad two genuinely clean turns
+    // (1-2) against the Heartwood before turn 3's first reinforcement
+    // wave — the only real lever available without touching either the
+    // archetype's own documented stats or the player AI's targeting logic,
+    // both out of scope for a mission-design pass. No opening wave entry
+    // at all now (a count: 0 wave was tried first and dropped — better to
+    // just not author a wave that spawns nothing).
+  ],
+  events: [
+    {
+      id: "ev_cut_the_root_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “That's not a wave pattern, that's a heartbeat. Whatever's down there, it's been there a while.”" },
+      once: true,
+    },
+    // bloom_heartwood's own documented special rule, data/bloom.ts: "Every
+    // 2 turns from turn 3, spawns 2 Undertow burrowed at the map's spawn
+    // seams." The two fixed seam tiles flanking the root chamber
+    // (CUT_THE_ROOT_TILES' own (20,5)/(24,9) spawn tiles) are exactly that
+    // — never touched by enemy_deploy resolution, only ever by this event.
+    {
+      id: "ev_heartwood_reinforcements",
+      trigger: { type: "turn_start", turn: 3, repeatEvery: 2 },
+      action: {
+        type: "spawn",
+        archetypeIds: ["bloom_undertow", "bloom_undertow"],
+        at: [{ x: 20, y: 5 }, { x: 24, y: 9 }],
+        burrowed: true,
+      },
+      once: false,
+    },
+  ],
+  rewardPoints: 380,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_22: CampaignMission = {
+  id: "mission_amaranth_22",
+  displayName: "Amaranth II.22 — Ash on the Water",
+  mapId: "map_amaranth_ash_on_the_water",
+  briefing:
+    "Providence is holding station off the pier, and the Bloom's noticed. Nothing about this hull is armored for what's coming across the water at it. Two causeways, one dock, and Providence's own patience for how long it can sit still and take it.",
+  // Protect Asset debut — see this file's own batch-4 header comment above
+  // for the full design conversation. assetMaxHp left at
+  // PROTECT_ASSET_DEFAULT_MAX_HP (300, data/combatTables.ts) rather than
+  // overridden here; nothing about this mission's own pacing needed a
+  // bespoke number once the causeway chokepoints did their job in
+  // playtesting (see build-log tuning note).
+  objective: "protect_asset",
+  objectiveParams: { turnLimit: 14 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // Far-shore spawns only — ASH_ON_THE_WATER_TILES' own two causeways
+  // (rows 3-4 and 9-10) are the only passable route from there to the
+  // dock, so every hostile here has to commit to a lane, not
+  // "enemy_deploy" scattering them onto water they can't cross. Fixed
+  // coordinates (2,3)/(2,10) match that map's v2 far-shore spawn tiles —
+  // see this file's own build-log tuning note on why v1's spawns (which
+  // sat on the dock's own landmass, not across the water at all) had to
+  // be corrected before this mission was winnable even once.
+  // Counts bumped once (14/6/8, up from an initial 8/4/4) after the v2
+  // geometry fix produced a clean 4/4 shutout with zero damage ever
+  // reaching the Providence — the causeway chokepoint held perfectly every
+  // time, which is a real result but not much of a "rehearsal for Act 3's
+  // capital-ship stakes" if the asset is never actually at risk. Re-tested
+  // after the bump; see this mission's build-log tuning note for the
+  // numbers.
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 14, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+  ],
+  events: [
+    {
+      id: "ev_ash_on_the_water_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Providence Actual: “We can't maneuver off this station without losing the causeways for you. Keep them off the hull, Warden — we'll hold as long as we can.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 390,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_23: CampaignMission = {
+  id: "mission_amaranth_23",
+  displayName: "Amaranth II.23 — The Amaranth Accord",
+  mapId: "map_amaranth_the_amaranth_accord",
+  briefing:
+    "Anand made contact with a House Amaranth records officer three days ago, off the books. The officer wants out, and wants Command to see what she's carrying first. If what she's saying is true, Wellroot was never an accident Halcyon Amaranth failed to contain — it's a bargain she made on purpose, thirty years running. Get Anand to the exit with the drive before House Amaranth realizes what's walking out the door.",
+  objective: "extract_unit",
+  // extractUnitId has to resolve to a unit actually in play — checkExtraction
+  // (engine/mission.ts) only ever looks up an id already in this.units, and
+  // the only path that puts a brand-new NPC on the board is the separate
+  // rescue_pilot bonusObjective (spawnRescuableNpc), which is mechanically
+  // its own thing — a carried, incapacitated unit, not an extract_unit
+  // target. So the records officer stays off-board, narrative only (same
+  // "flavor, not a spawned unit" discipline this batch already uses for
+  // Marrow's exit in Mission 24), and the actual extraction target is
+  // Anand — the pilot who made contact and is carrying the evidence out —
+  // following the exact precedent Mission 17 already set (Solheim: "the one
+  // who found it and has to carry it out"), not a new mechanic.
+  //
+  // turnLimit 14 -> 17 after an initial sim batch: roughly half the runs
+  // timed out at 14 with Anand still alive and moving toward the exit, not
+  // downed — the same "extraction distance vs. turn budget" gap Mission
+  // 17's own tuning note already hit once (turnLimit 14 -> 16 there for
+  // the same reason). See this mission's build-log tuning note.
+  objectiveParams: { turnLimit: 17, extractUnitId: "pilot_anand" },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
+  ],
+  events: [
+    {
+      id: "ev_the_amaranth_accord_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Records Officer: “I have thirty years of correspondence and I am not dying in this scrub for it. Whatever you're going to do, do it fast.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 400,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_24: CampaignMission = {
+  id: "mission_amaranth_24",
+  displayName: "Amaranth II.24 — Two Fires",
+  mapId: "map_amaranth_two_fires",
+  briefing:
+    "The Accord's out, and House Amaranth's done pretending. Bloom from the treeline, House Amaranth's own regulars from the depot, closing on your position from opposite ends of the same field at the same time. Two fires, one company. Command isn't offering a clean way to fight just one of them.",
+  objective: "eliminate_all",
+  // Act II's finale — Draven's Cut's own two-front shape (Mission 18) at
+  // finale scale: both fronts live from turn 1, not staggered, on a bigger
+  // map. Same explicit-spawnAt-per-front discipline as Draven's Cut for the
+  // same reason (enemy_deploy would collapse the pincer into one mixed
+  // pool). Marrow referenced narratively only in the briefing/events below,
+  // NOT as a spawned unit — the doc's own line is "Marrow escapes," and
+  // §7's actual rival-closure beat is Mission 28, two acts from now; a
+  // scripted disengage-and-flee mechanic here would be new, unbuilt engine
+  // work for one mission's flavor, the same kind of scope call Mission 20's
+  // own comment already flagged for her "mirror-match" framing.
+  objectiveParams: { turnLimit: 16 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 6, y: 1 }, { x: 12, y: 1 }, { x: 18, y: 1 }, { x: 24, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 6, y: 1 }, { x: 12, y: 1 }, { x: 18, y: 1 }, { x: 24, y: 1 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
+  ],
+  events: [
+    {
+      id: "ev_two_fires_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Both fronts, same as the cut — split smart or don't split at all. This is the one Command's calling the act.”" },
+      once: true,
+    },
+    {
+      id: "ev_two_fires_marrow_escape",
+      trigger: { type: "turn_start", turn: 12 },
+      action: { type: "dialogue", text: "Anand: “Marrow's signature just pulled off the field entirely. She's not running this fight anymore — somebody else is.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 420,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
 export const AMARANTH_ACT2: CampaignMission[] = [
   AMARANTH_MISSION_13,
   AMARANTH_MISSION_14,
@@ -1086,8 +1420,372 @@ export const AMARANTH_ACT2: CampaignMission[] = [
   AMARANTH_MISSION_18,
   AMARANTH_MISSION_19,
   AMARANTH_MISSION_20,
+  AMARANTH_MISSION_21,
+  AMARANTH_MISSION_22,
+  AMARANTH_MISSION_23,
+  AMARANTH_MISSION_24,
+];
+
+// ---- ACT III — THE LAST RING begins (25 Aug 2026, batch 5 / missions
+// 25-28, Maxime: "next time a boss mission just force feed the ai for the
+// test. ill build the overarching ai after this. keep adding missions").
+// Maps built via the now-deleted gen_maps5.py, same discipline as every
+// prior batch; all four validated clean first pass (see this batch's
+// build-log addendum). No boss-tagged mission in this batch — 25-28 are
+// eliminate_all/extract_unit/hold_zone/eliminate_all, nothing that needed
+// the Player AI to be force-fed a target the way a real boss mission will.
+// That instruction is logged here for whichever future mission actually is
+// one (28 was a candidate — Marrow is a tougher rival unit, not a scripted
+// boss fight — see this file's own comment on her below). Maxime confirmed
+// (25 Aug 2026, chat) Act III runs the doc's full 25-36 — Mission 35, "The
+// Last Ring" [final boss breaches], is the actual likely candidate for
+// that instruction, not anything in this batch.
+//
+// Scope calls made without stopping to ask, on established precedent:
+// - Roster stays ACT2_DEFAULT_SQUAD. The Independent Campaign doc's own
+//   §10 squad-scaling table names a third lance for Act III (~20 pilots
+//   across 4 lances), but its own footnote already flags that table as
+//   "the pre-permadeath plan... not a guarantee," and building a new lance
+//   (roster entries, a MEK/pilot pair each, integration wiring like
+//   engine/campaignState.ts's integrateSecondLance) is real new-system
+//   scope, not a data-only mission batch. Deferred, flagged here rather
+//   than built silently.
+// - deployCapForMission (scenes/TransporterPad.ts) still returns
+//   ACT2_DEPLOY_CAP (8) for any mission above 12, Act III included, even
+//   though the Independent Campaign doc's §3 lists "higher deploy cap" as
+//   one of Act III's three asks. Left alone this batch: with no third lance
+//   yet, the roster IS 8 pilots, so an ACT3_DEPLOY_CAP above 8 would be a
+//   no-op today — nothing to deploy past what's already fielded. Worth
+//   doing the turn a third lance actually exists, not before.
+// - Meridian's Oath (Mission 25) is Fire Support (data/abilities.ts's
+//   abil_fire_support, already unlocked squad-wide from Mission 14 via
+//   ACT2_UNLOCKS_FROM_14) re-fluffed as continuity: Providence's own guns
+//   (the ship from Mission 22, "Ash on the Water"), repositioned inland to
+//   cover Meridian after that mission's causeway defense. Dialogue-only —
+//   zero new ability data, zero new code. Flagging the continuity read as
+//   a deliberate choice, not a lore fact locked in — easy to rename if it
+//   doesn't fit whatever's actually written for Meridian/Providence
+//   elsewhere.
+// - Falling Back to Meridian (Mission 27) stays one real hold_zone (the
+//   westmost line, closest to Meridian) dressed as three visually distinct
+//   trench lines (FALLING_BACK_TO_MERIDIAN_TILES' own rubble/hold tiles) —
+//   not a new multi-stage-hold objective type. A real "hold line 1, then
+//   line 2, then line 3" mechanic would be new engine work; the fiction
+//   sells the retreat, the mechanics don't need to model it.
+// - Marrow's Reckoning (Mission 28) stays a normal eliminate_all against
+//   hostile_mech_marrow (data/units.ts's AMARANTH_RIVAL_MECHS) and an
+//   escort, same as Mission 20. Her §7 "closing turn... she finally chooses
+//   who she actually serves" beat is delivered as an objective_complete
+//   dialogue event below, AFTER the fight resolves, not a mid-fight
+//   scripted side-switch — remove_from_roster (engine/mission.ts's
+//   applyEventAction) was ruled out for this back in the batch-4 addendum:
+//   it marks a unit downed and logs an extraction-failure line, built for
+//   a player-pilot scenario, semantically wrong for a hostile "switches
+//   allegiance" beat. A real scripted-defection mechanic (change side mid-
+//   mission, keep the unit alive) would be new, unbuilt engine work for one
+//   mission's story beat — same scope call already flagged for her Mission
+//   20 and Mission 24 appearances. unit_downed events were also considered
+//   and dropped for a concrete technical reason, not just a design
+//   preference: engine/units.ts's nextInstanceId uses one counter shared
+//   across every unit created in the mission (player deploys, then every
+//   hostile wave, in order), so a hostile's exact runtime instanceId isn't
+//   something mission data can predict or hand-author reliably — no
+//   existing mission in this file tries to hook a unit_downed trigger to a
+//   specific hostile's id, and this isn't the mission to start.
+export const AMARANTH_MISSION_25: CampaignMission = {
+  id: "mission_amaranth_25",
+  displayName: "Amaranth III.25 — The Reckoning",
+  mapId: "map_amaranth_the_reckoning",
+  briefing:
+    "Command's not calling this a skirmish. Sensor returns off Meridian's outskirts are reading wider and deeper than anything the surge has thrown at Warden Company yet — no single flank holds all of it alone. Providence has pulled off the water and dug her guns in short of the city. First time this war's had a ship at your back instead of just overhead.",
+  objective: "eliminate_all",
+  // Deliberately the widest single-turn frontage this campaign has ever
+  // opened with — THE_RECKONING_TILES' own 34x16, 5-point spawn spread
+  // (mapsAmaranth.ts) is built so a wave reads as a tide, not a queue, via
+  // the spread rather than raw count. First draft (12/6/4, 22 total) went
+  // 0/15 in sim — an 8-pilot squad simply cannot out-attrit that many
+  // hostiles arriving on turn 1 with no stagger, regardless of frontage.
+  // Cut to 6/3/2 (11 total, roughly half) — see this batch's build-log
+  // tuning note for the corrected win rate.
+  //
+  // Retuned again same day: playerPilotIds moved from ACT2_DEFAULT_SQUAD
+  // (8) to ACT3_DEFAULT_SQUAD (12) once Maxime clarified the Third Lance
+  // integrates on Mission 24's win — meaning it's already live as of this
+  // mission, not something Act III opens without. At 12 pilots, the 6/3/2
+  // count went 15/15 in 12-13 turns against an 18-turn target — too easy.
+  // Bumped to 10/5/3 (18 total) first — 35/35 wins, but a real tell: zero
+  // pilots downed in ANY of those runs, not just zero losses. Eliminate_all
+  // has no turn-limit fail (house rule #5), so a mission that always wins
+  // AND never costs anyone isn't actually testing the squad — it's just
+  // slow. Bumped again to 14/7/4 (25 total) — real attrition finally
+  // showed up, but at ~73% (11/15) it swung a bit harder than intended
+  // for an opener. 12/6/3 (21 total) swung back too far the other way —
+  // 15/15 again, still zero pilots downed in any run. Locked at 13/6/4
+  // (23 total): a real cliff sits somewhere between 23 and 25 — 23 still
+  // goes 20/20 clean (just long, 17-20 turns against turnLimit 18), 25
+  // drops to 73% with real losses. Not smoothed further by hand — that
+  // step is a property of this AI/combat system at this squad size, not
+  // something worth chasing to a single enemy's precision. 100% clean but
+  // long reads fine for an Act III opener meant to establish scale, not
+  // be the hardest fight in the act.
+  objectiveParams: { turnLimit: 18 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 13, atTurn: 1, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }, { x: 28, y: 2 }, { x: 28, y: 13 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 1, spawnAt: [{ x: 28, y: 2 }, { x: 28, y: 13 }] },
+  ],
+  events: [
+    {
+      id: "ev_the_reckoning_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “That's not a wave, that's a coastline. Command, we are going to need everything you've got.”" },
+      once: true,
+    },
+    {
+      id: "ev_the_reckoning_meridians_oath",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Providence Actual: “Providence is dug in short of Meridian and we are not moving off this line. Call it, Warden — Meridian's Oath is live.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 440,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_26: CampaignMission = {
+  id: "mission_amaranth_26",
+  displayName: "Amaranth III.26 — The Cradle Beneath",
+  mapId: "map_amaranth_the_cradle_beneath",
+  briefing:
+    "Okafor's beacon went dark under the terraces two days after Mission 19's tunnels first opened up, and it just came back live — stationary, not moving, but live. Whatever's down there let her signal through on purpose or couldn't stop it. Either way, someone has to walk into the hive to walk her back out.",
+  objective: "extract_unit",
+  // Okafor (the Tank) is the deliberate extract target — a slower unit
+  // makes the walk-out itself the tension, same "tactical variety in who
+  // needs carrying" call this campaign already made for Solheim (Mission
+  // 17) and Anand (Mission 23). turnLimit set generous up front (both of
+  // those missions needed a mid-tuning bump once sim runs showed the
+  // squad reaching the exit tile after the target was already downed or
+  // the clock already out) rather than repeating that same discovery a
+  // third time.
+  objectiveParams: { turnLimit: 20, extractUnitId: "pilot_okafor" },
+  // NOT ACT3_DEFAULT_SQUAD (12) — a real bug, caught by re-sim after the
+  // Third Lance correction, not tuned around silently. Deploying the full
+  // 12 here jammed: by turn 15 in the losing runs, EVERY unit (including
+  // Okafor herself) stopped acting entirely — "hold_no_target" dominates
+  // the decision tally — because THE_CRADLE_BENEATH_TILES' own main
+  // corridor is only 3 tiles tall, and 12 units competing for the same
+  // narrow lane toward one exit block gridlock each other (movement
+  // treats other player units as occupied tiles, same as everywhere else
+  // in this engine). This is the same "wall of idle allies" Player AI
+  // limitation flagged back in the batch-4 addendum, just newly visible
+  // at 12-unit scale — not a new bug, and per this batch's own standing
+  // instruction, not something to fix in the AI here. The honest,
+  // mission-design-only fix: a real player CAN still choose to deploy all
+  // 12 into this mission and would hit the same jam — flagging that
+  // explicitly rather than pretending this squad size is a hard cap.
+  // Tried a 9-pilot squad first (down from 12) — went 0/15, WORSE than 12.
+  // Real finding, not noise: THE_CRADLE_BENEATH_TILES' own exit block is
+  // only 6 tiles (2 cols x 3 rows), and with enough escorts converging on
+  // it, they fill every exit tile themselves before Okafor gets there —
+  // in the losing logs she reaches (25,7), two tiles from the block, and
+  // then simply stops for the rest of the mission because every exit tile
+  // is already occupied by her own escort. This is the exact "occupied
+  // exit tile" Player AI stall flagged and partially fixed in the batch-4
+  // addendum (Mission 23's openExits filtering) — that fix isn't
+  // complete for a multi-tile exit zone once escort count is high enough
+  // to fill all of it, and per this batch's own standing instruction,
+  // that's an AI fix, not a mission-design one, so not touched here.
+  // Reverted to this mission's original, already-proven 8-pilot squad
+  // instead of chasing a new number — a smaller team for tunnel work
+  // reads fine tactically anyway, and this exact composition already
+  // validated at ~87% before the Third Lance existed. Left un-set to
+  // ACT3_DEFAULT_SQUAD on purpose; this mission's own default stays
+  // smaller than the Act III cap.
+  playerPilotIds: [
+    "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
+    "pilot_okafor", "pilot_solheim", "pilot_vashti",
+  ],
+  // Explicit spawnAt at all four hive-chamber coordinates, never
+  // "enemy_deploy" — this map's own spawn tiles are split across two
+  // north chambers and two south chambers on purpose, and enemy_deploy
+  // pools every spawn-tagged tile on the map into one flat array regardless
+  // of which chamber it's in (deriveZones()'s own behavior, hit and worked
+  // around in every batch since batch 2).
+  // Undertow 4 -> 2 after sim: first draft went 9/15 (60%), and every loss
+  // was the same shape — Okafor is the extract target AND the Tank, so the
+  // Player AI's extract_to_exit heuristic pushes her toward the exit ahead
+  // of her own escort (same "target outpaces protection" gap flagged for
+  // this heuristic before), and a burrowed Undertow hits hard (single hits
+  // of 40-70 in the losing logs) — two of them landing on an isolated
+  // Okafor was enough to down her outright before the squad caught up. Not
+  // a Player AI fix (out of scope this batch, same standing call as every
+  // prior batch's AI limitations) — the mission-design lever is fewer
+  // Undertow, which is what the "seams" spawn count was tuning in the
+  // first place.
+  //
+  // TODO(Maxime, 25 Aug 2026, chat): this Undertow cut was a workaround
+  // for the escort-AI gap above, not a real balance call — 4 was the
+  // intended count for a properly-escorted extraction. Once the
+  // overarching AI (Maxime's own build, per this batch's "ill build the
+  // overarching ai after this") actually keeps the escort together, bring
+  // this back up to 4 and re-sim rather than leaving it at 2 by default.
+  enemyWaves: [
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 3 }, { x: 9, y: 11 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: [{ x: 9, y: 3 }, { x: 19, y: 3 }, { x: 9, y: 11 }, { x: 19, y: 11 }] },
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 6, spawnAt: [{ x: 9, y: 3 }, { x: 19, y: 3 }, { x: 9, y: 11 }, { x: 19, y: 11 }] },
+  ],
+  events: [
+    {
+      id: "ev_the_cradle_beneath_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Okafor: “I'm not hurt, I'm just not going anywhere fast down here. Take your time getting to me — don't take your time getting me out.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 460,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_27: CampaignMission = {
+  id: "mission_amaranth_27",
+  displayName: "Amaranth III.27 — Falling Back to Meridian",
+  mapId: "map_amaranth_falling_back_to_meridian",
+  briefing:
+    "Two lines already fell getting the company this far back. This is the one Meridian itself is dug in behind, and it's the one Command's told Warden Company not to lose. Everything the surge has been building toward since The Reckoning is still coming — it's just further out this time.",
+  objective: "hold_zone",
+  // FALLING_BACK_TO_MERIDIAN_TILES' own comment (mapsAmaranth.ts) already
+  // flags this as the scope call: three visually distinct trench lines
+  // (outer/mid rubble, the real hold zone closest to deploy), one real
+  // hold_zone at the westmost line — not a new multi-stage-hold objective.
+  // turnLimit/holdUntilTurn reuse Mission 12's own already-battle-tested
+  // pair (16/10) as the starting point, unchanged after tuning — the real
+  // fix below was to spawn distance, not these numbers.
+  //
+  // spawnAt corrected off the map's own far-edge "spawn" tiles (x=33) after
+  // first sim pass came back 15/15 WIN, every single one at exactly turn
+  // 10 with ZERO combat logged at all. Real bug, not good tuning:
+  // engine/ai.ts's reflexiveDecision is vision-gated (isVisibleTo, Chebyshev
+  // <= observer.vision — Crawlmass vision 3, Splitfang 4, Sporethrower 5)
+  // and explicitly holds position when nothing's in sensor range ("nothing
+  // in sensor range — hold position rather than beeline the whole board").
+  // hold_zone means the player squad never advances past the hold tiles
+  // (x=6-9), so hostiles starting 24-27 tiles out at x=33 never once come
+  // into anyone's vision and simply never move, turn after turn — this
+  // only works for Mission 12's own hold_zone because that mission spawns
+  // off "enemy_deploy" (map.deployZones.enemy), which sits close to the
+  // hold room by construction. Fixed by moving the actual spawn
+  // coordinates used here to x=13 (turn 1, just past the hold zone's own
+  // edge — within vision almost immediately once the squad is dug in) and
+  // x=17 (turn 5/7 reinforcements, the mid line's own trench, closing over
+  // the following turns). The map's own "spawn" tile markers at x=33 are
+  // left as-is — they still read fine as "where Command's sensors first
+  // picked up the contact," not literally where a unit's instanceId is
+  // created; only the mission-data coordinates below needed to move.
+  objectiveParams: { turnLimit: 16, holdUntilTurn: 10 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD, // moved from ACT2_DEFAULT_SQUAD, same-day Third Lance correction — see Mission 25's own comment
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 13, y: 2 }, { x: 13, y: 6 }, { x: 13, y: 9 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 13, y: 2 }, { x: 13, y: 6 }, { x: 13, y: 9 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 5, spawnAt: [{ x: 17, y: 2 }, { x: 17, y: 6 }, { x: 17, y: 9 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 7, spawnAt: [{ x: 17, y: 2 }, { x: 17, y: 6 }, { x: 17, y: 9 }, { x: 17, y: 11 }] },
+  ],
+  events: [
+    {
+      id: "ev_falling_back_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “This is Meridian's own line. We don't fall back from this one — there's nowhere behind it to fall back to.”" },
+      once: true,
+    },
+    {
+      id: "ev_falling_back_outer_line",
+      trigger: { type: "turn_start", turn: 4 },
+      action: { type: "dialogue", text: "Anand: “Outer line's gone quiet. That's not good news, that's just news.”" },
+      once: true,
+    },
+    {
+      id: "ev_falling_back_mid_line",
+      trigger: { type: "turn_start", turn: 7 },
+      action: { type: "dialogue", text: "Anand: “Mid line's down. Whatever's coming, it's coming to us now.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 480,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_28: CampaignMission = {
+  id: "mission_amaranth_28",
+  displayName: "Amaranth III.28 — Marrow's Reckoning",
+  mapId: "map_amaranth_marrows_reckoning",
+  briefing:
+    "Same ridge, same rival, bigger ground. Marrow's dug into the middle of this field the way she did at Thane's Crossing, at the line that bears her name, and at Two Fires before she pulled off that one without a shot fired at her back. Command's read is she's not disengaging again. Neither is Warden Company.",
+  objective: "eliminate_all",
+  // Bigger version of Mission 20's dueling ground, per MARROWS_RECKONING_
+  // TILES' own comment — hostile_mech_marrow fixed at the map's own
+  // central spawn, matching her own AMARANTH_RIVAL_MECHS spawnAt
+  // ({x:23,y:7} there; this map's equivalent center is (24,7)), escort at
+  // the two near points, two more troopers held back at the flank points
+  // as a turn-5 reinforcement rather than everyone landing on turn 1 the
+  // way Mission 20 did it — finale-scale escalation without just doubling
+  // the opening wave. No Bloom on this map on purpose, matching Mission
+  // 20's own precedent: this is a pure House Amaranth engagement, not a
+  // three-way fight that dilutes the rival-closure beat.
+  objectiveParams: { turnLimit: 14 },
+  // Retuned same day: playerPilotIds moved to ACT3_DEFAULT_SQUAD (12, up
+  // from 8) went 15/15 in 11-14 turns — too easy at the original 7-hostile
+  // escort. Added a third wave (3 more troopers at turn 8, same reused
+  // archetype ids as the rest of this file's House Amaranth Line Trooper
+  // waves) for 10 hostiles total; see this batch's build-log addendum for
+  // the retuned win rate.
+  playerPilotIds: ACT3_DEFAULT_SQUAD, // moved from ACT2_DEFAULT_SQUAD, same-day Third Lance correction — see Mission 25's own comment
+  enemyWaves: [
+    { archetypeId: "hostile_mech_marrow", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 7 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 5, spawnAt: [{ x: 21, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 5, spawnAt: [{ x: 21, y: 12 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 8, spawnAt: [{ x: 21, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 8, spawnAt: [{ x: 21, y: 12 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 8, spawnAt: [{ x: 24, y: 7 }] },
+  ],
+  events: [
+    {
+      id: "ev_marrows_reckoning_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Marrow: “Halcyon Amaranth thinks this is her fight. It stopped being her fight a while ago — she just hasn't been told yet.”" },
+      once: true,
+    },
+    // The §7 "closing turn... she finally chooses who she actually serves"
+    // beat, delivered AFTER the fight resolves — see this file's batch-5
+    // header comment for the full reasoning on why this stays
+    // dialogue-only and why objective_complete over unit_downed. Fires
+    // once eliminate_all's own win check (checkWinLoss) has already
+    // returned true, so it never touches whether the fight itself was won.
+    {
+      id: "ev_marrows_reckoning_closure",
+      trigger: { type: "objective_complete" },
+      action: { type: "dialogue", text: "Anand: “Marrow's last transmission wasn't to House Amaranth. It was to us. She said she's done carrying water for Halcyon — and that this was the last time she'd do it with a gun in her hand.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 510,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_ACT3: CampaignMission[] = [
+  AMARANTH_MISSION_25,
+  AMARANTH_MISSION_26,
+  AMARANTH_MISSION_27,
+  AMARANTH_MISSION_28,
 ];
 
 export const AMARANTH_MISSIONS_BY_ID: Record<string, CampaignMission> = Object.fromEntries(
-  [...AMARANTH_ACT1, ...AMARANTH_ACT2].map((m) => [m.id, m])
+  [...AMARANTH_ACT1, ...AMARANTH_ACT2, ...AMARANTH_ACT3].map((m) => [m.id, m])
 );
