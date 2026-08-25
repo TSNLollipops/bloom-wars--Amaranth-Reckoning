@@ -1779,11 +1779,370 @@ export const AMARANTH_MISSION_28: CampaignMission = {
   bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
 };
 
+// ---- Batch 6 (missions 29-32, 25 Aug 2026, Maxime: "work on next mission
+// set now"). Maps built via a throwaway gen_maps6.py (same now-deleted-
+// after-use discipline as gen_maps5.py), all four BFS-validated clean —
+// see this batch's build-log addendum. House Amaranth's military is done
+// as a threat as of Mission 28 (Marrow's own closure, above) — per the
+// Independent Campaign doc, everything from here to the Act III finale
+// (35, "The Last Ring") is Bloom-only, specifically the Cradle (first
+// found at Mission 26, "the source, growing beneath Meridian... the
+// campaign's true final boss"). Every enemyWave below is drawn from
+// data/bloom.ts accordingly — no hostile_mech_* archetypes appear in this
+// batch.
+//
+// Scope calls made without stopping to ask, on established precedent:
+// - Mission 29's Independent Campaign doc tag, "[scripted strategic
+//   loss]," does NOT mean a new forced-loss engine mechanic. Mission 12's
+//   own header comment already resolved the identical question for its
+//   "whoever covers the gate" tag: "No scripted forced-loss event was
+//   added here... Mission 12 is a real, winnable (and losable) hold_zone
+//   mission... whatever happens... happens live, through the existing
+//   permadeath check, same as any other mission." Same call here: 29 is a
+//   real, winnable hold_zone, the hardest one in this batch on its own
+//   numbers. "The ring falls" is delivered as the strategic fact either
+//   way — Command's own withdrawal order, not a verdict on this squad's
+//   fight — via an objective_complete dialogue event on a win, same
+//   dialogue-only technique already used for Mission 28's Marrow closure.
+//   A true forced-loss mechanic (win the fight, still get a scripted
+//   "loss" outcome) would be new, unbuilt engine work — flagging that this
+//   was the fork, and this is the read taken, in case it's not the one
+//   wanted.
+// - Mission 30's briefing tag "Meridian's Oath damaged on-station" is
+//   built as a real, zero-new-code mechanical fact, not just flavor text:
+//   this mission's own CampaignMission simply omits bonusAbilityUnlocks
+//   (unlike every other Act II/III mission in this file, which all carry
+//   ACT2_UNLOCKS_FROM_14). engine/mission.ts's applyBonusAbilityUnlocks is
+//   already per-mission, opt-in — an omission is a complete, working "Fire
+//   Support is offline this fight," no new field or branch needed. Assumed
+//   back online by Mission 31 (bonusAbilityUnlocks restored there and on
+//   32) since nothing in the doc says the loss is permanent — flagging the
+//   assumption rather than silently deciding it.
+// - Mission 31's "[scripted partial loss]" tag is the one place this
+//   batch's design already matches the doc's own framing without a scope
+//   call: CampaignMission.civilianSpawns/objectiveParams.extractThreshold
+//   (data/types.ts, engine/mission.ts) make "not everyone gets out" true
+//   through real difficulty — extractThreshold set below the total
+//   civilianSpawns count — the exact same "design intent, not a guaranteed
+//   specific" reading data/types.ts's own extractThreshold comment already
+//   names for this mission, mirroring §6a's permadeath rule. See the
+//   engine-level design notes on civilianSpawns/isCivilian/decideCivilian-
+//   Action added to types.ts/units.ts/ai.ts/mission.ts this same batch.
+// - Mission 32's "grounded capital ship" is deliberately left unnamed in
+//   dialogue below (called only "the transport," "the lift ship") — the
+//   Independent Campaign doc itself never names it or confirms it's
+//   Providence/Meridian's Oath (which is dug in stationary inland per
+//   Mission 25, not a ship that lifts), so inventing a proper name here
+//   would be locking in a lore fact that isn't actually decided. Easy to
+//   name properly later once that's settled elsewhere.
+export const AMARANTH_MISSION_29: CampaignMission = {
+  id: "mission_amaranth_29",
+  displayName: "Amaranth III.29 — The Outer Ring Falls",
+  mapId: "map_amaranth_outer_ring_falls",
+  briefing:
+    "Command's already given the order — the outer ring falls back to the second line tonight, no argument. Warden Company's job isn't to hold this ground forever. It's to make sure everything behind this line has the time it needs before the order actually happens.",
+  objective: "hold_zone",
+  // Real, winnable hold_zone — see this batch's header comment for why
+  // "[scripted strategic loss]" isn't a new forced-loss mechanic. Toughest
+  // fight in this batch on its own numbers, matching "the hardest one in
+  // the act" precedent Mission 12 set for the same kind of doc tag.
+  // holdUntilTurn/turnLimit start from Mission 27's already-proven 10/16
+  // pair; OUTER_RING_FALLS_TILES' own hold room (16 tiles, one 2-wide
+  // doorway on its west side, mapsAmaranth.ts) is the same chokepoint
+  // shape as every prior hold_zone mission in this file.
+  //
+  // spawnAt corrected off the map's own decorative far-edge "spawn" tiles
+  // (x=27-28) after this exact bug showed up on first sim pass — Mission
+  // 27's own build-log note already found the same failure mode once
+  // (vision-gated reflexive/pack AI never advances if it never has anyone
+  // in sensor range), and this map has a sharper version of it: the hold
+  // room's own doorway (mapsAmaranth.ts's OUTER_RING_FALLS_TILES) opens
+  // ONLY to the west, so anything spawned due east of the room can't even
+  // path to the doorway without first going around via the open north or
+  // south corridor — at x=27-28 that's 20+ tiles of travel nothing ever
+  // starts because nothing's ever in vision to trigger it. First pass sim
+  // went 15/15 in exactly 10 turns every time, Player AI log 100%
+  // hold_zone, zero attacks — the real tell, not good tuning. Fixed by
+  // moving spawnAt into the north/south corridors themselves (y=1 and
+  // y=14, the only two approaches that actually reach the doorway),
+  // staggered by x-distance from the door for a "first contact, then
+  // reinforcements still closing" feel instead of three genuinely separate
+  // approach vectors — a single-doorway room only ever has the one real
+  // choke to defend, whichever corridor the pressure is currently coming
+  // down. The map's own x=27-28 spawn tiles are left as-is, same "where
+  // Command's sensors first picked up the contact" reading Mission 27's
+  // own comment already established.
+  objectiveParams: { turnLimit: 16, holdUntilTurn: 10 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 13, y: 1 }, { x: 9, y: 14 }, { x: 13, y: 14 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 9, y: 14 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 5, spawnAt: [{ x: 16, y: 2 }, { x: 16, y: 13 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 8, spawnAt: [{ x: 16, y: 2 }, { x: 16, y: 13 }] },
+  ],
+  events: [
+    {
+      id: "ev_outer_ring_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Three directions, one door. We don't need to win this ground, Company — we need to still be standing on it when the order comes.”" },
+      once: true,
+    },
+    {
+      id: "ev_outer_ring_reinforcements",
+      trigger: { type: "turn_start", turn: 5 },
+      action: { type: "dialogue", text: "Anand: “That's not the first wave slowing down. That's the second one arriving.”" },
+      once: true,
+    },
+    // The strategic-fact beat, delivered on a genuine tactical win, same
+    // dialogue-only-after-the-fact technique as Mission 28's Marrow
+    // closure — never touches whether the fight itself was won or lost.
+    {
+      id: "ev_outer_ring_withdrawal",
+      trigger: { type: "objective_complete" },
+      action: { type: "dialogue", text: "Command: “Warden Company, fall back to the second line. You bought us the night — the outer ring was never going to be the one we kept.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 540,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_30: CampaignMission = {
+  id: "mission_amaranth_30",
+  displayName: "Amaranth III.30 — Ashes of the Second Ring",
+  mapId: "map_amaranth_ashes_of_the_second_ring",
+  briefing:
+    "The second line is city, not open ground — three roads in, rubble everywhere else, and Meridian's Oath gone dark somewhere behind Warden Company rather than out ahead of it. Whatever's dug into these blocks, it's not moving on its own. Someone has to go clear it out, one street at a time.",
+  objective: "eliminate_all",
+  // Two bloom_gallcyst planted directly on the two road/spine intersections
+  // (12,4) and (12,10) as fixed strongpoints — sessile (moveRange 0, 140
+  // endurance per data/bloom.ts), so placing them ON the actual travel
+  // lanes rather than off in a side room is what makes them read as
+  // roadblocks the squad has to commit to clearing, not turrets that never
+  // factor into the fight. Everything else (crawlmass/splitfang/
+  // sporethrower) enters mobile from the map's own 6 east-edge spawn tiles
+  // across turns, closing in on the city grid from the far side.
+  //
+  // bonusAbilityUnlocks deliberately omitted below — see this batch's
+  // header comment on "Meridian's Oath damaged on-station."
+  objectiveParams: { turnLimit: 18 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 12, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 26, y: 2 }, { x: 25, y: 6 }, { x: 26, y: 6 }, { x: 25, y: 8 }, { x: 26, y: 8 }, { x: 26, y: 12 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 4, spawnAt: [{ x: 25, y: 6 }, { x: 25, y: 8 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 7, spawnAt: [{ x: 26, y: 2 }, { x: 26, y: 12 }] },
+  ],
+  events: [
+    {
+      id: "ev_ashes_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “Meridian's Oath isn't answering. Whatever's out there found the guns before it found us.”" },
+      once: true,
+    },
+    {
+      id: "ev_ashes_strongpoint",
+      trigger: { type: "turn_start", turn: 3 },
+      action: { type: "dialogue", text: "Bosk: “Two of them aren't moving. That's not good news — that means they don't have to.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 560,
+  heirloomCharge: "locked",
+};
+
+export const AMARANTH_MISSION_31: CampaignMission = {
+  id: "mission_amaranth_31",
+  displayName: "Amaranth III.31 — The Last Convoy",
+  mapId: "map_amaranth_the_last_convoy",
+  briefing:
+    "Five of Meridian's own people are still out past the second ring, further out than the evacuation ever should have let them get. Warden Company's landing right on top of them — the fight now is getting all six of them back down a road the Bloom already has both ends of.",
+  objective: "extract_unit",
+  // Multi-civilian extraction debut — see the batch header comment above
+  // and this same batch's engine-level design notes (data/types.ts's
+  // civilianSpawns/extractThreshold comments, engine/mission.ts's
+  // checkExtraction/checkWinLoss, engine/ai.ts's decideCivilianAction) for
+  // the full mechanic. extractThreshold: 3 (of 5) is the actual "not
+  // everyone gets out" number — chosen over the field's own default
+  // (civilianSpawns.length, i.e. "everyone has to make it") specifically
+  // so this mission's win condition matches its own doc tag by
+  // construction, not just by bad luck.
+  //
+  // First map/mission draft deployed the squad next to the EXIT (x=4-8)
+  // with the convoy stranded all the way out at x=26-29 — a real design
+  // bug, not a tuning number: sim testing came back LOSS 15/15, the
+  // convoy wiped by turn 3-7 every single time, before the squad had
+  // covered a third of the distance separating them. An escort mission
+  // needs the escort to start next to what it's escorting. Fixed at the
+  // map level (mapsAmaranth.ts's own comment on THE_LAST_CONVOY_TILES) —
+  // deploy moved next to the civilian cluster; both retreat west together
+  // from turn 1. Retuned after that fix; see this batch's build-log
+  // addendum for the corrected win rate.
+  //
+  // turnLimit set generous up front (20) rather than repeating the
+  // Mission 17/23/26 "had to bump it after seeing the squad reach the exit
+  // with time still on the clock" discovery a fourth time — the convoy
+  // road is ~26 tiles end to end and civilians move at moveRange 4 while
+  // fleeing/detouring around threats, not moving in a straight line every
+  // turn.
+  objectiveParams: { turnLimit: 20, extractThreshold: 3 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  // BFS-verified reachable to the exit zone from the (relocated) deploy
+  // block by gen_maps6.py (see mapsAmaranth.ts's own comment on THE_LAST_
+  // CONVOY_TILES) — scattered right around deploy so the squad starts
+  // already escorting, not racing to catch up.
+  civilianSpawns: [
+    { at: { x: 26, y: 3 }, displayName: "Convoy — Family, north lane" },
+    { at: { x: 27, y: 6 }, displayName: "Convoy — Roadcrew foreman" },
+    { at: { x: 26, y: 8 }, displayName: "Convoy — Family, south lane" },
+    { at: { x: 24, y: 5 }, displayName: "Convoy — Elder, north lane" },
+    { at: { x: 25, y: 7 }, displayName: "Convoy — Courier" },
+  ],
+  // Near seam (x=24, both banks) is first contact, right as the retreat
+  // begins — it's the one closest to deploy/the convoy itself. Far seam
+  // (x=14-15, both banks) is staged BETWEEN deploy and the exit, arriving
+  // turn 7 to block the route home rather than chase from behind — matches
+  // this mission's own "they weren't chasing the convoy, they were already
+  // ahead of it" dialogue beat below.
+  //
+  // Waves thinned and re-staggered after sim testing: first draft opened
+  // with 8 crawlmass + 4 splitfang simultaneously, all within 2-4 tiles of
+  // the civilian cluster turn 1 — went 0/20, civilians dropping below
+  // extractThreshold by turn 3-7 in every run. The real cause wasn't the
+  // civilian AI (already fixed once this batch — see engine/ai.ts's own
+  // comment on moveAwayFrom's preferToward) but raw lethality: splitfang's
+  // 38 attackPower against a civilian's own fragile stats (createCivilianUnit,
+  // engine/units.ts) is close to a one-hit kill, and 4 of them landing on
+  // an unescorted cluster in the same turn is not survivable regardless of
+  // how well the squad fights elsewhere on the map. Not fixed by touching
+  // civilian stats (a broader, cross-mission balance change, out of scope
+  // for tuning one mission) — fixed by thinning and staggering the actual
+  // ambush instead. Cutting splitfang from turn 1 entirely first went the
+  // other way — 20/20 win, always at turn 6, only 3 of the 5 civilians
+  // ever making it into the tally before finishWin() ended the mission
+  // early, real cost basically zero. Splitfang re-added in two smaller
+  // pairs (turn 2, turn 4) rather than one turn-1 or turn-4 block landed
+  // at 13/20 (65%) — both real loss conditions firing across the sample
+  // (extraction-below-threshold and turn-limit-reached, not just one),
+  // genuine variance in which civilians make it, matching this mission's
+  // own doc tag ("not everyone gets out" as real risk, not a guaranteed
+  // specific and not a coin flip either way).
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 24, y: 1 }, { x: 24, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 2, spawnAt: [{ x: 24, y: 1 }, { x: 24, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 4, spawnAt: [{ x: 24, y: 1 }, { x: 24, y: 11 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 7, spawnAt: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 11 }, { x: 15, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 7, spawnAt: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 11 }, { x: 15, y: 11 }] },
+  ],
+  events: [
+    {
+      id: "ev_last_convoy_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Five people, one road, both flanks already dirty. Nobody stops moving until they're behind us.”" },
+      once: true,
+    },
+    {
+      id: "ev_last_convoy_second_wave",
+      trigger: { type: "turn_start", turn: 6 },
+      action: { type: "dialogue", text: "Anand: “They weren't chasing the convoy. They were already ahead of it.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 580,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+  // Social-hook stub debut (data/types.ts's own comment: "e.g.
+  // 'marrow_distant_sighting' or 'bosk_last_words'") — this batch is the
+  // first one authored since that field existed, and this mission's own
+  // material (who made it out, who didn't, how the squad carries that) is
+  // exactly the kind of beat it exists to flag for whatever social system
+  // reads it later. Purely descriptive, not wired to anything yet.
+  socialHook: "convoy_survivors_who_didnt_make_it",
+};
+
+export const AMARANTH_MISSION_32: CampaignMission = {
+  id: "mission_amaranth_32",
+  displayName: "Amaranth III.32 — Hold at the Spire",
+  mapId: "map_amaranth_hold_at_the_spire",
+  briefing:
+    "The transport's grounded at the Spire with its engines already spinning up, and it needs the ground under it clear until it's not grounded anymore. Everything the Bloom has left in this sector is coming down off the ridge to make sure that doesn't happen.",
+  objective: "protect_asset",
+  // Second protect_asset debut, data/types.ts's own comment on
+  // assetMaxHp already anticipated this. HOLD_AT_THE_SPIRE_TILES' own dock
+  // zone is bigger than Ash on the Water's (42 tiles vs that map's
+  // smaller perimeter) and this is later in the campaign, so assetMaxHp is
+  // bumped above PROTECT_ASSET_DEFAULT_MAX_HP (300, data/combatTables.ts)
+  // rather than left at the default — ship needs to survive a wider
+  // perimeter under sustained pressure for the same number of turns, not
+  // just a bigger number for its own sake.
+  //
+  // First-draft counts (12/6/4/6, turnLimit 16) went 20/20 win, always at
+  // exactly turn 17, and the ship never once took damage across the whole
+  // sample — tickAssetDamage never fired a single time. Not just a tuning
+  // number: HOLD_AT_THE_SPIRE_TILES' own deploy row (16 tiles, full width
+  // of the dock's north edge) sat directly between every north-spawned
+  // hostile and the dock, so the squad's default formation read as an
+  // unbroken wall. Fixed at the map level first (mapsAmaranth.ts's own
+  // comment on HOLD_AT_THE_SPIRE_TILES) — deploy split into two flank
+  // blocks, leaving the dock's own center north edge open by default, same
+  // "two causeways" tension Ash on the Water's defendZone design already
+  // used. Counts also roughly doubled (matching that mission's own +75%
+  // fix), a fourth wave added, turnLimit extended to 22 for the longer
+  // fight.
+  //
+  // Re-sim after both fixes: 11/20 win (55%), real squad-wipe risk on the
+  // loss side, but the ship itself only actually took damage once across
+  // the sample — the split-flank gap makes a breach POSSIBLE, not common,
+  // because the Player AI's own reflex is to charge out and meet threats
+  // in the open field well north of the dock (same "advance_into_range"/
+  // "focus_weak" heuristics sim/playerAi/index.ts already documents),
+  // which keeps most fighting far from the center gap regardless of
+  // formation. Leaving this as a known texture gap rather than chasing it
+  // further this batch — the mission is real, winnable, losable, and has
+  // genuine stakes via squad attrition; "the ship visibly takes damage
+  // under bad positioning" reads as a nice-to-have polish pass, not a
+  // blocker, and forcing it further would mean tuning against how the
+  // Player AI happens to behave rather than the mission itself. Worth a
+  // second look if a real human player's own positioning turns out to
+  // make this a non-issue in practice, or not.
+  objectiveParams: { turnLimit: 22, assetMaxHp: 420 },
+  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 20, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 10, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_sporethrower", count: 7, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+  ],
+  events: [
+    {
+      id: "ev_hold_at_spire_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Engines are spinning. That means everyone up on that ridge just heard them too.”" },
+      once: true,
+    },
+    {
+      id: "ev_hold_at_spire_midpoint",
+      trigger: { type: "turn_start", turn: 8 },
+      action: { type: "dialogue", text: "Bosk: “Deck's still holding. Keep it that way a little longer.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 600,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
 export const AMARANTH_ACT3: CampaignMission[] = [
   AMARANTH_MISSION_25,
   AMARANTH_MISSION_26,
   AMARANTH_MISSION_27,
   AMARANTH_MISSION_28,
+  AMARANTH_MISSION_29,
+  AMARANTH_MISSION_30,
+  AMARANTH_MISSION_31,
+  AMARANTH_MISSION_32,
 ];
 
 export const AMARANTH_MISSIONS_BY_ID: Record<string, CampaignMission> = Object.fromEntries(

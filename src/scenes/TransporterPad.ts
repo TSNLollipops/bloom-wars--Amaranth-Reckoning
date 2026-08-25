@@ -35,7 +35,7 @@ import type { CampaignMission, MekArchetype, Path, PilotRecord } from "../data/t
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { canLaunchMission, createWardenCampaignState, loadCampaignState, type CampaignState } from "../engine/campaignState";
+import { canLaunchMission, createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
 
 // One muted, distinct hue per Path so a squad row scans quickly — new to
 // this file (see header comment: no portrait colour scheme existed
@@ -425,7 +425,24 @@ export class TransporterPad extends Phaser.Scene {
       // Threads the player's real selection through — see scenes/Battle.ts's
       // resolveDeployRoster() for how selectedPilotIds becomes the actual
       // DeployRosterEntry[] Mission deploys.
-      btn.on("pointerdown", () => this.scene.start("Battle", { missionId: this.missionId, selectedPilotIds: deployIds }));
+      //
+      // Mission real-time clock (25 Aug 2026) — this is the one moment a
+      // real playthrough actually starts a mission attempt, so it's the one
+      // place that starts the clock: stamps activeMissionAttempt with this
+      // exact instant and saves immediately, not deferred to some later
+      // "return to base" click the way earnings/roster changes are
+      // elsewhere in this codebase — if the clock isn't on disk before the
+      // Battle scene even loads, closing the tab one second later would
+      // lose it same as before this pass existed. Always overwrites
+      // whatever was there: there's no mid-mission resume in this engine
+      // (a previous, abandoned attempt already lost whatever it was
+      // tracking the moment the player left it), so a fresh BEAM DOWN — on
+      // this mission or any other — is always a genuinely fresh attempt.
+      btn.on("pointerdown", () => {
+        this.state.activeMissionAttempt = { missionId: this.missionId, startedAt: Date.now() };
+        saveCampaignState(this.state);
+        this.scene.start("Battle", { missionId: this.missionId, selectedPilotIds: deployIds });
+      });
     }
 
     let reason: string;

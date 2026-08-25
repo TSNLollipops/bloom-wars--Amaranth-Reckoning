@@ -300,8 +300,38 @@ export interface CampaignMission {
     // because Appendix A already names a second protect_asset mission
     // (32, Act III) that may want a different ship-toughness feel than 22.
     assetMaxHp?: number;
+    // extract_unit + civilianSpawns only (Mission 31 "The Last Convoy," 25
+    // Aug 2026 — Independent Campaign doc: "not everyone gets out," same
+    // flag as Mission 12's own permadeath note, §6a). The minimum number of
+    // this mission's civilianSpawns that must reach an exit tile for a win.
+    // Unset defaults to civilianSpawns.length (everyone has to make it) —
+    // a mission author has to deliberately choose a number below the total
+    // for "not everyone gets out" to be true by design rather than only by
+    // bad luck. See engine/mission.ts's checkExtraction/checkWinLoss for
+    // the actual verb; extractUnitId above is untouched and still governs
+    // every existing single-pilot extract_unit mission (5, 17, 23, 26) —
+    // the two never coexist on the same mission.
+    extractThreshold?: number;
   };
   playerPilotIds: string[];
+  // Mission 31 "The Last Convoy" (25 Aug 2026 — Maxime, on the escort AI's
+  // shape: "go ham. 3, the game is meant to feel alive"). Non-combat units
+  // spawned alongside the squad, side:"player" (real stakes — the hostile
+  // AI targets them like anyone else) but moved by their own autonomous
+  // flee/path-to-exit AI (engine/ai.ts's decideCivilianAction), never by a
+  // click or the headless sim's player-autoplay loop. Deliberately NOT
+  // referenced by instance id anywhere in mission data — engine/units.ts's
+  // nextInstanceId is a single counter shared across every unit the mission
+  // ever creates, so a spawned unit's runtime id isn't something authored
+  // data can predict (the same reason Mission 28's own comment gives for
+  // never hooking a unit_downed trigger to a hostile's id). checkExtraction
+  // and checkWinLoss instead just ask "how many living BattleUnit.isCivilian
+  // units are there, and how many already reached an exit" — see
+  // objectiveParams.extractThreshold above for the win/loss math. Absent
+  // (undefined/empty) on every mission but 31; when present, mission.objective
+  // must be "extract_unit" and objectiveParams.extractUnitId must be unset —
+  // the two extraction shapes never coexist.
+  civilianSpawns?: { at: Coord; displayName: string }[];
   enemyWaves: EnemyWave[];
   events: MissionEvent[];
   rewardPoints: number;

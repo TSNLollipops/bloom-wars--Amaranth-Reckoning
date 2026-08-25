@@ -406,6 +406,129 @@ export function decideHostileAction(map: MapDefinition, unit: BattleUnit, allUni
   return reflexiveDecision(map, unit, allUnits);
 }
 
+/**
+ * Mission 31 "The Last Convoy" (25 Aug 2026) — the flee half of the
+ * civilian escort AI. Symmetric counterpart to moveToward above: among
+ * this turn's reachable tiles, pick the one that maximises the MINIMUM
+ * Chebyshev distance to any threat in `threats` (not a true path-distance
+ * field the way moveToward uses for approach — fleeing doesn't need to find
+ * a chokepoint route the way "get to a target through a doorway" does;
+ * straight-line distance is enough to read as "away" and is far cheaper to
+ * compute fresh for a handful of civilians every turn). Falls back to
+ * standing still (`unit.pos`) if nothing reachable beats the current tile,
+ * same "hold position" fallback moveToward's own bestDist seed uses.
+ */
+// preferToward (25 Aug 2026, Mission 31 tuning — see this function's own
+// call site in decideCivilianAction below): first version of this function
+// scored reachable tiles ONLY on distance from threats, maximized. Mission
+// 31's first sim pass came back LOSS 20/20 — the real cause, found in the
+// turn log, wasn't the mission's difficulty: a fleeing civilian ran
+// straight to (31,3), the map's own far corner, and got stranded there for
+// the rest of the mission. Pure maximization always chases the single
+// globally-safest tile even when that tile is a dead end, because nothing
+// in the scoring cared which direction it was in.
+//
+// A tie-break toward preferToward (try this once, second attempt) wasn't
+// enough — re-sim came back LOSS 20/20 again, still corner-running. The
+// bug wasn't that ties were broken wrong; it's that the truly farthest-
+// from-threats tile on an open 30-wide map is very rarely tied with
+// anything, so the tie-break almost never fired. The actual fix: stop
+// maximizing safety at all. A civilian now looks for any reachable tile
+// AT LEAST AS SAFE as the one it's already standing on (threatScore >=
+// current), and among those, picks whichever is closest to preferToward —
+// "keep making progress home as long as this step doesn't make things
+// worse," not "run to the single safest point on the map regardless of
+// where that is." Only when truly cornered (every reachable tile is
+// strictly less safe than standing still) does it fall back to pure
+// maximum-safety, same panic-mode escape valve as before — see this
+// function's own final branch.
+export function moveAwayFrom(
+  map: MapDefinition,
+  unit: BattleUnit,
+  threats: BattleUnit[],
+  allUnits: BattleUnit[],
+  preferToward: Coord[] = []
+): Coord[] {
+  const kind = chassisToMovementKind(unit.chassis ?? "bipedal", false);
+  const reachable = reachableTiles(map, unit.pos, unit.moveRange, kind, occupiedSet(allUnits, unit.instanceId));
+  const threatScoreOf = (c: Coord) => Math.min(...threats.map((t) => chebyshevDistance(c, t.pos)));
+  const towardDistanceOf = (c: Coord) =>
+    preferToward.length ? Math.min(...preferToward.map((p) => chebyshevDistance(c, p))) : 0;
+  const currentThreatScore = threatScoreOf(unit.pos);
+
+  // Primary pass: among tiles at least as safe as staying put, walk toward
+  // preferToward (the exit) — ties broken by whichever is also safer.
+  let bestTile: Coord | null = null;
+  let bestTowardDistance = Infinity;
+  let bestThreatScoreAmongSafe = -Infinity;
+  for (const key of reachable.keys()) {
+    const [x, y] = key.split(",").map(Number);
+    const c = { x, y };
+    const threatScore = threatScoreOf(c);
+    if (threatScore < currentThreatScore) continue;
+    const towardDistance = towardDistanceOf(c);
+    if (
+      towardDistance < bestTowardDistance ||
+      (towardDistance === bestTowardDistance && threatScore > bestThreatScoreAmongSafe)
+    ) {
+      bestTowardDistance = towardDistance;
+      bestThreatScoreAmongSafe = threatScore;
+      bestTile = c;
+    }
+  }
+  if (bestTile) return reconstructPath(reachable, bestTile);
+
+  // Cornered — every reachable tile is strictly less safe than standing
+  // still. Panic mode: take whatever's safest, direction be damned.
+  let panicTile: Coord = unit.pos;
+  let panicScore = currentThreatScore;
+  for (const key of reachable.keys()) {
+    const [x, y] = key.split(",").map(Number);
+    const c = { x, y };
+    const score = threatScoreOf(c);
+    if (score > panicScore) {
+      panicScore = score;
+      panicTile = c;
+    }
+  }
+  return reconstructPath(reachable, panicTile);
+}
+
+/**
+ * Mission 31's escort AI (Maxime, 25 Aug 2026: "go ham... the game is meant
+ * to feel alive") — a civilian never attacks (BattleUnit.isCivilian's own
+ * comment, and attackRange [0,0] backs this up structurally), so this
+ * always returns a path or nothing, never an attackTargetId. Two rules,
+ * checked in order: flee any visible threat first, otherwise head for the
+ * nearest exit tile. Deliberately simpler than any of the three hostile
+ * tiers above — no coordination between civilians, no target prioritisation
+ * — this is meant to read as one scared person's own instinct, not a
+ * squad's.
+ */
+export function decideCivilianAction(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
+  const threats = livingTargets(allUnits, "hostile").filter((t) => isVisibleTo(unit, t));
+  if (threats.length) {
+    const path = moveAwayFrom(map, unit, threats, allUnits, map.exitTiles ?? []);
+    if (path.length > 1) return { path };
+    // Boxed in with nowhere safer to go — fall through to heading for the
+    // exit anyway rather than freezing; standing still against a visible
+    // threat is never better than trying to close the distance to safety.
+  }
+  const exits = map.exitTiles ?? [];
+  if (!exits.length) return {};
+  let nearest = exits[0];
+  let bestD = chebyshevDistance(unit.pos, nearest);
+  for (const e of exits) {
+    const d = chebyshevDistance(unit.pos, e);
+    if (d < bestD) {
+      bestD = d;
+      nearest = e;
+    }
+  }
+  const path = moveToward(map, unit, nearest, allUnits);
+  return path.length > 1 ? { path } : {};
+}
+
 export function checkChargeForPath(map: MapDefinition, unit: BattleUnit, path: Coord[]): boolean {
   if (unit.chassis !== "centauroid") return false;
   const kind = chassisToMovementKind(unit.chassis, false);

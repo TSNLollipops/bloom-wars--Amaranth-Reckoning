@@ -167,6 +167,10 @@ export class Battle extends Phaser.Scene {
   // actual feature Maxime asked for (XCOM's own "board is in flux, you
   // can't act yet" beat), not just a side effect of the animation existing.
   private isAnimatingMove = false;
+  // Mission real-time clock (25 Aug 2026) — wall-clock ms at BEAM DOWN, set
+  // once in init(). See that method's own comment and
+  // engine/campaignState.ts's "9. Mission real-time clock" section.
+  private missionStartedAt = 0;
   // The contextual action bar's fixed slot pool, plus the options currently
   // bound to them. Whether a slot is usable is Mission's call (canX()),
   // never this scene's.
@@ -182,6 +186,19 @@ export class Battle extends Phaser.Scene {
     this.mission = new Mission(missionDef, this.resolveDeployRoster(missionDef.playerPilotIds, data.selectedPilotIds));
     this.selectedUnitId = null;
     this.clearSelectionHighlights();
+    // Mission real-time clock (25 Aug 2026) — the HUD half of "add that
+    // timer as something soldier keep track of," Maxime's own framing for
+    // why this shouldn't be an invisible trap that only shows up as a
+    // recall notice after the fact. TransporterPad.ts stamped
+    // activeMissionAttempt.startedAt the instant BEAM DOWN fired; read the
+    // same CampaignState independently here (this scene already does that
+    // in resolveDeployRoster below, same pattern) rather than threading it
+    // through scene data. Falls back to "now" — reading as a fresh clock,
+    // not a crash — for the one case that field can legitimately be
+    // missing: a scene started directly without going through
+    // TransporterPad at all (resolveDeployRoster's own doc comment below
+    // names this same case for selectedPilotIds).
+    this.missionStartedAt = loadCampaignState()?.activeMissionAttempt?.startedAt ?? Date.now();
   }
 
   /**
@@ -450,7 +467,14 @@ export class Battle extends Phaser.Scene {
     // case it, but it's not one of the deploying squad and was never meant
     // to be clickable as an actor; you interact with it only by walking an
     // actual pilot adjacent and using the Rescue click-target above.
-    if (unitHere && unitHere.side === "player" && !unitHere.downed && !unitHere.npcIncapacitated && unitHere.actionsRemaining > 0) {
+    // !unitHere.isCivilian (Mission 31, 25 Aug 2026): same exclusion,
+    // same reason as npcIncapacitated right above — on the board, at real
+    // risk, but never one of the deploying squad. A civilian moves only
+    // through its own escort AI (engine/ai.ts's decideCivilianAction),
+    // never a click; its actionsRemaining is permanently 0 anyway (see
+    // engine/units.ts's createCivilianUnit), so this guard is
+    // defense-in-depth rather than the only thing stopping a select here.
+    if (unitHere && unitHere.side === "player" && !unitHere.downed && !unitHere.npcIncapacitated && !unitHere.isCivilian && unitHere.actionsRemaining > 0) {
       this.selectedUnitId = unitHere.instanceId;
       this.recomputeSelectionHighlights(unitHere.instanceId);
       this.render();
@@ -976,7 +1000,13 @@ export class Battle extends Phaser.Scene {
     // would look like one of the deploying squad. A pale, neutral tone
     // instead — "someone down, not a combatant" — checked before the
     // ordinary side/kind branch below rather than folded into it.
-    const color = unit.npcIncapacitated
+    // isCivilian (Mission 31, 25 Aug 2026): its own pale sky-blue, distinct
+    // from both PLAYER_COLOR (the deploying squad) and npcIncapacitated's
+    // tan below — "someone to protect, not a combatant, not already down,"
+    // a third reading this board hasn't needed before this mission.
+    const color = unit.isCivilian
+      ? 0x9fc9e8
+      : unit.npcIncapacitated
       ? 0xe8e2d4
       : unit.side === "player"
         ? PLAYER_COLOR
@@ -1151,6 +1181,14 @@ export class Battle extends Phaser.Scene {
     }
   }
 
+  /** "Xh Ym" (or "Ym" under an hour) — the HUD's sortie-clock readout. Floors rather than rounds so it never claims more time has passed than actually has. */
+  private formatSortieElapsed(elapsedMs: number): string {
+    const totalMinutes = Math.max(0, Math.floor(elapsedMs / 60000));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  }
+
   /** Takes as many leading entries as fit in `top..bottom` once wrapped at `charsPerLine`. */
   private fitLines(lines: string[], top: number, bottom: number, lineH: number, charsPerLine: number): string[] {
     const budget = Math.floor((bottom - top) / lineH);
@@ -1177,19 +1215,33 @@ export class Battle extends Phaser.Scene {
       m.mission.objective === "eliminate_all"
         ? `Turn ${m.turn}  (bonus if clear by turn ${m.mission.objectiveParams.turnLimit})  —  ${m.phase} phase`
         : `Turn ${m.turn} / ${m.mission.objectiveParams.turnLimit}  —  ${m.phase} phase`;
+    // Mission real-time clock (25 Aug 2026) — "add that timer as something
+    // soldier keep track of," Maxime's own framing for why this needs to be
+    // felt during play, not just discovered after a recall. A different
+    // axis from turnLine above on purpose: turnLine is in-mission turns
+    // (house rule #5 — no fail line), this is real wall-clock time since
+    // BEAM DOWN, and IS a real deadline (engine/campaignState.ts's
+    // MISSION_REAL_TIME_LIMIT_MS / evaluateMissionTimeout, enforced back at
+    // scenes/Boot.ts on the next game load, not inside this scene). Always
+    // visible, same as turnLine right above it — a clock nobody can see
+    // isn't the feature Maxime asked for.
+    const sortieLine = `Sortie clock: ${this.formatSortieElapsed(Date.now() - this.missionStartedAt)} elapsed — Command recalls a lance past 12h`;
     // The briefing is the first thing to go when a unit is selected. It's six
     // wrapped lines of text the player has already read, and the ability-depth
     // pass added up to five status lines plus four legend lines below it —
     // which is exactly how much room the briefing was using. Selected-unit
     // state is live and the briefing isn't, so the briefing yields.
-    const lines = [m.mission.displayName, turnLine, "", `Objective: ${m.mission.objective}`];
+    const lines = [m.mission.displayName, turnLine, sortieLine, "", `Objective: ${m.mission.objective}`];
     // Protect Asset (Mission 22, 25 Aug 2026) — the ship's HP has no other
     // on-screen representation (it's not a unit, per data/types.ts's own
     // "off-board asset" framing), so this is the only place a player can
     // see it. Always shown, not just while a unit is selected, same as the
     // Objective line right above it.
     if (m.mission.objective === "protect_asset") lines.push(`Providence: ${m.assetHp}/${m.assetMaxHp} HP`);
-    if (!this.selectedUnitId) lines.splice(3, 0, m.mission.briefing, "");
+    // Index 4 (not 3), since sortieLine above pushed everything down one —
+    // splices the briefing+blank in ahead of the "Objective:" line exactly
+    // as before, just accounting for the new sortieLine entry at index 2.
+    if (!this.selectedUnitId) lines.splice(4, 0, m.mission.briefing, "");
     if (this.selectedUnitId) {
       const selected = m.unitById(this.selectedUnitId);
       if (selected) {

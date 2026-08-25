@@ -74,7 +74,17 @@ export class Debrief extends Phaser.Scene {
     // ---- 1. Load campaign state ------------------------------------------
     this.state = loadCampaignState() ?? createWardenCampaignState();
 
-    // ---- 1a. Apply this mission's permanent losses to the roster --------
+    // ---- 1a. Mission real-time clock (25 Aug 2026) — clear the attempt --
+    // Reaching this screen at all means the mission actually resolved for
+    // real, win or loss, before any 12-hour timeout could fire — clear it
+    // unconditionally so scenes/Boot.ts's own timeout check never fires
+    // against a mission that already finished the honest way. See
+    // engine/campaignState.ts's "9. Mission real-time clock" section for
+    // the full mechanism; scenes/TransporterPad.ts is the matching
+    // set-it-on-launch half.
+    this.state.activeMissionAttempt = undefined;
+
+    // ---- 1b. Apply this mission's permanent losses to the roster --------
     // Mission.permanentLosses (engine/mission.ts) was already computed
     // LIVE, at the exact instant of each downing this mission — that
     // file's own header names this exact moment ("a future debrief

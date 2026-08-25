@@ -125,6 +125,22 @@ export interface CampaignState {
   // exists regardless of roster contents (same reasoning as `points`
   // defaulting to 0 rather than being conditionally present).
   rourkeRank: Rank;
+  // Mission real-time clock (25 Aug 2026 — see "9. Mission real-time
+  // clock" below for the full mechanism). Set by scenes/TransporterPad.ts
+  // the instant BEAM DOWN fires, cleared by scenes/Debrief.ts the instant
+  // a mission actually resolves for real (win or loss), and read by
+  // scenes/Boot.ts on every game load to catch the case where neither of
+  // those happened — the tab was closed mid-mission and never came back.
+  // Optional, not defaulted like rourkeRank/points above: "no active
+  // attempt" is this field's normal resting state for most of a campaign,
+  // not an edge case to paper over.
+  activeMissionAttempt?: ActiveMissionAttempt;
+}
+
+/** One in-flight mission attempt's real-world start time. `startedAt` is a `Date.now()` epoch-ms snapshot — deliberately real, wall-clock time, not a game-turn count (house rule #5 already covers in-mission turn pressure; this is a different axis entirely, "how long has Command been waiting on you," not "how many turns did the fight take"). */
+export interface ActiveMissionAttempt {
+  missionId: string;
+  startedAt: number;
 }
 
 /**
@@ -553,4 +569,71 @@ export function integrateThirdLance(state: CampaignState): ThirdLanceResult {
   for (const p of THIRD_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(THIRD_LANCE_MEKS)) state.meks[id] = { ...m };
   return { integrated: true, pilots: THIRD_LANCE_PILOTS };
+}
+
+// ---- 9. Mission real-time clock (25 Aug 2026) ---------------------------
+//
+// Maxime: "add a clock timer to how long you take to do missions. add that
+// timer as something soldier keep track of(social part) force a failed
+// mission if you take more than 12hour to do the mission. its lore
+// acurate. 12hour real time btw. from the computer or web clock."
+//
+// Checked the actual repo before proposing anything: nothing before this
+// pass persisted a mission attempt at all — scenes/TransporterPad.ts's
+// BEAM DOWN never wrote to CampaignState, only scenes/Debrief.ts (a
+// mission actually finishing) and scenes/Hangar.ts (the shop) ever called
+// saveCampaignState. Closing the tab mid-mission simply forgot the attempt
+// existed. Flagged that back to Maxime as the real fork this ask turns on
+// — track the clock only while the tab happens to stay open (cheap, but
+// doesn't match "started this morning, back tonight"), or persist it
+// properly. He picked persistence, "from the biginin of the save data" —
+// this field lives in CampaignState itself, saved/loaded through the same
+// localStorage blob as everything else, not a separate mechanism.
+//
+// On cost: asked directly whether a timeout should carry full loss weight
+// (permadeath rolls, same as a real defeat) or something lighter. Maxime:
+// "they are forcefully recalled to ship for a dressing down by the co." —
+// narratively a real consequence (Command's patience, not nothing), but
+// mechanically the soft option: no permadeath, no earnings (the mission
+// never actually happened), roster untouched. See applyMissionTimeout.
+
+/** 12 real hours, in milliseconds — Command's own operational window before a lance that's gone quiet gets recalled rather than left hanging. Deliberately real, wall-clock time, not a turn count: house rule #5 (README) already covers in-mission turn pressure ("eliminate_all has no turn-limit fail condition... give player more freedom"); this is a different axis, how long you've kept Command waiting, not how the fight itself went. */
+export const MISSION_REAL_TIME_LIMIT_MS = 12 * 60 * 60 * 1000;
+
+export interface MissionTimeoutResult {
+  timedOut: boolean;
+  missionId?: string;
+  elapsedMs?: number;
+}
+
+/**
+ * Pure check, same evaluate/apply split evaluatePermadeathCheck/
+ * applyPermadeathCheck already use above: reads state, mutates nothing.
+ * `now` is passed in rather than read internally via Date.now() so a test
+ * can assert the exact 12-hour boundary without actually waiting 12 hours
+ * — the one live caller (scenes/Boot.ts) passes the real Date.now().
+ */
+export function evaluateMissionTimeout(state: CampaignState, now: number): MissionTimeoutResult {
+  const attempt = state.activeMissionAttempt;
+  if (!attempt) return { timedOut: false };
+  const elapsedMs = now - attempt.startedAt;
+  if (elapsedMs < MISSION_REAL_TIME_LIMIT_MS) return { timedOut: false };
+  return { timedOut: true, missionId: attempt.missionId, elapsedMs };
+}
+
+/**
+ * Applies a timed-out attempt as a stand-down — clears activeMissionAttempt
+ * so the same mission can be relaunched immediately with a fresh clock,
+ * same as if this attempt had never happened. Deliberately does NOT touch
+ * pilots, points, or personalPoints: no permadeath roll (the squad was
+ * never actually in the fight when the clock ran out — nothing to roll
+ * against), no earnings (nothing was accomplished). The only real cost is
+ * narrative — Command's own read on you — which scenes/Boot.ts surfaces as
+ * the recall notice, not anything this function tracks. A no-op, safe to
+ * call speculatively, when evaluateMissionTimeout would already say false.
+ */
+export function applyMissionTimeout(state: CampaignState, now: number): MissionTimeoutResult {
+  const result = evaluateMissionTimeout(state, now);
+  if (result.timedOut) state.activeMissionAttempt = undefined;
+  return result;
 }

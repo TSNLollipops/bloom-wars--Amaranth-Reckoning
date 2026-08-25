@@ -172,6 +172,26 @@ export interface BattleUnit {
    */
   carryingRescueId?: string;
 
+  /**
+   * Mission 31 "The Last Convoy" (25 Aug 2026) — see createCivilianUnit
+   * below and data/types.ts's CampaignMission.civilianSpawns for the full
+   * design. side:"player" (a real, hostile-attackable target — that's the
+   * point) but excluded from three places npcIncapacitated already had to
+   * be excluded from, for the same underlying reason ("on the board, at
+   * risk, but not part of the deploying squad"): checkWinLoss's playerAlive
+   * tally (a wiped real squad with civilians still standing is still a
+   * loss), scenes/Battle.ts's click-to-select guard (never player-
+   * controlled), and — via actionsRemaining being permanently 0, the exact
+   * trick createRescuableNpcUnit already uses — the headless sim's
+   * player-autoplay loop (sim/run.ts skips any unit with actionsRemaining
+   * <= 0 before it ever asks decidePlayerAiAction for a move). A civilian
+   * moves only through engine/mission.ts's runCivilianStep(), once per full
+   * turn cycle, driven by engine/ai.ts's decideCivilianAction — never
+   * through the normal action-economy system, which is why actionsRemaining
+   * never needs to be anything but 0.
+   */
+  isCivilian?: boolean;
+
   chargedThisMove: boolean;
   statusEffects: StatusEffect[];
   usedEvacThisMission: boolean;
@@ -401,6 +421,77 @@ export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleU
     usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     spriteKey: "shape_npc_downed",
+  };
+}
+
+/**
+ * Mission 31 "The Last Convoy" (25 Aug 2026) — civilian evacuation, full
+ * escort AI (Maxime: "go ham. 3, the game is meant to feel alive," picked
+ * over a version where the player walks each civilian to the exit
+ * step-by-step). Not resolved through data/pilotRegistry.ts or
+ * UNIT_ARCHETYPES, same reasoning as createRescuableNpcUnit right above:
+ * this unit has no PilotRecord and no mek, it exists only as board state
+ * for the length of this one mission.
+ *
+ * Stat choices, "at real risk, genuinely mobile":
+ *   - `path: "meeps"`, same reason as createRescuableNpcUnit — resolveMechAttack
+ *     throws on a defender with no `path`, and this happens to also grant
+ *     MEEPS_DODGE_CHANCE, a reasonable "hard to finish off, not impossible"
+ *     break for someone who isn't a trained pilot.
+ *   - `effectiveDefense: 85` (below the 100 baseline every real pilot/mech
+ *     starts from) — per createRescuableNpcUnit's own 25 Aug revision note,
+ *     damage-taken scales as 100/effectiveDefense, so this is a real ~1.18x
+ *     damage-taken multiplier, not a cosmetic ten points under par. A
+ *     civilian is meant to be genuinely at risk — "not everyone gets out"
+ *     has to be a live possibility, not a scripted certainty (see
+ *     data/types.ts's objectiveParams.extractThreshold comment) — while
+ *     still being survivable with real escort play, not a coin flip.
+ *   - `currentHp/maxHp: 45` — noticeably under a G-tier pilot's ~100-115,
+ *     same spirit as the defense choice above.
+ *   - `moveRange: 4` — Reeps/Munti-class mobility (data/units.ts), not
+ *     Tank-slow — a fleeing civilian needs real legs, this isn't a rescue
+ *     that has to be carried.
+ *   - `attackRange: [0, 0]`, `canCounter: false`, `abilities: []` — cannot
+ *     attack or counter under any code path, defense-in-depth alongside
+ *     engine/ai.ts's decideCivilianAction never producing an attackTargetId
+ *     for one of these in the first place.
+ *   - `vision: 3` — enough to notice a threat and flee it
+ *     (decideCivilianAction's own isVisibleTo check), not omniscient.
+ */
+export function createCivilianUnit(pos: Coord, displayName: string): BattleUnit {
+  return {
+    instanceId: nextInstanceId("civilian"),
+    side: "player",
+    kind: "pilot",
+    archetypeId: "npc_civilian", // not a real UnitArchetype id — never resolved through UNIT_ARCHETYPES
+    displayName,
+    pos,
+    path: "meeps",
+    currentHp: 45,
+    maxHp: 45,
+    effectiveAttack: 0,
+    effectiveDefense: 85,
+    moveRange: 4,
+    attackRange: [0, 0],
+    vision: 3,
+    canCounter: false,
+    counterMaxRange: 0,
+    abilities: [],
+    chassis: "bipedal",
+    shield: 0,
+    maxShield: 0,
+    tookDamageThisCycle: false,
+    downed: false,
+    isCivilian: true,
+    actionsRemaining: 0,
+    chargedThisMove: false,
+    statusEffects: [],
+    abilityCooldowns: {},
+    usedEvacThisMission: false,
+    usedScreenThisMission: false,
+    usedTauntThisMission: false,
+    sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    spriteKey: "shape_civilian",
   };
 }
 

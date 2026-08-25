@@ -18,6 +18,9 @@ import {
   saveCampaignState,
   loadCampaignState,
   clearCampaignState,
+  evaluateMissionTimeout,
+  applyMissionTimeout,
+  MISSION_REAL_TIME_LIMIT_MS,
   DISCRETIONARY_RECRUIT_COST,
   type CampaignStorage,
 } from "../campaignState";
@@ -335,5 +338,112 @@ describe("save / load / clear — basic localStorage-shaped persistence", () => 
     expect(() => saveCampaignState(createWardenCampaignState())).not.toThrow();
     expect(loadCampaignState()).toBeNull();
     expect(() => clearCampaignState()).not.toThrow();
+  });
+});
+
+// Mission real-time clock (25 Aug 2026 — Maxime: "force a failed mission
+// if you take more than 12hour to do the mission... 12hour real time btw.
+// from the computer or web clock"). `now` is always passed in explicitly
+// below rather than read via Date.now() — these tests assert the exact
+// 12-hour boundary, which would otherwise mean actually waiting 12 hours.
+describe("evaluateMissionTimeout / applyMissionTimeout — the 12-hour real-time clock", () => {
+  it("no active attempt at all reads as not timed out", () => {
+    const state = createWardenCampaignState();
+    expect(evaluateMissionTimeout(state, Date.now()).timedOut).toBe(false);
+  });
+
+  it("well under 12 hours is not timed out", () => {
+    const state = createWardenCampaignState();
+    const startedAt = 1_000_000;
+    state.activeMissionAttempt = { missionId: "mission_amaranth_5", startedAt };
+    const result = evaluateMissionTimeout(state, startedAt + 6 * 60 * 60 * 1000); // 6h later
+    expect(result.timedOut).toBe(false);
+  });
+
+  it("exactly 12 hours elapsed counts as timed out, not one tick short", () => {
+    const state = createWardenCampaignState();
+    const startedAt = 1_000_000;
+    state.activeMissionAttempt = { missionId: "mission_amaranth_5", startedAt };
+    const result = evaluateMissionTimeout(state, startedAt + MISSION_REAL_TIME_LIMIT_MS);
+    expect(result.timedOut).toBe(true);
+    expect(result.missionId).toBe("mission_amaranth_5");
+    expect(result.elapsedMs).toBe(MISSION_REAL_TIME_LIMIT_MS);
+  });
+
+  it("well past 12 hours is timed out, and evaluate never mutates state", () => {
+    const state = createWardenCampaignState();
+    const startedAt = 1_000_000;
+    state.activeMissionAttempt = { missionId: "mission_amaranth_9", startedAt };
+    const result = evaluateMissionTimeout(state, startedAt + 20 * 60 * 60 * 1000); // 20h later
+    expect(result.timedOut).toBe(true);
+    // Pure check — the attempt is still sitting there until apply runs.
+    expect(state.activeMissionAttempt).toEqual({ missionId: "mission_amaranth_9", startedAt });
+  });
+
+  it("applyMissionTimeout clears the attempt when timed out, and leaves the rest of the roster untouched — Maxime's own call: 'forcefully recalled to ship for a dressing down by the co,' not a real loss", () => {
+    const state = createWardenCampaignState(150);
+    const rourkeBefore = { ...state.pilots["pilot_rourke"] };
+    const startedAt = 1_000_000;
+    state.activeMissionAttempt = { missionId: "mission_amaranth_12", startedAt };
+
+    const result = applyMissionTimeout(state, startedAt + MISSION_REAL_TIME_LIMIT_MS + 1);
+
+    expect(result.timedOut).toBe(true);
+    expect(state.activeMissionAttempt).toBeUndefined();
+    // No permadeath roll, no earnings change, no status flip — a timeout
+    // costs nothing mechanical, only the wasted real-world time.
+    expect(state.points).toBe(150);
+    expect(state.pilots["pilot_rourke"]).toEqual(rourkeBefore);
+  });
+
+  it("applyMissionTimeout is a safe no-op when the attempt hasn't actually timed out yet", () => {
+    const state = createWardenCampaignState();
+    const startedAt = 1_000_000;
+    state.activeMissionAttempt = { missionId: "mission_amaranth_3", startedAt };
+
+    const result = applyMissionTimeout(state, startedAt + 60 * 60 * 1000); // 1h later
+    expect(result.timedOut).toBe(false);
+    expect(state.activeMissionAttempt).toEqual({ missionId: "mission_amaranth_3", startedAt });
+  });
+
+  it("round-trips activeMissionAttempt through save/load exactly, same as every other field", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    state.activeMissionAttempt = { missionId: "mission_amaranth_20", startedAt: 42 };
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.activeMissionAttempt).toEqual({ missionId: "mission_amaranth_20", startedAt: 42 });
+  });
+
+  it("a save from before this pass existed (no activeMissionAttempt field at all) loads and evaluates as not timed out, not a crash", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    // Simulates an old save: serialize, then strip the field a pre-this-pass
+    // save would never have had, rather than relying on TypeScript to stop
+    // us from constructing an invalid object directly.
+    const raw = JSON.parse(JSON.stringify(state));
+    delete raw.activeMissionAttempt;
+    storage.setItem("bloomwars_campaign_state_v1", JSON.stringify(raw));
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded).not.toBeNull();
+    expect(evaluateMissionTimeout(loaded!, Date.now()).timedOut).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ import type {
   TileType,
 } from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
-import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, type BattleUnit } from "./units";
+import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, createCivilianUnit, type BattleUnit } from "./units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import {
@@ -52,7 +52,7 @@ import {
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
-import { decideHostileAction, isVisibleTo } from "./ai";
+import { decideHostileAction, decideCivilianAction, isVisibleTo } from "./ai";
 import {
   createEventRuntimeState,
   evaluateTurnStart,
@@ -251,6 +251,12 @@ export class Mission {
   log: string[] = [];
   private eventState: EventRuntimeState = createEventRuntimeState();
   private extractedUnitId: string | null = null;
+  // Mission 31 "The Last Convoy" (25 Aug 2026) — companion to extractedUnitId
+  // above, for the multi-civilian shape (data/types.ts's civilianSpawns/
+  // extractThreshold). Empty on every mission without civilianSpawns; the
+  // two extraction trackers are never both in play on the same mission — see
+  // checkExtraction/checkWinLoss below for which one a given mission uses.
+  private extractedCivilianIds: Set<string> = new Set();
   // Mission 5's rescue-and-recruit bonus objective (23 Aug 2026) — see
   // BattleUnit.npcIncapacitated's own comment for the full design. "none"
   // for every mission without a rescue_pilot bonusObjective (the
@@ -317,6 +323,7 @@ export class Mission {
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
     this.armBonusObjective();
+    this.spawnConvoyCivilians();
     // Turn 1 goes through the exact same path every later turn does
     // (endPlayerTurn -> runTurnStartEvents), which already spawns that
     // turn's waves itself. This used to ALSO call spawnWavesForTurn(1)
@@ -364,6 +371,24 @@ export class Mission {
    */
   private armClearBloomPatch(): void {
     this.clearBloomPatchOutcome = "pending";
+  }
+
+  /**
+   * Mission 31 "The Last Convoy" (25 Aug 2026) — separate from
+   * armBonusObjective on purpose: civilianSpawns is core to the mission's
+   * actual objective (extract_unit), not a bonus layered on top the way
+   * rescue_pilot/clear_bloom_patch are, so it doesn't belong in that
+   * kind-dispatch at all. No-op (empty loop) for every mission without
+   * civilianSpawns — the entire rest of this file's civilian-handling code
+   * (checkExtraction, checkWinLoss's extract_unit branch, runCivilianStep)
+   * is equally inert whenever this.units simply has no isCivilian unit on
+   * it, so nothing here needs its own extra guard beyond the array being
+   * empty.
+   */
+  private spawnConvoyCivilians(): void {
+    for (const spawn of this.mission.civilianSpawns ?? []) {
+      this.units.push(createCivilianUnit(spawn.at, spawn.displayName));
+    }
   }
 
   private deployPlayerUnits(): void {
@@ -1715,14 +1740,63 @@ export class Mission {
   /** Extraction objective: call when the extract-unit reaches an exit tile. */
   private checkExtraction(): void {
     if (this.mission.objective !== "extract_unit") return;
+    const exits = this.map.exitTiles ?? [];
+    // The Last Convoy shape (Mission 31, 25 Aug 2026) — every living,
+    // not-yet-banked civilian gets checked independently; reaching an exit
+    // banks that one civilian without touching whether the others still
+    // can. See checkWinLoss below for the threshold this feeds.
+    if (this.mission.civilianSpawns?.length) {
+      for (const unit of this.livingUnits()) {
+        if (!unit.isCivilian || this.extractedCivilianIds.has(unit.instanceId)) continue;
+        if (exits.some((c) => coordsEqual(c, unit.pos))) {
+          this.extractedCivilianIds.add(unit.instanceId);
+          this.log.push(`${unit.displayName} reaches the extraction tile.`);
+        }
+      }
+      return;
+    }
     const id = this.mission.objectiveParams.extractUnitId;
     if (!id) return;
     const unit = this.unitById(id);
     if (!unit || unit.downed || this.extractedUnitId) return;
-    const exits = this.map.exitTiles ?? [];
     if (exits.some((c) => coordsEqual(c, unit.pos))) {
       this.extractedUnitId = id;
       this.log.push(`${unit.displayName} reaches the extraction tile.`);
+    }
+  }
+
+  /**
+   * Mission 31's escort AI (25 Aug 2026) — moves every living civilian once
+   * per full turn cycle. Called from runHostileTurn(), right after the
+   * hostile units resolve and before the environment step, so civilians
+   * react to whatever just happened that turn (same beat the environment
+   * tick already runs on) rather than moving during the player's own turn,
+   * which would read as things happening without player input mid-turn.
+   */
+  private runCivilianStep(): void {
+    if (!this.mission.civilianSpawns?.length) return;
+    for (const unit of this.livingUnits()) {
+      if (!unit.isCivilian) continue;
+      const decision = decideCivilianAction(this.map, unit, this.units);
+      if (decision.path && decision.path.length > 1) this.moveCivilian(unit, decision.path);
+    }
+  }
+
+  /**
+   * A civilian's own movement choke point — deliberately NOT moveHostile.
+   * That method also triggers overwatch/interdiction, both hostile-movement
+   * reaction systems (a player's held overwatch is meant to fire on an
+   * approaching hostile, not on a friendly civilian passing through the
+   * same tiles) — see overwatch's own "refuses any non-player unit" note in
+   * engine/units.ts. This is the same core operation (commit the position,
+   * fire zone_entered events for the tiles walked through) with neither.
+   */
+  private moveCivilian(unit: BattleUnit, path: Coord[]): void {
+    const dest = path[path.length - 1];
+    unit.pos = dest;
+    for (const step of path.slice(1)) {
+      const fired = evaluateZoneEntered(this.mission.events, step, this.turn, this.eventState);
+      for (const ev of fired) this.applyEventAction(ev.action);
     }
   }
 
@@ -1766,6 +1840,10 @@ export class Mission {
       }
       if (this.outcome !== "ongoing") return;
     }
+
+    this.runCivilianStep();
+    this.checkExtraction();
+    if (this.checkWinLoss()) return;
 
     this.environmentStep();
     if (this.checkWinLoss()) return;
@@ -1926,7 +2004,13 @@ export class Mission {
     // deploying squad and must never count toward "is anyone still up" —
     // a real squad wiped to zero has to read as a loss even if the NPC is
     // still standing on the board, untouched, waiting to be rescued.
-    const playerAlive = this.units.filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated);
+    // !u.isCivilian (Mission 31, 25 Aug 2026): same shape as the
+    // npcIncapacitated exclusion right above it, and the same reason — a
+    // civilian is side "player" so the hostile AI treats it as a real
+    // target, but it is not part of the deploying squad. A wiped real squad
+    // has to read as a loss even if every civilian is still standing on the
+    // board waiting to be reached.
+    const playerAlive = this.units.filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated && !u.isCivilian);
     const hostileAlive = this.units.filter((u) => u.side === "hostile" && !u.downed);
 
     if (!playerAlive.length) {
@@ -1971,6 +2055,32 @@ export class Mission {
         return true;
       }
     } else if (this.mission.objective === "extract_unit") {
+      // The Last Convoy shape (Mission 31, 25 Aug 2026) — "not everyone
+      // gets out" as real design intent, not a guaranteed specific (same
+      // flag data/types.ts's extractThreshold comment and Mission 12's own
+      // §6a note both carry). Win the instant enough civilians are banked;
+      // lose only once the threshold becomes mathematically unreachable —
+      // a downed civilian costs the mission nothing by itself, unlike the
+      // single-target shape below, where losing the one target IS the loss.
+      if (this.mission.civilianSpawns?.length) {
+        const total = this.mission.civilianSpawns.length;
+        const threshold = this.mission.objectiveParams.extractThreshold ?? total;
+        const extracted = this.extractedCivilianIds.size;
+        if (extracted >= threshold) return this.finishWin();
+        const stillAlive = this.livingUnits().filter((u) => u.isCivilian && !this.extractedCivilianIds.has(u.instanceId)).length;
+        const stillPossible = extracted + stillAlive;
+        if (stillPossible < threshold) {
+          this.outcome = "loss";
+          this.log.push(`Loss: too few of the convoy can still reach extraction (${extracted}/${threshold} needed, ${stillPossible} still possible).`);
+          return true;
+        }
+        if (this.turn > turnLimit) {
+          this.outcome = "loss";
+          this.log.push("Loss: turn limit reached before enough of the convoy got out.");
+          return true;
+        }
+        return false;
+      }
       const id = this.mission.objectiveParams.extractUnitId;
       const unit = id ? this.unitById(id) : undefined;
       if (unit?.downed) {

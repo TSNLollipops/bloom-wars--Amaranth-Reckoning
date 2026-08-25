@@ -913,10 +913,138 @@ const MARROWS_RECKONING_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
+// --- Batch 6 (missions 29-32, 25 Aug 2026) ---
+// All four grids generated and BFS-validated via a throwaway gen_maps6.py
+// script (same disciplined-then-deleted pattern the batch-5 build log
+// documents for gen_maps5.py) rather than hand-authored — see the build
+// log addendum for the validation summary.
+
+// Mission 29, "The Outer Ring Falls" (hold_zone, scripted strategic loss —
+// the ring is overrun by design; the hold room existing at all is what
+// lets the player choose how long to make Marrow's forces pay for it).
+// Ridge-walled perimeter, a single walled hold room with one doorway just
+// east of deploy, and 6 spawn tiles split across three separate seams
+// (north-east/mid-east/south-east) so the enemy visibly closes in from
+// multiple directions rather than one line.
+const OUTER_RING_FALLS_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "rubble", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall", "wall", "wall", "wall", "wall", "wall", "plain", "rubble", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "hold", "wall", "plain", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "hold", "hold", "hold", "hold", "wall", "plain", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "hold", "hold", "hold", "hold", "wall", "plain", "scrub", "scrub", "rubble", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "ridge"],
+  ["ridge", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "wall", "hold", "hold", "hold", "hold", "wall", "plain", "scrub", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall", "wall", "wall", "wall", "wall", "wall", "plain", "rubble", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "scrub", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "scrub", "rubble", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub", "rubble", "scrub", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+];
+
+// Mission 30, "Ashes of the Second Ring" (eliminate_all — city fighting;
+// Meridian's Oath takes damage on-station per the campaign doc). Three
+// road spines (two horizontal, one vertical) running through 12
+// structure-block clusters, scattered rubble, deploy on the west edge,
+// 6 spawn tiles across four rows on the east edge.
+const ASHES_OF_THE_SECOND_RING_TILES: TileType[][] = [
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "structure", "structure", "structure", "structure", "road", "rubble", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "scrub"],
+  ["scrub", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "spawn", "scrub"],
+  ["scrub", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "scrub"],
+  ["scrub", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "spawn", "spawn", "scrub"],
+  ["scrub", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "road", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "scrub"],
+  ["scrub", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "spawn", "spawn", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "scrub"],
+  ["scrub", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "scrub"],
+  ["scrub", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "spawn", "scrub"],
+  ["scrub", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "structure", "structure", "structure", "structure", "road", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+];
+
+// Mission 31, "The Last Convoy" (extract_unit, multi-civilian — "not
+// everyone gets out," same flag as Mission 12's own permadeath note,
+// §6a). A full-length road spine is the convoy route; a west-edge exit
+// zone (6 tiles) is the safety point. Deploy sits at the FAR (east) end,
+// next to the civilian cluster, NOT next to the exit — first version put
+// deploy right beside the exit with civilians all the way out at x=26-29,
+// and sim testing came back LOSS every single run (15/15), the convoy
+// wiped by turn 3-7 before the squad had covered a third of the map. Real
+// design bug, not a tuning number: an escort mission needs the escort to
+// start next to what it's escorting. Moved deploy here instead — squad
+// links up with the convoy immediately, then both retreat west together
+// under pressure, matching Mission 31's own two-seam design (near seam at
+// x=24, first contact as the retreat begins; far seam at x=14/15, staged
+// BETWEEN deploy and the exit — ahead of the convoy's path, not chasing
+// it, per this mission's own "they weren't chasing the convoy, they were
+// already ahead of it" dialogue beat).
+// civilianSpawns for campaignAmaranth.ts's Mission 31 (BFS-verified
+// reachable to the exit zone from the deploy block by gen_maps6.py):
+//   [(26, 3), (27, 6), (26, 8), (24, 5), (25, 7)]
+const THE_LAST_CONVOY_TILES: TileType[][] = [
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "exit", "exit", "plain", "road", "plain", "plain", "plain", "road", "plain", "plain", "plain", "road", "plain", "plain", "plain", "road", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "road", "plain", "plain", "plain", "road", "plain", "plain", "scrub"],
+  ["scrub", "exit", "exit", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "road", "deploy", "deploy", "deploy", "deploy", "road", "road", "road", "road", "road", "road", "road", "scrub"],
+  ["scrub", "exit", "exit", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "plain", "scrub"],
+  ["scrub", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "plain", "rubble", "plain", "plain", "structure", "plain", "scrub"],
+  ["scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+];
+
+// Mission 32, "Hold at the Spire" (protect_asset — defending a grounded
+// capital ship before it can lift). Ridge perimeter, a large dock zone
+// (the ship, 42 tiles, becomes defendZone) along the south band,
+// rubble/structure scatter in the open approach ground, 4 spawn tiles on
+// the north edge. Deploy is split into two flank blocks (west/east, 16
+// pads total across 2 rows), NOT one row spanning the dock's full width —
+// first draft used the unbroken row and sim testing found the ship never
+// took a single point of damage across 40 runs: the hostile AI just
+// engages whichever player unit is nearest rather than beelining for the
+// defendZone, so a deploy line exactly as wide as the dock left no gap
+// anywhere for a hostile to slip past without a player unit already in
+// the way. Splitting deploy into two flanks leaves the CENTER of the
+// dock's own north edge open by default — same "two causeways, pick where
+// to commit" tension Ash on the Water's own defendZone design (Mission 22)
+// already established.
+const HOLD_AT_THE_SPIRE_TILES: TileType[][] = [
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+  ["ridge", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "ridge"],
+  ["ridge", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "ridge"],
+  ["ridge", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "plain", "plain", "plain", "plain", "structure", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "plain", "plain", "plain", "plain", "plain", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "dock", "plain", "plain", "plain", "plain", "plain", "ridge"],
+  ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
+];
+
 export const map_amaranth_the_reckoning = makeMap("map_amaranth_the_reckoning", "The Reckoning", 34, 16, THE_RECKONING_TILES);
 export const map_amaranth_the_cradle_beneath = makeMap("map_amaranth_the_cradle_beneath", "The Cradle Beneath", 30, 15, THE_CRADLE_BENEATH_TILES);
 export const map_amaranth_falling_back_to_meridian = makeMap("map_amaranth_falling_back_to_meridian", "Falling Back to Meridian", 36, 14, FALLING_BACK_TO_MERIDIAN_TILES);
 export const map_amaranth_marrows_reckoning = makeMap("map_amaranth_marrows_reckoning", "Marrow's Reckoning", 28, 15, MARROWS_RECKONING_TILES);
+export const map_amaranth_outer_ring_falls = makeMap("map_amaranth_outer_ring_falls", "The Outer Ring Falls", 30, 16, OUTER_RING_FALLS_TILES);
+export const map_amaranth_ashes_of_the_second_ring = makeMap("map_amaranth_ashes_of_the_second_ring", "Ashes of the Second Ring", 28, 15, ASHES_OF_THE_SECOND_RING_TILES);
+export const map_amaranth_the_last_convoy = makeMap("map_amaranth_the_last_convoy", "The Last Convoy", 32, 13, THE_LAST_CONVOY_TILES);
+export const map_amaranth_hold_at_the_spire = makeMap("map_amaranth_hold_at_the_spire", "Hold at the Spire", 26, 16, HOLD_AT_THE_SPIRE_TILES);
 
 export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_muster,
@@ -947,4 +1075,8 @@ export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_the_cradle_beneath,
   map_amaranth_falling_back_to_meridian,
   map_amaranth_marrows_reckoning,
+  map_amaranth_outer_ring_falls,
+  map_amaranth_ashes_of_the_second_ring,
+  map_amaranth_the_last_convoy,
+  map_amaranth_hold_at_the_spire,
 };
