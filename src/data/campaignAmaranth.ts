@@ -345,7 +345,7 @@ export const AMARANTH_MISSION_1: CampaignMission = {
   // his own Mission 6 playtest note that a doubled spawn "really felt like
   // I was fighting a good enemy"). turnLimit and map untouched — Muster
   // stays the open tutorial ground it was, just with more to clear in it.
-  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" }],
+  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: "enemy_deploy" }],
   events: [],
   rewardPoints: 100,
   heirloomCharge: "locked",
@@ -843,7 +843,7 @@ export const AMARANTH_MISSION_13: CampaignMission = {
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
   ],
   events: [
@@ -1302,10 +1302,33 @@ export const AMARANTH_MISSION_22: CampaignMission = {
   // capital-ship stakes" if the asset is never actually at risk. Re-tested
   // after the bump; see this mission's build-log tuning note for the
   // numbers.
+  //
+  // RETUNED 25 Aug 2026 alongside Mission 32's own engine fix (see that
+  // mission's comment for the full root-cause story — engine/ai.ts's
+  // reflexiveDecision/packDecision no longer freeze in place with nothing
+  // visible; they now walk toward the map's defendZone). This map's own
+  // geometry made the fallout far more dramatic than Mission 32's: deploy
+  // sits directly flush against the dock (ASH_ON_THE_WATER_TILES' own
+  // deploy column is one tile from dock on most rows), and a Bloom that
+  // reaches the dock zone with nothing to fight just plants there — every
+  // turn it ends inside the zone still ticks PROTECT_ASSET_TICK_DAMAGE
+  // regardless of whether it's fighting anyone, and nothing makes it leave.
+  // One or two orphaned campers is enough to burn through assetMaxHp (300)
+  // well inside turnLimit's 14 turns. The old 14/6/8 counts, and even the
+  // original pre-bump 8/4/4, both went a clean 20/20 ship-destroyed loss
+  // post-fix — this mechanic is now real, and at those counts, guaranteed.
+  // Tuning here turned out to be a knife-edge, not a gradient: 4/2/2 held
+  // at 20/20 win (damage nearly every run, ship never actually dies);
+  // 6/3/3 flipped straight back to 20/20 loss. Landed on 5/2/2 — 26/30 win
+  // (87%), damage visible in essentially every run, ship-destroyed loss in
+  // ~13% of runs. Deliberately left easier than Mission 32's ~55-60% band:
+  // this is the first protect_asset mission in the whole campaign and an
+  // Act II squad, not Act III's later-game stakes. If this gets revisited,
+  // retest in single-unit steps — the margin here is that tight.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 14, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
-    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
-    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 2, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
   ],
   events: [
     {
@@ -2095,25 +2118,56 @@ export const AMARANTH_MISSION_32: CampaignMission = {
   // loss side, but the ship itself only actually took damage once across
   // the sample — the split-flank gap makes a breach POSSIBLE, not common,
   // because the Player AI's own reflex is to charge out and meet threats
-  // in the open field well north of the dock (same "advance_into_range"/
-  // "focus_weak" heuristics sim/playerAi/index.ts already documents),
-  // which keeps most fighting far from the center gap regardless of
-  // formation. Leaving this as a known texture gap rather than chasing it
-  // further this batch — the mission is real, winnable, losable, and has
-  // genuine stakes via squad attrition; "the ship visibly takes damage
-  // under bad positioning" reads as a nice-to-have polish pass, not a
-  // blocker, and forcing it further would mean tuning against how the
-  // Player AI happens to behave rather than the mission itself. Worth a
-  // second look if a real human player's own positioning turns out to
-  // make this a non-issue in practice, or not.
+  // in the open field well north of the dock. Flagged this as a known
+  // texture gap and reported it back rather than chasing it further blind.
+  //
+  // Maxime's actual read on that report (25 Aug 2026): "its fine. as long
+  // as the bloom can make it to the ships. they arent intelligent, they
+  // are just overruning the zone, so if they cant get to the ship, make
+  // theyr number go up." Correcting course accordingly — the squad holding
+  // a clean wall was never the bug; a mindless swarm has no reason to
+  // route around a line it can't see past.
+  //
+  // Two numbers-only attempts at "make their number go up" both failed to
+  // land a single ship-damage tick across 20 runs each (one scaling every
+  // flank wave ~60%, one adding a dedicated wave in the open center gap) —
+  // and both just made the squad-wipe risk worse for nothing. Root cause
+  // wasn't numbers OR formation: engine/ai.ts's reflexiveDecision had a
+  // one-line rule, "nothing in sensor range (vision 3) — hold position,"
+  // so a Crawlmass that never got within 3 tiles of a player unit simply
+  // froze at its spawn tile for the whole mission, confirmed by grepping a
+  // full sim log for that wave's own spawn column and finding it never
+  // took a single step. No amount of "more of them" fixes a unit that
+  // never moves. Fixed at the engine level instead (Maxime's call when
+  // asked, extended to both mindless tiers): reflexiveDecision and
+  // packDecision now fall back to walking toward the map's defendZone when
+  // nothing is visible, instead of freezing — see that function's own
+  // comment in engine/ai.ts. Only fires on protect_asset maps; every other
+  // objective type is unaffected.
+  //
+  // That fix changes this mission's whole shape, not just the ship's odds:
+  // a Bloom that loses its target mid-fight no longer goes idle, it heads
+  // for the dock and re-engages, which raises sustained pressure well
+  // above what the pre-fix 55%-win tuning assumed. Re-tested from scratch
+  // post-fix (30-40 runs per point, no center-lane wave needed anymore —
+  // every wave can now reach the dock on its own): the old shipped counts
+  // (20/10/7/10/6) went 0/20 win; even the un-doubled original draft
+  // (10/5/4/5/3) still ran hot (72% win, breach in ~8% of runs). Landed on
+  // 11/5/4/6/3 — 20/40 win (50%, close to the pre-fix baseline), real ship
+  // damage in roughly 1 of every 4 runs (up from 1-in-20 before), including
+  // 2 outright ship-destroyed losses in that same 40-run sample — the
+  // mechanism is now real rather than accidental, not just cosmetic
+  // damage. Counts are sensitive at this margin (14/7/5/7/4 dropped clean
+  // to 0/20 win) — if this ever gets
+  // revisited, retest in small steps, not big jumps.
   objectiveParams: { turnLimit: 22, assetMaxHp: 420 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 20, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 10, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
-    { archetypeId: "bloom_sporethrower", count: 7, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 6, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
   ],
   events: [
     {

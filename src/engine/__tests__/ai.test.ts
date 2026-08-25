@@ -261,3 +261,84 @@ describe("decideHostileAction — abil_taunt overrides every tier's own pick", (
     expect(decision.attackTargetId).toBe(nearTank.instanceId);
   });
 });
+
+// protect_asset "overrun the zone" fallback (Maxime, 25 Aug 2026, on
+// mission_amaranth_32's silent-freeze bug: "they arent intelligent, they
+// are just overruning the zone... if they cant get to the ship, make theyr
+// number go up"). Turned out numbers were never the lever — reflexiveDecision
+// and packDecision both used to just return {} ("hold position") the instant
+// nothing was visible, so a Bloom that never got within vision of a player
+// unit sat frozen at its spawn tile for the whole mission, full stop, no
+// matter how many of them there were. Both tiers now fall back to walking
+// toward the map's defendZone when they have nothing to fight — but ONLY
+// when the map has one (protect_asset only; every other objective type's
+// maps have no defendZone at all, so decision stays {} there, unchanged).
+describe("decideHostileAction — protect_asset defendZone fallback when nothing is visible", () => {
+  it("reflexive tier: walks toward the nearest defendZone tile instead of holding, when the map has one", () => {
+    const map = { ...makeUniformMap("plain", 20, 20), defendZone: [{ x: 19, y: 19 }] };
+    const crawlmass = createBloomUnit("bloom_crawlmass", { x: 0, y: 0 });
+    crawlmass.side = "hostile";
+
+    const decision = decideHostileAction(map, crawlmass, [crawlmass]); // alone on the board — nothing visible
+    expect(decision.attackTargetId).toBeUndefined();
+    expect(decision.path).toBeDefined();
+    const dest = decision.path![decision.path!.length - 1];
+    // Manhattan, not Chebyshev — this grid's own movement/pathing is
+    // 4-directional (no diagonal shortcuts), so a single move can easily
+    // spend its whole range closing one axis and leaving the other
+    // untouched. Total (dx+dy) is the metric moveToward's own distanceField
+    // actually optimizes; Chebyshev's max(dx,dy) can misreport real
+    // progress as a stall (or vice versa) under cardinal-only movement.
+    const distBefore = Math.abs(0 - 19) + Math.abs(0 - 19);
+    const distAfter = Math.abs(dest.x - 19) + Math.abs(dest.y - 19);
+    expect(distAfter).toBeLessThan(distBefore);
+  });
+
+  it("reflexive tier: still holds position with nothing visible on a map with no defendZone — every non-protect_asset mission is unaffected", () => {
+    const map = makeUniformMap("plain", 20, 20); // no defendZone field at all
+    const crawlmass = createBloomUnit("bloom_crawlmass", { x: 0, y: 0 });
+    crawlmass.side = "hostile";
+
+    const decision = decideHostileAction(map, crawlmass, [crawlmass]);
+    expect(decision).toEqual({});
+  });
+
+  it("reflexive tier: a visible target still wins over the defendZone fallback — this is a fallback, not a new priority", () => {
+    const map = { ...makeUniformMap("plain", 20, 20), defendZone: [{ x: 19, y: 19 }] };
+    const crawlmass = createBloomUnit("bloom_crawlmass", { x: 0, y: 0 });
+    crawlmass.side = "hostile";
+    crawlmass.vision = 5;
+    const tank = testUnit("tank", { x: 1, y: 0 }); // adjacent and visible, opposite direction from defendZone
+
+    const decision = decideHostileAction(map, crawlmass, [crawlmass, tank]);
+    expect(decision.attackTargetId).toBe(tank.instanceId);
+  });
+
+  it("pack tier: walks toward the defendZone when neither this unit nor any packmate has a visible target", () => {
+    const map = { ...makeUniformMap("plain", 20, 20), defendZone: [{ x: 19, y: 19 }] };
+    const choir = createBloomUnit("bloom_choir", { x: 0, y: 0 });
+    choir.side = "hostile";
+    const packmate = createBloomUnit("bloom_choir", { x: 1, y: 0 }); // within SPLITFANG_PACK_RADIUS — routes through packDecision, not the lone-wolf reflexive fallback
+
+    packmate.side = "hostile";
+
+    const decision = decideHostileAction(map, choir, [choir, packmate]);
+    expect(decision.attackTargetId).toBeUndefined();
+    expect(decision.path).toBeDefined();
+    const dest = decision.path![decision.path!.length - 1];
+    // Manhattan, not Chebyshev — see the reflexive-tier test above's own
+    // comment on why (this grid's movement is 4-directional, no diagonals).
+    expect(Math.abs(dest.x - 19) + Math.abs(dest.y - 19)).toBeLessThan(38);
+  });
+
+  it("pack tier: still holds position with nothing visible on a map with no defendZone", () => {
+    const map = makeUniformMap("plain", 20, 20);
+    const choir = createBloomUnit("bloom_choir", { x: 0, y: 0 });
+    choir.side = "hostile";
+    const packmate = createBloomUnit("bloom_choir", { x: 1, y: 0 });
+    packmate.side = "hostile";
+
+    const decision = decideHostileAction(map, choir, [choir, packmate]);
+    expect(decision).toEqual({});
+  });
+});

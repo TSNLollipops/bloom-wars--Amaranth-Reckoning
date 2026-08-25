@@ -242,9 +242,37 @@ export function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, t
   return bestTile ? reconstructPath(reachable, bestTile) : null;
 }
 
+/**
+ * Maxime, 25 Aug 2026, on mission_amaranth_32's frozen center-lane wave:
+ * "they arent intelligent, they are just overruning the zone... if they
+ * cant get to the ship, make theyr number go up." Two rounds of pure
+ * numbers/spawn-position tuning both failed to produce a single ship-
+ * damage tick across 20 runs each — turned out numbers were never the
+ * actual lever. reflexiveDecision's own "nothing in sensor range, hold
+ * position" rule below meant a Crawlmass with no visible target just
+ * froze at its spawn tile for the entire mission — confirmed by grepping
+ * a full sim log for any Crawlmass ever stepping into the supposedly-
+ * undefended lane and finding zero hits, at any turn. A protect_asset
+ * map's defendZone is exactly what a mindless swarm should be overrunning
+ * even with nobody in its face yet, so both mindless tiers (reflexive and
+ * pack — Maxime's call when asked, not just reflexive) now fall back to
+ * walking toward the nearest defendZone tile instead of holding, but ONLY
+ * when the map actually has one. hold_zone/extract_unit/pursue maps have
+ * no defendZone at all, so nothing changes there — this is a new fallback
+ * for the "nothing visible" case, not a replacement for "chase what's in
+ * front of you," which both tiers still do first.
+ */
+function nearestZoneTile(unit: BattleUnit, zone: Coord[]): Coord {
+  return zone.reduce((best, c) => (chebyshevDistance(unit.pos, c) < chebyshevDistance(unit.pos, best) ? c : best));
+}
+
 function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const targets = visibleEnemiesOf(unit, allUnits);
-  if (!targets.length) return {}; // nothing in sensor range — hold position rather than beeline the whole board
+  if (!targets.length) {
+    // See nearestZoneTile's own comment above.
+    if (map.defendZone?.length) return { path: moveToward(map, unit, nearestZoneTile(unit, map.defendZone), allUnits) };
+    return {}; // nothing in sensor range and nothing to overrun — hold position rather than beeline the whole board
+  }
 
   // abil_taunt (25 Aug 2026): a visible taunting unit wins the "who do I
   // go after" choice outright — same singleton-list trick
@@ -288,7 +316,13 @@ function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: Battl
 
 function packDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const target = sharedPackTarget(map, unit, allUnits);
-  if (!target) return {};
+  if (!target) {
+    // Same defendZone fallback as reflexiveDecision above, for the same
+    // reason — a pack with nothing spotted (by itself or any packmate)
+    // shouldn't freeze in place on a protect_asset map either.
+    if (map.defendZone?.length) return { path: moveToward(map, unit, nearestZoneTile(unit, map.defendZone), allUnits) };
+    return {};
+  }
 
   const targets = [target];
   const inPlaceTarget = bestAttackTargetInRange(map, unit, unit.pos, targets, allUnits);
