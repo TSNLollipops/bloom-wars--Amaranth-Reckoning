@@ -48,7 +48,7 @@ export const CAMPAIGNS: CampaignDef[] = [
   {
     id: "amaranth_act2",
     name: "The Amaranth Reckoning — Act II: Two Fires",
-    // In progress as of this pass — 4 of Act II's eventual 12 (missions
+    // In progress as of this pass — 8 of Act II's eventual 12 (missions
     // 13-24, Independent Campaign doc). Second Lance integration
     // (engine/campaignState.ts's integrateSecondLance) fires off a Mission
     // 12 win regardless of which CampaignDef tab a player is looking at, so
@@ -56,7 +56,7 @@ export const CAMPAIGNS: CampaignDef[] = [
     // but will show a 5-pilot roster with no picker until Mission 12 is
     // actually won — not blocked here, since nothing else in this campaign
     // enforces mission order either.
-    subtitle: "Warden Company. Two lances, ship fire support — Act II in progress, missions 13-16 of 24.",
+    subtitle: "Warden Company. Two lances, ship fire support — Act II in progress, missions 13-20 of 24.",
     missions: AMARANTH_ACT2,
   },
 ];

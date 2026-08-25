@@ -881,11 +881,211 @@ export const AMARANTH_MISSION_16: CampaignMission = {
   bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
 };
 
+// ---- ACT II — TWO FIRES continued (25 Aug 2026, batch 3 / missions 17-20,
+// Maxime: "thing seem clean. lets do the next 4.") ----
+// Maps built via /home/claude/scratch/gen_maps2.py, same coordinate-based
+// generator/validator discipline as batch 2 — see that script's own header
+// and data/mapsAmaranth.ts's batch-3 comment block. Bloom archetype reuse
+// corrected this batch: the batch-2 addendum promised Undertow and
+// Sporethrower back in rotation "starting with batch 2" and then didn't
+// actually do it (batch 2 only used Crawlmass/Splitfang/Gallcyst).
+// Sporethrower returns in Mission 17 (first since Mission 7), Undertow
+// returns in Mission 19 (first since Mission 4's Tunnel Rats).
+export const AMARANTH_MISSION_17: CampaignMission = {
+  id: "mission_amaranth_17",
+  displayName: "Amaranth II.17 — The Wellroot Uncovered",
+  mapId: "map_amaranth_wellroot",
+  briefing:
+    "Solheim's sensor sweep found something under the terraces that isn't on any survey — a root structure, too regular to be natural, running deeper than anyone's bothered to look before. She's already down there mapping it. Get her out with what she's got before whatever's guarding it decides the interest isn't mutual.",
+  objective: "extract_unit",
+  // Solheim (Reeps, Runemaster track — vision/sensor work already her own
+  // established specialty per SECOND_LANCE_MEKS' own comment) is the
+  // natural pick for "the one who found it and has to carry it out,"
+  // rather than reusing Anand/Iyari a third time. turnLimit 14 -> 16 after
+  // an initial sim batch: WELLROOT_TILES' own 28-wide deploy-to-exit
+  // distance (~24 tiles, moveRange 4 Reeps, through occupied ground rather
+  // than a straight line) was costing several timeout losses at 14 even
+  // when Solheim herself survived — see this mission's build-log tuning
+  // note.
+  objectiveParams: { turnLimit: 16, extractUnitId: "pilot_solheim" },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    // Ground-floor pair at the near terrace mouth.
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 20, y: 2 }] },
+    { archetypeId: "bloom_splitfang", count: 1, atTurn: 1, spawnAt: [{ x: 20, y: 12 }] },
+    // Sporethrower back in rotation, held to the ridge perches
+    // WELLROOT_TILES actually gives it (data/mapsAmaranth.ts) rather than
+    // "enemy_deploy" scattering a ranged unit onto open floor it has no
+    // business standing on. Started at 3, cut to 1 (see this mission's
+    // build-log tuning note) — extract_unit's own zero-tolerance loss
+    // condition (Solheim downed = instant loss, not a wipe check) means a
+    // squishy Reeps' own escort is the real bottleneck, not overall enemy
+    // HP, and ranged chip damage from a second mouth was compounding on
+    // top of the Splitfang burst that was already doing the real work of
+    // downing her.
+    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
+  ],
+  events: [
+    {
+      id: "ev_wellroot_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Solheim: “Static to Warden Actual — whatever this is, it's not growth pattern, it's architecture. I want ten more minutes and I want to be wrong about that.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 330,
+  heirloomCharge: "locked",
+  // patchTiles = mat17 from gen_maps2.py's stdout — the rooted bloom_mat
+  // knot sitting mid-terrace, independent of the extraction itself (see
+  // ClearBloomPatchBonusObjective's own comment in data/types.ts: no
+  // "failed" state, just incomplete if the mission ends first).
+  bonusObjective: {
+    kind: "clear_bloom_patch",
+    patchTiles: [
+      { x: 12, y: 6 }, { x: 13, y: 6 }, { x: 14, y: 6 },
+      { x: 12, y: 7 }, { x: 13, y: 7 }, { x: 14, y: 7 },
+      { x: 13, y: 8 },
+    ],
+    bonusPoints: 45,
+  },
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_18: CampaignMission = {
+  id: "mission_amaranth_18",
+  displayName: "Amaranth II.18 — Breakout at Draven's Cut",
+  mapId: "map_amaranth_dravens_cut",
+  briefing:
+    "The cut's the only through-ground for a mile either direction, and it looks like both House Amaranth and whatever's been shadowing them worked that out at the same time you did. West mouth and east mouth, closing at once. There's no clever way through the middle of that — just who you brought, and how you use them.",
+  objective: "eliminate_all",
+  // A real two-front pincer, not a figure of speech — DRAVENS_CUT_TILES
+  // (data/mapsAmaranth.ts) gives House Amaranth Line Troopers the west
+  // mouth and a Bloom wave the east mouth as two DISTINCT spawn pools.
+  // Both waves below use explicit spawnAt: Coord[] rather than
+  // "enemy_deploy" on purpose: deriveZones() (engine/maps.ts) flattens
+  // every "spawn"-tagged tile on a map into one combined
+  // deployZones.enemy array, so "enemy_deploy" here would round-robin
+  // across BOTH mouths at once and collapse the pincer into one mixed
+  // wave from a random side — the same gotcha Mission 14's fixed Gallcyst
+  // pair and Mission 4's fixed Undertow points already work around, just
+  // for a spatial reason here instead of a sessile/burrower one.
+  objectiveParams: { turnLimit: 12 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 2, y: 5 }, { x: 2, y: 6 }, { x: 2, y: 7 }, { x: 2, y: 8 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 2, y: 5 }, { x: 2, y: 6 }, { x: 2, y: 7 }, { x: 2, y: 8 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 2, y: 5 }, { x: 2, y: 6 }, { x: 2, y: 7 }, { x: 2, y: 8 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 2, y: 5 }, { x: 2, y: 6 }, { x: 2, y: 7 }, { x: 2, y: 8 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
+  ],
+  events: [
+    {
+      id: "ev_dravens_cut_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Rourke: “Contact both mouths — this isn't a fight you win by picking a side of the map and camping it. Split smart, or don't split at all.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 340,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_19: CampaignMission = {
+  id: "mission_amaranth_19",
+  displayName: "Amaranth II.19 — The Silent Ward",
+  mapId: "map_amaranth_silent_ward",
+  briefing:
+    "Undercity, same as Tunnel Rats but bigger and worse lit — separate chambers, narrow rubble seams between them, no sightline further than the next doorway. Command's calling it the Silent Ward because nothing's called in from inside it in three days. Find out why, one room at a time.",
+  objective: "eliminate_all",
+  objectiveParams: { turnLimit: 14 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    // Undertow back in rotation — first since Mission 4's Tunnel Rats,
+    // same template exactly: fixed coords + burrowed: true, never
+    // "enemy_deploy" for a burrower (see AMARANTH_MISSION_4's own
+    // comment). One per far chamber (B, C, D on SILENT_WARD_TILES).
+    {
+      archetypeId: "bloom_undertow",
+      count: 3,
+      atTurn: 1,
+      spawnAt: [{ x: 5, y: 11 }, { x: 20, y: 4 }, { x: 20, y: 11 }],
+      burrowed: true,
+    },
+    // Crawlmass holding the central junction chamber everything else
+    // funnels through.
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
+  ],
+  events: [
+    {
+      id: "ev_silent_ward_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Anand: “No transmissions, no bodies, no signs of a fight at the entrance. Whatever went quiet in here, it went quiet fast.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 350,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
+export const AMARANTH_MISSION_20: CampaignMission = {
+  id: "mission_amaranth_20",
+  displayName: "Amaranth II.20 — Marrow's Line",
+  mapId: "map_amaranth_marrows_line",
+  briefing:
+    "Same ridge line she was watching you from back at Thane's Crossing, except this time she's not staying back. Col. Ysolde Marrow's dug a real position into the middle of this ground and she's not moving off it. Command's not calling this one a checkpoint dispute anymore.",
+  objective: "eliminate_all",
+  // Marrow's actual first engagement — Mission 6's own "first distant
+  // sighting" event explicitly deferred this ("Marrow doesn't actually
+  // engage until Mission 20"), so this mission is that promise being paid
+  // off. hostile_mech_marrow (data/units.ts's AMARANTH_RIVAL_MECHS) is a
+  // data-only tougher rival — tier "C" off the same TIERS ladder every
+  // player pilot uses, no bespoke AI. Her §7 "mirror-match, disengages
+  // when losing" framing is fiction/plan, not an engine guarantee, same
+  // precedent as §6a's Bosk-death handling — see that constant's own
+  // comment for the full reasoning and the explicit scope flag (a real
+  // predictive disengage mechanic would be new, unbuilt engine work).
+  // No Bloom wave this mission on purpose — this is Marrow's fight alone,
+  // with an escort, not a three-way brawl that dilutes the beat.
+  objectiveParams: { turnLimit: 12 },
+  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  enemyWaves: [
+    // hostile_mech_marrow's own spawnAt ({x:23,y:7}) already matches this
+    // coordinate — listed explicitly anyway so this wave reads the same
+    // as every other fixed-position entry in this file.
+    { archetypeId: "hostile_mech_marrow", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 7 }] },
+    // Line Trooper escort, flanking, same four archetypes as Mission 6
+    // and Mission 18 rather than a fresh set — this is the same force,
+    // not a new faction.
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }] },
+  ],
+  events: [
+    {
+      id: "ev_marrows_line_opening",
+      trigger: { type: "turn_start", turn: 1 },
+      action: { type: "dialogue", text: "Marrow: “You've been easy to track and hard to explain, Warden Company. Let's fix the second part.”" },
+      once: true,
+    },
+  ],
+  rewardPoints: 360,
+  heirloomCharge: "locked",
+  bonusAbilityUnlocks: ACT2_UNLOCKS_FROM_14,
+};
+
 export const AMARANTH_ACT2: CampaignMission[] = [
   AMARANTH_MISSION_13,
   AMARANTH_MISSION_14,
   AMARANTH_MISSION_15,
   AMARANTH_MISSION_16,
+  AMARANTH_MISSION_17,
+  AMARANTH_MISSION_18,
+  AMARANTH_MISSION_19,
+  AMARANTH_MISSION_20,
 ];
 
 export const AMARANTH_MISSIONS_BY_ID: Record<string, CampaignMission> = Object.fromEntries(

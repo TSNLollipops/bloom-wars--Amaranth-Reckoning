@@ -361,6 +361,44 @@ export const AMARANTH_CONSCRIPT_MECHS: Record<string, HostileMechArchetype> = {
   },
 };
 
+// Amaranth Act II, Mission 20 ("Marrow's Line," 25 Aug 2026) — Colonel
+// Ysolde Marrow, the rival named back in Mission 6's own comment ("first
+// distant sighting of Marrow... she doesn't actually engage until Mission
+// 20"). A single named unit, not a 4-path detachment like the two blocks
+// above — this is a duel, not a line. Meeps path deliberately, to mirror
+// Rourke's own (§7 of the campaign doc: "the underlying tragedy — she was
+// always better than the woman she served"; a mirror-match reads better
+// mechanically if she's built the same class as the protagonist rather
+// than whatever's statistically safest). Tier "C" (data/combatTables.ts's
+// TIERS: 125/119/115 vs. a G-tier Line Trooper's 100/100/105, plus +1
+// move) — the same tier ladder every player pilot already scales on, so
+// "a real step up, not a wall" comes for free rather than needing hand-
+// tuned stats with no evidence behind them (the same caution
+// AMARANTH_CONSCRIPT_MECHS' own comment already applied to conscripts).
+// Left room to go tougher for her Mission 28 return rather than starting
+// at the ceiling here.
+//
+// Deliberately NOT special-cased in engine/ai.ts. §7's "she withdraws in
+// good order" and "a named mirror-match" are the mission's fiction, not an
+// engine guarantee — same precedent §6a already sets for Bosk's Mission 12
+// death and the Mission 31 partial loss: the beat is a plan, not a
+// scripted outcome, and mechanically this is a standard eliminate_all
+// fight against a tougher hostile mech using the same mechReflexiveDecision
+// Munti-priority AI every hostile mech already has. A true predictive
+// "she disengages once losing" mechanic would be new engine scope (and
+// would need the same kind of dedicated pass the Player AI's own
+// never-built "bait" feature was flagged as needing) — not built here,
+// flagged rather than guessed at.
+export const AMARANTH_RIVAL_MECHS: Record<string, HostileMechArchetype> = {
+  hostile_mech_marrow: {
+    id: "hostile_mech_marrow",
+    displayName: "Col. Ysolde Marrow",
+    path: "meeps",
+    tier: "C",
+    spawnAt: { x: 23, y: 7 },
+  },
+};
+
 // Merged lookup table, same shape as pilotRegistry.ts's reason for
 // existing: engine/units.ts's createHostileMechUnit needs to resolve IDs
 // from both blocks above by id alone, and without this merge a second
@@ -371,4 +409,5 @@ export const ALL_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
   ...HOSTILE_MECHS,
   ...AMARANTH_HOSTILE_MECHS,
   ...AMARANTH_CONSCRIPT_MECHS,
+  ...AMARANTH_RIVAL_MECHS,
 };

@@ -424,6 +424,228 @@ const THE_FALLOW_LINE_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
+// ---- ACT II — TWO FIRES (25 Aug 2026, batch 2 / missions 13-16, Maxime:
+// "add the next 4 now") ----
+// Four more grids, same authoring discipline as Act I's above (hand-built
+// against the same three checks engine/__tests__/mapsAmaranth.test.ts now
+// runs automatically: rectangular, known tile vocabulary, BFS-reachable
+// from every deploy pad to every spawn/hold/exit tile) — built this time
+// with a small coordinate-based Python generator instead of hand-typed
+// ASCII rows, specifically to make the one new structural requirement
+// impossible to get wrong by a stray keystroke: every Act II map needs
+// EIGHT deploy pads, not five, to match ACT2_DEPLOY_CAP
+// (scenes/TransporterPad.ts) now that the roster past Mission 12 can run to
+// ten. A hand-typed row that's one character short is exactly how a ninth
+// or tenth pilot would silently double up on somebody else's landing tile
+// (engine/mission.ts's deployPlayerUnits: `pads[i % pads.length]`) — this
+// generator can't produce that by construction, since deploy pads are
+// placed by run/column rather than counted in a string.
+//
+// New Colors (Mission 13) mirrors Mission 1's Muster on purpose — open
+// combined-arms shakedown ground for the newly-doubled squad, same "nothing
+// clever, just prove everyone can fight together" read Muster had for the
+// original five.
+const NEW_COLORS_TILES: TileType[][] = [
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub"],
+  ["plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "road", "road", "road", "road", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "road", "road", "road", "road", "road", "road", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain"],
+  ["deploy", "plain", "plain", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "scrub", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "ridge", "road", "road", "road", "road", "road", "road", "plain", "plain", "plain", "plain", "spawn", "spawn", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "road", "road", "road", "road", "road", "road", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "rubble", "rubble", "scrub", "scrub", "scrub"],
+];
+
+// Steel Rain (Mission 14) — cratered ground, laid out after the fact of a
+// bombardment rather than before one (the mission's own "steel rain" is
+// Providence's fire support, called in BY the squad, not something that's
+// already fallen on them). Two fixed Gallcyst seams held out of
+// "enemy_deploy" resolution, same discipline as Cut Off's (Mission 9) own
+// pair — see AMARANTH_MISSION_14's own enemyWaves comment for the exact
+// coordinates.
+const STEEL_RAIN_TILES: TileType[][] = [
+  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "spawn", "spawn", "plain", "plain"],
+  ["plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain"],
+  ["bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
+];
+
+// Landfall (Mission 15) — the D-Day beat: deploy pads sit ON the beach
+// itself, with sump (impassable water) behind them where the landing craft
+// came from, so there's no "step back" tile even if a player wanted one.
+// Spawn tiles at x=7 sit only 4 tiles from the deploy column — well inside
+// most hostiles' move+attack reach on the very first hostile phase, which
+// is the entire mechanical point of Contested Landing (see
+// data/types.ts's CampaignMission.objective comment): no grace period,
+// under fire from turn 1's hostile phase, not turn 3 or 4 like every other
+// mission in this file. The two further spawn clusters (x=14, x=19) read as
+// the position's defense in depth rather than a second wave — all of them
+// fire together off one "enemy_deploy" turn-1 wave, same as every other
+// mission's opening spawn.
+const LANDFALL_TILES: TileType[][] = [
+  ["sump", "sump", "scrub", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["sump", "sump", "scrub", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "plain", "plain", "plain", "plain", "plain", "plain"],
+];
+
+// Collaborators (Mission 16) — a House Amaranth supply depot, occupied and
+// defended rather than open ground; structure clusters read as the
+// buildings the conscript garrison is actually holding.
+const COLLABORATORS_TILES: TileType[][] = [
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "spawn", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "structure", "structure", "structure", "structure", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain"],
+  ["deploy", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "spawn", "plain"],
+  ["plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "structure", "structure", "structure", "structure", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+];
+
+// ---- ACT II — TWO FIRES (25 Aug 2026, batch 3 / missions 17-20, Maxime:
+// "thing seem clean. lets do the next 4.") ----
+// Same generator, same three checks, same 8-deploy-pad-minimum discipline
+// as batch 2's own header above. All four validated clean on the first
+// pass this time (see the build log addendum for this batch — batch 2's
+// hand-typed-row failures were the reason the generator exists at all, and
+// the coordinate approach held up).
+//
+// Wellroot Uncovered (Mission 17) — terraced ridge steps running the width
+// of the map (House Amaranth's own bio-processing terraces, §5 of the
+// campaign doc), gapped so a squad can still cross between bands. The
+// bloom_mat cluster mid-map is the clear_bloom_patch bonus site — "Bloom
+// growth deliberately rooted into House Amaranth terraces" per the
+// mission's own one-line brief, not decorative bloom_mat like Mission 1a's.
+const WELLROOT_TILES: TileType[][] = [
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "ridge", "ridge", "ridge", "ridge", "ridge", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "scrub", "ridge", "ridge", "ridge", "ridge", "spawn", "ridge", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "exit", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "ridge", "ridge", "ridge", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "scrub", "ridge", "ridge", "ridge", "ridge", "ridge", "scrub", "spawn", "ridge", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+];
+
+// Breakout at Draven's Cut (Mission 18) — a literal canyon: ridge walls
+// (defenceStars 4, impassable-in-spirit given the move cost) run the full
+// width top and bottom, leaving one walkable corridor down the middle. The
+// squad deploys dead center; House Amaranth Line Troopers (reused from
+// Mission 6 — veteran regulars, not Mission 16's conscripts) enter from the
+// west mouth, the Bloom wave from the east — a real two-front pincer, not a
+// bigger single wave, so "composition choice finally matters" (the
+// mission's own brief) reads as a real tension: split the squad to face
+// both mouths, or commit to one and race the other.
+const DRAVENS_CUT_TILES: TileType[][] = [
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+  ["wall", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "wall"],
+  ["wall", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "wall"],
+  ["wall", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "wall"],
+  ["wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall"],
+  ["wall", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "wall"],
+  ["wall", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "wall"],
+  ["wall", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "deploy", "deploy", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "wall"],
+  ["wall", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "wall"],
+  ["wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall"],
+  ["wall", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "wall"],
+  ["wall", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "wall"],
+  ["wall", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "wall"],
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+];
+
+// The Silent Ward (Mission 19) — undercity chambers beneath Colvane City:
+// four rubble-linked structure rooms plus a central junction, deliberately
+// more enclosed than Tunnel Rats' single ring (Mission 4) rather than a
+// bigger version of the same shape. Undertow spawns sit one per far
+// chamber (not the deploy chamber) — the first reuse of the archetype
+// since its Mission 4 debut, per the standing "pull earlier archetypes
+// back into rotation" note from the batch-2 addendum that didn't actually
+// happen last batch; doing it here instead of deferring it again.
+const SILENT_WARD_TILES: TileType[][] = [
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+  ["wall", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "deploy", "deploy", "deploy", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "deploy", "deploy", "deploy", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "spawn", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "deploy", "deploy", "deploy", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "spawn", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "wall"],
+  ["wall", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "spawn", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "spawn", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "structure", "structure", "structure", "structure", "structure", "structure", "structure", "rubble", "wall"],
+  ["wall", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "wall"],
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+];
+
+// Marrow's Line (Mission 20) — an open dueling ground split by a broken
+// trench line (ridge segments with gaps, echoing the Fallow Line's own
+// look at Act II scale) rather than a swarm map. No spawn tile carries a
+// Bloom archetype this mission — same "regulars only, no Bloom" precedent
+// Mission 6 set for House Colors — Marrow and her escort spawn on the far
+// (east) side alone; see AMARANTH_MISSION_20's own comment for why this
+// mission is deliberately Bloom-free.
+const MARROWS_LINE_TILES: TileType[][] = [
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "spawn", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "deploy", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "spawn", "scrub", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],
+  ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+];
+
 export const map_amaranth_muster = makeMap("map_amaranth_muster", "Muster — Thistledown Watch", 20, 12, MUSTER_TILES);
 export const map_amaranth_wire_and_mud = makeMap("map_amaranth_wire_and_mud", "Wire and Mud — the Listening Post", 22, 11, WIRE_AND_MUD_TILES);
 export const map_amaranth_the_low_ground = makeMap("map_amaranth_the_low_ground", "The Low Ground", 24, 15, THE_LOW_GROUND_TILES);
@@ -436,6 +658,14 @@ export const map_amaranth_cut_off = makeMap("map_amaranth_cut_off", "Cut Off", 2
 export const map_amaranth_the_amaranth_betrayal = makeMap("map_amaranth_the_amaranth_betrayal", "The Amaranth Betrayal", 24, 13, THE_AMARANTH_BETRAYAL_TILES);
 export const map_amaranth_the_long_walk_back = makeMap("map_amaranth_the_long_walk_back", "The Long Walk Back", 34, 13, THE_LONG_WALK_BACK_TILES);
 export const map_amaranth_the_fallow_line = makeMap("map_amaranth_the_fallow_line", "The Fallow Line — Thistledown Watch", 26, 14, THE_FALLOW_LINE_TILES);
+export const map_amaranth_new_colors = makeMap("map_amaranth_new_colors", "New Colors — The Muster Ground", 26, 14, NEW_COLORS_TILES);
+export const map_amaranth_steel_rain = makeMap("map_amaranth_steel_rain", "Steel Rain", 28, 16, STEEL_RAIN_TILES);
+export const map_amaranth_landfall = makeMap("map_amaranth_landfall", "Landfall", 24, 14, LANDFALL_TILES);
+export const map_amaranth_collaborators = makeMap("map_amaranth_collaborators", "Collaborators", 24, 14, COLLABORATORS_TILES);
+export const map_amaranth_wellroot = makeMap("map_amaranth_wellroot", "The Wellroot Uncovered", 28, 15, WELLROOT_TILES);
+export const map_amaranth_dravens_cut = makeMap("map_amaranth_dravens_cut", "Draven's Cut", 32, 14, DRAVENS_CUT_TILES);
+export const map_amaranth_silent_ward = makeMap("map_amaranth_silent_ward", "The Silent Ward", 26, 16, SILENT_WARD_TILES);
+export const map_amaranth_marrows_line = makeMap("map_amaranth_marrows_line", "Marrow's Line", 26, 14, MARROWS_LINE_TILES);
 
 export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_muster,
@@ -450,4 +680,12 @@ export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_the_amaranth_betrayal,
   map_amaranth_the_long_walk_back,
   map_amaranth_the_fallow_line,
+  map_amaranth_new_colors,
+  map_amaranth_steel_rain,
+  map_amaranth_landfall,
+  map_amaranth_collaborators,
+  map_amaranth_wellroot,
+  map_amaranth_dravens_cut,
+  map_amaranth_silent_ward,
+  map_amaranth_marrows_line,
 };
