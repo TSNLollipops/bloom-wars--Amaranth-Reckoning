@@ -13,7 +13,7 @@ import { coordKey } from "../engine/grid";
 import { unitsVisibleToSide } from "../engine/ai";
 import { BLOOM } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { createWardenCampaignState, loadCampaignState } from "../engine/campaignState";
+import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt } from "../engine/campaignState";
 import { TILES } from "../data/tiles";
 import { tierPipCount } from "../data/combatTables";
 
@@ -171,6 +171,16 @@ export class Battle extends Phaser.Scene {
   // once in init(). See that method's own comment and
   // engine/campaignState.ts's "9. Mission real-time clock" section.
   private missionStartedAt = 0;
+  // Commander-down pass (25 Aug 2026) — guards applyCommanderDownAttempt so
+  // it runs exactly once. drawOverlayIfNeeded() (below) is called from
+  // every full-board redraw, not just the moment outcome first flips, so
+  // without this flag a still-open commander_down overlay would clear +
+  // save CampaignState's activeMissionAttempt on every single redraw while
+  // the player just sits looking at it — harmless (clearing an
+  // already-cleared field is a no-op) but a wasted localStorage write every
+  // frame-equivalent, and not the once-per-outcome shape every other
+  // CampaignState mutation in this codebase follows.
+  private commanderDownAttemptCleared = false;
   // The contextual action bar's fixed slot pool, plus the options currently
   // bound to them. Whether a slot is usable is Mission's call (canX()),
   // never this scene's.
@@ -1318,6 +1328,16 @@ export class Battle extends Phaser.Scene {
       return;
     }
     this.overlay.setVisible(true);
+
+    // Commander down (25 Aug 2026) — a distinct overlay, not a MISSION
+    // FAILED reskin: no earnings readout, no Debrief, no permadeath roll
+    // to report. See Mission.handleDowned() (engine/mission.ts) for where
+    // this outcome actually gets set.
+    if (this.mission.outcome === "commander_down") {
+      this.drawCommanderDownOverlay();
+      return;
+    }
+
     const bg = this.add.rectangle(480, 320, 960, 640, 0x000000, 0.72);
     const win = this.mission.outcome === "win";
     const title = this.add
@@ -1367,5 +1387,58 @@ export class Battle extends Phaser.Scene {
       .on("pointerdown", () => this.scene.start("Debrief", { mission: this.mission }));
     const btnLabel = this.add.text(480, 390, "continue to debrief", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     this.overlay.add(rescueLine ? [bg, title, sub, rescueLine, btn, btnLabel] : [bg, title, sub, btn, btnLabel]);
+  }
+
+  /**
+   * Commander down (25 Aug 2026) — Independent Campaign doc §6a: the
+   * exempt pilot reaching 0 HP "ends the mission attempt outright and
+   * sends the player back to the briefing screen to try again, with
+   * nothing about that attempt ever resolving." Mirrors scenes/Boot.ts's
+   * own RECALLED notice deliberately (same red title / grey clarifying
+   * subtext / single "nothing was lost" line / one button shape) — both
+   * screens exist to tell the player a mission attempt was voided through
+   * no fault of the roster, not that they lost. The one real difference:
+   * Boot's recall is caught on the NEXT load, after the fact; this fires
+   * the instant it happens, mid-battle, because Battle.ts is the only
+   * scene watching mission.outcome live.
+   */
+  private drawCommanderDownOverlay(): void {
+    // Clear the mission real-time clock's activeMissionAttempt exactly
+    // once, the first time this overlay draws — see
+    // engine/campaignState.ts's applyCommanderDownAttempt for the full
+    // reasoning and commanderDownAttemptCleared's own comment above for why
+    // this needs the guard (this method runs on every redraw while the
+    // overlay is up, not just once).
+    if (!this.commanderDownAttemptCleared) {
+      this.commanderDownAttemptCleared = true;
+      const state = loadCampaignState();
+      if (state) {
+        applyCommanderDownAttempt(state);
+        saveCampaignState(state);
+      }
+    }
+
+    const commander = this.mission.commanderDownPilotId ? findPilot(this.mission.commanderDownPilotId) : undefined;
+    const commanderName = commander?.displayName ?? "Command";
+
+    const bg = this.add.rectangle(480, 320, 960, 640, 0x000000, 0.72);
+    const title = this.add.text(480, 260, "COMMAND DOWN", { fontFamily: "monospace", fontSize: "36px", color: "#ef4444" }).setOrigin(0.5);
+    const sub = this.add
+      .text(480, 310, `${commanderName} is down — the attempt ends here.`, { fontFamily: "monospace", fontSize: "13px", color: "#e8e2d4" })
+      .setOrigin(0.5);
+    const note = this.add
+      .text(
+        480,
+        344,
+        "No permadeath roll. No earnings. The mission is simply available again — back to briefing to try again.",
+        { fontFamily: "monospace", fontSize: "12px", color: "#8a97a6", wordWrap: { width: 640 }, align: "center" }
+      )
+      .setOrigin(0.5);
+    const btn = this.add
+      .rectangle(480, 400, 260, 40, 0x2e5c7a)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.scene.start("MapSelect"));
+    const btnLabel = this.add.text(480, 400, "return to briefing", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+    this.overlay.add([bg, title, sub, note, btn, btnLabel]);
   }
 }

@@ -63,7 +63,15 @@ import {
 } from "./events";
 import { evaluatePermadeathCheck } from "./campaignState";
 
-export type MissionOutcome = "ongoing" | "win" | "loss";
+// "commander_down" (25 Aug 2026 — see Mission.handleDowned() below for
+// where this actually gets set) is its own distinct outcome, not a flavor
+// of "loss": Independent Campaign doc §6a, Maxime's own words, "the mc
+// only has plot armor becasuse if she dies the missions failed and its
+// back to mission briefing." A normal loss still runs the permadeath
+// check, still (potentially) costs pilots, still reaches Debrief for
+// scoring. commander_down does none of that — see the field/method
+// comments below for exactly what it skips and why.
+export type MissionOutcome = "ongoing" | "win" | "loss" | "commander_down";
 export type MissionPhase = "player" | "hostile" | "environment";
 
 /**
@@ -220,6 +228,14 @@ export class Mission {
   turn = 1;
   phase: MissionPhase = "player";
   outcome: MissionOutcome = "ongoing";
+  // Set together with `outcome` the instant it flips to "commander_down"
+  // (Mission.handleDowned() below) — which pilot triggered it, so a scene
+  // reading this after the fact (scenes/Battle.ts's own overlay) can name
+  // them without hardcoding an id. Looked up the same data-driven way
+  // evaluatePermadeathCheck itself resolves the exempt pilot
+  // (PilotRecord.exemptFromPermadeath, data/types.ts) rather than assuming
+  // it's always pilot_rourke — stays correct if that flag ever moves.
+  commanderDownPilotId?: string;
   removedFromRoster: string[] = [];
   // Campaign-persistence pass (engine/campaignState.ts): pilotIds the live
   // Munti-presence permadeath check ruled un-restockable at the moment
@@ -1692,6 +1708,32 @@ export class Mission {
 
   private handleDowned(unit: BattleUnit): void {
     this.log.push(`${unit.displayName} is downed.`);
+
+    // Commander down (25 Aug 2026) — checked FIRST, before anything else in
+    // this method, on purpose. Independent Campaign doc §6a: Rourke going
+    // to 0 HP "doesn't get redirected onto someone else and it doesn't get
+    // waved off — it ends the mission attempt outright and sends the
+    // player back to the briefing screen to try again, with nothing about
+    // that attempt ever resolving, including the permadeath check itself."
+    // That "nothing" is read literally: this returns before the
+    // rescue-failure check right below (if she happened to be carrying a
+    // rescued NPC, that attempt is voided too, not scored a failure),
+    // before survivalBonus/wasDowned tracking, before evaluatePermadeathCheck
+    // ever runs, and before unit_downed scripted events fire. Same
+    // data-driven PilotRecord.exemptFromPermadeath flag
+    // evaluatePermadeathCheck itself reads (data/types.ts) — not a
+    // hardcoded pilot id — so this stays correct if that flag ever moves to
+    // a different pilot; see that function's own comment in
+    // campaignState.ts for how its exempt branch now relates to this one.
+    if (unit.side === "player" && unit.pilotId) {
+      const commander = findPilot(unit.pilotId);
+      if (commander?.exemptFromPermadeath) {
+        this.outcome = "commander_down";
+        this.commanderDownPilotId = unit.pilotId;
+        this.log.push(`${commander.displayName} is down — command down. Mission attempt ends; back to briefing.`);
+        return;
+      }
+    }
 
     // Mission 5's rescue-and-recruit bonus objective (23 Aug 2026): a
     // rescue can fail two ways — the NPC themselves is killed before ever

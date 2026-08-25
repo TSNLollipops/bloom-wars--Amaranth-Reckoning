@@ -252,8 +252,23 @@ export function evaluatePermadeathCheck(downedUnit: BattleUnit, sameSideUnits: B
   // Rule 3: no plot armor except the one exempt protagonist pilot, checked
   // via an explicit, data-driven flag (PilotRecord.exemptFromPermadeath —
   // see data/types.ts and pilot_rourke's record in data/campaignAmaranth.ts)
-  // rather than a hardcoded id comparison buried here. This overrides
-  // everything below, regardless of Munti presence.
+  // rather than a hardcoded id comparison buried here.
+  //
+  // Commander-down correction (25 Aug 2026): this branch's "always a
+  // standard restock" framing was live-engine's own bug, not this file's
+  // design intent — Independent Campaign doc §6a is explicit that the
+  // exempt pilot going down "doesn't get redirected onto someone else and
+  // it doesn't get waved off," it ends the mission attempt outright. Fixed
+  // at the one real call site, engine/mission.ts's Mission.handleDowned(),
+  // which now checks PilotRecord.exemptFromPermadeath itself and
+  // short-circuits to a distinct "commander_down" mission outcome BEFORE
+  // ever calling this function — so in live play this branch is
+  // unreachable for that pilot. Left in place, not deleted, because
+  // evaluatePermadeathCheck is still a general-purpose pure check that a
+  // test (or any future caller evaluating a downing in isolation, outside
+  // a live Mission) can call directly; "not a permanent loss" remains the
+  // technically correct answer for an exempt pilot even though nothing in
+  // live play ever reaches this line to hear it.
   const pilot = findPilot(downedUnit.pilotId);
   if (pilot?.exemptFromPermadeath) {
     return { permanent: false, reason: `${pilot.displayName} is exempt from permadeath — always a standard restock` };
@@ -636,4 +651,34 @@ export function applyMissionTimeout(state: CampaignState, now: number): MissionT
   const result = evaluateMissionTimeout(state, now);
   if (result.timedOut) state.activeMissionAttempt = undefined;
   return result;
+}
+
+// ---- 10. Commander down — voiding a mission attempt ---------------------
+//
+// Independent Campaign doc §6a, Maxime's own words: "the mc only has plot
+// armor becasuse if she dies the missions failed and its back to mission
+// briefing." Not the Munti-gated permadeath outcome sections 1 & 3 above
+// cover, and not the old, wrong "exempt from permadeath — always a
+// standard restock" framing evaluatePermadeathCheck's own exempt branch
+// used to mean in practice (see that branch's own updated comment) — a
+// third, distinct outcome. engine/mission.ts's Mission.handleDowned()
+// checks PilotRecord.exemptFromPermadeath BEFORE ever calling
+// evaluatePermadeathCheck and short-circuits straight to
+// MissionOutcome "commander_down" the instant that pilot goes down.
+// Nothing about that attempt resolves — no permadeath roll, no earnings,
+// no roster change — the same "costs nothing mechanical" shape
+// applyMissionTimeout above already established for a 12-hour recall.
+// This function is that shape's other half: the one piece of actual
+// CampaignState mutation a commander-down attempt needs.
+//
+// Called once, from scenes/Battle.ts, the instant its own overlay first
+// draws for a commander_down outcome (mirrors scenes/Debrief.ts clearing
+// this same field unconditionally the moment a mission resolves for real
+// — see that scene's own step 1a comment). Deliberately no evaluate/apply
+// split the way evaluateMissionTimeout/applyMissionTimeout above have one:
+// there's nothing to evaluate here — Battle.ts already knows
+// mission.outcome is "commander_down" by the time it calls this, so this
+// is unconditional by design, not a check.
+export function applyCommanderDownAttempt(state: CampaignState): void {
+  state.activeMissionAttempt = undefined;
 }
