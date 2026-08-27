@@ -7,6 +7,7 @@ import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
 import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION } from "../data/combatTables";
+import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, type WeaponBranchId } from "../data/weaponBranches";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
 export type Side = "player" | "hostile";
@@ -39,6 +40,16 @@ export interface BattleUnit {
   counterMaxRange: number;
   abilities: string[];
   chassis?: "bipedal" | "centauroid" | "bipedal_vibrissal";
+  // Weapon Branch Point System (27 Aug 2026, data/weaponBranches.ts) — the
+  // branch this unit was created with (baked in at createPlayerUnit, same
+  // "doesn't change mid-mission" treatment as tier/mek below), read
+  // straight off at the point each branch's effect applies: engine/
+  // combat.ts's resolveMechAttack (Rail Lance) and engine/mission.ts's
+  // resolveAttack/repairUnit (Grinder Claw, Rapid Response). Undefined for
+  // every unit that isn't a pilot with a branch equipped — hostile mechs,
+  // Bloom, rescued NPCs, civilians, and any pilot who hasn't bought/
+  // equipped a branch all read as "plain default weapon."
+  weaponBranchId?: WeaponBranchId;
   // Gear-tier pass (sprites/decor, 23 Aug 2026): the raw Tier letter, kept
   // alongside the already-tier-adjusted effective* stats instead of being
   // discarded once TIERS[tier] has been baked into them. Only pilots and
@@ -236,6 +247,28 @@ function nextInstanceId(prefix: string): string {
 }
 
 /**
+ * Weapon Branch Point System — additive stat term, Data Pack §5.1's own
+ * order of application (base -> tier -> mek), just one more term added on
+ * the end (base -> tier -> mek -> branch). Only Impact Lance touches a raw
+ * stat this pass; Grinder Claw/Missiles/Rail Lance/Rapid Response are all
+ * behavioral (heal-on-hit, an ability grant, a conditional defense-ignore,
+ * a repair-range change) and are read straight off `weaponBranchId` at the
+ * point they apply, in engine/mission.ts and engine/combat.ts — they do
+ * NOT modify effectiveAttack/effectiveDefense here, so this function stays
+ * a plain number, not a bonus object, unlike mekStatBonus above.
+ */
+function weaponBranchAttackBonus(branchId: WeaponBranchId | undefined): number {
+  if (branchId === "meeps_impact_lance") return IMPACT_LANCE_ATK_BONUS;
+  return 0;
+}
+
+/** The ability id a branch grants on top of the archetype's own list, if any — currently only Missiles (abil_missile, see data/weaponBranches.ts's own header for why the engine side of that ability already existed and just needed a real owner). */
+function weaponBranchGrantedAbility(branchId: WeaponBranchId | undefined): string | undefined {
+  if (branchId === "reeps_missiles") return MISSILE_GRANT_ABILITY;
+  return undefined;
+}
+
+/**
  * `overrides`, added for the transporter-pad squad-selection pass (22 Aug
  * 2026): when given, `overrides.pilot`/`overrides.mek` are used instead of
  * resolving through data/pilotRegistry.ts's static findPilot()/findMek().
@@ -258,12 +291,27 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
   const tier = TIERS[pilot.tier];
   const mek = overrides?.mek ?? findMek(pilot.mekId);
   const mekBonus = mekStatBonus(mek);
+  // Weapon Branch Point System — read straight off the campaign-persistent
+  // PilotRecord field, same "baked in at creation, doesn't change
+  // mid-mission" treatment as tier/mek above. Loosely typed as
+  // WeaponBranchId | undefined via cast rather than tightening
+  // PilotRecord.equippedWeaponBranch's own type — keeps data/types.ts free
+  // of an import from data/weaponBranches.ts (which itself imports Path
+  // from types.ts), avoiding a circular dependency for no real benefit.
+  const weaponBranchId = pilot.equippedWeaponBranch as WeaponBranchId | undefined;
+  const branchAttackBonus = weaponBranchAttackBonus(weaponBranchId);
+  const grantedAbility = weaponBranchGrantedAbility(weaponBranchId);
 
-  const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack;
+  const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack + branchAttackBonus;
   const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense;
   const maxHp = archetype.baseHp + (tier.hp - 100) + mekBonus.hp;
   const vision = archetype.vision + mekBonus.vision;
   const moveRange = archetype.moveRange + tier.move;
+  // Never mutate the shared archetype.abilities array — copy, then append
+  // if this branch grants one (Missiles). Every other unit factory in this
+  // file still assigns archetype.abilities directly since none of them
+  // ever need to add to it.
+  const abilities = grantedAbility ? [...archetype.abilities, grantedAbility] : archetype.abilities;
 
   return {
     instanceId: pilot.id, // pilots keep their stable roster id on the board
@@ -283,8 +331,9 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     vision,
     canCounter: archetype.canCounter,
     counterMaxRange: archetype.counterMaxRange,
-    abilities: archetype.abilities,
+    abilities,
     chassis: archetype.chassis,
+    weaponBranchId,
     tier: pilot.tier,
     shield: 0,
     maxShield: 0,

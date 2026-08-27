@@ -78,6 +78,20 @@ export interface PilotRecord {
   // buried in logic, per that pass's own instructions. Not read anywhere
   // outside the permadeath check.
   exemptFromPermadeath?: boolean;
+  // Weapon Branch Point System (claude/Bloom_Wars_Weapon_Branch_Point_System_v1.md,
+  // decided 27 Aug 2026, built 27 Aug 2026 — data/weaponBranches.ts).
+  // Personal-pool, permanent once bought, collect-and-swap (Option B):
+  // `ownedWeaponBranches` is everything this pilot has ever purchased,
+  // in purchase order (index = how many they owned when the NEXT one was
+  // bought, which is exactly what prices/gates that next purchase — see
+  // WEAPON_BRANCH_COSTS/WEAPON_BRANCH_TIER_GATE). `equippedWeaponBranch`
+  // is which ONE of those is active for the next mission — undefined
+  // means "the plain default weapon," same as a pilot who's bought
+  // nothing yet. Both optional so every pilot record predating this pass
+  // (every existing save, every archived Team One pilot) reads as "no
+  // branches, default weapon," with zero migration needed.
+  ownedWeaponBranches?: string[];
+  equippedWeaponBranch?: string;
 }
 
 export interface MekArchetype {

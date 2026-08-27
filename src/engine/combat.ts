@@ -4,6 +4,7 @@
 // number here must reproduce sim_output.txt exactly — see src/sim/tests.
 import type { MapDefinition } from "../data/types";
 import { POWER, FULL_HP_DAMAGE_CAP, CENTAUROID_CHARGE_MULT } from "../data/combatTables";
+import { RAIL_LANCE_DEF_IGNORE_PCT } from "../data/weaponBranches";
 import { TILES } from "../data/tiles";
 import { chebyshevDistance, tileAt } from "./grid";
 import type { BattleUnit } from "./units";
@@ -77,7 +78,15 @@ export function resolveMechAttack(
   let dmg = POWER[attacker.path][defender.path];
   dmg *= attacker.currentHp / attacker.maxHp;
   dmg *= attacker.effectiveAttack / 100;
-  dmg *= 100 / defender.effectiveDefense;
+  // Rail Lance (Weapon Branch Point System, data/weaponBranches.ts) —
+  // armor-piercing, ONLY on the primary attacker->defender hit, ONLY
+  // against a Tank-path defender: sharpens Reeps-beats-Tank rather than a
+  // flat damage buff that would blur every matchup equally. Deliberately
+  // not applied to the counter-damage calculation below — Rail Lance is
+  // Reeps' own weapon; a Tank countering a Reeps doesn't fire it back.
+  const railLanceDefenseIgnore =
+    attacker.weaponBranchId === "reeps_rail_lance" && defender.path === "tank" ? RAIL_LANCE_DEF_IGNORE_PCT : 0;
+  dmg *= 100 / (defender.effectiveDefense * (1 - railLanceDefenseIgnore));
   dmg *= 1 - 0.1 * terrain;
   if (charged) dmg *= CENTAUROID_CHARGE_MULT;
   dmg = Math.round(dmg);

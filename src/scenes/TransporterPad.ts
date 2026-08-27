@@ -36,6 +36,8 @@ import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { canLaunchMission, createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
+import { equipWeaponBranch } from "../engine/campaignEconomy";
+import { WEAPON_BRANCHES, type WeaponBranchId } from "../data/weaponBranches";
 
 // One muted, distinct hue per Path so a squad row scans quickly — new to
 // this file (see header comment: no portrait colour scheme existed
@@ -266,6 +268,26 @@ export class TransporterPad extends Phaser.Scene {
     return this.showPicker ? this.rosterIds.filter((id) => this.selected.has(id)) : this.rosterIds;
   }
 
+  /**
+   * Weapon Branch Point System (27 Aug 2026) — cycles pilotId's equipped
+   * branch through: none -> owned[0] -> owned[1] -> ... -> none. Mutates
+   * this.state in place via equipWeaponBranch (same in-memory-only
+   * convention as toggle()/ShopPanel above — persisted whenever this
+   * screen's own launch/return action next calls saveCampaignState, not
+   * here) and redraws so the click is felt immediately.
+   */
+  private cycleWeaponBranch(pilotId: string): void {
+    const entry = this.state.pilots[pilotId];
+    if (!entry) return;
+    const owned = (entry.pilot.ownedWeaponBranches ?? []) as WeaponBranchId[];
+    if (owned.length === 0) return;
+    const current = entry.pilot.equippedWeaponBranch as WeaponBranchId | undefined;
+    const currentIdx = current ? owned.indexOf(current) : -1;
+    const next: WeaponBranchId | null = currentIdx + 1 < owned.length ? owned[currentIdx + 1] : null;
+    equipWeaponBranch(this.state, pilotId, next);
+    this.redrawSquadList();
+  }
+
   private toggle(pilotId: string) {
     if (this.selected.has(pilotId)) {
       this.selected.delete(pilotId);
@@ -373,13 +395,26 @@ export class TransporterPad extends Phaser.Scene {
       this.squadLayer.add(infoText);
 
       if (mek) {
-        const trackLine = mek.secondary
+        const trackBase = mek.secondary
           ? `Primary: ${capitalize(mek.primary)}  ·  Secondary: ${capitalize(mek.secondary)}`
           : `Primary: ${capitalize(mek.primary)}`;
+        // Weapon Branch Point System (27 Aug 2026) — appended onto the same
+        // line rather than a new one, since this card's height is already
+        // squeezed by the roster-size-driven pitch above. Only shown/
+        // clickable once a pilot owns at least one branch — nothing to
+        // cycle through otherwise. Clicking cycles equipped -> next owned
+        // branch -> ... -> none (default weapon) -> first owned again.
+        const owned = (pilot.ownedWeaponBranches ?? []) as WeaponBranchId[];
+        const equippedId = pilot.equippedWeaponBranch as WeaponBranchId | undefined;
+        const weaponLabel = equippedId ? WEAPON_BRANCHES[equippedId]?.displayName ?? equippedId : "None (default)";
+        const trackLine = owned.length > 0 ? `${trackBase}  ·  Weapon: ${weaponLabel}` : trackBase;
         const trackText = this.add
           .text(textX, y + cardH / 2 - 18, trackLine, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
           .setAlpha(rowAlpha);
         this.squadLayer.add(trackText);
+        if (owned.length > 0) {
+          trackText.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.cycleWeaponBranch(pilotId));
+        }
       }
 
       // Personal points readout — engine/campaignEconomy.ts's actual

@@ -33,12 +33,15 @@ import {
   purchaseMekSecondary,
   purchaseSpareParts,
   fabricatorMaxSpareParts,
+  purchaseWeaponBranch,
+  equipWeaponBranch,
   TIER_ORDER,
   TIER_UPGRADE_COST,
   MEK_SECONDARY_COST,
   SPARE_PART_COST,
 } from "../../engine/campaignEconomy";
 import { recruitDiscretionary, DISCRETIONARY_RECRUIT_COST, type CampaignState } from "../../engine/campaignState";
+import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../../data/weaponBranches";
 
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
@@ -66,7 +69,7 @@ type ShopEntry =
 
 const ROW_H: Record<ShopEntry["type"], number> = {
   sectionHeader: 30,
-  pilot: 96,
+  pilot: 148, // grown from 96 (25 Aug 2026) to fit the Weapon Branch button row added 27 Aug 2026
   mek: 54,
   info: 30,
   recruit: 136,
@@ -284,24 +287,71 @@ export class ShopPanel {
 
     // Mek Secondary
     const secX = SHOP_CARD_L + 250;
-    if (!mek) return;
-    if (mek.secondary) {
-      this.shopLayer.add(
-        this.scene.add.text(secX, top + 58, `Secondary: ${capitalize(mek.secondary)}`, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
-      );
-      return;
+    if (mek) {
+      if (mek.secondary) {
+        this.shopLayer.add(
+          this.scene.add.text(secX, top + 58, `Secondary: ${capitalize(mek.secondary)}`, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
+        );
+      } else {
+        this.shopLayer.add(
+          this.scene.add.text(secX, top + 50, `Add secondary (${MEK_SECONDARY_COST}):`, { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+        );
+        let tx = secX;
+        for (const track of ALL_TRACKS) {
+          const disabled = track === mek.primary || entry.personalPoints < MEK_SECONDARY_COST;
+          makeShopButton(this.scene, this.shopLayer, tx, top + 74, 66, 20, TRACK_LABELS[track], !disabled, () => {
+            purchaseMekSecondary(this.state, pilotId, track);
+            this.render();
+          });
+          tx += 72;
+        }
+      }
     }
+
+    // Weapon Branch Point System (claude/Bloom_Wars_Weapon_Branch_Point_System_v1.md,
+    // 27 Aug 2026) — one row of buttons per branch buildable on this
+    // pilot's path (usually 1, Reeps gets 2). Unowned = a BUY button
+    // priced/gated by purchase order; owned-but-not-equipped = an EQUIP
+    // button (free, per the doc's own "collect-and-swap"); owned-and-
+    // equipped shows as an active toggle that unequips back to default.
+    if (!path) return;
+    const buildable = WEAPON_BRANCHES_BY_PATH[path] ?? [];
+    if (buildable.length === 0) return;
     this.shopLayer.add(
-      this.scene.add.text(secX, top + 50, `Add secondary (${MEK_SECONDARY_COST}):`, { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+      this.scene.add.text(SHOP_CARD_L + 14, top + 96, "Weapon Branch:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
     );
-    let tx = secX;
-    for (const track of ALL_TRACKS) {
-      const disabled = track === mek.primary || entry.personalPoints < MEK_SECONDARY_COST;
-      makeShopButton(this.scene, this.shopLayer, tx, top + 74, 66, 20, TRACK_LABELS[track], !disabled, () => {
-        purchaseMekSecondary(this.state, pilotId, track);
-        this.render();
-      });
-      tx += 72;
+    const owned = pilot.ownedWeaponBranches ?? [];
+    let bx = SHOP_CARD_L + 14;
+    for (const branchId of buildable) {
+      const branch = WEAPON_BRANCHES[branchId];
+      const isOwned = owned.includes(branchId as WeaponBranchId);
+      const isEquipped = pilot.equippedWeaponBranch === branchId;
+      if (!isOwned) {
+        const purchaseIndex = owned.length;
+        const cost = WEAPON_BRANCH_COSTS[purchaseIndex];
+        const requiredTier = WEAPON_BRANCH_TIER_GATE[purchaseIndex];
+        const tierMet = TIER_ORDER.indexOf(pilot.tier) >= TIER_ORDER.indexOf(requiredTier);
+        const affordable = cost !== undefined && entry.personalPoints >= cost;
+        const label = cost === undefined ? `${branch.displayName} (maxed)` : `BUY ${branch.displayName} (${cost})`;
+        makeShopButton(this.scene, this.shopLayer, bx, top + 112, 210, 22, label, cost !== undefined && tierMet && affordable, () => {
+          purchaseWeaponBranch(this.state, pilotId, branchId);
+          this.render();
+        });
+        if (cost !== undefined && !tierMet) {
+          this.shopLayer.add(
+            this.scene.add
+              .text(bx, top + 124, `needs tier ${requiredTier}+`, { fontFamily: "monospace", fontSize: "8px", color: "#6b7a8a" })
+              .setOrigin(0.5, 0)
+          );
+        }
+      } else {
+        const label = isEquipped ? `${branch.displayName} [EQUIPPED]` : `EQUIP ${branch.displayName}`;
+        makeShopButton(this.scene, this.shopLayer, bx, top + 112, 210, 22, label, true, () => {
+          equipWeaponBranch(this.state, pilotId, isEquipped ? null : branchId);
+          this.render();
+        });
+      }
+      bx += 216;
     }
   }
 

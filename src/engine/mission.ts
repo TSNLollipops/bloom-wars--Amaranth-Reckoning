@@ -54,6 +54,7 @@ import {
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
+import { GRINDER_CLAW_HEAL_PCT, RAPID_RESPONSE_REPAIR_RANGE, DEFAULT_REPAIR_RANGE } from "../data/weaponBranches";
 import { decideHostileAction, decideCivilianAction, isVisibleTo } from "./ai";
 import {
   createEventRuntimeState,
@@ -945,6 +946,7 @@ export class Mission {
       );
       applyMechDamage(defender, r.damage);
       if (r.countered && r.counterDamage !== undefined) applyMechDamage(attacker, r.counterDamage);
+      this.applyGrinderClawHeal(attacker, r.damage);
       outcome = {
         attackerId,
         defenderId,
@@ -959,6 +961,7 @@ export class Mission {
     } else if (attacker.kind !== "bloom" && defender.kind === "bloom") {
       const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove);
       applyBloomDamage(defender, r.damage);
+      this.applyGrinderClawHeal(attacker, r.damage);
       outcome = { attackerId, defenderId, damage: r.damage, countered: false, defenderDowned: defender.downed };
     } else {
       // Bloom attacking a mech-shape defender.
@@ -1118,7 +1121,13 @@ export class Mission {
     if (healer.actionsRemaining <= 0) return null;
     if (!healer.abilities.includes("abil_repair")) return null;
     if (healer.side !== target.side || healer.instanceId === target.instanceId) return null;
-    if (chebyshevDistance(healer.pos, target.pos) !== 1) return null;
+    // Rapid Response (Weapon Branch Point System, data/weaponBranches.ts,
+    // 27 Aug 2026) — extends Repair's range from adjacent-only to 2 tiles
+    // for a Munti who's bought and equipped this branch. Everyone else
+    // keeps the original DEFAULT_REPAIR_RANGE (1) hardcoded rule above.
+    const repairRange =
+      healer.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
+    if (chebyshevDistance(healer.pos, target.pos) > repairRange) return null;
 
     const healAmount = repairHealAmount(healer);
     const amount = Math.max(0, Math.min(healAmount, target.maxHp - target.currentHp));
@@ -1133,6 +1142,24 @@ export class Mission {
     if (amount > 0) this.creditAssist(healer.pilotId, REPAIR_ASSIST_FRACTION);
     this.log.push(`${healer.displayName} repairs ${target.displayName} for ${amount} HP`);
     return { healerId, targetId, amount };
+  }
+
+  /**
+   * Grinder Claw (Weapon Branch Point System, data/weaponBranches.ts,
+   * 27 Aug 2026) — a Tank who's bought and equipped this branch heals a
+   * fraction of the damage they just DEALT, not received, and only when
+   * the hit actually lands (damageDealt > 0 — a dodge or a miss heals
+   * nothing). Called from resolveAttack() right after the damage is
+   * applied, for both the mech-vs-mech and mech-vs-Bloom branches.
+   */
+  private applyGrinderClawHeal(attacker: BattleUnit, damageDealt: number): void {
+    if (attacker.weaponBranchId !== "tank_grinder_claw" || damageDealt <= 0) return;
+    const healAmount = Math.round(damageDealt * GRINDER_CLAW_HEAL_PCT);
+    if (healAmount <= 0) return;
+    const before = attacker.currentHp;
+    attacker.currentHp = Math.min(attacker.maxHp, attacker.currentHp + healAmount);
+    const actual = attacker.currentHp - before;
+    if (actual > 0) this.log.push(`${attacker.displayName}'s Grinder Claw heals ${actual} HP`);
   }
 
   // ---- overwatch -----------------------------------------------------

@@ -24,6 +24,8 @@
 import type { MekTrack, Tier } from "../data/types";
 import type { CampaignState, Rank } from "./campaignState";
 import type { Mission, UnitPerformance } from "./mission";
+import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../data/weaponBranches";
+import { UNIT_ARCHETYPES } from "../data/units";
 
 // ---- Personal points: earning -------------------------------------------
 
@@ -277,6 +279,125 @@ export function purchaseSpareParts(state: CampaignState, mekId: string): SparePa
   state.points -= SPARE_PART_COST;
   mek.spareParts += 1;
   return { ok: true, spareParts: mek.spareParts, cost: SPARE_PART_COST };
+}
+
+// ---- Personal points: spending — Weapon Branch Point System ------------
+//
+// claude/Bloom_Wars_Weapon_Branch_Point_System_v1.md, decided 27 Aug 2026,
+// data model in data/weaponBranches.ts. Same personal-pool shape as
+// purchaseTierUpgrade/purchaseMekSecondary above: priced off, and
+// deducted from, the buying pilot's own personalPoints — never the
+// company pool, matching "personal points only ever buy that pilot's own
+// growth" (see purchaseSpareParts' own comment for why spare parts are
+// the one exception, and why this isn't another one).
+//
+// Cost and tier-gate are keyed by PURCHASE ORDER — how many branches this
+// pilot already owns, i.e. entry.pilot.ownedWeaponBranches.length — not by
+// which branch, per the source doc's own §3/§9. WEAPON_BRANCH_COSTS/
+// WEAPON_BRANCH_TIER_GATE (data/weaponBranches.ts) are both indexed that
+// way already; this function just looks them up.
+
+export interface WeaponBranchPurchaseResult {
+  ok: boolean;
+  reason?: string;
+  branchId?: WeaponBranchId;
+  cost?: number;
+}
+
+/**
+ * Buys `branchId` for `pilotId` — permanent, added to their
+ * ownedWeaponBranches — deducting the cost from their PERSONAL balance.
+ * Does NOT equip it (see equipWeaponBranch below); a pilot can own several
+ * branches and only ever has one active at a time.
+ *
+ * Fails cleanly on an unknown pilot, a non-active pilot, a branch that
+ * doesn't exist on this pilot's own path (WEAPON_BRANCHES_BY_PATH — a
+ * Meeps pilot can't buy a Reeps branch), a branch this pilot already owns
+ * (buying the same branch twice would just waste points — nothing in the
+ * source doc suggests duplicates do anything), a pilot whose current gear
+ * tier hasn't reached this purchase's tier gate yet (WEAPON_BRANCH_TIER_GATE
+ * — the Nth branch bought needs at least the Nth tier in TIER_ORDER above,
+ * D/C/B/A respectively), or insufficient personal points.
+ */
+export function purchaseWeaponBranch(state: CampaignState, pilotId: string, branchId: WeaponBranchId): WeaponBranchPurchaseResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: `unknown pilot id: ${pilotId}` };
+  if (entry.status !== "active") {
+    return { ok: false, reason: `${entry.pilot.displayName} is not active — cannot spend points on a lost pilot` };
+  }
+  const archetype = UNIT_ARCHETYPES[entry.pilot.archetypeId];
+  if (!archetype) return { ok: false, reason: `unknown archetype id: ${entry.pilot.archetypeId}` };
+  const branch = WEAPON_BRANCHES[branchId];
+  const buildableForPath = WEAPON_BRANCHES_BY_PATH[archetype.path] ?? [];
+  if (!branch || !buildableForPath.includes(branchId)) {
+    return { ok: false, reason: `${branchId} is not a valid weapon branch for ${entry.pilot.displayName}'s path (${archetype.path})` };
+  }
+  const owned = entry.pilot.ownedWeaponBranches ?? [];
+  if (owned.includes(branchId)) {
+    return { ok: false, reason: `${entry.pilot.displayName} already owns ${branch.displayName}` };
+  }
+  const purchaseIndex = owned.length; // 0 = this pilot's 1st branch, 1 = 2nd, etc.
+  if (purchaseIndex >= WEAPON_BRANCH_COSTS.length) {
+    return { ok: false, reason: `${entry.pilot.displayName} already owns the maximum number of weapon branches` };
+  }
+  const requiredTier = WEAPON_BRANCH_TIER_GATE[purchaseIndex];
+  const tierIdx = TIER_ORDER.indexOf(entry.pilot.tier);
+  const requiredIdx = TIER_ORDER.indexOf(requiredTier);
+  if (tierIdx < requiredIdx) {
+    return {
+      ok: false,
+      reason: `${entry.pilot.displayName} needs gear tier ${requiredTier}+ to buy their ${ordinal(purchaseIndex + 1)} weapon branch (currently ${entry.pilot.tier})`,
+    };
+  }
+  const cost = WEAPON_BRANCH_COSTS[purchaseIndex];
+  if (entry.personalPoints < cost) {
+    return {
+      ok: false,
+      reason: `not enough personal points — ${branch.displayName} costs ${cost}, ${entry.pilot.displayName} has ${entry.personalPoints}`,
+    };
+  }
+  entry.personalPoints -= cost;
+  entry.pilot.ownedWeaponBranches = [...owned, branchId];
+  return { ok: true, branchId, cost };
+}
+
+function ordinal(n: number): string {
+  if (n === 1) return "1st";
+  if (n === 2) return "2nd";
+  if (n === 3) return "3rd";
+  return `${n}th`;
+}
+
+export interface WeaponBranchEquipResult {
+  ok: boolean;
+  reason?: string;
+  equipped?: WeaponBranchId | null;
+}
+
+/**
+ * Sets `pilotId`'s ACTIVE weapon branch for their next mission — free
+ * (Option B, source doc's own decision: "collect-and-swap," no cost or
+ * cooldown to switch between branches already owned). Pass `null` to
+ * unequip back to the pilot's plain default weapon.
+ *
+ * Fails cleanly on an unknown pilot, a non-active pilot, or a branch this
+ * pilot hasn't purchased yet (equipping is not the same gate as owning —
+ * see purchaseWeaponBranch above for how a branch is actually acquired).
+ */
+export function equipWeaponBranch(state: CampaignState, pilotId: string, branchId: WeaponBranchId | null): WeaponBranchEquipResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: `unknown pilot id: ${pilotId}` };
+  if (entry.status !== "active") {
+    return { ok: false, reason: `${entry.pilot.displayName} is not active` };
+  }
+  if (branchId !== null) {
+    const owned = entry.pilot.ownedWeaponBranches ?? [];
+    if (!owned.includes(branchId)) {
+      return { ok: false, reason: `${entry.pilot.displayName} doesn't own ${WEAPON_BRANCHES[branchId]?.displayName ?? branchId} yet` };
+    }
+  }
+  entry.pilot.equippedWeaponBranch = branchId ?? undefined;
+  return { ok: true, equipped: branchId };
 }
 
 // ---- Company points: earning — mission completion + CO bonus -----------
