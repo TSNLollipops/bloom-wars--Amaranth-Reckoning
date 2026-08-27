@@ -9,10 +9,15 @@ import {
   assignSubAnimals,
   CATALYST_DICTIONARY,
   pickCatalystReaction,
+  pickAmbientLineWithBleed,
+  AMBIENT_BLEED_CHANCE,
   SUBANIMAL_INSTINCT_WEIGHT,
   SUBANIMAL_THOUGHT_WEIGHT,
   SUBANIMAL_ACTION_WEIGHT,
   SUBANIMAL_WEIGHTS_BY_STAGE,
+  CATALYST_CLASH_PAIRS,
+  catalystsClash,
+  findCatalystClash,
   type SubAnimalRole,
 } from "../catalystProfile";
 import { LINE_BANK, type AmbientPilotState, type Catalyst } from "../ambientLines";
@@ -268,5 +273,155 @@ describe("SUBANIMAL_WEIGHTS_BY_STAGE — stage-weighted sub-animal confidence, 2
     // sampling variance at n=2000, so a loose but real assertion is safe
     // rather than pinning exact rates.
     expect(commandRate).toBeGreaterThan(greenRate + 0.15);
+  });
+});
+
+describe("pickAmbientLineWithBleed — ambient bleed into idle/verb-outcome lines, 27 Aug 2026 (roadmap #2)", () => {
+  it("always returns real, non-empty content, bled or not, over many trials across every catalyst", () => {
+    for (const catalyst of ALL_CATALYSTS) {
+      for (let i = 0; i < 20; i++) {
+        const { line } = pickAmbientLineWithBleed("pilot_probe", pilot({ catalyst }));
+        expect(typeof line).toBe("string");
+        expect(line.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("bleeds at roughly AMBIENT_BLEED_CHANCE (~30%) of the time, not never and not always", () => {
+    const trials = 3000;
+    let bledCount = 0;
+    for (let i = 0; i < trials; i++) {
+      const { bled } = pickAmbientLineWithBleed("pilot_rate_probe", pilot({ catalyst: "wolf" }));
+      if (bled) bledCount++;
+    }
+    const rate = bledCount / trials;
+    // Loose band around AMBIENT_BLEED_CHANCE (0.3) — same "real margin
+    // comfortably clears sampling variance" reasoning as this file's other
+    // statistical checks, not pinned to an exact count.
+    expect(rate).toBeGreaterThan(AMBIENT_BLEED_CHANCE - 0.05);
+    expect(rate).toBeLessThan(AMBIENT_BLEED_CHANCE + 0.05);
+  });
+
+  it("when bled, the reported catalyst is always one of this pilot's own three sub-animals, never the primary", () => {
+    const pilotId = "pilot_bleed_identity";
+    const primary: Catalyst = "raven";
+    const subs = assignSubAnimals(pilotId, primary);
+    const subAnimalCatalysts = Object.values(subs);
+    let sawABleed = false;
+    for (let i = 0; i < 500; i++) {
+      const { bled } = pickAmbientLineWithBleed(pilotId, pilot({ catalyst: primary }));
+      if (!bled) continue;
+      sawABleed = true;
+      expect(bled.catalyst).not.toBe(primary);
+      expect(subAnimalCatalysts).toContain(bled.catalyst);
+      expect(["instinct", "thought", "action"]).toContain(bled.role);
+    }
+    expect(sawABleed).toBe(true); // 500 trials at ~30% makes never seeing one astronomically unlikely
+  });
+
+  it("when NOT bled, the line actually comes from the pilot's own primary catalyst's LINE_BANK bucket for that echo/stage", () => {
+    const primary: Catalyst = "shark";
+    const stage = "command" as const;
+    for (let i = 0; i < 200; i++) {
+      const { line, pick, bled } = pickAmbientLineWithBleed("pilot_primary_probe", pilot({ catalyst: primary, stage }));
+      if (bled) continue;
+      expect(LINE_BANK[primary][pick.echo][stage]).toContain(line);
+    }
+  });
+
+  it("when bled, the line actually comes from the bled sub-animal's own LINE_BANK bucket, not the primary's", () => {
+    const primary: Catalyst = "cat";
+    const stage = "green" as const;
+    let checkedAtLeastOne = false;
+    for (let i = 0; i < 500; i++) {
+      const { line, pick, bled } = pickAmbientLineWithBleed("pilot_bleed_content", pilot({ catalyst: primary, stage }));
+      if (!bled) continue;
+      checkedAtLeastOne = true;
+      expect(LINE_BANK[bled.catalyst][pick.echo][stage]).toContain(line);
+    }
+    expect(checkedAtLeastOne).toBe(true);
+  });
+
+  it("is otherwise a drop-in replacement for pickAmbientLine — same pick.echo selection logic applies (e.g. a drunk pilot always gets love or anger)", () => {
+    for (let i = 0; i < 30; i++) {
+      const { pick } = pickAmbientLineWithBleed("pilot_drunk_probe", pilot({ catalyst: "dog", drunk: true }));
+      expect(["love", "anger"]).toContain(pick.echo);
+      expect(pick.reason).toBe("drunk");
+    }
+  });
+});
+
+describe("catalystsClash / findCatalystClash — catalyst clash reactions, 27 Aug 2026 (roadmap #10)", () => {
+  it("is symmetric — order of arguments never matters", () => {
+    for (const [a, b] of CATALYST_CLASH_PAIRS) {
+      expect(catalystsClash(a, b)).toBe(true);
+      expect(catalystsClash(b, a)).toBe(true);
+    }
+  });
+
+  it("includes the roadmap doc's own example verbatim: wolf's teamwork against shark's ambition", () => {
+    expect(catalystsClash("wolf", "shark")).toBe(true);
+  });
+
+  it("a catalyst never clashes with itself", () => {
+    for (const catalyst of ALL_CATALYSTS) {
+      expect(catalystsClash(catalyst, catalyst)).toBe(false);
+    }
+  });
+
+  it("most pairs are NOT a clash — this is a curated, non-exhaustive set, not every combination", () => {
+    // 36 possible unordered pairs across 9 catalysts; CATALYST_CLASH_PAIRS
+    // is a small curated subset, so a random sampling of pairs should turn
+    // up plenty of non-clashes.
+    let clashCount = 0;
+    let total = 0;
+    for (let i = 0; i < ALL_CATALYSTS.length; i++) {
+      for (let j = i + 1; j < ALL_CATALYSTS.length; j++) {
+        total++;
+        if (catalystsClash(ALL_CATALYSTS[i], ALL_CATALYSTS[j])) clashCount++;
+      }
+    }
+    expect(clashCount).toBe(CATALYST_CLASH_PAIRS.length);
+    expect(clashCount).toBeLessThan(total);
+  });
+
+  it("findCatalystClash returns undefined for an empty or single-candidate list", () => {
+    expect(findCatalystClash([])).toBeUndefined();
+    expect(findCatalystClash([{ pilotId: "pilot_a", catalyst: "wolf" }])).toBeUndefined();
+  });
+
+  it("findCatalystClash returns undefined when no two candidates are a genuinely opposed pair", () => {
+    // raven/crow IS a listed clash pair, but wolf/dog/raven together have no
+    // opposed pair among them.
+    const candidates = [
+      { pilotId: "pilot_a", catalyst: "wolf" as const },
+      { pilotId: "pilot_b", catalyst: "dog" as const },
+      { pilotId: "pilot_c", catalyst: "raven" as const },
+    ];
+    expect(findCatalystClash(candidates)).toBeUndefined();
+  });
+
+  it("findCatalystClash finds a real opposed pair among a mixed candidate list", () => {
+    const candidates = [
+      { pilotId: "pilot_dog", catalyst: "dog" as const },
+      { pilotId: "pilot_wolf", catalyst: "wolf" as const },
+      { pilotId: "pilot_shark", catalyst: "shark" as const },
+    ];
+    const clash = findCatalystClash(candidates);
+    expect(clash).toBeDefined();
+    const ids = clash!.map((c) => c.pilotId).sort();
+    // wolf/shark is the only opposed pair present (dog/wolf and dog/shark
+    // are not listed clash pairs).
+    expect(ids).toEqual(["pilot_shark", "pilot_wolf"]);
+  });
+
+  it("findCatalystClash returns candidates in the order they were passed (first-found pair, first element first)", () => {
+    const candidates = [
+      { pilotId: "pilot_first", catalyst: "wolf" as const },
+      { pilotId: "pilot_second", catalyst: "shark" as const },
+    ];
+    const clash = findCatalystClash(candidates);
+    expect(clash?.[0].pilotId).toBe("pilot_first");
+    expect(clash?.[1].pilotId).toBe("pilot_second");
   });
 });

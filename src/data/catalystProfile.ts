@@ -41,7 +41,7 @@
 // don't get to answer every single time the way primary does. Weights are
 // a real, hand-tuned placeholder, same "not a locked number" caveat as
 // every other constant in this pass (reactionGate.ts's own header).
-import { LINE_BANK, pickSoloEcho, type AmbientPilotState, type Catalyst, type Stage } from "./ambientLines";
+import { LINE_BANK, pickSoloEcho, type AmbientPilotState, type Catalyst, type Stage, type EchoPick } from "./ambientLines";
 
 export type SubAnimalRole = "instinct" | "thought" | "action";
 export type SubAnimals = Record<SubAnimalRole, Catalyst>;
@@ -217,4 +217,162 @@ export function pickCatalystReaction(pilot: AmbientPilotState, pilotId: string, 
   }
 
   return null;
+}
+
+// Ambient bleed into ordinary idle/verb-outcome lines, 27 Aug 2026 (Social
+// Sim Roadmap #2 — "sub-animal ambient bleed"). §32 above only ever let a
+// sub-animal answer a piece of TYPED chat (pickCatalystReaction, requiring
+// an actual dictionary hit in the player's own words); this is the
+// separate, explicitly-deferred half of that idea — a pilot's ordinary
+// idle/Gate-0 line and every verb-outcome line (shareADrink, pegBoard,
+// poker, darts) occasionally drawing from a sub-animal's own LINE_BANK
+// voice instead of the primary catalyst's, with no typed text or dictionary
+// hit involved at all. pilot_creator.html's own sandbox already has
+// precedent for exactly this: "a ~30% chance an idle line draws from a
+// secondary catalyst instead of the primary" (roadmap doc's own wording) —
+// AMBIENT_BLEED_CHANCE below is that same number, not a fresh guess.
+//
+// Lives here rather than in ambientLines.ts's own pickAmbientLine, on
+// purpose: this file already imports FROM ambientLines.ts (LINE_BANK,
+// pickSoloEcho, the shared types) for pickCatalystReaction above — having
+// ambientLines.ts import assignSubAnimals back from here would be a
+// circular dependency, and the src/data/** purity rule (Build Brief §5.2)
+// only allows data-file-to-data-file imports one direction at a time in
+// practice, so this stays the higher-level file that composes the two
+// lower-level ones instead of merging them.
+//
+// Which sub-animal bleeds through, GIVEN that the 30% roll already
+// succeeded, is picked via SUBANIMAL_WEIGHTS_BY_STAGE — the same per-stage
+// instinct/thought/action weighting pickCatalystReaction's own dictionary
+// cascade already uses, renormalized into a single three-way draw instead
+// of three independent trial gates (those three weights don't sum to
+// exactly 1 — see that table's own header for why — so they can't be used
+// as-is as a probability distribution over "which one wins"; a second
+// sequential gate here would instead shrink the top-level 30% by whatever
+// fraction of rolls fail all three trials, which isn't what "a ~30% chance
+// an idle line draws from a secondary catalyst" asked for). Reusing this
+// table rather than inventing a fresh flat 1-in-3 split keeps "instinct is
+// the loudest secondary voice, action the quietest" consistent across both
+// bleed contexts (typed-chat dictionary matching and this one), same
+// identity, two different places it can surface.
+export const AMBIENT_BLEED_CHANCE = 0.3;
+
+function pickBleedRole(stage: Stage): SubAnimalRole {
+  const w = SUBANIMAL_WEIGHTS_BY_STAGE[stage];
+  const total = w.instinct + w.thought + w.action;
+  const roll = Math.random() * total;
+  if (roll < w.instinct) return "instinct";
+  if (roll < w.instinct + w.thought) return "thought";
+  return "action";
+}
+
+export type AmbientBleedPick = {
+  line: string;
+  pick: EchoPick;
+  // Which sub-animal actually spoke, and in what role — undefined means
+  // the 30% roll missed and the primary catalyst answered as usual, same
+  // as plain pickAmbientLine. Not needed by every caller (Hub.ts's own
+  // call sites only ever destructure `.line`), but kept on the return
+  // value rather than thrown away — the one piece of state that actually
+  // proves this feature is doing anything, useful for verification and for
+  // any future consumer that wants to say so out loud (a debug overlay, a
+  // socialLog entry that notes "this one wasn't really them").
+  bled?: { role: SubAnimalRole; catalyst: Catalyst };
+};
+
+// Drop-in replacement for ambientLines.ts's own pickAmbientLine at every
+// Hub.ts call site that shows an ordinary idle/verb-outcome line (Gate 0's
+// own fallback in speak(), shareADrink, pegBoard, poker, darts) — NOT
+// wired into socialSim.ts's own two pickAmbientLine call sites (the
+// background NPC-NPC simulation), matching the exact same boundary
+// data/hotTopics.ts's own header already drew for a different feature:
+// socialSim.ts stays a deliberately separate, not-yet-extended consumer
+// until a later pass decides otherwise.
+export function pickAmbientLineWithBleed(pilotId: string, pilot: AmbientPilotState): AmbientBleedPick {
+  const pick = pickSoloEcho(pilot);
+  let catalyst = pilot.catalyst;
+  let bled: AmbientBleedPick["bled"];
+  if (Math.random() < AMBIENT_BLEED_CHANCE) {
+    const subAnimals = assignSubAnimals(pilotId, pilot.catalyst);
+    const role = pickBleedRole(pilot.stage);
+    catalyst = subAnimals[role];
+    bled = { role, catalyst };
+  }
+  const bank = LINE_BANK[catalyst][pick.echo][pilot.stage];
+  const line = bank[Math.floor(Math.random() * bank.length)];
+  return { line, pick, bled };
+}
+
+// Catalyst "clash" reactions in chat, 27 Aug 2026 (Social Sim Roadmap #10).
+//
+// Honest correction first, worth recording here rather than silently
+// building on top of a wrong premise: the roadmap doc's own framing —
+// "pickCatalystReaction currently only ever produces one reply per
+// trigger... just letting more than one dictionary hit surface at once
+// instead of taking the first" — reads as if something in the code stops
+// after the FIRST NPC's hit and discards the rest. Checked directly against
+// Hub.ts's real showCatalystOrFallback() before writing anything here (this
+// project's own standing rule: verify a specific claim against the actual
+// file, not memory or an older plan): that function already loops over
+// EVERY nearby NPC and calls pickCatalystReaction independently for each
+// one, with no early exit — verified live in a real browser, pinning three
+// differently-catalysted NPCs to the player's own position and sending one
+// typed line ("team party") that hits both wolf's and crow's primary
+// dictionaries at once: both NPCs already produced their own real, distinct
+// reactions, every time, with the third (raven, no dictionary hit) getting
+// the ordinary shared shrug. So "more than one dictionary hit surfacing at
+// once" was already true before this pass touched anything — that part of
+// the roadmap item was stale, not unbuilt.
+//
+// What was genuinely still missing, and what this section actually adds:
+// nothing marked any particular pair of simultaneous reactions as a
+// deliberate values DISAGREEMENT as opposed to two catalysts that just
+// happen to both have a dictionary hit on the same sentence for unrelated
+// reasons. "Wolf and Crow both answered" isn't inherently a clash — Wolf
+// and Shark answering IS, because teamwork and ambition genuinely pull
+// against each other. CATALYST_CLASH_PAIRS below is that missing piece: a
+// curated set of genuinely opposed value pairs, grounded in this file's own
+// established trait identities (see the file header), not an exhaustive
+// 36-pair grid — most catalyst pairs aren't meaningfully "opposed," just
+// different, and forcing every combination into a clash would cheapen the
+// ones that actually mean something. The roadmap doc's own example (wolf's
+// teamwork against shark's ambition) is included verbatim, not reinterpreted.
+export const CATALYST_CLASH_PAIRS: [Catalyst, Catalyst][] = [
+  ["wolf", "shark"], // teamwork vs. ambition — the roadmap doc's own example
+  ["wolf", "cat"], // teamwork vs. selfishness
+  ["dog", "fox"], // loyalty vs. trickery
+  ["dog", "cat"], // loyalty vs. selfishness
+  ["rabbit", "shark"], // nurturing vs. ambition
+  ["raven", "crow"], // instruction/discipline vs. indulgence/impulse
+  ["bear", "wolf"], // isolation vs. teamwork
+];
+
+// Symmetric on purpose — the pairing table above only lists each pair once,
+// but "does A clash with B" and "does B clash with A" are the same
+// question, so callers shouldn't have to know or care which order a pair
+// was written in.
+export function catalystsClash(a: Catalyst, b: Catalyst): boolean {
+  return CATALYST_CLASH_PAIRS.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+}
+
+export type ClashCandidate = { pilotId: string; catalyst: Catalyst };
+
+// Finds the first genuinely opposed pair among a set of real reactions
+// gathered from the SAME typed line (Hub.ts's showCatalystOrFallback: one
+// call per submitChat, one candidate per NPC that actually got a real
+// dictionary hit — misses/shrugs never reach this function at all). Pure,
+// no randomness of its own: whether two already-decided reactions clash is
+// either true or false, same as the rest of this pairing table. Returns the
+// first opposed pair found, not every pair — Hub.ts only ever needs one to
+// stage a two-line back-and-forth (see its own comment for why more than a
+// pair at once would start reading as noise rather than a disagreement).
+export function findCatalystClash(candidates: ClashCandidate[]): [ClashCandidate, ClashCandidate] | undefined {
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      if (catalystsClash(candidates[i].catalyst, candidates[j].catalyst)) {
+        return [candidates[i], candidates[j]];
+      }
+    }
+  }
+  return undefined;
 }

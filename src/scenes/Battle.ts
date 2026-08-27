@@ -5,7 +5,7 @@
 // goes through engine/mission.ts, and what's drawn is only ever a
 // reflection of that engine state (Build Brief §5.2's load-bearing line).
 import Phaser from "phaser";
-import type { Coord, TileType } from "../data/types";
+import type { BloomArchetype, Coord, TileType } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission, type DeployRosterEntry } from "../engine/mission";
 import type { BattleUnit } from "../engine/units";
@@ -13,7 +13,7 @@ import { coordKey } from "../engine/grid";
 import { unitsVisibleToSide } from "../engine/ai";
 import { BLOOM } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt } from "../engine/campaignState";
+import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen } from "../engine/campaignState";
 import { TILES } from "../data/tiles";
 import { tierPipCount } from "../data/combatTables";
 
@@ -56,7 +56,19 @@ const FIRE_SUPPORT_COLOR = 0x38bdf8; // abil_fire_support — a distinct sky blu
 
 // Right-hand panel layout. The log occupies the band between the HUD block
 // and the contextual action bar; drawHud() budgets its lines against it.
-const HUD_TOP = 12;
+//
+// Bug fix, 27 Aug 2026 (Campaign Playtest Review — "the mission title line
+// renders as 'Am' and then gets clipped by the floating '< mission select'
+// button sitting on top of it. Never once saw the full title on screen.").
+// Root cause, confirmed by reading the actual geometry rather than
+// guessing: the back button below (`backBtn`, added after hudText so it
+// draws on top per Phaser's default z-order) is a 200x26 rect centered at
+// (835, 20) — i.e. it spans y=7 to y=33. hudText used to start at y=12,
+// squarely inside that band, with the button's opaque fill covering
+// everything past its own left edge (x=735) — hence "Am" and nothing
+// after it. Moved below the button's bottom edge (33) with a small
+// margin; was 12.
+const HUD_TOP = 40;
 const LOG_TOP = 336;
 const LOG_BOTTOM = 505; // top edge of the action bar's upper row
 // Wrapped-line metrics for the 230px-wide panel: ~7.2px/char at 12px
@@ -95,8 +107,43 @@ const ACTION_SLOTS: Coord[] = [
 const ACTION_SLOT_W = 70;
 const ACTION_SLOT_H = 30;
 
-/** The five silhouettes drawUnit() ever draws — "blob" covers both Bloom units and any pilot/mech archetype missing a path (defensive fallback only). Shared between the fill pass and the outline helpers below it so both draw the exact same geometry. */
-type SilhouetteKind = "blob" | "meeps" | "tank" | "reeps" | "munti";
+/**
+ * The silhouettes drawUnit() ever draws. "blob" is now a true defensive
+ * fallback only (a burrowed Undertow while hidden, or any archetype
+ * missing a path/movementType) — Bloom units used to always render as
+ * "blob" regardless of archetype; the five bloom_* kinds below replace
+ * that with the Bloom Silhouette Doctrine's own movementType → shape rule
+ * (claude/Bloom_Wars_Bloom_Silhouette_Doctrine_Proposal_v1.md, adopted
+ * 27 Aug 2026 — "an automatic in," Maxime). Shared between the fill pass
+ * and the outline helpers below it so both draw the exact same geometry.
+ */
+type SilhouetteKind = "blob" | "meeps" | "tank" | "reeps" | "munti" | "bloom_swarm" | "bloom_burrow" | "bloom_sessile" | "bloom_flight" | "bloom_limbless";
+
+/**
+ * BloomArchetype.movementType has six values (flight_membrane and
+ * flight_spore both exist in data/types.ts) but the Doctrine proposal
+ * itself only ever names five silhouette families — no archetype uses
+ * flight_spore yet, and when one eventually does, it reads as the same
+ * "airborne, ignores terrain" silhouette flight_membrane already gets,
+ * not a sixth new shape. Folded here rather than in data/bloom.ts so that
+ * file's own type keeps its real six values and this is the one place
+ * that collapses them for rendering.
+ */
+function bloomSilhouetteKind(movementType: BloomArchetype["movementType"]): SilhouetteKind {
+  switch (movementType) {
+    case "swarm":
+      return "bloom_swarm";
+    case "burrow":
+      return "bloom_burrow";
+    case "sessile":
+      return "bloom_sessile";
+    case "flight_membrane":
+    case "flight_spore":
+      return "bloom_flight";
+    case "limbless":
+      return "bloom_limbless";
+  }
+}
 
 /** One entry in the contextual action bar. `usable` comes from the engine's own canX() predicate — this scene never re-derives one. */
 interface ActionOption {
@@ -116,6 +163,22 @@ export class Battle extends Phaser.Scene {
   private hudText!: Phaser.GameObjects.Text;
   private logText!: Phaser.GameObjects.Text;
   private overlay!: Phaser.GameObjects.Container;
+  // Mission 1 tutorial hints (27 Aug 2026 — Onboarding_Tutorial_Plan_v1.md
+  // §3's recommended shape: state-gated, Mission 1 only, reads state that
+  // already exists rather than inventing any). tutorialActive is decided
+  // once in create() (right mission + never seen before) and only ever
+  // turns false from there, never re-checked mid-mission. The three "has"
+  // flags are the one piece of new state this genuinely needs — a hint
+  // must not reappear once demonstrated even if the player deselects or
+  // the matching highlight set (reachable/attackable) is momentarily
+  // empty, so "did this already happen" can't be read purely from current
+  // selection state the way the hint's own trigger condition can.
+  private tutorialActive = false;
+  private tutorialHasSelected = false;
+  private tutorialHasMoved = false;
+  private tutorialHasAttacked = false;
+  private tutorialSeenMarked = false; // guards markTutorialSeen() to a single call
+  private tutorialText!: Phaser.GameObjects.Text;
   private selectedUnitId: string | null = null;
   private reachable: Coord[] = [];
   private attackable: BattleUnit[] = [];
@@ -250,11 +313,43 @@ export class Battle extends Phaser.Scene {
     this.tileSize = Math.max(16, Math.min(Math.floor(700 / m.width), Math.floor(560 / m.height)));
 
     this.gfx = this.add.graphics();
-    this.hudText = this.add.text(720, 12, "", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", wordWrap: { width: 230 } });
+    this.hudText = this.add.text(720, HUD_TOP, "", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", wordWrap: { width: 230 } });
     // Log starts below the HUD block. Nudged down from 300 when overwatch
     // added two more possible HUD lines — at 300 a selected overwatching
     // unit's status wrote straight over the top of the log.
     this.logText = this.add.text(720, LOG_TOP, "", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: 230 } });
+
+    // Mission 1 tutorial hints — see the field comments for the state
+    // machine. Scoped to Mission 1 by mission id (Muster is the doc's own
+    // "designated tutorial mission," §1) and to a player who's never
+    // finished the sequence before (hasSeenTutorial() — a flag outside
+    // CampaignState entirely, see that function's own comment for why).
+    // Reset every create() (this scene instance is reused across mission
+    // launches, same as every other per-create() field in this file) —
+    // otherwise a player who finished the sequence on an earlier Mission 1
+    // attempt this session would carry tutorialHasSelected etc. into a
+    // fresh one and see no hints at all, independent of hasSeenTutorial().
+    this.tutorialActive = this.mission.mission.id === "mission_amaranth_1" && !hasSeenTutorial();
+    this.tutorialHasSelected = false;
+    this.tutorialHasMoved = false;
+    this.tutorialHasAttacked = false;
+    this.tutorialSeenMarked = false;
+    // Below the board, not the right-hand panel — genuinely empty screen
+    // space at every board size Mission 1 can produce, and keeping it off
+    // the panel means it never competes with the HUD/log's own layout
+    // budget (fitLines' whole reason for existing). wordWrap matches the
+    // board's own pixel width so a long line wraps instead of running
+    // under the right panel.
+    const boardBottom = this.boardY + m.height * this.tileSize;
+    this.tutorialText = this.add
+      .text(this.boardX + (m.width * this.tileSize) / 2, boardBottom + 14, "", {
+        fontFamily: "monospace",
+        fontSize: "13px",
+        color: "#facc15",
+        align: "center",
+        wordWrap: { width: m.width * this.tileSize },
+      })
+      .setOrigin(0.5, 0);
 
     const doEndTurn = () => {
       if (this.mission.outcome !== "ongoing") return;
@@ -403,6 +498,7 @@ export class Battle extends Phaser.Scene {
     // Attacking an enemy currently highlighted as attackable.
     if (this.selectedUnitId && unitHere && this.attackable.some((a) => a.instanceId === unitHere.instanceId)) {
       this.mission.attack(this.selectedUnitId, unitHere.instanceId);
+      this.tutorialHasAttacked = true;
       this.selectedUnitId = null;
       this.clearSelectionHighlights();
       this.render();
@@ -447,6 +543,7 @@ export class Battle extends Phaser.Scene {
       const walkUnitId = this.selectedUnitId;
       const walkPath = this.mission.getMovePath(walkUnitId, tile);
       this.mission.moveUnit(walkUnitId, tile);
+      this.tutorialHasMoved = true;
       // Clear the reachable/attackable/etc. washes now rather than after
       // the animation — they were computed from the tile the unit is
       // about to leave, so leaving them up while it visibly walks away
@@ -486,6 +583,7 @@ export class Battle extends Phaser.Scene {
     // defense-in-depth rather than the only thing stopping a select here.
     if (unitHere && unitHere.side === "player" && !unitHere.downed && !unitHere.npcIncapacitated && !unitHere.isCivilian && unitHere.actionsRemaining > 0) {
       this.selectedUnitId = unitHere.instanceId;
+      this.tutorialHasSelected = true;
       this.recomputeSelectionHighlights(unitHere.instanceId);
       this.render();
       return;
@@ -750,9 +848,25 @@ export class Battle extends Phaser.Scene {
       }
     }
 
+    // Contrast pass, 27 Aug 2026 (Campaign Playtest Review — "it took me
+    // real time to stop misreading terrain color for a movement highlight
+    // (the two look similar enough at a glance that I wasted several turns
+    // before I sorted it out)"). Root cause: at 0.35 alpha, a green fill
+    // over an already-greenish terrain tile (plain 0x3a4636, scrub
+    // 0x455233 — both TILE_COLORS above) blends closer to the terrain than
+    // to the highlight. Bumped fill alpha and added a solid stroke border,
+    // matching the Onboarding plan's own §3 framing ("likely a contrast/
+    // saturation pass... rather than new content") — same hue, same
+    // meaning, just legible against green ground now. Deliberately a value
+    // tweak only, not a hue change: 0x4ade80 = reachable is a locked
+    // meaning referenced by this file's own header comment above, and
+    // changing it would risk exactly the "more than a value tweak"
+    // scope-creep that plan's §6 flagged as worth avoiding here.
     for (const c of this.reachable) {
-      g.fillStyle(0x4ade80, 0.35);
+      g.fillStyle(0x4ade80, 0.55);
       g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+      g.lineStyle(2, 0x4ade80, 0.95);
+      g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
     }
     for (const u of this.attackable) {
       g.fillStyle(0xef4444, 0.4);
@@ -846,6 +960,43 @@ export class Battle extends Phaser.Scene {
     this.drawActionBar();
     this.drawHud();
     this.drawOverlayIfNeeded();
+    this.updateTutorialHint();
+  }
+
+  /**
+   * Mission 1 tutorial hints — see the field comments for the state
+   * machine this reads. A priority chain, not independent checks: select
+   * always outranks move, move always outranks attack, so a unit that
+   * happens to have both a reachable tile and an attackable target still
+   * teaches "move" first, matching the plan's own Select → Move → Attack
+   * teaching order regardless of what's actually available to click.
+   */
+  private updateTutorialHint() {
+    if (!this.tutorialActive) return;
+    let line: string | null = null;
+    if (!this.tutorialHasSelected) {
+      // The one line that isn't gated on a click at all — Maxime's own
+      // call, softly warning rather than either spelling out the full
+      // permadeath/Munti rule or staying silent (Onboarding plan §5's
+      // open question): "we should softly warn them."
+      line = "TUTORIAL — click one of your own units to select it.\nLosses out here can be permanent. Keep a Munti in the fight.";
+    } else if (!this.tutorialHasMoved && this.reachable.length > 0) {
+      line = "TUTORIAL — click a highlighted green tile to move there.";
+    } else if (!this.tutorialHasAttacked && this.attackable.length > 0) {
+      line = "TUTORIAL — click a highlighted red enemy to attack it.";
+    }
+    if (line) {
+      this.tutorialText.setText(line).setVisible(true);
+      return;
+    }
+    this.tutorialText.setVisible(false);
+    if (this.tutorialHasSelected && this.tutorialHasMoved && this.tutorialHasAttacked) {
+      this.tutorialActive = false;
+      if (!this.tutorialSeenMarked) {
+        this.tutorialSeenMarked = true;
+        markTutorialSeen();
+      }
+    }
   }
 
   /**
@@ -906,6 +1057,37 @@ export class Battle extends Phaser.Scene {
       g.strokeCircle(cx, cy, r);
       return;
     }
+    if (kind === "bloom_swarm") {
+      const cr = r * 0.62;
+      const off = r * 0.45;
+      g.strokeCircle(cx - off, cy + off * 0.6, cr);
+      g.strokeCircle(cx + off, cy + off * 0.6, cr);
+      g.strokeCircle(cx, cy - off * 0.7, cr);
+      return;
+    }
+    if (kind === "bloom_limbless") {
+      g.strokeEllipse(cx, cy, r * 2.3, r * 1.05);
+      return;
+    }
+    if (kind === "bloom_burrow") {
+      // Same jagged-spike point loop the fill pass uses below — see that
+      // branch's own comment for why this only ever runs while surfaced.
+      g.beginPath();
+      const spikes = 6;
+      const outerR = r * 1.05;
+      const innerR = r * 0.45;
+      for (let i = 0; i < spikes * 2; i++) {
+        const rad = i % 2 === 0 ? outerR : innerR;
+        const ang = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+        const px = cx + Math.cos(ang) * rad;
+        const py = cy + Math.sin(ang) * rad;
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath();
+      g.strokePath();
+      return;
+    }
     g.beginPath();
     if (kind === "meeps") {
       g.moveTo(cx, cy - r);
@@ -916,12 +1098,28 @@ export class Battle extends Phaser.Scene {
       g.lineTo(cx + r, cy - r);
       g.lineTo(cx + r, cy + r);
       g.lineTo(cx - r, cy + r);
-    } else {
-      // reeps
+    } else if (kind === "reeps") {
       g.moveTo(cx, cy - r);
       g.lineTo(cx + r, cy);
       g.lineTo(cx, cy + r);
       g.lineTo(cx - r, cy);
+    } else if (kind === "bloom_sessile") {
+      g.moveTo(cx - r, cy + r * 0.5);
+      g.lineTo(cx - r * 0.6, cy - r * 0.3);
+      g.lineTo(cx - r * 0.25, cy - r);
+      g.lineTo(cx + r * 0.25, cy - r);
+      g.lineTo(cx + r * 0.6, cy - r * 0.3);
+      g.lineTo(cx + r, cy + r * 0.5);
+    } else {
+      // bloom_flight — same lifted geometry the fill pass uses, so the
+      // outline traces the wing where it's actually drawn, not the tile.
+      const liftCy = cy - r * 0.35;
+      g.moveTo(cx, liftCy - r * 0.6);
+      g.lineTo(cx + r, liftCy + r * 0.35);
+      g.lineTo(cx + r * 0.15, liftCy + r * 0.15);
+      g.lineTo(cx, liftCy + r * 0.5);
+      g.lineTo(cx - r * 0.15, liftCy + r * 0.15);
+      g.lineTo(cx - r, liftCy + r * 0.35);
     }
     g.closePath();
     g.strokePath();
@@ -1024,11 +1222,29 @@ export class Battle extends Phaser.Scene {
           ? HOSTILE_MECH_COLOR
           : parseInt(BLOOM[unit.archetypeId]?.colorPalette[0].replace("#", "") ?? "888888", 16);
 
-    g.fillStyle(color, acted ? 0.55 : 1);
+    const fillAlpha = acted ? 0.55 : 1;
+    g.fillStyle(color, fillAlpha);
 
     const path = unit.path;
-    const kind: SilhouetteKind = unit.kind === "bloom" || !path ? "blob" : path === "meeps" ? "meeps" : path === "tank" ? "tank" : path === "reeps" ? "reeps" : "munti";
-    const burrowedBlob = kind === "blob" && unit.burrowed;
+    const bloomArch = unit.kind === "bloom" ? BLOOM[unit.archetypeId] : undefined;
+    // Burrowed-and-hidden stays the plain "blob" fallback regardless of
+    // movementType — Bloom Silhouette Doctrine §2: "the shape only appears
+    // in the ×1.5 damage window," i.e. once surfaced. A surfaced Undertow
+    // (unit.burrowed false) gets its real bloom_burrow spike shape below.
+    const burrowedBlob = !!(bloomArch?.movementType === "burrow" && unit.burrowed);
+    const kind: SilhouetteKind = bloomArch
+      ? burrowedBlob
+        ? "blob"
+        : bloomSilhouetteKind(bloomArch.movementType)
+      : !path
+        ? "blob"
+        : path === "meeps"
+          ? "meeps"
+          : path === "tank"
+            ? "tank"
+            : path === "reeps"
+              ? "reeps"
+              : "munti";
     if (burrowedBlob) {
       // Bloom placeholder, still underground: fainter fill, per GDD §12
       // ("Burrowed: dashed outline, 40% opacity") — the outline half of
@@ -1055,6 +1271,73 @@ export class Battle extends Phaser.Scene {
       g.lineTo(cx - r, cy);
       g.closePath();
       g.fillPath();
+    } else if (kind === "bloom_swarm") {
+      // Swarm (Crawlmass/Splitfang): three small overlapping circles
+      // instead of one solid shape — "individually weak, dangerous in
+      // numbers," per the Doctrine's own reading of this family.
+      const cr = r * 0.62;
+      const off = r * 0.45;
+      g.fillCircle(cx - off, cy + off * 0.6, cr);
+      g.fillCircle(cx + off, cy + off * 0.6, cr);
+      g.fillCircle(cx, cy - off * 0.7, cr);
+    } else if (kind === "bloom_burrow") {
+      // Burrow, surfaced (Undertow): a jagged six-point spike. Only ever
+      // reached when burrowedBlob is false — see the kind derivation above.
+      g.beginPath();
+      const spikes = 6;
+      const outerR = r * 1.05;
+      const innerR = r * 0.45;
+      for (let i = 0; i < spikes * 2; i++) {
+        const rad = i % 2 === 0 ? outerR : innerR;
+        const ang = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+        const px = cx + Math.cos(ang) * rad;
+        const py = cy + Math.sin(ang) * rad;
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath();
+      g.fillPath();
+    } else if (kind === "bloom_sessile") {
+      // Sessile (Gallcyst/Heartwood/Unnamed): a wide, flat-based dome —
+      // "can't come to you" should read before a player checks moveRange.
+      // Root ticks into the tile are drawn after the outline pass below.
+      g.beginPath();
+      g.moveTo(cx - r, cy + r * 0.5);
+      g.lineTo(cx - r * 0.6, cy - r * 0.3);
+      g.lineTo(cx - r * 0.25, cy - r);
+      g.lineTo(cx + r * 0.25, cy - r);
+      g.lineTo(cx + r * 0.6, cy - r * 0.3);
+      g.lineTo(cx + r, cy + r * 0.5);
+      g.closePath();
+      g.fillPath();
+    } else if (kind === "bloom_flight") {
+      // Flight (Sirenmaw/Choir): a faint ground shadow at the unit's real
+      // tile position, then a swept-wing silhouette lifted above it —
+      // "ignores terrain, can't be blocked" should read as airborne before
+      // a player checks movementType. The shadow uses its own fillStyle
+      // call, so the wing's fill is restored right after at this
+      // function's own color/alpha.
+      g.fillStyle(0x000000, 0.25);
+      g.fillEllipse(cx, cy + r * 0.55, r * 1.3, r * 0.5);
+      g.fillStyle(color, fillAlpha);
+      const liftCy = cy - r * 0.35;
+      g.beginPath();
+      g.moveTo(cx, liftCy - r * 0.6);
+      g.lineTo(cx + r, liftCy + r * 0.35);
+      g.lineTo(cx + r * 0.15, liftCy + r * 0.15);
+      g.lineTo(cx, liftCy + r * 0.5);
+      g.lineTo(cx - r * 0.15, liftCy + r * 0.15);
+      g.lineTo(cx - r, liftCy + r * 0.35);
+      g.closePath();
+      g.fillPath();
+    } else if (kind === "bloom_limbless") {
+      // Limbless (Sporethrower): an elongated, legless capsule with one
+      // lit gland at the launch point — ranged, not melee, and can't run
+      // either, so nothing about the shape should suggest speed.
+      g.fillEllipse(cx, cy, r * 2.3, r * 1.05);
+      g.fillStyle(0xffe27a, fillAlpha);
+      g.fillCircle(cx + r * 0.95, cy, r * 0.22);
+      g.fillStyle(color, fillAlpha);
     } else {
       // munti — circle with a cross bar
       g.fillCircle(cx, cy, r);
@@ -1079,6 +1362,14 @@ export class Battle extends Phaser.Scene {
     if (kind === "munti") {
       g.lineStyle(2, 0xffffff, 0.9);
       g.lineBetween(cx - r, cy, cx + r, cy);
+    } else if (kind === "bloom_sessile") {
+      // Root/tendril ticks driven into the tile below the dome's base —
+      // reinforces "rooted in place" beyond just the shape's own outline.
+      g.lineStyle(1.5, 0xffffff, 0.55);
+      const baseY = cy + r * 0.5;
+      [-0.45, 0, 0.45].forEach((off) => {
+        g.lineBetween(cx + off * r, baseY, cx + off * r * 1.3, baseY + r * 0.35);
+      });
     }
     if (unit.collapsed) {
       // GDD §12 wants a "pulsing rim." Real per-frame animation would mean

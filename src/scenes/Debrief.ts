@@ -109,6 +109,23 @@ export class Debrief extends Phaser.Scene {
       }
     }
 
+    // ---- 1c. Debrief-side echo, 27 Aug 2026 (Social Sim Roadmap #9) ------
+    // Records this mission's outcome for the Hub to react to on the
+    // player's next visit — see campaignState.ts's own
+    // CampaignState.lastMissionEcho comment for the full design.
+    // commander_down folds into "loss" here: this mechanism is about the
+    // ordinary win/loss axis the Hub's ambient content leans on, not a
+    // distinct commander_down beat (which already has its own dedicated
+    // handling elsewhere — see commanderDown.test.ts), so it isn't given
+    // separate flavor content by this pass. Always overwrites whatever was
+    // here before, `announced` reset to false — only the most recent
+    // mission is ever echoed.
+    this.state.lastMissionEcho = {
+      missionId: this.mission.mission.id,
+      outcome: this.mission.outcome === "win" ? "win" : "loss",
+      announced: false,
+    };
+
     // ---- 2. Apply this mission's earnings --------------------------------
     this.earnings = computeMissionEarnings(this.mission);
     applyMissionEarnings(this.state, this.earnings);

@@ -3,7 +3,14 @@
 // Pure types — no logic, no Phaser.
 
 export type Path = "meeps" | "tank" | "reeps" | "munti";
-export type Species = "human" | "hiopi" | "osnius";
+// "carabil" added 27 Aug 2026 — the Carrier CO (Arangement of Content,
+// Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.3) is confirmed Carabil, per
+// romance.ts's own long-standing note: "add it to ROMANCE_CAPPED_SPECIES
+// and the Species union together the moment one ever is." He isn't a
+// UNIT_ARCHETYPES entry (not a deployable mek pilot), so this species
+// value exists for isRomanceableSpecies() to key off directly rather than
+// through the archetype lookup every combat pilot uses.
+export type Species = "human" | "hiopi" | "osnius" | "carabil";
 export type Chassis = "bipedal" | "centauroid" | "bipedal_vibrissal";
 export type Tier = "G" | "F" | "E" | "D" | "C" | "B" | "A";
 export type MekTrack = "fabricator" | "armorer" | "runemaster" | "fieldwright" | "quartermaster";

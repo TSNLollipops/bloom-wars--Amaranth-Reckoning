@@ -28,12 +28,17 @@ import type { Species } from "./types";
 // the real, data-driven check — species: "hiopi" caps at close-friend/
 // bromance, everything else stays open — and Hub.ts's buildNpcs() now calls
 // it off the real WARDEN_PILOTS/UNIT_ARCHETYPES lookup instead of a
-// hand-set boolean that can silently drift from canon again. Carabil isn't
-// in the Species union yet (data/types.ts) — no Carabil pilot exists in the
-// Bloom Wars roster as of this writing — so it can't be listed below; add
-// it to ROMANCE_CAPPED_SPECIES and the Species union together the moment
-// one ever is.
-export const ROMANCE_CAPPED_SPECIES: Species[] = ["hiopi"];
+// hand-set boolean that can silently drift from canon again.
+//
+// Carabil added 27 Aug 2026 — the Carrier CO (Arangement of Content,
+// Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.3) is confirmed Carabil ("free
+// roam to talk to the Carrier pilot. mr carabil" / "yeah him"). He isn't a
+// UNIT_ARCHETYPES entry (not a deployable mek pilot, never on the roster),
+// so Hub.ts's buildNpcs() calls isRomanceableSpecies("carabil") directly
+// for him instead of going through the WARDEN_PILOTS/archetype lookup the
+// three deployable NPCs use — same function, same data-driven guarantee
+// against drift, just a different route to it.
+export const ROMANCE_CAPPED_SPECIES: Species[] = ["hiopi", "carabil"];
 
 export function isRomanceableSpecies(species: Species): boolean {
   return !ROMANCE_CAPPED_SPECIES.includes(species);

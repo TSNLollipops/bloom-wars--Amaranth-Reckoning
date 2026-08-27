@@ -73,10 +73,9 @@
 // just swaps which room's doors/NPCs are active and repositions the
 // player at the entry point. Zero changes needed to any fixed-position UI.
 import Phaser from "phaser";
-import { WARDEN_PILOTS } from "../data/campaignAmaranth";
+import { WARDEN_PILOTS, AMARANTH_MISSIONS_BY_ID } from "../data/campaignAmaranth";
 import { PATH_COLORS, pilotInitials } from "./TransporterPad";
 import {
-  pickAmbientLine,
   pickLineForMessage,
   distortMessage,
   stageFromTier,
@@ -87,6 +86,7 @@ import {
   type AmbientPilotState,
   type HubMessage,
   type Stage,
+  type Catalyst,
 } from "../data/ambientLines";
 import {
   interpretPlayerChat,
@@ -96,9 +96,14 @@ import {
   detectHighlightsRequest,
   CHAT_FALLBACK_LINES,
 } from "../data/chatIntent";
-import { pickCatalystReaction } from "../data/catalystProfile";
+import { pickCatalystReaction, pickAmbientLineWithBleed, findCatalystClash } from "../data/catalystProfile";
+import { pickSlottedVariant, resolveSlotText, type SlotContext } from "../data/crewBanterSlots";
 import { VERBS, type SocialLogEntry } from "../data/verbs";
 import { buildFirstMilestones } from "../data/highlights";
+import { pruneExpiredHotTopics, pickHotTopicForSpeaker, renderHotTopicLine, type HotTopic } from "../data/hotTopics";
+import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStageLine } from "../data/relationshipStage";
+import { pickFrictionLine } from "../data/friction";
+import { worryTriggerChance } from "../data/missionWorry";
 import { gate0Reacts } from "../data/reactionGate";
 import { resolveAskOut, isRomanceableSpecies, ALREADY_TOGETHER_LINES, CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 import { UNIT_ARCHETYPES } from "../data/units";
@@ -409,15 +414,100 @@ const ROOM_TITLES: Record<RoomId, string> = {
 // every one of these a real mechanical job — none of it is built here.
 // An honest placeholder note per room, not a feature list, so an empty
 // room reads as "not built yet" rather than "broken." recroom has none —
-// it's the one room with real content already.
+// it's the one room with real content already. grotto lost its own note
+// the same way, 27 Aug 2026 — buildNpcs() seats a real CO there now
+// (Arangement of Content), so "no CO exists yet" is stale; caught by a
+// Playwright screenshot showing his name label overlapping this text.
 const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   hangarDeck: "Roster & deploy management still lives in the Campaign Shop for now.",
   workshop: "Gear, mek upgrades, carrier modules — still in the Campaign Shop.",
   vault: "Heirloom dedications belong here eventually. Nothing built yet.",
   berths: "Recruitment, romance, one-on-one scenes — not wired in yet.",
   cic: "Fire-support config, Energy allocation — not wired in yet.",
-  grotto: "The CO's post. No CO exists yet.",
 };
+
+// The Antfarm Grid, v0 — 27 Aug 2026 ("start the antfarm... stress test the
+// hub function in a real environment"). Full design in
+// claude/Bloom_Wars_Antfarm_Grid_v1.md; that doc's own §6 leaves the real
+// player-placement economy (tile costs, footprint upgrades, the tutorial
+// that lets a player lay out their own starter set) explicitly unresolved
+// ("im planing this out," Maxime's own words) — none of that is built here.
+// What IS resolved and built: §3/§3a (top-down, bounded per-deck grid, no
+// camera-follow rework — reuses ROOM_BOUNDS's existing single-box footprint
+// for every deck, unchanged), §3c (three fixed decks, the grotto alone on
+// the middle one), and §3f (within a deck, only stairs — and the bay,
+// unchanged — are real press-E portals; everything else is one open,
+// walkable floor, no door-per-room).
+//
+// Room-to-deck assignment below is MY placeholder split, not Maxime's
+// design call — the doc leaves "which deck the other six rooms occupy" an
+// open question (§3c). Easy to redraw once the real placement system
+// exists, same "recommendation, not load-bearing" status the doc's own
+// §11.1 bay-to-room mapping already carries. Recroom/Hangar Deck/Berths
+// (the everyday crew spaces) went to the lower deck; Workshop/Vault/CIC
+// (the more operational rooms) went to the upper deck — arbitrary but
+// legible, and it keeps recroom's existing NPC seats and the bay/muster
+// point exactly where they already are (see ROOM_ZONE_BOUNDS.recroom).
+type DeckId = "lower" | "grotto" | "upper";
+
+const ROOM_DECK: Record<RoomId, DeckId> = {
+  recroom: "lower",
+  hangarDeck: "lower",
+  berths: "lower",
+  grotto: "grotto",
+  workshop: "upper",
+  vault: "upper",
+  cic: "upper",
+};
+
+const DECK_TITLES: Record<DeckId, string> = {
+  lower: "LOWER DECK",
+  grotto: "GROTTO DECK",
+  upper: "UPPER DECK",
+};
+
+// Every room used to reuse the exact same ROOM_BOUNDS box as its own,
+// private, discretely-swapped space (Phase 2's whole model). An open floor
+// needs same-deck rooms to occupy genuinely distinct regions of ONE shared
+// coordinate space instead — these are those regions. Lower and upper decks
+// each tile ROOM_BOUNDS into a left column (the deck's "main" room, full
+// height) and a right column split top/bottom between its other two rooms.
+// The grotto deck has exactly one room, so it just gets the whole box —
+// matching §3c's "insulated... middle deck to itself" framing. Recroom's
+// existing NPC seats (buildNpcs) and MUSTER_POINT already sit inside
+// recroom's own slice here without needing to move.
+const ZONE_SPLIT_X = 550;
+const ZONE_SPLIT_Y = 330;
+const ROOM_ZONE_BOUNDS: Record<RoomId, { left: number; right: number; top: number; bottom: number }> = {
+  recroom: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
+  hangarDeck: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
+  berths: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
+  grotto: { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
+  workshop: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
+  vault: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
+  cic: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
+};
+
+function sameDeck(a: RoomId, b: RoomId): boolean {
+  return ROOM_DECK[a] === ROOM_DECK[b];
+}
+
+// Which of this deck's rooms a raw (x, y) currently sits over — used to keep
+// currentRoomId / npc.room live as a position label while walking a shared
+// open floor, instead of only ever changing on a door press. Falls back to
+// the deck's own "main" room (the first RoomId found on that deck, which is
+// always the left/full-height column per ROOM_ZONE_BOUNDS above) if a point
+// somehow lands outside every zone rect — shouldn't happen since the rects
+// above fully tile each deck's box, but a live-recomputed label needs
+// somewhere safe to fall back to rather than throwing.
+function zoneAt(deck: DeckId, x: number, y: number): RoomId {
+  for (const id of Object.keys(ROOM_ZONE_BOUNDS) as RoomId[]) {
+    if (ROOM_DECK[id] !== deck) continue;
+    const b = ROOM_ZONE_BOUNDS[id];
+    if (x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) return id;
+  }
+  return (Object.keys(ROOM_DECK) as RoomId[]).find((id) => ROOM_DECK[id] === deck)!;
+}
 
 // Experimental, 25 Aug 2026 — Maxime: "can you check if its possible to get
 // a single guy angry and have his answer trigger a wave of conversation
@@ -486,18 +576,17 @@ const STUCK_TIMEOUT_MS = 500;
 // Rec-Room-only, same as everything else that's Rec-Room-specific below.
 const BAY_RADIUS = 60; // how close the player has to be to trigger the E-to-deploy prompt
 
-// Phase 2 map growth, 26 Aug 2026 — room-to-room doors. Every door is a
-// proximity trigger, same shape as the bay above (E to use it, same
-// interact prompt, same context-sensitive key). Rec Room gets six doors,
-// one to each new room, spread across its top/left/right walls (its
-// bottom wall already has the bay, kept clear of doors on purpose so nobody
-// confuses "deploy" with "go to another room"). Each new room gets exactly
-// one door back to Rec Room, at the bottom wall — a consistent "you came
-// in this way" convention rather than a different layout per room, since
-// none of these rooms have any content yet to make a bespoke layout worth
-// it. Spawn points (toX/toY) are all placed well outside the destination
-// door's own DOOR_RADIUS so walking through a door never immediately
-// re-triggers it from the other side.
+// Antfarm Grid v0, 27 Aug 2026 — DOORS used to hold twelve entries, a door
+// between Rec Room and each of the other six rooms. Every one of those is
+// gone now: those six rooms are split across the lower/upper decks (see
+// ROOM_DECK above), and per §3f, rooms sharing a deck are one continuous
+// open floor — no door, no scene-swap, just walking. What DOORS holds now
+// is the only thing that's still a real press-E portal within this scene:
+// the stairs between decks, same trigger mechanism (E to use it, same
+// interact prompt) the old room-to-room doors already used, just crossing
+// a deck boundary instead of a room one. Same DOOR_RADIUS/DoorDef shape —
+// a stair is structurally just a door whose toRoom happens to sit on a
+// different deck.
 const DOOR_RADIUS = 45;
 
 type DoorDef = {
@@ -511,35 +600,37 @@ type DoorDef = {
   label: string; // shown in the interact prompt and on the door's own marker
 };
 
+// Landing points are placed with real clearance from the destination's own
+// stair marker (same DOOR_RADIUS-clearance convention the old room doors
+// already used) and, on the grotto deck specifically, from BOTH of its own
+// stairs — recroom's seats/MUSTER_POINT and workshop's own layout are
+// otherwise untouched by any of this, see ROOM_ZONE_BOUNDS above.
 const DOORS: DoorDef[] = [
-  // Rec Room -> the six new rooms
-  { id: "rec-to-hangar", room: "recroom", x: 280, y: ROOM_BOUNDS.top, toRoom: "hangarDeck", toX: 480, toY: 470, label: "HANGAR DECK" },
-  { id: "rec-to-workshop", room: "recroom", x: 680, y: ROOM_BOUNDS.top, toRoom: "workshop", toX: 480, toY: 470, label: "THE WORKSHOP" },
-  { id: "rec-to-berths", room: "recroom", x: ROOM_BOUNDS.left, y: 220, toRoom: "berths", toX: 480, toY: 470, label: "BERTHS" },
-  { id: "rec-to-vault", room: "recroom", x: ROOM_BOUNDS.left, y: 420, toRoom: "vault", toX: 480, toY: 470, label: "THE VAULT" },
-  { id: "rec-to-cic", room: "recroom", x: ROOM_BOUNDS.right, y: 220, toRoom: "cic", toX: 480, toY: 470, label: "CIC / BRIDGE" },
-  { id: "rec-to-grotto", room: "recroom", x: ROOM_BOUNDS.right, y: 420, toRoom: "grotto", toX: 480, toY: 470, label: "THE GROTTO" },
-  // Each new room's own single door back to Rec Room
-  { id: "hangar-to-rec", room: "hangarDeck", x: 480, y: ROOM_BOUNDS.bottom, toRoom: "recroom", toX: 280, toY: 170, label: "REC ROOM" },
-  { id: "workshop-to-rec", room: "workshop", x: 480, y: ROOM_BOUNDS.bottom, toRoom: "recroom", toX: 680, toY: 170, label: "REC ROOM" },
-  { id: "berths-to-rec", room: "berths", x: 480, y: ROOM_BOUNDS.bottom, toRoom: "recroom", toX: 190, toY: 220, label: "REC ROOM" },
-  { id: "vault-to-rec", room: "vault", x: 480, y: ROOM_BOUNDS.bottom, toRoom: "recroom", toX: 190, toY: 420, label: "REC ROOM" },
-  { id: "cic-to-rec", room: "cic", x: 480, y: ROOM_BOUNDS.bottom, toRoom: "recroom", toX: 770, toY: 220, label: "REC ROOM" },
-  { id: "grotto-to-rec", room: "grotto", x: 480, y: ROOM_BOUNDS.bottom, toRoom: "recroom", toX: 770, toY: 420, label: "REC ROOM" },
+  { id: "recroom-to-grotto", room: "recroom", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 470, label: "THE GROTTO" },
+  { id: "grotto-to-recroom", room: "grotto", x: 480, y: ROOM_BOUNDS.bottom - 22, toRoom: "recroom", toX: 480, toY: 170, label: "LOWER DECK" },
+  { id: "grotto-to-workshop", room: "grotto", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "workshop", toX: 480, toY: 470, label: "UPPER DECK" },
+  { id: "workshop-to-grotto", room: "workshop", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 300, label: "THE GROTTO" },
 ];
 
 // 26 Aug 2026, Build Plan §24 — cross-room NPC wandering's own routing.
-// A single "which door do I walk through next" lookup, not real
-// pathfinding, and that's enough: DOORS forms a star, every room but Rec
-// Room has exactly one door and it always leads back to Rec Room. So
-// exactly two cases can ever occur — "I'm in Rec Room, there's a direct
-// door to where I'm going" or "I'm not in Rec Room, so my only door goes
-// to Rec Room, which is either my actual destination or the necessary
-// first hop toward it either way." No graph, no queue, never more than
-// two hops, purely a consequence of how the map itself is shaped.
+// Rewritten for the Antfarm Grid, 27 Aug 2026: used to rely on DOORS being
+// a star with Rec Room at the center (every other room had exactly one
+// door, straight back to Rec Room). That's gone — DOORS now only connects
+// decks, not rooms — so this only ever fires for a genuinely cross-deck
+// trip; two same-deck rooms need no door at all (open floor, the caller
+// should just walk there directly — see updateNpcRoaming's own explore
+// branch for that split). The three decks form a straight line, lower —
+// grotto — upper, so routing is still just as cheap as before: from the
+// lower or upper deck there's exactly one stair, straight to the grotto;
+// from the grotto, pick whichever of its two stairs actually leads toward
+// the target deck. Never more than two hops, same as the old star.
 function nextHopDoor(fromRoom: RoomId, toRoom: RoomId): DoorDef | undefined {
-  if (fromRoom === "recroom") return DOORS.find((d) => d.room === "recroom" && d.toRoom === toRoom);
-  return DOORS.find((d) => d.room === fromRoom && d.toRoom === "recroom");
+  const fromDeck = ROOM_DECK[fromRoom];
+  const toDeck = ROOM_DECK[toRoom];
+  if (fromDeck === toDeck) return undefined; // same deck — open floor, no door to hop through
+  if (fromDeck === "lower") return DOORS.find((d) => d.room === "recroom" && d.toRoom === "grotto");
+  if (fromDeck === "upper") return DOORS.find((d) => d.room === "workshop" && d.toRoom === "grotto");
+  return DOORS.find((d) => d.room === "grotto" && ROOM_DECK[d.toRoom] === toDeck);
 }
 
 // Hub polish, 26 Aug 2026 — see DOOR_LANDING_MAX_ATTEMPTS's own header for
@@ -600,6 +691,32 @@ function pickDoorLanding(door: DoorDef, occupants: HubNpc[]): { x: number; y: nu
 // single ordinary Hub session (minutes), a very different scale on
 // purpose.
 const WORRY_ONSET_MS = 60_000; // placeholder — 1 real minute
+
+// Worry with real texture, first slice, 27 Aug 2026 — see
+// data/missionWorry.ts's own header for the full design and the honest
+// scope adaptation (closeness reads as favorability-with-Rourke, since no
+// other "who's actually missing" data exists to read). How often
+// updateMissionWorry() re-rolls a given NPC's probabilistic worried
+// state — deliberately NOT every frame (a per-frame reroll would flicker
+// on/off many times a second, which reads as noise, not a ramping mood).
+// Placeholder, not tuned, same as every other timing constant on this line.
+const WORRY_RECHECK_MS = 20_000; // 20 real seconds between rerolls, per NPC
+
+// Hot topics, first slice, 27 Aug 2026 — see data/hotTopics.ts's own header
+// for the full scope cut. Chance a given NPC leads with a fresh topic
+// instead of their ordinary ambient line, checked in speak() below.
+// Deliberately not 1.0: real gossip isn't guaranteed the instant you walk
+// up, and a flat "always fires" would make it read as a scripted trigger
+// rather than something the crew organically brings up. Placeholder, not
+// tuned, same as every other constant on this line.
+const HOT_TOPIC_SPEAK_CHANCE = 0.6;
+
+// Relationship stages, first slice, 27 Aug 2026 — see
+// data/relationshipStage.ts's own header. Chance a Talk with your own
+// partner leads with a stage-flavored warm exchange instead of ordinary
+// ambient — not 1.0, same "shouldn't read as a scripted trigger" reasoning
+// HOT_TOPIC_SPEAK_CHANCE already carries.
+const PARTNER_BANTER_CHANCE = 0.5;
 
 function isMissionWorrySignal(state: CampaignState): boolean {
   const attempt = state.activeMissionAttempt;
@@ -695,6 +812,11 @@ type HubNpc = {
   // seed/reread-each-tick shape as nextRoamAt above but pairwise in effect
   // (both participants get a fresh one after an encounter fires).
   nextEncounterAt?: number;
+  // Worry with real texture, first slice, 27 Aug 2026 — same staggered
+  // per-NPC recheck clock shape as nextEncounterAt above, but for
+  // updateMissionWorry()'s own probabilistic reroll. Not persisted, same
+  // as ambient.worried itself.
+  nextWorryCheckAt?: number;
   // 26 Aug 2026 — drunk's real expiry, epoch ms (Date.now()), mirroring
   // HubPilotSocialState.drunkUntil (campaignState.ts section 11). undefined
   // whenever ambient.drunk is false; set by shareADrink, cleared by
@@ -751,6 +873,13 @@ export class Hub extends Phaser.Scene {
   private playerX = 480;
   private playerY = 330;
   private npcs: HubNpc[] = [];
+  // Hot topics, first slice, 27 Aug 2026 — in-memory only, never persisted
+  // (see data/hotTopics.ts's own header for why). Registered at the real
+  // event points (Stage promotion, NPC-NPC couple, player-NPC
+  // relationship) and pruned every frame in update(), same "cheap,
+  // unconditional housekeeping" shape as npcs itself and the drunk/worry
+  // fields.
+  private hotTopics: HotTopic[] = [];
   private keys!: { w: Phaser.Input.Keyboard.Key; a: Phaser.Input.Keyboard.Key; s: Phaser.Input.Keyboard.Key; d: Phaser.Input.Keyboard.Key };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private interactPrompt!: Phaser.GameObjects.Text;
@@ -860,6 +989,17 @@ export class Hub extends Phaser.Scene {
   private roomNoteText!: Phaser.GameObjects.Text;
   private bayOutline!: Phaser.GameObjects.Graphics;
   private bayLabel!: Phaser.GameObjects.Text;
+  // Antfarm Grid v0, 27 Aug 2026 — one entry per non-grotto room, the
+  // divider line(s) + floating name label that make a deck's other zones
+  // legible before you've walked into them. Toggled by DECK, not by exact
+  // zone, same as doorMarkers above — the whole point of an open floor is
+  // seeing the rest of it. deckIndicatorText is the small "DECK: LOWER"
+  // readout near the rank line (buildPlayer's own corner), since the main
+  // title bar already carries deck name + zone and a second copy there
+  // risked repeating the exact wordWrap-overflow bug this file already
+  // fixed once (see roomTitleText's own history).
+  private zoneDecor: { room: RoomId; nodes: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] }[] = [];
+  private deckIndicatorText!: Phaser.GameObjects.Text;
 
   constructor() {
     super("Hub");
@@ -942,9 +1082,20 @@ export class Hub extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
+    // Antfarm Grid v0, 27 Aug 2026 — set once here, kept live by
+    // refreshRoomVisibility below every time the deck actually changes.
+    // y=80, not directly under the rank line at y=20/36: the wide centered
+    // instructions text just above (y=44, two wrapped lines) spans nearly
+    // the full canvas width, so anything left-aligned at y<~60 collides
+    // with it — caught by eye in the smoke-test screenshot, not a guess.
+    this.deckIndicatorText = this.add
+      .text(16, 80, "", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
+      .setOrigin(0, 0.5);
+
     this.drawRoom();
     this.drawMusterPoint();
     this.buildDoors();
+    this.buildZoneDecor();
     this.roomNoteText = this.add.text(480, 330, "", { fontFamily: "monospace", fontSize: "12px", color: TEXT_DIM, align: "center", wordWrap: { width: 460 } }).setOrigin(0.5);
     this.buildNpcs();
     this.buildPlayer();
@@ -1276,7 +1427,7 @@ export class Hub extends Phaser.Scene {
     let best: HubNpc | null = null;
     let bestDist = radius;
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue;
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist <= bestDist) {
         best = npc;
@@ -1345,8 +1496,80 @@ export class Hub extends Phaser.Scene {
     saveCampaignState(this.campaignState);
   }
 
-  // Sets ambient.drunk and lets pickAmbientLine (ambientLines.ts) pick the
-  // reaction — that branch (50/50 love/anger, "drunk" reason) was ported
+  // Roadmap #17's curated-recall layer (data/crewBanterSlots.ts), 27 Aug
+  // 2026 — assembles real per-speaker context so the resolver can fill
+  // {SQUADMATE}/{MISSION}/{CLASS}/{LOADOUT}. Every field is optional on
+  // purpose (SlotContext's own shape): resolveSlotText falls back to the
+  // flat line the instant a needed field is missing, so there's no failure
+  // mode here worth guarding against beyond "return undefined."
+  //
+  // {SQUADMATE} is bond-biased, not uniform-random — reuses the exact same
+  // findClosestBond(pilotId, otherIds, this.npcSocial.bonds) call
+  // updateNpcRoaming already makes (see its own use a little further down
+  // this file) so "who does this pilot bring up unprompted" tracks the same
+  // relationship data their actual behavior already does. Falls back to any
+  // other living pilot, uniform-random, when there's no real bond yet (a
+  // fresh save, or two pilots who've simply never crossed paths) — a
+  // recall that names *somebody* real beats losing the slot outright.
+  //
+  // {CLASS} and {LOADOUT} read the SPEAKING pilot's own live roster entry
+  // (CampaignState.pilots, not the static WARDEN_PILOTS seed) so a
+  // mid-campaign tier-up shows up here the same way it already does in
+  // ShopPanel/TransporterPad. Passed as the raw (path, tier) pair rather
+  // than pre-formatted strings — crewBanterSlots.ts's own GEAR_TIER_NAMES/
+  // CLASS_DISPLAY_NAMES tables are what turn that into display text, so
+  // this scene doesn't need to know the naming scheme at all. {LOADOUT}
+  // resolves to Canon Pass §D's named gear tiers (Stocklance, Stormblade,
+  // etc.) — Maxime's own call, asked directly 27 Aug 2026 ("use the named
+  // gear tiers"); see crewBanterSlots.ts's own header for the full naming-
+  // lock reasoning behind why that's fine to use here.
+  private buildSlotContext(npc: HubNpc): SlotContext {
+    const others = this.npcs.filter((n) => n.pilotId !== npc.pilotId);
+    let squadmateName: string | undefined;
+    if (others.length > 0) {
+      const otherIds = others.map((n) => n.pilotId);
+      const closest = findClosestBond(npc.pilotId, otherIds, this.npcSocial.bonds);
+      const bonded = closest ? others.find((n) => n.pilotId === closest.otherId) : undefined;
+      const chosen = bonded ?? others[Math.floor(Math.random() * others.length)];
+      squadmateName = chosen.displayName.split("—")[0].trim();
+    }
+
+    const missionId = this.campaignState.lastMissionEcho?.missionId;
+    const missionName = missionId ? AMARANTH_MISSIONS_BY_ID[missionId]?.displayName : undefined;
+
+    const pilotEntry = this.campaignState.pilots[npc.pilotId]?.pilot;
+    const archetype = pilotEntry ? UNIT_ARCHETYPES[pilotEntry.archetypeId] : undefined;
+    const speakerPath = archetype?.path;
+    const speakerTier = pilotEntry?.tier;
+
+    return { squadmateName, missionName, speakerPath, speakerTier };
+  }
+
+  // Layers curated recall on top of pickAmbientLineWithBleed (roadmap #2):
+  // still rolls the same bleed chance and picks from the same catalyst/
+  // echo/stage bucket that function already computes, then asks
+  // crewBanterSlots.ts whether that exact bucket has a slotted sibling and,
+  // if so and buildSlotContext() actually has data to fill it, swaps in the
+  // "remembers something real" version. Falls straight back to the flat
+  // line whenever either check misses — same "graceful miss, never a raw
+  // {TOKEN}" contract crewBanterSlots.ts's own header documents. Wired into
+  // every call site pickAmbientLineWithBleed itself is (that function's own
+  // header names the set: shareADrink, pegBoard, poker, darts, and the
+  // general ambient idle roll) — same population, one layer deeper, not a
+  // new decision about which call sites qualify.
+  private pickAmbientLineWithMemory(npc: HubNpc): { line: string } {
+    const { line, pick, bled } = pickAmbientLineWithBleed(npc.pilotId, npc.ambient);
+    const catalyst = bled?.catalyst ?? npc.ambient.catalyst;
+    const variant = pickSlottedVariant(catalyst, pick.echo, npc.ambient.stage);
+    if (!variant) return { line };
+    const resolved = resolveSlotText(variant, this.buildSlotContext(npc));
+    return { line: resolved ?? line };
+  }
+
+  // Sets ambient.drunk and lets pickAmbientLineWithBleed (catalystProfile.ts,
+  // wrapping ambientLines.ts's own pickAmbientLine since 27 Aug 2026's
+  // ambient-bleed pass, roadmap #2) pick the reaction — that branch (50/50
+  // love/anger, "drunk" reason) was ported
   // verbatim from pilot_creator.html back in Phase 1 and has sat unreachable
   // ever since; this is the first thing in the real repo that can actually
   // set the flag. +5 Favorability is a placeholder nudge, same caveat as
@@ -1363,7 +1586,7 @@ export class Hub extends Phaser.Scene {
     // rather than stacking — one duration, refreshed, not extended.
     npc.drunkUntil = Date.now() + DRUNK_DURATION_MS;
     if (def.outcome?.favorabilityDelta) npc.favorability += def.outcome.favorabilityDelta;
-    const { line } = pickAmbientLine(npc.ambient);
+    const { line } = this.pickAmbientLineWithMemory(npc);
     this.showBubble(npc, line, this.time.now);
     npc.socialLog = npc.socialLog ?? [];
     npc.socialLog.push({ verb: "shareADrink", line, at: Date.now() });
@@ -1409,6 +1632,19 @@ export class Hub extends Phaser.Scene {
       npc.socialLog = npc.socialLog ?? [];
       npc.socialLog.push({ verb: "askOut", line, at: Date.now() });
       this.persistNpcSocial(npc);
+      // Hot topics, first slice, 27 Aug 2026 — a new player-NPC
+      // relationship is exactly the kind of news the rest of the crew
+      // would pick up on. "you" reads naturally here since this always
+      // surfaces IN a Talk exchange with the player themselves (see
+      // renderHotTopicLine's own test for this exact case).
+      this.hotTopics.push({
+        kind: "gotTogether",
+        aboutPilotId: npc.pilotId,
+        aboutName: npc.displayName.split("—")[0].trim(),
+        withName: "you",
+        at: Date.now(),
+        mentionedBy: [],
+      });
       return;
     }
 
@@ -1567,7 +1803,9 @@ export class Hub extends Phaser.Scene {
         : ["Nothing to look back on yet."];
 
     const partner = this.npcPartnerLabel(npc);
+    const rival = this.npcRivalLabel(npc);
     const statusLines = [`Stage: ${stageBadge(npc.ambient.stage)}`, partner ? `Relationship: ${partner}` : "Relationship: not together"];
+    if (rival) statusLines.push(`Friction: ${rival}`);
 
     const body = [`${name} — highlights`, "", ...milestoneLines, "", "Currently: (undated — a status, not a moment)", ...statusLines].join("\n");
     this.highlightsText.setText(body);
@@ -1714,7 +1952,7 @@ export class Hub extends Phaser.Scene {
 
     const delta = humanWon ? 6 : draw ? 2 : -2;
     npc.favorability += delta;
-    const { line } = pickAmbientLine(npc.ambient);
+    const { line } = this.pickAmbientLineWithMemory(npc);
     npc.socialLog = npc.socialLog ?? [];
     npc.socialLog.push({ verb: "pegBoard", line, at: Date.now() });
     this.persistNpcSocial(npc);
@@ -1930,7 +2168,7 @@ export class Hub extends Phaser.Scene {
 
     const delta = humanWon ? 6 : -3;
     npc.favorability += delta;
-    const { line } = pickAmbientLine(npc.ambient);
+    const { line } = this.pickAmbientLineWithMemory(npc);
     npc.socialLog = npc.socialLog ?? [];
     npc.socialLog.push({ verb: "poker", line, at: Date.now() });
     this.persistNpcSocial(npc);
@@ -2221,7 +2459,7 @@ export class Hub extends Phaser.Scene {
 
     const delta = humanWon ? 6 : draw ? 2 : -2;
     npc.favorability += delta;
-    const { line } = pickAmbientLine(npc.ambient);
+    const { line } = this.pickAmbientLineWithMemory(npc);
     npc.socialLog = npc.socialLog ?? [];
     npc.socialLog.push({ verb: "fletchers", line, at: Date.now() });
     this.persistNpcSocial(npc);
@@ -2312,7 +2550,7 @@ export class Hub extends Phaser.Scene {
     const now = this.time.now;
     const line = overrideLine ?? CHAT_FALLBACK_LINES[Math.floor(Math.random() * CHAT_FALLBACK_LINES.length)];
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue;
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist > TALK_RADIUS) continue;
       this.showBubble(npc, line, now);
@@ -2338,12 +2576,72 @@ export class Hub extends Phaser.Scene {
   private showCatalystOrFallback(raw: string) {
     const now = this.time.now;
     const shrug = CHAT_FALLBACK_LINES[Math.floor(Math.random() * CHAT_FALLBACK_LINES.length)];
+    // Dictionary hits are collected rather than shown immediately, so a
+    // genuine catalyst clash (below) can be told apart from an ordinary hit
+    // before any bubble goes up. Hot-topic and shrug branches are
+    // unaffected — they still show the instant they're decided, exactly as
+    // before this pass.
+    const hits: { npc: HubNpc; line: string; catalyst: Catalyst }[] = [];
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue;
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist > TALK_RADIUS) continue;
       const reaction = pickCatalystReaction(npc.ambient, npc.pilotId, raw);
-      this.showBubble(npc, reaction ? reaction.line : shrug, now);
+      if (reaction) {
+        // reaction.catalyst, not npc.ambient.catalyst — a hit can come from
+        // a sub-animal (source: "instinct"/"thought"/"action"), and a clash
+        // is about which VALUES the shown line actually voices, not the
+        // pilot's fixed primary identity. A wolf pilot whose sub-animal
+        // happens to be shark, answering via that sub-animal, genuinely
+        // clashes with a real shark pilot's line the same way two primary
+        // sharks would — reaction.catalyst is what pickAmbientLineWithBleed
+        // (roadmap #2, just above) already treats as the source of truth
+        // for "which catalyst is actually speaking," same reasoning here.
+        hits.push({ npc, line: reaction.line, catalyst: reaction.catalyst });
+        continue;
+      }
+      // Hot topics, second consumer, 27 Aug 2026 (roadmap #1's own
+      // deferred stretch goal) — a dictionary miss no longer always means
+      // the shared shrug. If this NPC has fresh gossip about someone
+      // else, it can surface here instead, same roll/reuse-once rules as
+      // the speak() consumer. Checked only on a MISS, on purpose: a real
+      // dictionary hit is always the more specific, more relevant thing
+      // to say about what the player actually typed, so gossip never
+      // preempts it — this only fills in what used to be a flat shrug.
+      const topic = pickHotTopicForSpeaker(this.hotTopics, npc.pilotId);
+      if (topic && Math.random() < HOT_TOPIC_SPEAK_CHANCE) {
+        const line = renderHotTopicLine(topic, npc.ambient.catalyst);
+        this.showBubble(npc, line, now);
+        topic.mentionedBy.push(npc.pilotId);
+        continue;
+      }
+      this.showBubble(npc, shrug, now);
+    }
+
+    // Catalyst "clash" reactions, 27 Aug 2026 (roadmap #10) — see
+    // catalystProfile.ts's own header for the full design, including the
+    // honest correction that multiple NPCs independently reacting to the
+    // same line already worked before this pass (verified live, not
+    // assumed). What's new here is staging a genuinely OPPOSED pair as a
+    // two-beat back-and-forth — the first NPC's line immediately, the
+    // clashing NPC's line NPC_REPLY_DELAY_MS later — the same beat
+    // runNpcEncounter's own talk-result rebuttal already uses for the exact
+    // same "let the first line land before the second one answers it"
+    // reason, so it reads as a real disagreement rather than two bubbles
+    // that both happened to pop up at once. Every non-clashing hit (the
+    // ordinary case) still shows immediately, unchanged. Only the first
+    // opposed pair found is staged this way — see findCatalystClash's own
+    // comment for why more than one pair at once isn't attempted.
+    const clash = findCatalystClash(hits.map((h) => ({ pilotId: h.npc.pilotId, catalyst: h.catalyst })));
+    for (const hit of hits) {
+      if (clash && hit.npc.pilotId === clash[1].pilotId) {
+        const { npc, line } = hit;
+        this.time.delayedCall(NPC_REPLY_DELAY_MS, () => {
+          this.showBubble(npc, line, this.time.now);
+        });
+      } else {
+        this.showBubble(hit.npc, hit.line, now);
+      }
     }
   }
 
@@ -2401,6 +2699,46 @@ export class Hub extends Phaser.Scene {
     }
   }
 
+  // Antfarm Grid v0, 27 Aug 2026 — §3f's open floor: a deck with more than
+  // one room needs its OTHER rooms to read as real places even before the
+  // player's walked into them, since there's no door forcing a discrete
+  // "you have arrived" moment anymore. Two things per non-grotto room: a
+  // thin dashed divider along its own zone rect's edges (reusing the exact
+  // dash-drawing loop drawMusterPoint already uses, so this reads as the
+  // same placeholder visual language rather than a new one) and a floating
+  // name label near the top of its own zone. Built once, toggled by DECK
+  // (not exact zone) in refreshRoomVisibility — you can see the rest of an
+  // open deck from anywhere on it, same as the stairs/bay markers.
+  private buildZoneDecor() {
+    const dash = 6;
+    const dashedRect = (b: { left: number; right: number; top: number; bottom: number }) => {
+      const g = this.add.graphics();
+      g.lineStyle(1, PANEL_BORDER, 0.8);
+      for (let dx = b.left; dx < b.right; dx += dash * 2) {
+        g.lineBetween(dx, b.top, Math.min(dx + dash, b.right), b.top);
+        g.lineBetween(dx, b.bottom, Math.min(dx + dash, b.right), b.bottom);
+      }
+      for (let dy = b.top; dy < b.bottom; dy += dash * 2) {
+        g.lineBetween(b.left, dy, b.left, Math.min(dy + dash, b.bottom));
+        g.lineBetween(b.right, dy, b.right, Math.min(dy + dash, b.bottom));
+      }
+      return g;
+    };
+    for (const id of Object.keys(ROOM_ZONE_BOUNDS) as RoomId[]) {
+      if (id === "grotto") continue; // alone on its own deck — the deck-wide box already reads as its one room, no divider/second label needed
+      const b = ROOM_ZONE_BOUNDS[id];
+      const nodes: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] = [dashedRect(b)];
+      // Only the two smaller right-column rooms per deck (hangarDeck/
+      // berths/vault/cic) get a floating label — recroom and workshop are
+      // each their deck's own full-height "main" room and already read
+      // via the title bar the instant you're standing in them.
+      if (b.right - b.left < ROOM_BOUNDS.right - ROOM_BOUNDS.left) {
+        nodes.push(this.add.text((b.left + b.right) / 2, b.top + 16, ROOM_TITLES[id], { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM }).setOrigin(0.5));
+      }
+      this.zoneDecor.push({ room: id, nodes });
+    }
+  }
+
   private buildNpcs() {
     // Fixed starting layout inside the room — seats at the Rec Room table.
     // Stationary by default (Phase 1 scope; general autonomous roaming is
@@ -2410,9 +2748,15 @@ export class Hub extends Phaser.Scene {
     // see the file header's own note on why the Phase 2 map growth doesn't
     // move or reassign them.
     const positions = [
-      { x: ROOM_BOUNDS.left + 190, y: ROOM_BOUNDS.top + 160 },
-      { x: ROOM_BOUNDS.right - 190, y: ROOM_BOUNDS.top + 160 },
-      { x: 480, y: ROOM_BOUNDS.bottom - 90 },
+      // Antfarm Grid v0, 27 Aug 2026 — these three used to be spread across
+      // the FULL ROOM_BOUNDS width (130-830); recroom is now only the
+      // left-hand slice of that box (130-550, see ROOM_ZONE_BOUNDS above),
+      // shared with Hangar Deck and Berths on the rest of the lower deck's
+      // open floor. Re-centered within recroom's own narrower zone so
+      // nobody's still sitting in what's now Hangar Deck's floor space.
+      { x: ROOM_ZONE_BOUNDS.recroom.left + 90, y: ROOM_BOUNDS.top + 160 },
+      { x: ROOM_ZONE_BOUNDS.recroom.right - 90, y: ROOM_BOUNDS.top + 160 },
+      { x: (ROOM_ZONE_BOUNDS.recroom.left + ROOM_ZONE_BOUNDS.recroom.right) / 2, y: ROOM_BOUNDS.bottom - 90 },
     ];
     this.npcs = NPC_SEED.map((seed, i) => {
       const pilot = WARDEN_PILOTS.find((p) => p.id === seed.pilotId);
@@ -2538,6 +2882,81 @@ export class Hub extends Phaser.Scene {
       };
     });
 
+    // The Carrier CO — Antfarm Grid v0 stress-test follow-up, 27 Aug 2026.
+    // Maxime: "the groto suposed to be a room on the [middle] floor... free
+    // roam to talk to the Carrier pilot. mr carabil" / confirmed "yeah him"
+    // against the doc's already-locked name. Deliberately NOT folded into
+    // NPC_SEED/the .map() above: every entry there is a real, deployable
+    // WARDEN_PILOTS roster pilot — npcSeed.ts's own header says that data
+    // also feeds the headless social-sim harness's mission-pairing events,
+    // which don't apply to a CO who never deploys. He'd also fail the
+    // WARDEN_PILOTS/UNIT_ARCHETYPES lookup above (undefined pilot, wrong
+    // fallback color/name/romanceable) since he was never meant to be a mek
+    // archetype. Built as a standalone HubNpc instead, pushed into the same
+    // this.npcs array so every generic room/visibility/proximity/dialogue
+    // system already keyed off that array picks him up for free.
+    //
+    // Name locked in Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.3, 23 Aug
+    // 2026: Arangement of Content. Species confirmed Carabil this session —
+    // "carabil" is now a real Species (data/types.ts) and a
+    // ROMANCE_CAPPED_SPECIES entry (data/romance.ts), so his non-romanceable
+    // status ("anything but Hiopi/Carabil," Antfarm §13) comes from the same
+    // isRomanceableSpecies() check every other NPC uses, not a hand-set
+    // boolean — the exact drift bug that check exists to prevent (see
+    // romance.ts's own header on the Iyari miss).
+    const CO_PILOT_ID = "npc_co";
+    const coDisplayName = "Arangement of Content";
+    const coInitials = pilotInitials(coDisplayName);
+    // Own color, not a PATH_COLORS pick — he isn't a meeps/tank/reeps/munti
+    // combat archetype, so borrowing one of those four would misrepresent
+    // him as a deployable pilot. Muted brass reads as rank/command.
+    const CO_COLOR = 0xb08d4f;
+    const coSocial = ensureHubSocialState(this.campaignState, CO_PILOT_ID, { favorability: 0, stress: 20, morale: 70 });
+    // Grotto's open floor, off the x=480 line both stair markers sit on
+    // (recroom/workshop hops land at (480,130)/(480,530) — see DOORS) so he
+    // doesn't block the direct walking line between them.
+    const coPos = { x: 350, y: 330 };
+    const coCircle = this.add.circle(0, 0, NPC_R, CO_COLOR, 1).setStrokeStyle(2, 0xffffff, 0.25);
+    const coLabel = this.add.text(0, 0, coInitials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+    const coNameTag = this.add
+      .text(0, NPC_R + 12, coDisplayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM })
+      .setOrigin(0.5);
+    const coRoot = this.add.container(coPos.x, coPos.y, [coCircle, coLabel, coNameTag]);
+    const coFavLabel = this.add.text(coPos.x, coPos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
+    const coBubbleContainer = this.add.container(coPos.x, coPos.y - NPC_R - 30).setVisible(false);
+
+    this.npcs.push({
+      pilotId: CO_PILOT_ID,
+      displayName: coDisplayName,
+      initials: coInitials,
+      color: CO_COLOR,
+      room: "grotto",
+      x: coPos.x,
+      y: coPos.y,
+      // Bear — placeholder catalyst pick, same "not a locked content
+      // decision" caveat npcSeed.ts already carries for the other three;
+      // steady/watchful/authority read fits a CO better than the three
+      // catalysts already in use (raven/wolf/crow — Bosk/Anand/Iyari).
+      // Stage hardcoded "command" rather than tier-derived — he isn't on
+      // the WARDEN_PILOTS tier-promotion track this scene's other Stage
+      // logic assumes, and "command" is the fitting register regardless.
+      ambient: { catalyst: "bear", stage: "command", stress: coSocial.stress, morale: coSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
+      favorability: coSocial.favorability,
+      circle: coCircle,
+      root: coRoot,
+      favLabel: coFavLabel,
+      bubbleContainer: coBubbleContainer,
+      bubbleUntil: 0,
+      romanceable: isRomanceableSpecies("carabil"),
+      inRelationship: coSocial.inRelationship,
+      socialLog: coSocial.socialLog,
+      // Deliberately no nextRoamAt/nextEncounterAt — updateNpcRoaming and
+      // updateNpcEncounters both skip any NPC whose clock is undefined
+      // (their own `=== undefined` guards), so leaving these unset is what
+      // keeps him stationed at his post rather than wandering the ship or
+      // getting swept into clique/rival rolls built for deployable pilots.
+    });
+
     // Click an NPC directly (as opposed to clicking empty room space, which
     // triggers the ordinary broadcast Talk verb) to provoke them — the
     // telephone-wave prototype's entry point. npcClickConsumed stops the
@@ -2552,6 +2971,85 @@ export class Hub extends Phaser.Scene {
         this.provoke(npc);
       });
     }
+
+    this.checkMuntiLoss();
+    this.checkMissionEcho();
+  }
+
+  // Munti-loss hot topic, 27 Aug 2026 (roadmap #13). Deliberately NOT shaped
+  // like pendingStagePromotion/pendingRankGreeting just above — those are
+  // per-NPC fields an NPC uses to self-announce their OWN news the next
+  // time they're talked to. A permanently-lost pilot isn't in this.npcs at
+  // all (NPC_SEED only ever seeds the 3 living Rec Room regulars), so
+  // there's no one to hang a "pending" field off of and no self-announcing
+  // possible. Instead this scans the full roster directly — every pilot
+  // CampaignState actually knows about, not just the ones currently walking
+  // around the Hub — for a Munti-path pilot marked permanently_lost whose
+  // loss hasn't been surfaced yet, and registers the hot topic straight
+  // into this.hotTopics so any nearby NPC can bring it up in their own
+  // voice via speak()'s existing hot-topic check. Munti-path check mirrors
+  // engine/campaignState.ts's own canLaunchMission (UNIT_ARCHETYPES[...].
+  // path === "munti") — the same lookup, not a new one. ensureHubSocialState
+  // is safe to call even for a pilot who was never in NPC_SEED (a generated
+  // recruit who died before ever setting foot in the Hub): it creates a
+  // fresh HubPilotSocialState on the spot, same fail-open behavior every
+  // other call site already relies on.
+  private checkMuntiLoss() {
+    for (const pilotId of Object.keys(this.campaignState.pilots)) {
+      const entry = this.campaignState.pilots[pilotId];
+      if (entry.status !== "permanently_lost") continue;
+      if (UNIT_ARCHETYPES[entry.pilot.archetypeId]?.path !== "munti") continue;
+      const social = ensureHubSocialState(this.campaignState, pilotId, { favorability: 0, stress: 0, morale: 0 });
+      if (social.muntiLossAnnounced) continue;
+      social.muntiLossAnnounced = true;
+      // Saved immediately, same instinct as ackStagePromotion/
+      // ackRankGreeting persisting right when they flip their own one-shot
+      // flag — not deferred to whatever verb happens to trigger the next
+      // saveCampaignState call. Unlike those two, there's no "don't mark it
+      // seen before the player's actually heard it" risk to weigh here
+      // (this is ambient gossip any nearby NPC can surface, not a direct
+      // one-on-one reveal), so there's no reason to hold off.
+      saveCampaignState(this.campaignState);
+      this.hotTopics.push({
+        kind: "muntiLost",
+        aboutPilotId: pilotId,
+        aboutName: entry.pilot.displayName.split("—")[0].trim(),
+        at: Date.now(),
+        mentionedBy: [],
+      });
+    }
+  }
+
+  // Debrief-side echo, 27 Aug 2026 (roadmap #9). Same one-shot shape as
+  // checkMuntiLoss just above, except reading a CampaignState-level flag
+  // (lastMissionEcho) instead of scanning the roster — a mission outcome
+  // isn't about any one pilot, so there's nothing to loop over here. See
+  // campaignState.ts's own CampaignState.lastMissionEcho comment and
+  // data/hotTopics.ts's own header for the full design, including the two
+  // deliberate scope cuts (commander_down folded into "loss," the
+  // "conspicuously avoided name" nuance not built).
+  private checkMissionEcho() {
+    const echo = this.campaignState.lastMissionEcho;
+    if (!echo || echo.announced) return;
+    echo.announced = true;
+    // Saved immediately, same reasoning as checkMuntiLoss's own save call
+    // just above — ambient gossip any nearby NPC can surface, not a
+    // direct one-on-one reveal, so there's no "don't mark it seen too
+    // early" risk to weigh.
+    saveCampaignState(this.campaignState);
+    this.hotTopics.push({
+      kind: echo.outcome === "win" ? "missionWin" : "missionLoss",
+      // Sentinel, not a real pilotId — see data/hotTopics.ts's own header
+      // for why a mission-outcome topic still needs an aboutPilotId value
+      // (pickHotTopicForSpeaker's "not about the speaker themselves"
+      // check) despite not being about any one pilot. Mission ids and
+      // pilot ids are two disjoint namespaces (mission_amaranth_12 vs.
+      // pilot_bosk), so this can never accidentally match a real speaker.
+      aboutPilotId: echo.missionId,
+      aboutName: "",
+      at: Date.now(),
+      mentionedBy: [],
+    });
   }
 
   private buildPlayer() {
@@ -2576,6 +3074,9 @@ export class Hub extends Phaser.Scene {
     // ticking even while an overlay owns input, not freeze the moment the
     // player opens the peg board.
     this.updateMissionWorry();
+    // Same unconditional placement as the two above — a hot topic should
+    // go stale on its own clock even while an overlay owns input.
+    this.hotTopics = pruneExpiredHotTopics(this.hotTopics, Date.now());
 
     // Chat box open: suspend the game's own input handling entirely except
     // bubble fade-out (purely visual, harmless either way). Enter/Escape
@@ -2677,13 +3178,29 @@ export class Hub extends Phaser.Scene {
     this.tryMove(0, stepY);
 
     this.player.setPosition(this.playerX, this.playerY);
+
+    // Antfarm Grid v0, 27 Aug 2026 — §3f's "open floor, no door-per-room":
+    // within a deck, currentRoomId is now a LIVE label (which zone the
+    // player's standing over), not something that only changes on a door
+    // press. Recomputed every step but only actually acted on when it's
+    // genuinely different — refreshRoomVisibility is cheap (setText/
+    // setVisible, no object churn) but there's no reason to call it while
+    // the player's just walking around inside one zone. Never crosses a
+    // deck by itself — zoneAt only searches the CURRENT deck's own rooms —
+    // so this can't accidentally teleport the player to another deck the
+    // way stepping through a stair (switchRoom) deliberately does.
+    const zone = zoneAt(ROOM_DECK[this.currentRoomId], this.playerX, this.playerY);
+    if (zone !== this.currentRoomId) {
+      this.currentRoomId = zone;
+      this.refreshRoomVisibility();
+    }
   }
 
   private tryMove(dx: number, dy: number) {
     const nx = Phaser.Math.Clamp(this.playerX + dx, ROOM_BOUNDS.left + PLAYER_R, ROOM_BOUNDS.right - PLAYER_R);
     const ny = Phaser.Math.Clamp(this.playerY + dy, ROOM_BOUNDS.top + PLAYER_R, ROOM_BOUNDS.bottom - PLAYER_R);
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue; // an NPC in a different room can't physically block this one
+      if (!sameDeck(npc.room, this.currentRoomId)) continue; // an NPC on a different deck can't physically block this one
       if (Phaser.Math.Distance.Between(nx, ny, npc.x, npc.y) < PLAYER_R + NPC_R) return; // blocked, don't apply this axis
     }
     this.playerX = nx;
@@ -2708,20 +3225,47 @@ export class Hub extends Phaser.Scene {
     }
   }
 
-  // Mission Worry, Hub polish, 26 Aug 2026 — see isMissionWorrySignal's own
-  // header for the full design. Same shape and same "run every frame,
-  // unconditional" reasoning as updateDrunkExpiry just above (three NPCs is
-  // nothing to scan), but deliberately does NOT call persistNpcSocial: this
-  // is the one piece of ambient state in this scene that's supposed to
-  // never round-trip through CampaignState — recomputed straight from
+  // Mission Worry, Hub polish, 26 Aug 2026, textured 27 Aug 2026 — see
+  // isMissionWorrySignal's own header for the base design and
+  // data/missionWorry.ts's own header for the texture pass (roadmap #8).
+  // Same shape and same "run every frame, unconditional" reasoning as
+  // updateDrunkExpiry just above (three NPCs is nothing to scan), but
+  // deliberately does NOT call persistNpcSocial: this is the one piece of
+  // ambient state in this scene that's supposed to never round-trip
+  // through CampaignState — recomputed straight from
   // activeMissionAttempt/Date.now() every time, gone the instant the tab
-  // closes, per the design note's own "what isnt saved is lost." Only
-  // touches an NPC whose worried flag actually needs to flip — a no-op on
-  // every frame nobody's mission attempt just crossed WORRY_ONSET_MS or
-  // just ended, which is the common case.
+  // closes, per the design note's own "what isnt saved is lost."
+  //
+  // No active attempt at all: every NPC's worried flag clears
+  // unconditionally (same as the old flat-boolean version's implicit
+  // behavior, isMissionWorrySignal returning false with no attempt) and
+  // their recheck clocks are dropped, so a fresh attempt later starts
+  // ramping from onset again rather than resuming a stale schedule.
+  //
+  // An active attempt: each NPC only rerolls once its own
+  // nextWorryCheckAt clock elapses (WORRY_RECHECK_MS apart, staggered
+  // per-NPC the same way nextEncounterAt already is) — not every frame,
+  // which would flicker the flag many times a second and read as noise
+  // rather than a mood ramping over real minutes. The roll itself is
+  // worryTriggerChance(elapsed-since-onset, this NPC's own favorability
+  // with Rourke) — see that function's own header for exactly why
+  // favorability stands in for "closeness to the missing pilot."
   private updateMissionWorry() {
-    const worried = isMissionWorrySignal(this.campaignState);
+    const attempt = this.campaignState.activeMissionAttempt;
+    if (!attempt) {
+      for (const npc of this.npcs) {
+        npc.nextWorryCheckAt = undefined;
+        if (!npc.ambient.worried) continue;
+        npc.ambient = { ...npc.ambient, worried: false };
+      }
+      return;
+    }
+    const now = Date.now();
+    const elapsedSinceOnset = now - attempt.startedAt - WORRY_ONSET_MS;
     for (const npc of this.npcs) {
+      if (npc.nextWorryCheckAt !== undefined && now < npc.nextWorryCheckAt) continue;
+      npc.nextWorryCheckAt = now + WORRY_RECHECK_MS;
+      const worried = Math.random() < worryTriggerChance(elapsedSinceOnset, npc.favorability);
       if (npc.ambient.worried === worried) continue;
       npc.ambient = { ...npc.ambient, worried };
     }
@@ -2820,10 +3364,10 @@ export class Hub extends Phaser.Scene {
   private tryMoveNpc(npc: HubNpc, dx: number, dy: number) {
     const nx = Phaser.Math.Clamp(npc.x + dx, ROOM_BOUNDS.left + NPC_R, ROOM_BOUNDS.right - NPC_R);
     const ny = Phaser.Math.Clamp(npc.y + dy, ROOM_BOUNDS.top + NPC_R, ROOM_BOUNDS.bottom - NPC_R);
-    if (npc.room === this.currentRoomId && Phaser.Math.Distance.Between(nx, ny, this.playerX, this.playerY) < NPC_R + PLAYER_R) return; // blocked by the player, only when they're actually sharing this room
+    if (sameDeck(npc.room, this.currentRoomId) && Phaser.Math.Distance.Between(nx, ny, this.playerX, this.playerY) < NPC_R + PLAYER_R) return; // blocked by the player, only when they're actually sharing this deck's open floor
     for (const other of this.npcs) {
       if (other === npc) continue;
-      if (other.room !== npc.room) continue; // different room, can't collide
+      if (!sameDeck(other.room, npc.room)) continue; // different deck, can't collide
       if (Phaser.Math.Distance.Between(nx, ny, other.x, other.y) < NPC_R + NPC_R) return; // blocked by another NPC
     }
     npc.x = nx;
@@ -2831,6 +3375,13 @@ export class Hub extends Phaser.Scene {
     npc.root.setPosition(nx, ny);
     npc.favLabel.setPosition(nx, ny - NPC_R - 14);
     npc.bubbleContainer.setPosition(nx, ny - NPC_R - 30);
+    // Antfarm Grid v0, 27 Aug 2026 — free-roam movement never crosses a
+    // deck (only completeDoorHop's stair mechanism does that, via
+    // setNpcRoom), so this never needs the interactivity/bubble-visibility
+    // dance setNpcRoom runs — just keep the zone LABEL honest as an NPC
+    // wanders across a same-deck open floor, same reason the player's own
+    // handleMovement does the equivalent sync below.
+    npc.room = zoneAt(ROOM_DECK[npc.room], nx, ny);
   }
 
   // 26 Aug 2026, Build Plan §24 — an NPC's own room changing, independent
@@ -2847,7 +3398,7 @@ export class Hub extends Phaser.Scene {
     npc.root.setPosition(x, y);
     npc.favLabel.setPosition(x, y - NPC_R - 14);
     npc.bubbleContainer.setPosition(x, y - NPC_R - 30);
-    const here = room === this.currentRoomId;
+    const here = sameDeck(room, this.currentRoomId);
     npc.root.setVisible(here);
     if (here) {
       npc.circle.setInteractive({ useHandCursor: true });
@@ -2970,8 +3521,21 @@ export class Hub extends Phaser.Scene {
       // its own "nobody else here" bail-out) on purpose: an NPC who's
       // alone in a room needs this branch to ever do anything at all, not
       // just NPCs with company to mingle with.
+      //
+      // Split in two, Antfarm Grid v0, 27 Aug 2026: pickExploreTarget can
+      // land on a room sharing the NPC's own deck now (open floor, §3f) —
+      // that's a direct walk to a point inside that room's own zone, no
+      // door/stair involved, exactly the same shape as the mingle branch
+      // below just aimed at a zone instead of a person. Only a genuinely
+      // cross-deck target still uses the stairs/travelTargetRoom machinery.
       if (Math.random() < EXPLORE_CHANCE) {
         const target = pickExploreTarget(npc.room);
+        if (sameDeck(npc.room, target)) {
+          const zone = ROOM_ZONE_BOUNDS[target];
+          npc.targetX = Phaser.Math.Clamp(zone.left + Math.random() * (zone.right - zone.left), zone.left + NPC_R, zone.right - NPC_R);
+          npc.targetY = Phaser.Math.Clamp(zone.top + Math.random() * (zone.bottom - zone.top), zone.top + NPC_R, zone.bottom - NPC_R);
+          continue;
+        }
         const door = nextHopDoor(npc.room, target);
         if (door) {
           npc.travelTargetRoom = target;
@@ -2982,7 +3546,7 @@ export class Hub extends Phaser.Scene {
         // No door found (shouldn't happen) — fall through to same-room logic below instead of doing nothing this tick.
       }
 
-      const roommates = this.npcs.filter((n) => n.room === npc.room && n.pilotId !== npc.pilotId);
+      const roommates = this.npcs.filter((n) => sameDeck(n.room, npc.room) && n.pilotId !== npc.pilotId);
       if (roommates.length === 0) continue;
       const otherIds = roommates.map((n) => n.pilotId);
       const closest = findClosestBond(npc.pilotId, otherIds, this.npcSocial.bonds);
@@ -3040,7 +3604,7 @@ export class Hub extends Phaser.Scene {
 
       for (let j = i + 1; j < this.npcs.length; j++) {
         const npcB = this.npcs[j];
-        if (npcB.room !== npcA.room) continue;
+        if (!sameDeck(npcB.room, npcA.room)) continue;
         if (npcB.targetX !== undefined) continue;
         if (npcB.nextEncounterAt === undefined || now < npcB.nextEncounterAt) continue;
         if (Phaser.Math.Distance.Between(npcA.x, npcA.y, npcB.x, npcB.y) > ENCOUNTER_RADIUS) continue;
@@ -3076,7 +3640,22 @@ export class Hub extends Phaser.Scene {
     const result = simulateEncounter({ pilotA, pilotB, bond, aCommitted, bCommitted, rng: Math.random });
 
     this.npcSocial.bonds[key] = bond + result.bondDelta;
-    if (result.becameCouple) this.npcSocial.relationships.push(key);
+    if (result.becameCouple) {
+      this.npcSocial.relationships.push(key);
+      // Hot topics, first slice, 27 Aug 2026 — an NPC-NPC pairing is
+      // newsworthy the same way a player-NPC one is above. Registered
+      // once, about pilotA specifically (not both directions) — the
+      // pick/render pair only ever needs one anchor pilot per topic, and
+      // pilotB is already carried as withName.
+      this.hotTopics.push({
+        kind: "gotTogether",
+        aboutPilotId: pilotA.pilotId,
+        aboutName: pilotA.displayName,
+        withName: pilotB.displayName,
+        at: Date.now(),
+        mentionedBy: [],
+      });
+    }
     saveCampaignState(this.campaignState);
 
     // Live-visual staging, 26 Aug 2026 — "talk" (the most common encounter
@@ -3088,7 +3667,16 @@ export class Hub extends Phaser.Scene {
     // correctly on its own. The other four kinds (pegBoard/poker/fletchers/
     // askOut) keep the single narrated summary bubble for now — same
     // mechanism would extend to them, not built this pass.
-    if (result.kind === "talk" && result.lineA) {
+    // Surfacing friction, first slice, 27 Aug 2026 — see data/friction.ts's
+    // own header. Checked against `bond` (the PRE-encounter value read
+    // above), not the post-delta one — this is about whether they were
+    // already rivals walking in, not whatever this one encounter happens
+    // to move it to. Display-only: result.kind/bondDelta/becameCouple are
+    // untouched either way, only what bubble text gets shown for an
+    // already-established rivalry's "talk" kind changes.
+    if (bond <= RIVAL_THRESHOLD && result.kind === "talk") {
+      this.showBubble(npcA, pickFrictionLine(), now);
+    } else if (result.kind === "talk" && result.lineA) {
       this.showBubble(npcA, result.lineA, now);
       if (result.lineB) {
         const lineB = result.lineB;
@@ -3125,26 +3713,49 @@ export class Hub extends Phaser.Scene {
   // Rourke specifically, since her callsign/rank could change (§9's own
   // buildPlayer() note) and this label shouldn't have to track that.
   private npcPartnerLabel(npc: HubNpc): string | undefined {
-    if (npc.inRelationship) return "with you";
+    // Relationship stages, first slice, 27 Aug 2026 — see
+    // data/relationshipStage.ts's own header. Both branches below reuse
+    // whatever "closeness" number this specific pairing already moves
+    // (the player relationship's own favorability; an NPC-NPC pairing's
+    // own bond) rather than adding any new persisted state.
+    if (npc.inRelationship) return relationshipStagePhrase(deriveRelationshipStage(npc.favorability), "you");
     for (const key of this.npcSocial.relationships) {
       const [a, b] = key.split("::");
       if (a !== npc.pilotId && b !== npc.pilotId) continue;
       const otherId = a === npc.pilotId ? b : a;
       const other = this.npcs.find((n) => n.pilotId === otherId);
-      if (other) return `with ${other.displayName.split("—")[0].trim()}`;
+      if (!other) continue;
+      const bond = this.npcSocial.bonds[key] ?? 0;
+      return relationshipStagePhrase(deriveRelationshipStage(bond), other.displayName.split("—")[0].trim());
     }
     return undefined;
+  }
+
+  // Surfacing friction, first slice, 27 Aug 2026 — see data/friction.ts's
+  // own header. Mirrors npcPartnerLabel's shape exactly (findWorstRival
+  // is already imported and already drives roaming — see
+  // updateNpcRoaming — this is the same data, just read for the UI too),
+  // but deliberately NOT room-scoped the way roaming's own "roommates"
+  // computation is: a standing rivalry is a relationship fact, not a
+  // physical-proximity one, same reasoning npcPartnerLabel's own
+  // NPC-NPC branch already treats relationships as room-independent.
+  private npcRivalLabel(npc: HubNpc): string | undefined {
+    const otherIds = this.npcs.filter((n) => n.pilotId !== npc.pilotId).map((n) => n.pilotId);
+    const worst = findWorstRival(npc.pilotId, otherIds, this.npcSocial.bonds);
+    if (!worst || worst.value > RIVAL_THRESHOLD) return undefined;
+    const other = this.npcs.find((n) => n.pilotId === worst.otherId);
+    return other ? `clashing with ${other.displayName.split("—")[0].trim()}` : undefined;
   }
 
   private updateProximity() {
     let anyoneInRange = false;
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue;
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       const close = dist <= APPROACH_RADIUS;
       if (close) anyoneInRange = true;
       npc.favLabel.setVisible(close);
-      if (close) npc.favLabel.setText(favorabilityLabel(npc, this.npcPartnerLabel(npc)));
+      if (close) npc.favLabel.setText(favorabilityLabel(npc, this.npcPartnerLabel(npc), this.npcRivalLabel(npc)));
     }
     // Priority when more than one would apply: a door beats the bay beats
     // talk — the most specific available action wins. Geometrically rare
@@ -3186,27 +3797,48 @@ export class Hub extends Phaser.Scene {
 
   // Phase 2 map growth — the single place that decides what's visible and
   // interactive for whichever room currentRoomId names. Called once from
-  // create() (to set up the starting Rec Room state) and again from every
-  // switchRoom() call.
+  // create() (to set up the starting Rec Room state), from every
+  // switchRoom() call (a real stair crossing), and now also from
+  // handleMovement() whenever the live zone recompute finds the player's
+  // crossed into a different same-deck room (Antfarm Grid v0, 27 Aug 2026).
+  //
+  // Antfarm Grid v0 rewrite: everything that's really about SEEING the
+  // rest of an open deck (door/stair markers, the bay, the other rooms'
+  // divider+label decor, which NPCs render at all) now toggles by DECK —
+  // sameDeck(x, this.currentRoomId) — not by exact room. What stays
+  // exact-room-scoped is the stuff that's genuinely about which room
+  // you're standing IN specifically: the title bar's zone name and the
+  // room note text (repositioned into that room's own zone rect below,
+  // since it used to assume it was the only thing on screen).
   private refreshRoomVisibility() {
+    const deck = ROOM_DECK[this.currentRoomId];
     this.roomTitleText.setText(`THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]} (PROTOTYPE)`);
+    this.deckIndicatorText.setText(`DECK: ${DECK_TITLES[deck]}`);
 
     for (const marker of this.doorMarkers) {
-      const show = marker.def.room === this.currentRoomId;
+      const show = sameDeck(marker.def.room, this.currentRoomId);
       marker.outline.setVisible(show);
       marker.label.setVisible(show);
     }
 
-    const inRecRoom = this.currentRoomId === "recroom";
-    this.bayOutline.setVisible(inRecRoom);
-    this.bayLabel.setVisible(inRecRoom);
+    for (const decor of this.zoneDecor) {
+      const show = sameDeck(decor.room, this.currentRoomId);
+      for (const node of decor.nodes) node.setVisible(show);
+    }
+
+    const onLowerDeck = sameDeck("recroom", this.currentRoomId);
+    this.bayOutline.setVisible(onLowerDeck);
+    this.bayLabel.setVisible(onLowerDeck);
 
     const note = ROOM_NOTES[this.currentRoomId];
+    const zone = ROOM_ZONE_BOUNDS[this.currentRoomId];
+    this.roomNoteText.setPosition((zone.left + zone.right) / 2, (zone.top + zone.bottom) / 2);
+    this.roomNoteText.setWordWrapWidth(Math.max(160, zone.right - zone.left - 60));
     this.roomNoteText.setText(note ?? "");
     this.roomNoteText.setVisible(!!note);
 
     for (const npc of this.npcs) {
-      const here = npc.room === this.currentRoomId;
+      const here = sameDeck(npc.room, this.currentRoomId);
       npc.root.setVisible(here);
       if (here) {
         npc.circle.setInteractive({ useHandCursor: true });
@@ -3257,7 +3889,7 @@ export class Hub extends Phaser.Scene {
   private speak() {
     const now = this.time.now;
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue;
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist > TALK_RADIUS) continue;
       // Stage-promotion "graduation" reveal, 27 Aug 2026 — checked before
@@ -3271,6 +3903,19 @@ export class Hub extends Phaser.Scene {
         this.showBubble(npc, line, now);
         npc.pendingStagePromotion = undefined;
         this.ackStagePromotion(npc);
+        // Hot topics, first slice, 27 Aug 2026 — the rest of the crew
+        // gets a chance to hear about this the next time THEY talk to
+        // you, via speak()'s own hot-topic check below. Registered here,
+        // not inside pickStagePromotionLine/data/hotTopics.ts itself,
+        // since this is the one real place the event is known to have
+        // actually happened.
+        this.hotTopics.push({
+          kind: "promoted",
+          aboutPilotId: npc.pilotId,
+          aboutName: npc.displayName.split("—")[0].trim(),
+          at: Date.now(),
+          mentionedBy: [],
+        });
         continue;
       }
       // "Hello, Sir" rank-deference greeting, 27 Aug 2026 — same
@@ -3288,8 +3933,33 @@ export class Hub extends Phaser.Scene {
         this.ackRankGreeting(npc);
         continue;
       }
+      // Relationship-stage warm exchange, first slice, 27 Aug 2026 — only
+      // for the player's own partner (npc.inRelationship), checked before
+      // hot topics on purpose: a personal moment with your own partner
+      // should win over gossip about someone else, not compete with it.
+      // See data/relationshipStage.ts's own header — the stage itself is
+      // derived live from favorability, nothing new persisted.
+      if (npc.inRelationship && Math.random() < PARTNER_BANTER_CHANCE) {
+        const stage = deriveRelationshipStage(npc.favorability);
+        const line = pickRelationshipStageLine(stage);
+        this.showBubble(npc, line, now);
+        continue;
+      }
+      // Hot topics, first slice, 27 Aug 2026, catalyst-flavored content
+      // added same day (roadmap #1's own stretch goal) — checked after the
+      // two guaranteed one-time reveals above (this NPC's own news always
+      // wins if both are pending) but before Gate 0's ordinary ambient
+      // roll, so a fresh piece of gossip about someone ELSE can preempt
+      // ordinary idle chatter.
+      const topic = pickHotTopicForSpeaker(this.hotTopics, npc.pilotId);
+      if (topic && Math.random() < HOT_TOPIC_SPEAK_CHANCE) {
+        const line = renderHotTopicLine(topic, npc.ambient.catalyst);
+        this.showBubble(npc, line, now);
+        topic.mentionedBy.push(npc.pilotId);
+        continue;
+      }
       if (!gate0Reacts(npc.ambient)) continue;
-      const { line } = pickAmbientLine(npc.ambient);
+      const { line } = this.pickAmbientLineWithMemory(npc);
       this.showBubble(npc, line, now);
     }
   }
@@ -3327,7 +3997,7 @@ export class Hub extends Phaser.Scene {
   private broadcastMessage(message: HubMessage) {
     const now = this.time.now;
     for (const npc of this.npcs) {
-      if (npc.room !== this.currentRoomId) continue;
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist > TALK_RADIUS) continue;
       const line = pickLineForMessage(npc.ambient, message);
@@ -3450,7 +4120,7 @@ export class Hub extends Phaser.Scene {
     // player's currently looking at; refreshRoomVisibility/setNpcRoom
     // already hide it correctly on a room change, this is the other half —
     // stopping it from being shown true in the first place.
-    npc.bubbleContainer.setVisible(npc.room === this.currentRoomId);
+    npc.bubbleContainer.setVisible(sameDeck(npc.room, this.currentRoomId));
     // Comms log, Hub polish 26 Aug 2026 — same room-gate as the visibility
     // line just above, on purpose: rumor/propagate() can call showBubble
     // for an NPC in a room the player isn't even standing in (see
@@ -3458,7 +4128,7 @@ export class Hub extends Phaser.Scene {
     // correctly invisible in-world for the same reason. The log is a
     // record of what the player could actually have seen/heard, not an
     // omniscient transcript — so it stays gated the same way.
-    if (npc.room === this.currentRoomId) this.logChatLine(npc.initials, line);
+    if (sameDeck(npc.room, this.currentRoomId)) this.logChatLine(npc.initials, line);
 
     const duration = Math.min(6000, 2600 + line.length * 30);
     npc.bubbleUntil = now + duration;
@@ -3483,8 +4153,15 @@ function stageBadge(stage: Stage): string {
   return `[${label}]`;
 }
 
-function favorabilityLabel(npc: HubNpc, partner?: string): string {
+// rival param added 27 Aug 2026 (Social Sim Roadmap #7) — same optional,
+// append-if-present shape partner already used. A pilot can in principle
+// have both at once (dating one NPC, clashing with a totally different
+// one — two independent axes, relationships list vs. worst bond), so
+// both tags render together rather than one taking priority.
+function favorabilityLabel(npc: HubNpc, partner?: string, rival?: string): string {
   const sign = npc.favorability >= 0 ? "+" : "";
-  const base = `${npc.displayName.split("—")[0].trim()}  ${stageBadge(npc.ambient.stage)}  ${sign}${npc.favorability} (demo)`;
-  return partner ? `${base}  ♥ ${partner}` : base;
+  let base = `${npc.displayName.split("—")[0].trim()}  ${stageBadge(npc.ambient.stage)}  ${sign}${npc.favorability} (demo)`;
+  if (partner) base += `  ♥ ${partner}`;
+  if (rival) base += `  ⚡ ${rival}`;
+  return base;
 }

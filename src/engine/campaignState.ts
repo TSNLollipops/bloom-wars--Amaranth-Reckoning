@@ -162,6 +162,25 @@ export interface CampaignState {
   // date, and every fresh createCampaignState() call, has none yet;
   // ensureNpcSocialState() is the only thing that ever creates it.
   npcSocial?: NpcSocialState;
+  // Debrief-side echo, 27 Aug 2026 (Social Sim Roadmap #9) — set by
+  // scenes/Debrief.ts every time a mission resolves for real (win, loss, or
+  // commander_down — see data/hotTopics.ts's own header for why
+  // commander_down folds into "loss" here), OVERWRITTEN each time rather
+  // than accumulated: this is "what just happened," not a history log,
+  // matching the roadmap's own "a short real-time window right after
+  // returning to the Hub" framing. Deliberately top-level on CampaignState,
+  // not per-pilot the way muntiLossAnnounced above is — a mission outcome
+  // isn't about any one pilot, so there's no single CampaignPilotEntry to
+  // hang it off of (same reasoning section 12's own npcSocial already gives
+  // for why NPC-to-NPC bonds live here instead of on one pilot's entry).
+  // `announced` starts false every time this is set and flips true the
+  // moment Hub.ts's buildNpcs() actually registers the hot topic for it —
+  // same one-shot shape as muntiLossAnnounced, one level up.
+  lastMissionEcho?: {
+    missionId: string;
+    outcome: "win" | "loss";
+    announced: boolean;
+  };
 }
 
 /** One in-flight mission attempt's real-world start time. `startedAt` is a `Date.now()` epoch-ms snapshot — deliberately real, wall-clock time, not a game-turn count (house rule #5 already covers in-mission turn pressure; this is a different axis entirely, "how long has Command been waiting on you," not "how many turns did the fight take"). */
@@ -246,6 +265,35 @@ export function clearCampaignState(storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
   s.removeItem(STORAGE_KEY);
+}
+
+// ---- Mission 1 tutorial hints — a tiny flag OUTSIDE CampaignState -------
+// (`Bloom_Wars_Onboarding_Tutorial_Plan_v1.md` §3/§5/§6, built 27 Aug 2026.
+// Its own §5 open question — "shown every fresh campaign restart" vs.
+// "shown once ever, tracked per save" — was left as "a real, small
+// decision either way works for"; Maxime didn't pick either explicitly, so
+// this defaults to the lowest-friction convention most games use: once
+// ever, per browser, not tied to any one campaign save at all. Deliberately
+// its own key rather than a new CampaignState field — the plan's own §6
+// sizing note calls out "no new persisted data" as part of why this stays
+// small, and a flag that outlives `clearCampaignState()` (a fresh campaign
+// shouldn't re-teach a player who already knows the loop) only works if
+// it's genuinely separate storage, not a field that gets wiped along with
+// everything else on a New Game.
+const TUTORIAL_SEEN_KEY = "bloomwars_tutorial_seen_v1";
+
+/** True once the Mission 1 hint sequence has ever been shown to completion on this browser. False (never true-by-accident) on no storage, e.g. the headless sim harness — it has no UI to hint at in the first place. */
+export function hasSeenTutorial(storage?: CampaignStorage): boolean {
+  const s = resolveStorage(storage);
+  if (!s) return false;
+  return s.getItem(TUTORIAL_SEEN_KEY) === "1";
+}
+
+/** Marks the hint sequence seen. A no-op (not an error) when no storage is available, same contract as saveCampaignState. */
+export function markTutorialSeen(storage?: CampaignStorage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  s.setItem(TUTORIAL_SEEN_KEY, "1");
 }
 
 // ---- 1 & 3. Live Munti-gated restock/permadeath check ------------------
@@ -872,6 +920,24 @@ export interface HubPilotSocialState {
   // two independent axes (a pilot's gear tier says nothing about whether
   // THEY'VE personally clocked Rourke's latest promotion).
   lastAcknowledgedRourkeRank?: Rank;
+  // Munti-loss hot topic, 27 Aug 2026 (roadmap #13) — lives on the LOST
+  // pilot's own social entry, not on each observer's, since this is a
+  // single one-time crew-wide event ("a Munti died"), not a per-observer
+  // axis the way lastAcknowledgedStage/lastAcknowledgedRourkeRank are (each
+  // of those tracks what THIS pilot has personally caught up on). A boolean
+  // is enough — unlike the Stage/Rank fields above, there's nothing to
+  // compare against, just "has this already been surfaced as a hot topic."
+  // Set by scenes/Debrief.ts the instant a permanent loss lands on a Munti-
+  // path pilot (mirroring this same file's evaluatePermadeathCheck: the
+  // only way a loss is ever permanent is "no living Munti remained to save
+  // them" — so every muntiLost hot topic is, by construction, honestly
+  // describing that exact mechanic, not a scripted beat bolted on after the
+  // fact). Consumed by scenes/Hub.ts's buildNpcs(), which registers the
+  // actual HotTopic and flips this true in the same pass — see that
+  // function's own comment for why this can't reuse the
+  // pendingStagePromotion per-NPC-field shape (the pilot this is ABOUT is
+  // no longer in the Hub to self-announce it).
+  muntiLossAnnounced?: boolean;
 }
 
 /**

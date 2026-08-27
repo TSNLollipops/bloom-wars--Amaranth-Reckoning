@@ -198,6 +198,9 @@ export const ASSIST_MIN_FRACTION = 0.1;
 export const ASSIST_MAX_FRACTION = 0.5;
 export const REPAIR_ASSIST_FRACTION = 0.25;
 
+/** Stalled-eliminate_all nudge (27 Aug 2026) — full turn cycles with zero resolved attacks before the one-time flavor line fires. See `turnsWithoutContact`'s own comment for the full reasoning; 10 is deliberately well short of the Playtest Review's own 26-turn stuck case, and comfortably past a normal turn's worth of repositioning. */
+export const STALL_NUDGE_TURN_THRESHOLD = 10;
+
 // Data Pack §6's abil_repair: 30 HP base, x1.25 if the Munti's own mek has
 // Fieldwright as primary (x1 if secondary or absent — see MEK_TRACK_EFFECTS).
 // Only player pilots carry a pilotId/mekId; hostile mechs never get a bonus.
@@ -267,6 +270,23 @@ export class Mission {
   // it. See ASSIST_MIN_FRACTION's comment above for why this exists.
   private victimContributions: Record<string, Record<string, number>> = {};
   log: string[] = [];
+  // Stalled-eliminate_all nudge (27 Aug 2026, Campaign Playtest Review —
+  // "I ran one mission passively for 26 turns with nothing happening...
+  // eliminate_all apparently has no proactive 'hunt the player' behavior
+  // once contact breaks and no turn-limit fail state either... it means a
+  // stalled eliminate_all mission can go on forever with the game giving
+  // you no signal that you're stuck. Might be worth a soft nudge at some
+  // point, even just flavor text."). Deliberately NOT a fail state or a
+  // turn limit — house rule #5 (README) is unchanged, eliminate_all still
+  // has no proactive hunt and no clock. This only tracks how many full
+  // turn cycles have passed since the last resolveAttack() call (reset
+  // there — the one choke point every attack in the game already funnels
+  // through, player or hostile, normal or reaction shot) and pushes a
+  // single one-time flavor line to the log once it crosses a threshold,
+  // purely so a player who's genuinely stuck (not just playing slow) gets
+  // told, rather than sitting in silence wondering if the game is broken.
+  private turnsWithoutContact = 0;
+  private stallNudgeShown = false;
   private eventState: EventRuntimeState = createEventRuntimeState();
   private extractedUnitId: string | null = null;
   // Mission 31 "The Last Convoy" (25 Aug 2026) — companion to extractedUnitId
@@ -899,6 +919,12 @@ export class Mission {
     if (attacker.side === defender.side) return null;
     const d = chebyshevDistance(attacker.pos, defender.pos);
     if (d < attacker.attackRange[0] || d > attacker.attackRange[1]) return null;
+
+    // Past every guard above — this is a real, resolving attack. Reset the
+    // stall-nudge counter (see its own comment by the field declaration).
+    // Every attack in the game funnels through this one method, so this is
+    // the only reset site that can't drift from any individual verb.
+    this.turnsWithoutContact = 0;
 
     const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
     const sameSideAsDefender = this.units.filter((u) => u.side === defender.side);
@@ -2100,6 +2126,18 @@ export class Mission {
       unit.taunting = false;
     }
     this.log.push(`--- Turn ${this.turn}: player phase ---`);
+    // Stalled-eliminate_all nudge — see turnsWithoutContact's own comment.
+    // Only tracked for eliminate_all (the objective the Playtest Review
+    // actually hit this on — no proactive hunt, no turn limit, so it's the
+    // one shape that can genuinely go quiet forever); every other
+    // objective already has its own clock or convergence behavior.
+    if (this.mission.objective === "eliminate_all") {
+      this.turnsWithoutContact += 1;
+      if (this.turnsWithoutContact === STALL_NUDGE_TURN_THRESHOLD && !this.stallNudgeShown) {
+        this.stallNudgeShown = true;
+        this.log.push("Command: no contact reported in some time — sweep wider, the Bloom doesn't always come to you.");
+      }
+    }
     this.runTurnStartEvents();
     this.checkWinLoss();
   }
