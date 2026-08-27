@@ -6,7 +6,7 @@ import { UNIT_ARCHETYPES, ALL_HOSTILE_MECHS } from "../data/units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
-import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION } from "../data/combatTables";
+import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION } from "../data/combatTables";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
 export type Side = "player" | "hostile";
@@ -136,6 +136,19 @@ export interface BattleUnit {
    * the field stays uniform across every BattleUnit regardless of side.
    */
   sensorSweepUsesRemaining?: number;
+  /**
+   * Reeps abil_missile (26 Aug 2026, SOFT pass — see data/abilities.ts's
+   * own comment). MISSILE_CHARGES_PER_MISSION uses per mission
+   * (data/combatTables.ts), same per-unit-budget shape as
+   * sensorSweepUsesRemaining directly above — NOT squad-shared the way
+   * fireSupportChargesRemaining (engine/mission.ts, lives on Mission
+   * itself) is. Undefined reads as a full, unspent budget, same
+   * convention as every other charge field here. Named UsesRemaining, not
+   * ChargesRemaining, for the same reason sensorSweepUsesRemaining is —
+   * Mission's own accessor method is missileChargesRemaining(unitId); the
+   * field and the method deliberately don't share a name.
+   */
+  missileUsesRemaining?: number;
 
   // ---- Mission 5 rescue-and-recruit pass (Maxime, 23 Aug 2026: "mission 5
   // is rescue the downed pilot... giving us a free new pilot") — see
@@ -285,6 +298,7 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     usedScreenThisMission: false,
     usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -333,6 +347,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     usedScreenThisMission: false,
     usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -420,6 +435,7 @@ export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleU
     usedScreenThisMission: false,
     usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: "shape_npc_downed",
   };
 }
@@ -491,6 +507,7 @@ export function createCivilianUnit(pos: Coord, displayName: string): BattleUnit 
     usedScreenThisMission: false,
     usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: "shape_civilian",
   };
 }
@@ -530,6 +547,7 @@ export function createBloomUnit(bloomArchetypeId: string, pos: Coord, opts?: { b
     usedScreenThisMission: false,
     usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
+    missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: arch.spriteKey,
   };
 }

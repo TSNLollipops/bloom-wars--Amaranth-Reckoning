@@ -1289,6 +1289,371 @@ staying test-build-only.
 
   Still not scoped, not started. This pass is shape and internal
   consistency-checking, not new commitments.
+
+  **Update, 26 Aug 2026 — a three-way pressure for "Gladiator during the
+  war" specifically: the rival company, the Bloom, and a rare forced-
+  cooperation event.** Maxime, verbatim: "gladiator battle during war mode
+  will have bloom incursion happening live between the fight and the bloom
+  incursion level depend on chance. there gonna be a 1% chance to have a
+  gigafish invasion appear. and it take both player team[s] their use of
+  the 'blackhole' weapon to kill the gigafish. i want gigafish event to
+  force player to cooperate. killing bloom give extra military point.
+  killing the other team give point too. the player will have to fight
+  both at once."
+
+  **⚠ NAMING LOCK CATCH, 26 Aug 2026 — everything below quoting "Gigafish"
+  or "the blackhole weapon" is blocked on a rename, not cleared to build
+  as-worded.** Checked "it's in the military era doc, I'm sure" (Maxime's
+  own hunch, said later while pitching the ship-combat layer below) —
+  correct, just the wrong project's Military Era doc. `Qiraki_Concept_v4.md`
+  has "Blackhole weapon, LOCKED": an artificial blackhole, kills
+  indiscriminately, size scales with the mass it hits. `Qiraki_Weapons_
+  And_Progression.md` goes further — dreadnought-mounted, used against an
+  extreme-tier threat, no friendly-fire protection, size scales with the
+  target's own size. Same doc's threat taxonomy calls that extreme-tier
+  threat "Gigafish," and calls deployed pilots "Synkers" (the word Maxime
+  separately used for Gladiator's 125 PvP pilots, below). All three are
+  Qiraki-native coined terms, not generic English, and `tools/lint-
+  spoiler.mjs` already carries a dedicated soft tripwire for a "Synker"-
+  adjacent phrase — strong signal this word family is exactly what the
+  Build Brief's "absolute" naming lock exists to catch, even without
+  knowing whether one of these three is literally the hidden
+  `BW_RESERVED_TERM` itself. The mechanic underneath (rare world-ending
+  threat, one big forced-cooperation superweapon) is fine and staying —
+  only the words need to change. Thrown-out, non-final replacement
+  candidates: the creature as "Colossus," "Broodmaw," or "Swarmheart"
+  instead of Gigafish; the weapon as "Collapse Charge," "Gravity Well," or
+  "the Eclipse" instead of blackhole weapon (sits next to Severance's own
+  naming); the pilots just as "pilots," no new coinage needed. Not
+  resolved here — flagged for Maxime to pick or override before this
+  entry's wording is treated as final, and the two bullets right below
+  still use the original words pending that call, left as-is rather than
+  silently edited so the record of what was actually said isn't lost.
+
+  This is specifically the "during the war" half of Gladiator (the
+  in-campaign version tied to the House Amaranth/Marrow thread, per the
+  distinction drawn earlier in this same entry) — not the post-campaign
+  version. Three pieces, worth naming separately even though the message
+  presents them as one idea:
+
+  - **A live Bloom incursion running underneath every "during the war"
+    match, severity randomized.** Not an occasional twist, the baseline
+    condition — every one of these matches has Bloom activity happening
+    "live between the fight," and how bad it is comes down to chance each
+    time. Turns a 2-sided PvP fight into a 3-way pressure by default: the
+    rival company, the Bloom, and whatever the incursion roll produced.
+  - **Gigafish — new to Bloom Wars, 1% roll, no existing Bloom Wars
+    definition.** *Correction, same day, see the naming-lock catch above:
+    "first time this name has shown up in either project" was wrong —
+    it's a LOCKED term in `Qiraki_Weapons_And_Progression.md`'s threat
+    taxonomy, not a coincidence. Blocked on a rename before this is real;
+    reasoning below about Bloom Wars' own category fit still holds once
+    it has a Bloom Wars name.* Not in the Bestiary, not in the
+    sessile/boss-tier discussion elsewhere in this doc. Reads as its own
+    rare "world event" tier, one level above even the sessile
+    boss-tier rule already locked ("sessile are absolute monster... meet
+    one too early and you die," above) — where that rule is about a
+    *mission* going wrong if you're underleveled, this is a *rare event*
+    that can land on top of an already-running PvP match. Worth deciding
+    whenever this gets picked up for real: is it a sessile archetype
+    specifically, or its own new category outside the Bestiary's existing
+    movement-type taxonomy entirely?
+  - **The blackhole weapon, and the forced-cooperation design goal —
+    stated directly, not left implicit: "i want gigafish event to force
+    player to cooperate."** Both companies have to use it together to
+    kill the Gigafish — no existing weapon by this name in the Data Pack,
+    the Bestiary's weapon-type list, or the Heirloom/Severance system
+    above (closest existing precedent is Severance itself, "it's tech,
+    not magic," always hits friend and foe — a blackhole weapon sounds
+    like it could be a Gladiator-scale sibling to that idea rather than
+    a ground-combat ability, matching the "expanded point system, heavy
+    mech customisation" depth-pass already flagged for Gladiator above,
+    but that's a guess, not stated). Real open question, not answered
+    here: does using it require literal coordinated input from both
+    players (a shared-charge or simultaneous-activation mechanic), or is
+    it more that both sides are incentivized to stop shooting each other
+    and let one side use it? The design goal is clear even though the
+    mechanism isn't.
+
+  **Scoring interaction worth flagging as a real balance question, not
+  just flavor.** "Killing bloom give extra military point. killing the
+  other team give point too." — both objectives pay out on the same
+  points economy, at the same time, which is exactly what makes this a
+  three-way fight rather than a PvP match with an environmental hazard
+  bolted on. Undecided: are the two point values meant to be comparable
+  (a real choice between farming Bloom kills or pressing the human
+  opponent), or is Bloom-killing meant to read as the lesser, secondary
+  payout precisely because ignoring the incursion long enough presumably
+  gets dangerous on its own? Not answered by the message as given.
+
+  **Update, same day — the points themselves have a job, not just a
+  score.** Maxime, immediately following: "point work like world of tank
+  grey tint economy. used to repair and outfit your merc team." Checked
+  against how World of Tanks' Credits economy actually works before
+  writing this down, rather than going off a loose impression of "WoT
+  economy": Credits are WoT's single general-purpose earned currency
+  (separate from Gold, the real-money/premium currency) — earned mainly
+  from damage dealt in a match, plus spotting/assist damage and a
+  victory bonus, and spent on nearly every recurring cost of staying in
+  the fight: repairs, ammo resupply, crew training, modules. The specific
+  mechanic worth borrowing on purpose: repair cost scales with how much
+  damage the vehicle took, and costs more if it was destroyed outright
+  than if it survived banged up — damage taken has a direct bill attached,
+  not just a stat that resets next match. (Sources: WoT Strategy Guide,
+  https://worldoftanksguide.com/guide-game-currency.shtml; BoostRoom's
+  service-cost breakdown, https://boostroom.com/blog/service-costs-explained-repairs-resupply-post-battle-expenses.)
+
+  Reading Maxime's line against that mechanic: Gladiator's military points
+  aren't a leaderboard number, they're the currency that keeps a merc
+  company combat-capable — win a match (or farm Bloom kills, or beat the
+  rival team, per the scoring question above) and the payout is what pays
+  for the repairs and re-outfitting the *next* match needs. That's a real
+  answer to a question the "expanded point system, heavy mech
+  customisation" line (above, in the same Gladiator update) left open —
+  what the points are actually *for*, mechanically, not just how many of
+  them there are.
+
+  **One thing worth flagging on purpose, since WoT is the explicit
+  reference and this is exactly the failure mode that reference is best
+  known for:** WoT has a well-documented "negative economy" problem at
+  its higher tiers, where repair/ammo/consumable costs on a loss can
+  meet or exceed the Credits a non-premium player earns from that same
+  battle — several guides describe tech-tree tanks as flatly unprofitable
+  from Tier VIII up without a premium account or premium vehicle
+  subsidizing the grind. If Gladiator borrows the repair-cost-scales-
+  with-damage mechanic without also deciding how a losing team stays
+  solvent, this project would be importing that same problem by default
+  rather than by choice. Not a reason to avoid the mechanic — the
+  damage-has-a-bill idea is exactly the texture Maxime asked for — just
+  worth deciding on purpose whether a bad Gladiator match can leave a
+  company unable to afford its next one, the way it can in WoT, or
+  whether there's a floor under it.
+
+  **Also open, not decided here: is this the same points economy the
+  main campaign already runs (Hangar shop, gear tiers, spare mek parts),
+  or Gladiator's own separate currency?** The message says "your merc
+  team," and Gladiator's own command ladder (Carrier CO/Legion CO/Company
+  CO, earlier in this same entry) is framed as a distinct scale from the
+  personal campaign — worth deciding whether that separation extends to
+  the economy too, or whether Gladiator spends and earns against the same
+  pool the campaign already uses.
+
+  **Update, same day — two payout rules: no draws, and a real cost to
+  quitting.** Maxime: "the player can do whatever they want. but if there
+  is no victor. they get no point. if a player leave. he get fined for the
+  media outlash and they get no point for the mission." Two separate
+  rules, worth keeping distinct:
+
+  - **No victor, no points — reads as absolute, not a partial-credit
+    rule.** As stated, this doesn't carve out an exception for the
+    per-kill income described above (Bloom kills, rival-team kills) — "no
+    point" is unqualified. Worth flagging plainly rather than quietly
+    reconciling it: taken literally, this is now in real tension with
+    "killing bloom give extra military point, killing the other team give
+    point too" from the same conversation, since that reads as continuous
+    income *during* the match regardless of how it ends. Two ways this
+    could resolve, neither decided here: either the per-kill points are
+    provisional and only actually pay out if the match reaches a real
+    victor (the likely reading, since it's the one that makes "no victor,
+    no point" mean anything), or "no point" refers only to a separate
+    victory bonus stacked on top of kills that always pay. Worth a direct
+    check whenever this gets scoped for real, since the two readings
+    produce very different incentives — the first makes stalling a real
+    match strictly worse than committing to a fight, which lines up with
+    "the player will have to fight both at once" being the intended
+    pressure in the first place.
+
+    **Resolved, same day.** Asked directly which reading was meant —
+    Maxime: "if they farm bloom before fighting it out. who care?" Confirms
+    the strict reading: "no victor, no point" is absolute, full stop, and
+    the order a player does things in doesn't matter to it. Farming Bloom
+    kills for a while before ever engaging the rival team isn't an exploit
+    worth guarding against, because it doesn't get anyone out of eventually
+    needing a real victor for any of it to pay — there's no version of
+    "stall forever, cash out anyway." Sequencing is a free strategic
+    choice; the payout gate is the outcome alone, not the process.
+  - **Leaving mid-match costs twice, and one of the two costs is a
+    fiction-grounded penalty, not just an anti-quit tax.** No points for
+    that mission (straightforward, matches the no-victor case functionally
+    — an abandoned match is a kind of no-victor outcome) *plus* a separate
+    fine, specifically framed as a media/reputation consequence rather
+    than a bare mechanical penalty. Worth naming why that's a good fit
+    rather than an arbitrary flourish: this project already grounds its
+    mechanics in fiction on purpose whenever it can (the Seal-and-Sword
+    political framing for the CO ladder, Warden Company's corp-turned-
+    government backstory, both earlier in this same entry) — "media
+    outlash" gives Gladiator a standing in-world reason abandoning a match
+    is costly (it's a broadcast/spectated event with real public stakes,
+    not just a private skirmish) rather than leaving quitting penalized
+    for pure game-design reasons with no in-fiction voice. Open question,
+    not answered here: is the fine a flat amount, scaled to something
+    (how far into the match, rank/scale of the force involved), and does
+    it come out of the same Credits-style pool from the update above or
+    hit something else (standing/reputation, if that ends up a tracked
+    number of its own).
+
+  **Update, same day — "after the war" gets its own, lighter economy, not
+  the same one.** Maxime: "gladiator after the war? the repair are free.
+  but you still need point to upgrade train and outfit your company."
+  Everything logged above in this update (the WoT-style repair-costs-
+  points mechanic, no-victor-no-points, the media-outlash quit fine) reads
+  as specific to the "during the war" variant — this is the first time the
+  "after the war" variant (the original, older half of this same entry,
+  before the Bloom-incursion idea existed) got its own economy stated
+  rather than assumed to share one. Repairs cost nothing in "after," which
+  sidesteps the WoT negative-economy risk flagged above entirely for this
+  variant specifically — there's no damage-has-a-bill tension to worry
+  about if damage never bills anyone. Points still matter, but for a
+  different job: progression (upgrade/train/outfit) rather than upkeep.
+  That reads as a much closer cousin to the main campaign's own existing
+  points-shop economy (gear tiers, mek-track investment, Debrief payouts)
+  than to anything WoT-shaped — worth checking directly whenever this is
+  scoped for real, since "upgrade, train, and outfit your company" is
+  close enough to that existing system's own job description that this
+  might not need a new economy invented at all, just that one extended to
+  Gladiator scale. Not stated outright, but a reasonable inference now
+  sitting next to a real fact rather than a guess: "during the war" is
+  where the repair-cost/no-draws/quit-fine pressure actually lives, and
+  "after the war" is comparatively the low-friction, long-session mode —
+  fitting given "during" is a live 3-way fight with a rare forced-
+  cooperation event bolted on, and "after" is the one Maxime's earlier
+  framing already called the more casual "someday" endgame.
+
+  **Update, 26 Aug 2026 — Gladiator gets a second permadeath exception, and
+  this one's scoped by mode, not by character.** Maxime: "I'm sure if I add
+  in perma death is still part of the game I'll get people mad at me. So
+  hard rule: I'm gonna bend on my realistic dream. Once." His own words for
+  it — "hard rule," not a maybe — put this in the same locked-decision
+  category as "no victor, no points" above, not an open question.
+
+  Worth being precise about what this touches, because it's the single
+  most carefully negotiated system in the project. The existing rule
+  (`claude/build_log/engine_systems/permadeath_and_commander_down.md` §"Live
+  permadeath," `engine/campaignState.ts`'s `evaluatePermadeathCheck`) is a
+  real, live roll on every downed pilot, with exactly one exception carved
+  out so far: "the only character that is safe is the mc" — Dessa Rourke
+  ("Lark") is mechanically exempt, the sole unkillable unit in the roster,
+  everyone else is exposed. That exception is scoped to a *character*: it
+  travels with Rourke regardless of what mission or mode she's in. This new
+  one reads as scoped to a *mode* instead: something about Gladiator
+  specifically softens permadeath for everyone in it, Rourke included or
+  not, campaign missions unaffected either way. Two different shapes of
+  carve-out to the same rule, sitting side by side rather than one
+  replacing the other — worth keeping straight so a future pass doesn't
+  conflate them or assume the second implies loosening the first.
+
+  What isn't in Maxime's message, and is the real open question before this
+  is buildable: the actual mechanism of the bend. "Bend," not "remove," so
+  the going-in read is that Gladiator keeps *some* stakes rather than going
+  full no-consequence arena mode — but the message doesn't say which of
+  several plausible shapes that takes. Candidates, none confirmed: downed
+  pilots in a Gladiator match simply don't run the permadeath check at all
+  (closest to a literal mode-wide exemption, mirroring how Rourke's
+  exemption works today, just applied to a mode instead of a person);
+  permadeath still fires but losses don't carry back to the main campaign
+  roster (stakes exist within the match — you can still lose the fight
+  because your pilot's down — but the game world's actual roster is
+  insulated, so a bad Gladiator run doesn't cost a mercenary you were
+  counting on for Act 3); or something narrower still, like permadeath
+  applying normally "after the war" (post-campaign, roster consequences
+  moot anyway since the story's over) but being the mode that's softened
+  "during the war" (where a lost pilot could otherwise mid-campaign-wreck a
+  save). Not picking one here — flagging that the message alone
+  under-determines it, and this is exactly the kind of thing worth
+  confirming directly with Maxime before it's ever scoped for real, given
+  how much weight the base rule has carried up to now.
+
+  **Resolved, same day, in two more exchanges.** First, Maxime ruled out
+  the "check doesn't run at all" candidate himself: "there should be a
+  real cost to losing or we will waste the best part of the game. the
+  social engine" — a mode-wide exemption gives the reaction/rumor/grief
+  system nothing to react to, which is exactly the waste he's naming.
+  Second: "they can already farm their way into s-rank on a single
+  mission. lets give them ironman pvp" — the campaign's own mission-
+  replay loop already lets a player retry until they get a clean run
+  (confirmed against `Bloom_Wars_Data_Pack_v0.1.docx` §12.3's per-mission
+  bonus criteria and the mission clock's confirmed relaunchability), so
+  Gladiator doesn't need to be the game's soft corner too — it can be the
+  hard one. "Ironman" here reads as: the match, once entered, is final —
+  no reload, no requeue to dodge a bad outcome — which is the same
+  underlying move as the media-outlash quit fine above, generalized
+  ("leaving to avoid a bad result" and "quitting to avoid a bad result"
+  are the same exploit). Third, from the ship-combat pitch further down
+  this entry: "ill bend my usual hard rule on realistic to allow player to
+  keep their pvp rooster. (yes separate rooster between pvp and pve)" —
+  names the actual mechanism at last. Full permadeath check, full teeth,
+  no exemption, fires exactly like the campaign's — it just fires against
+  a Gladiator-specific company (up to 5 carriers, 25 pilots per carrier —
+  125 pilots at a full roster) instead of the named campaign squad. All three pieces now fit one consistent design: real, permanent,
+  ironman-strict loss, scoped to a roster built and risked specifically
+  for Gladiator, so the social engine gets real material to react to
+  without a bad PvP night costing a mercenary three acts of campaign
+  investment. One cost this design carries, not free: those
+  Gladiator pilots need actual names and a catalyst voice for the
+  reaction engine to have anything to grieve — not disposable numbers —
+  which the "natural balance" generated-recruit system (built for
+  backfilling campaign Muntis, a few sections up) can likely serve double
+  duty for rather than needing its own new generator.
+
+  **New, 26 Aug 2026 — a mode-select easter egg names the mode out loud.**
+  Maxime: choosing to enter PvP shows the line "I was told not to give you
+  permadeath, you're lucky" — a fourth-wall wink at his own real-world
+  hesitation (the "hard rule, I'm gonna bend" framing that started this
+  whole thread) rather than anything a campaign character would say.
+  Clicking "lucky" opens a small box that just reads "(PVP Ironman)" —
+  the joke's punchline: the claimed leniency is undercut by the label
+  right there, since Ironman is the least lenient thing on offer, not the
+  most. Worth flagging as new territory tonally, not just mechanically:
+  everything else in this project stays in-fiction (the Hub's ambient
+  lines, mission briefings, "COMMAND DOWN"/"RECALLED" overlays) — this is
+  the first moment anything in Bloom Wars talks to the *player* rather
+  than the *commander*. Not necessarily a problem, just worth deciding on
+  purpose whether that's a one-off exception for the PvP entry point
+  specifically or a tone this project is now open to elsewhere.
+
+  **Resolved, same day.** Asked directly what the confirm step was —
+  Maxime: "a small box they can fill to opt in the lobby for ironman
+  pvp." So the "(PVP Ironman)" box isn't just a label, it's the opt-in
+  control itself — filling it (a checkbox/tickbox reading, most likely,
+  though the exact widget isn't pinned down further than "fill") is what
+  commits the player and moves them into the matchmaking lobby. Clean
+  single-step flow: click "lucky" → box appears naming the mode → fill it
+  → into the lobby. No separate "Ready" screen needed on top of it.
+
+  **New, 26 Aug 2026 — two lobbies, not one, and the softer one has a real
+  mechanism now, not just "less bad."** Maxime: "i want two lobby, the
+  ironman one and the non ironman one. where loss is simulate with mental
+  backlash from ship recall function." This is the actual resolution to
+  the whole back-and-forth that started this entry's permadeath thread —
+  not a walk-back of the Ironman design above, a second option sitting
+  next to it. Ironman lobby: everything already logged — real permanent
+  loss, no retry, Gladiator's own separate roster. Non-Ironman lobby, new:
+  a "loss" doesn't cost the pilot at all — it's simulated as a **ship
+  recall**, reusing the mechanic and even the visual language that
+  already exists for voided mission attempts (`Boot.ts`'s `drawRecallNotice`
+  / the "RECALLED" overlay, `campaignState.ts`'s 12-hour timeout recall —
+  Maxime's own prior line on that system, "forcefully recalled to ship for
+  a dressing down by the CO," is the exact tone this borrows). The pilot
+  comes back intact. What makes this not a consequence-free arena mode is
+  the second half of the line: **mental backlash** — a real hit, just not
+  a permanent one. Reads as the first concrete trigger proposed for
+  Stress (`Bloom_Wars_Antfarm_Carrier_Hub_v1.md` §11.4, the parked morale/
+  stress axis — currently only speced against losses, mission difficulty,
+  and rest) rather than a new, uncoordinated number. Gives Gladiator a
+  clean two-tier stakes ladder that finally answers the original backlash
+  worry without touching the Ironman design at all: players who want real
+  stakes queue Ironman, players who don't queue the other lobby and still
+  feel something when a match goes badly, they just don't lose the
+  pilot. Open, not answered by the message: how big a Stress hit "mental
+  backlash" is meant to read as relative to a real loss elsewhere in the
+  game (presumably smaller, to keep the two lobbies feeling meaningfully
+  different — but not stated), and whether it's per downed pilot or per
+  match.
+
+  Not scoped, not started — same holding pattern as the rest of this
+  entry: Gladiator waits on more of the campaign being built first. Logged
+  now, per Maxime's own "log this," so the shape and the open questions
+  aren't lost by the time it's picked up.
 - **Character mod kit + map editor** (new, 22 Aug 2026). Maxime: "eventually
   I want to build a character mod kit with the map editor so player can
   make their own shit up." Genuinely well-aligned with a decision already
@@ -1322,6 +1687,75 @@ staying test-build-only.
     built.
   Not scoped or started — flagging the fit and the two open questions now
   so they're on record, not proposing to build any of this yet.
+
+  **Update, 26 Aug 2026 — the full shape arrives: hub, mission, character,
+  and story, unified under one ambition.** Maxime, in a single back-to-back
+  exchange: "player should be able to design their own carrier hub, and
+  living space. make their own mission, create their own dude. make their
+  own story with what we are giving them." Then, asked directly whether a
+  Hub editor means personal decoration or a real level editor, and whether
+  a built hub is private or shareable: "as much freedom of expression as
+  possible." That answers both questions the same way — not a narrow menu
+  of options, the actual Warcraft-3/Creation-Kit-style ambition this
+  entry's own opening line already pointed at ("player can make their own
+  shit up"), now stated as a governing principle rather than left implied.
+
+  Four pillars, not one, and worth being honest that three of them already
+  exist somewhere in this project — this is the moment they get named as
+  parts of the same thing instead of separate asks:
+
+  1. **Character creation.** Already fully designed —
+     `Bloom_Wars_Character_Editor_v1.md`, "design pass only, zero code, per
+     Maxime's own explicit call," prototyped hands-on in `pilot_creator.html`.
+  2. **Mission/map creation.** Already designed in tiers, GDD §13,
+     "Post-launch: a scenario editor," reasoned from Warcraft 3's own
+     precedent by name ("the game's architecture exposed to the player").
+     Tier 1 (terrain/placement, deploy zones, unit drops, objective picker)
+     is locked "Yes, commit — if [data-first] holds." Tier 2 (event →
+     condition → action triggers) is locked "Later," flagged as "the real
+     WC3 value proposition and the real engineering lift."
+  3. **Hub/living-space creation.** Brand new, first named the day before
+     this update, no design doc yet. Worth naming the concrete evidence
+     rather than treating this as hypothetical: `Hub.ts`, built this same
+     session, hardcodes its room shape and NPC roster as literal TypeScript
+     constants (`ROOM`, `NPC_SEED`, a hand-placed positions array) — hits
+     the exact same data-format wall as the other two pillars, today, in
+     code that already exists.
+  4. **"Make their own story with what we're giving them."** This is GDD
+     §13 Tier 2 by another name — the trigger/event layer is what turns a
+     placed mission into an authored story instead of just a populated
+     map, using the same building blocks the real campaign already runs
+     on (mission events, the Hub's own message-propagation system built
+     this session, Favorability once it exists for real). Already on
+     record as the tier with the highest value *and* the highest cost.
+
+  **Being straight about size, since "as much freedom of expression as
+  possible" deserves an honest answer, not just a nod.** This is the
+  single biggest ambition on record for this project — bigger than any one
+  system discussed so far. The closest real analogues — Warcraft 3's World
+  Editor, Skyrim's Creation Kit, Baldur's Gate 3's toolset — all shipped
+  years after their respective base games, built by dedicated tooling
+  teams, and are a real part of why those specific games still have active
+  communities a decade-plus later. That's the right company for this idea
+  to keep, not a reason to shrink it — but it earns a plain, undramatic
+  statement of scale rather than a quiet nod along.
+
+  **The one shared unlock, named three separate times now in three
+  different places, converges into a single first step.** Character
+  Editor doc §6, this entry's own "Data format for moddability" bullet
+  above, and pillar 3 above (`Hub.ts`, today) all independently hit the
+  identical wall: the data any of this would need to edit — units, meks,
+  maps, the Hub's own NPC/room layout — lives in compiled TypeScript,
+  which needs a recompile to change. None of the four pillars is buildable
+  for a real player until that becomes a runtime-loadable format (JSON or
+  similar) instead. Whichever pillar gets picked up first, that migration
+  is the actual first engineering step, not any one editor's own UI.
+
+  Not scoped, not started — behind the same hard-loop-first sequencing
+  rule as everything else in this bucket, and now the single largest thing
+  waiting behind it. Worth a real conversation, whenever it's time, about
+  which pillar goes first rather than trying to design or build all four
+  at once.
 - **Maps/engine as a lightweight TTRPG virtual tabletop** (new, 22 Aug
   2026). Maxime: "if they can play their ttrpg on my maps and engine, itl
   be pretty cool" — a follow-on from the mod-kit idea above, but worth

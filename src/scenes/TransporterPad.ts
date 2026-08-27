@@ -69,9 +69,12 @@ export const ACT1_DEPLOY_CAP = 5;
 
 /**
  * Act II's own deploy cap (25 Aug 2026, batch 2 / Mission 13 "New Colors,
- * Old Wounds" — the campaign doc's own §10 squad-scaling table, "5-8
- * deploy out of 10," now actually built rather than just referenced by
- * ACT1_DEPLOY_CAP's own comment). No enforced minimum — nothing in this
+ * Old Wounds"; raised 26 Aug 2026 from 8 to 10 — Maxime's original intent,
+ * clarified in chat, was a full 10-pilot Act II deploy, not an 8-of-10
+ * composition choice. That means the Transporter Pad picker no longer
+ * appears at all in Act II (showPicker needs activePilotIds.length >
+ * deployCap, and roster size now equals the cap) — same "no real choice
+ * yet" shape Act I has always had. No enforced minimum — nothing in this
  * screen or canLaunchMission checks for "at least 5"; the only hard floor
  * is the existing "at least one active, living Munti" gate, same as Act I.
  * Deploying fewer than the max is a real, allowed choice (a smaller squad
@@ -79,19 +82,24 @@ export const ACT1_DEPLOY_CAP = 5;
  * purpose rather than inventing a second validation rule nothing has asked
  * for yet.
  */
-export const ACT2_DEPLOY_CAP = 8;
+export const ACT2_DEPLOY_CAP = 10;
 
 /**
- * Act III's own deploy cap (25 Aug 2026, same-day correction, batch 5) —
- * set once the Third Lance made a real 15-pilot roster exist (Maxime:
- * "1 lance act 1, then 2 lance, act 2 tthen 3 act 3... to go with the
- * rank incrase of MC and the difficulty spike"; then, on the cap itself,
- * "fine tune mission for it"). 12, not the full 15 — same "genuine
- * subset, not everyone" shape as ACT2_DEPLOY_CAP's own 8-of-10, and
- * lands inside the campaign doc's own §10 "typical deploy 8-12" range
- * for Act III rather than picking a number that range doesn't cover.
+ * Act III's own deploy cap (25 Aug 2026, same-day correction, batch 5, set
+ * to 12; raised 26 Aug 2026 to 15 — same correction as ACT2_DEPLOY_CAP
+ * above, Maxime's original intent was the full 15-pilot roster deploying,
+ * not a 12-of-15 composition choice). Same picker-disappears consequence
+ * as Act II: with the cap equal to the full roster, showPicker never fires
+ * for Act III either. One live wrinkle this doesn't touch: Mission 26
+ * (The Cradle Beneath) keeps its own smaller hardcoded squad in
+ * campaignAmaranth.ts because its map corridor gridlocks 12+ units — but
+ * this cap is what the Transporter Pad itself enforces for a real player,
+ * and it was already 12 (above that mission's safe size) before this
+ * change; raising it to 15 makes an over-large Mission 26 deploy easier
+ * for a player to accidentally pick, not something this pass newly causes.
+ * Worth a per-mission cap override if that turns out to matter in practice.
  */
-export const ACT3_DEPLOY_CAP = 12;
+export const ACT3_DEPLOY_CAP = 15;
 
 /**
  * Resolves which deploy cap applies to a given mission id. Team One's own

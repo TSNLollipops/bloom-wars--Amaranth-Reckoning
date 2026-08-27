@@ -51,9 +51,11 @@
 // active CampaignState, or have Mission accept resolved PilotRecords
 // directly instead of ids) but is out of scope here.
 import type { MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
+import type { Stage } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "../data/campaignAmaranth";
 import { findPilot } from "../data/pilotRegistry";
+import type { SocialLogEntry } from "../data/verbs";
 import type { BattleUnit } from "./units";
 
 // ---- 4. Campaign-persistent roster state ----------------------------
@@ -69,6 +71,19 @@ export type PilotStatus = "active" | "permanently_lost";
 // deliberately a three-value union rather than a generic rank system.
 export type Rank = "2nd_lt" | "capt" | "maj";
 
+// Social Sim Roadmap #5's own note on rourkeRank, 27 Aug 2026 (later
+// pass): a small "Capt. Rourke"/"Maj. Rourke" readout in the Hub UI needs
+// a display string for a Rank value — WARDEN_PILOTS' own
+// `displayName: "2nd Lt. Dessa Rourke — ..."` bakes her STARTING rank in
+// as a static string (campaignAmaranth.ts), which is exactly why
+// Hub.ts's buildPlayer() already has its own note about not trusting that
+// string for anything rank-related once it can actually change. This is
+// the live counterpart — pure, testable, no Phaser — used by Hub.ts to
+// build the readout off the real, current rourkeRank instead.
+export function rankDisplayTitle(rank: Rank): string {
+  return rank === "2nd_lt" ? "2nd Lt." : rank === "capt" ? "Capt." : "Maj.";
+}
+
 export interface CampaignPilotEntry {
   pilot: PilotRecord; // a campaign-owned copy — pilot.tier is this pilot's live, campaign-persistent gear tier (rule 4: "an active pilot's tier can change between missions via existing gear-tier-purchase logic")
   status: PilotStatus;
@@ -81,6 +96,12 @@ export interface CampaignPilotEntry {
   // lost — see applyPermadeathCheck below. Distinct from
   // CampaignState.points, which is the company-wide shared pool.
   personalPoints: number;
+  // Hub social state (Antfarm) — section 11 below. Optional because every
+  // CampaignPilotEntry created before 26 Aug 2026's persistence pass (and
+  // every generated recruit, who has never set foot in the Hub) has none;
+  // ensureHubSocialState() is the only thing that ever creates one, lazily,
+  // the first time Hub.ts actually asks for a given pilot's social state.
+  social?: HubPilotSocialState;
 }
 
 export interface CampaignState {
@@ -135,6 +156,12 @@ export interface CampaignState {
   // attempt" is this field's normal resting state for most of a campaign,
   // not an edge case to paper over.
   activeMissionAttempt?: ActiveMissionAttempt;
+  // Section 12 below (26 Aug 2026) — persistent NPC-to-NPC bonds and
+  // pairing, for the background social-sim harness. Optional for the same
+  // reason `social` on CampaignPilotEntry is: every save from before this
+  // date, and every fresh createCampaignState() call, has none yet;
+  // ensureNpcSocialState() is the only thing that ever creates it.
+  npcSocial?: NpcSocialState;
 }
 
 /** One in-flight mission attempt's real-world start time. `startedAt` is a `Date.now()` epoch-ms snapshot — deliberately real, wall-clock time, not a game-turn count (house rule #5 already covers in-mission turn pressure; this is a different axis entirely, "how long has Command been waiting on you," not "how many turns did the fight take"). */
@@ -193,14 +220,23 @@ export function saveCampaignState(state: CampaignState, storage?: CampaignStorag
   s.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-/** Basic load. Returns null on no storage, no saved value, or a value that fails to parse (a corrupt/foreign localStorage entry should read as "no save," not crash the game). */
+/**
+ * Basic load. Returns null on no storage, no saved value, or a value that
+ * fails to parse (a corrupt/foreign localStorage entry should read as "no
+ * save," not crash the game). 27 Aug 2026: also runs backfillRourkeRank
+ * (section 8a below) on the way out — a pure in-memory correction, not an
+ * extra write to storage — so every scene's normal load path self-heals a
+ * save whose rourkeRank never got updated by an older build.
+ */
 export function loadCampaignState(storage?: CampaignStorage): CampaignState | null {
   const s = resolveStorage(storage);
   if (!s) return null;
   const raw = s.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as CampaignState;
+    const state = JSON.parse(raw) as CampaignState;
+    backfillRourkeRank(state);
+    return state;
   } catch {
     return null;
   }
@@ -545,11 +581,22 @@ export interface SecondLanceResult {
  * the same browser session (a retry, a reload) never gets five duplicate
  * entries — matches this codebase's existing "check the actual state,
  * don't assume a screen renders exactly once" discipline.
+ *
+ * 27 Aug 2026 addendum: also sets state.rourkeRank to "capt" — this
+ * function's own doc comment above already cited "Rourke's promotion to
+ * Captain" as landing on this exact beat, but nothing ever actually wrote
+ * the rank until now (found while building the "Hello, Sir" rank-greeting
+ * mechanic; see CO_BONUS_BY_RANK's own comment in campaignEconomy.ts,
+ * which has been reading rourkeRank, unchanging, since 22 Aug). Only runs
+ * on the `integrated: true` path, so it can't refire on a repeat visit —
+ * see deriveRourkeRank/backfillRourkeRank below for the companion fix that
+ * catches a save that already passed this beat before this line existed.
  */
 export function integrateSecondLance(state: CampaignState): SecondLanceResult {
   if (state.pilots[SECOND_LANCE_PILOTS[0].id]) return { integrated: false };
   for (const p of SECOND_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
+  state.rourkeRank = "capt";
   return { integrated: true, pilots: SECOND_LANCE_PILOTS };
 }
 
@@ -578,12 +625,82 @@ export interface ThirdLanceResult {
  * trigger relative to its act boundary is not a mismatch: Mission 24 IS
  * Act II's finale, exactly as Mission 12 is Act I's, so both lances
  * integrate on "the previous act's own last mission, won."
+ *
+ * 27 Aug 2026 addendum: also sets state.rourkeRank to "maj" — same fix,
+ * same reasoning, as integrateSecondLance's own addendum above (this
+ * function's doc comment already cited the Major promotion; nothing ever
+ * wrote it). See deriveRourkeRank/backfillRourkeRank below.
  */
 export function integrateThirdLance(state: CampaignState): ThirdLanceResult {
   if (state.pilots[THIRD_LANCE_PILOTS[0].id]) return { integrated: false };
   for (const p of THIRD_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(THIRD_LANCE_MEKS)) state.meks[id] = { ...m };
+  state.rourkeRank = "maj";
   return { integrated: true, pilots: THIRD_LANCE_PILOTS };
+}
+
+// ---- 8a. Rourke rank correctness backfill (27 Aug 2026 — same-day
+// discovery while building the "Hello, Sir" rank-greeting mechanic) -------
+//
+// CampaignState.rourkeRank was initialized to "2nd_lt" in
+// createWardenCampaignState above and read every mission by
+// campaignEconomy.ts's computeCoBonus (CO_BONUS_BY_RANK[state.rourkeRank])
+// — but nothing in this codebase ever WROTE it, despite
+// integrateSecondLance/integrateThirdLance's own doc comments already
+// citing Rourke's promotions to Captain/Major as exactly the beats those
+// two functions fire on. Cross-checked against three separate design docs
+// (Bloom_Wars_Rank_And_Command_v1.md, Bloom_Wars_Crew_Banter_Phrase_Bank_v1.md,
+// Bloom_Wars_Antfarm_Carrier_Hub_v1.md §12) — all three independently state
+// the same locked schedule (Capt. at Mission 12, Maj. at Mission 24) and
+// all three flag it "paper only, nothing here is built."
+//
+// integrateSecondLance/integrateThirdLance above are now fixed to set the
+// rank themselves at the exact moment they fire — that covers every
+// campaign played from here on. This section is the second half: a save
+// that already passed Mission 12 or 24 before this fix existed has the
+// lance pilots sitting in its roster but never got the rank bump, and
+// would otherwise stay stuck at "2nd_lt" forever, since those two
+// functions are idempotent and will never fire again for a roster that
+// already has their pilots in it.
+//
+// deriveRourkeRank reads the exact same roster-presence signal
+// integrateSecondLance/integrateThirdLance already treat as source of
+// truth (has the lance's first pilot id been added yet), so it can never
+// disagree with them, and it only ever moves rank forward — there's no
+// un-integrate path anywhere in this codebase, so "derived rank went
+// down" can't happen. backfillRourkeRank is wired into loadCampaignState
+// below, so every scene's normal load path self-heals an old save the
+// first time it's opened after this fix, with no separate migration step
+// or save-format version bump needed.
+
+/**
+ * What Rourke's rank SHOULD be, purely from current roster composition —
+ * Third Lance present means Mission 24 (Two Fires, Act II's own finale)
+ * was already won, which the Independent Campaign doc calls "Rourke
+ * promoted to Major"; Second Lance present (without Third) means Mission
+ * 12 (the Fallow Line, Act I's own finale) was won, "Rourke's promotion to
+ * Captain." Neither present: still the starting 2nd Lt. Exported for the
+ * same reason every other pure check in this file is — unit-testable
+ * without touching localStorage, Phaser, or a live Mission.
+ */
+export function deriveRourkeRank(state: CampaignState): Rank {
+  if (state.pilots[THIRD_LANCE_PILOTS[0].id]) return "maj";
+  if (state.pilots[SECOND_LANCE_PILOTS[0].id]) return "capt";
+  return "2nd_lt";
+}
+
+/**
+ * Mutates state.rourkeRank in place to match deriveRourkeRank, if it
+ * doesn't already — see the section header above for why this exists and
+ * why it's safe to run unconditionally on every load. A no-op the
+ * overwhelming majority of the time (any campaign played entirely after
+ * this fix already has the right rank set by integrateSecondLance/
+ * integrateThirdLance themselves); only actually corrects anything for a
+ * save that predates this pass.
+ */
+function backfillRourkeRank(state: CampaignState): void {
+  const derived = deriveRourkeRank(state);
+  if (state.rourkeRank !== derived) state.rourkeRank = derived;
 }
 
 // ---- 9. Mission real-time clock (25 Aug 2026) ---------------------------
@@ -681,4 +798,175 @@ export function applyMissionTimeout(state: CampaignState, now: number): MissionT
 // is unconditional by design, not a check.
 export function applyCommanderDownAttempt(state: CampaignState): void {
   state.activeMissionAttempt = undefined;
+}
+
+// ---- 11. Hub social state — persistent Favorability/Stress/Morale/
+// relationship/social-log (26 Aug 2026) ----
+//
+// Closes the gap Hub.ts's own file header flagged from the day the Antfarm
+// shipped: "this scene uses LOCAL, scene-only pilot state for Stress/
+// Morale/drunk/catalyst and for Favorability... none of it reads from or
+// writes to CampaignState/PilotRecord." Maxime picked this over three other
+// options (a Phase 4 design doc, closing a different flagged gap, or
+// something else) when asked "go next" after the Iyari romanceable bug fix
+// — "Persistent hub state (Recommended)."
+//
+// Deliberately NOT everything Hub.ts tracks locally. Two exclusions, both
+// on purpose, not an oversight:
+//   - ambient.drunk stays scene-only. There is no "sober up" mechanic
+//     anywhere in the game — shareADrink sets it true and nothing ever sets
+//     it back false. Persisting it would turn a transient scene effect into
+//     a permanent one-way flag the instant a player shares one drink, which
+//     is a real behavior change, not a neutral persistence upgrade.
+//   - ambient.catalyst stays scene-only too, but for a different reason:
+//     it's fixed per-pilot identity data (NPC_SEED's own placeholder pick,
+//     e.g. Bosk = raven), not state that changes over a campaign. NPC_SEED
+//     already reconstructs the same value every load; there's nothing to
+//     persist because nothing about it ever moves.
+//
+// Favorability/socialLog/inRelationship ARE actively mutated today (six
+// call sites in Hub.ts: shareADrink, askOut's three branches, and the
+// three minigame-finish methods). Stress/Morale are included too even
+// though nothing currently writes them — this gives them a real persisted
+// home now, rather than leaving a second migration to do later once some
+// future Stress-relief verb (CO Check-in, Phase 3+, per verbs.ts's own
+// VerbOutcome comment) actually needs one.
+//
+// drunkUntil, 26 Aug 2026 — added the same day the "no sober-up mechanic"
+// exclusion above was written, once Maxime gave drunk one: "drunk should
+// last for a bit." That's exactly the missing piece the original exclusion
+// was waiting on — with a real expiry, persisting it stopped being "makes
+// a transient effect permanent" and became "makes a temporary effect
+// survive a reload correctly," so it moved from excluded to included.
+// Epoch ms (Date.now()), same clock as SocialLogEntry.at; undefined means
+// not drunk. Hub.ts derives HubNpc.ambient.drunk from whether this is
+// still in the future — see buildNpcs() and the new updateDrunkExpiry().
+export interface HubPilotSocialState {
+  favorability: number;
+  stress: number;
+  morale: number;
+  inRelationship: boolean;
+  socialLog: SocialLogEntry[];
+  drunkUntil?: number;
+  // Stage-promotion "graduation" reveal, 27 Aug 2026 — see
+  // data/ambientLines.ts's detectStagePromotion and Hub.ts's buildNpcs()/
+  // speak()/ackStagePromotion for the full design. Records the last Stage
+  // this pilot's promotion was actually surfaced to the player for, so a
+  // real stage change (buildNpcs() compares this against the pilot's
+  // current live-tier-derived stage every load) can be told apart from
+  // "nothing changed" or "an old save that predates this field entirely."
+  // Undefined means neither has happened yet — buildNpcs() backfills it to
+  // the CURRENT stage the first time it sees that, rather than assuming a
+  // promotion is pending for a change that may have happened before this
+  // feature ever shipped.
+  lastAcknowledgedStage?: Stage;
+  // "Hello, Sir" rank-deference greeting, 27 Aug 2026 (Maxime's wishlist:
+  // "plugging in Hello, SIr from lower ranked to higher rank"). Same shape
+  // as lastAcknowledgedStage just above, one axis over: records the last
+  // rourkeRank this pilot's deference line was actually surfaced for, so
+  // buildNpcs() can tell a real promotion from "nothing changed" or "an old
+  // save predating this field." See data/ambientLines.ts's
+  // detectRankPromotion and Hub.ts's ackRankGreeting for the rest of the
+  // design — deliberately its own field rather than reusing
+  // lastAcknowledgedStage, since Rourke's rank and a pilot's own Stage are
+  // two independent axes (a pilot's gear tier says nothing about whether
+  // THEY'VE personally clocked Rourke's latest promotion).
+  lastAcknowledgedRourkeRank?: Rank;
+}
+
+/**
+ * Pure-ish evaluate/apply-style helper, same family as
+ * evaluatePermadeathCheck/evaluateMissionTimeout above, except this one
+ * legitimately writes on a miss: state.pilots[pilotId].social is created,
+ * seeded from `seed`, and attached to the entry the FIRST time this is
+ * called for a given pilot (a brand-new campaign, or an old save from
+ * before 26 Aug 2026) — every call after that just hands back the same
+ * object already sitting there. Hub.ts's buildNpcs() calls this once per
+ * seeded NPC and keeps the returned object's array (socialLog) as the
+ * exact array HubNpc.socialLog points at, so a push into one is a push
+ * into the other with no separate sync step; favorability/stress/morale/
+ * inRelationship are plain numbers/booleans copied by value, so Hub.ts's
+ * persistNpcSocial() re-copies those back in after every mutation, right
+ * before calling saveCampaignState.
+ *
+ * Fails open for a pilotId with no CampaignPilotEntry at all (shouldn't
+ * happen for the three currently-seeded Hub NPCs — all real WARDEN_PILOTS
+ * ids — but Hub.ts's own WARDEN_PILOTS.find() fallback already treats a
+ * missing pilot as "fail open to something harmless" rather than throwing,
+ * so this matches): hands back a fresh, unattached HubPilotSocialState
+ * instead of throwing. It just won't be there to reload next time, since
+ * there's no CampaignPilotEntry to hang it off of.
+ */
+export function ensureHubSocialState(
+  state: CampaignState,
+  pilotId: string,
+  seed: { favorability: number; stress: number; morale: number }
+): HubPilotSocialState {
+  const entry = state.pilots[pilotId];
+  if (!entry) {
+    return { favorability: seed.favorability, stress: seed.stress, morale: seed.morale, inRelationship: false, socialLog: [] };
+  }
+  if (!entry.social) {
+    entry.social = { favorability: seed.favorability, stress: seed.stress, morale: seed.morale, inRelationship: false, socialLog: [] };
+  }
+  return entry.social;
+}
+
+// ---- 12. Persistent NPC-to-NPC social state — pairwise bonds and
+// NPC-to-NPC relationship pairing (26 Aug 2026, the background social-sim
+// harness — engine/socialSim.ts) ----
+//
+// npcBonds.ts's own header already drew this axis: HubNpc.favorability
+// (and this file's own HubPilotSocialState.favorability, section 11 above)
+// is a pilot's standing with the PLAYER — every existing verb (Share a
+// Drink, the three minigames, Ask Out) reads and writes THAT number. A
+// "bond" is a different axis entirely: NPC A's standing with NPC B, which
+// has nothing to do with either of their standing with Rourke. Hub.ts's
+// own NPC_BOND_SEED constant is exactly that axis, but scene-local and
+// frozen — seeded once when the Hub scene is built, thrown away when the
+// scene closes, never moved by anything (npcBonds.ts's own header: "seeded
+// once and held fixed... nothing in this file changes a bond value, only
+// reads them"). This section is what makes that axis actually persistent,
+// so a background sim day can move a bond and have the next simulated day
+// — or the next time the Hub scene itself loads — see the result.
+//
+// Deliberately top-level on CampaignState, not nested per-pilot the way
+// section 11 is: a bond belongs to a PAIR, not to either pilot alone, so
+// there's no single CampaignPilotEntry to hang it off the way
+// ensureHubSocialState hangs Favorability off one pilot's own entry.
+// Keyed via npcBonds.ts's own pairKey(idA, idB) — the same sorted-join
+// shape Hub.ts's NPC_BOND_SEED already uses, so a value seeded from that
+// exact constant round-trips through this store with no re-keying step.
+//
+// relationships is the NPC-to-NPC analog of HubPilotSocialState.
+// inRelationship — a list of pairKeys currently "together." Kept as a
+// separate array rather than a boolean per pilot because a pilot's
+// relationship status alone doesn't say WHO they're with, which
+// engine/socialSim.ts needs (to know a pairing already exists before it
+// can ever propose breaking one up — not modeled this pass, see that
+// file's own header).
+export interface NpcSocialState {
+  bonds: Record<string, number>; // pairKey(idA, idB) -> bond value
+  relationships: string[]; // pairKeys currently "together," NPC-to-NPC only — never includes the player
+}
+
+/**
+ * Same "seed once, hand back the same object after" pattern as
+ * ensureHubSocialState above, except there's exactly one of these per
+ * CampaignState rather than one per pilot, so there's no missing-entry
+ * case to fail open on the way ensureHubSocialState does. `seed` is
+ * normally Hub.ts's own NPC_BOND_SEED, passed in by the caller rather than
+ * imported here — this file is plain engine code with no scenes/ import,
+ * same discipline as every other file in this module (see the file's own
+ * header on CampaignPilotEntry.pilot being a full copy rather than an id
+ * resolved through a different layer). A bond pair missing from both the
+ * live state and the seed reads as 0 (npcBonds.ts's own bondValue already
+ * treats an absent key as neutral), so `seed` only matters the very first
+ * time this is called for a given save.
+ */
+export function ensureNpcSocialState(state: CampaignState, seed: Record<string, number> = {}): NpcSocialState {
+  if (!state.npcSocial) {
+    state.npcSocial = { bonds: { ...seed }, relationships: [] };
+  }
+  return state.npcSocial;
 }

@@ -194,6 +194,29 @@ export const FIRE_SUPPORT_RADIUS = 1;
 // were either (Screen/Taunt/Interdict all shipped the same way).
 export const FIRE_SUPPORT_DAMAGE = 60;
 
+// abil_missile (26 Aug 2026) — SOFT pass, see data/abilities.ts's own
+// comment for the full design context (a chat conversation about giving
+// Reeps' ranged attacks "the impression of distance," which turned into a
+// real weapon-path idea: "it's a weapon path. like alternative g-a rank
+// weapon upgrade"). Deliberately NOT wired to any real gear-tier fork or
+// unlock economy yet — "we gonna build the upgrade path later" — these are
+// just the two numbers the mechanic itself needs to run.
+//
+// Chebyshev radius of the blast, centered on the targeted tile — same
+// "3x3 area" convention as INTERDICT_RADIUS/SCREEN_RADIUS/
+// BLOOM_CLEAR_RADIUS/FIRE_SUPPORT_RADIUS above. Unlike those, this one
+// does NOT filter by side — every living unit in radius takes damage,
+// friend or foe (see abil_missile's own comment for why).
+export const MISSILE_SPLASH_RADIUS = 1;
+// Per-unit budget, not squad-shared (contrast FIRE_SUPPORT_CHARGES_PER_MISSION,
+// which is one shared pool for the whole ship) — this is each Reeps' own
+// ordnance. First-pass number, same "not run through combat_sim.py yet"
+// status as every other ability-depth constant in this file — Maxime's own
+// framing ("play around with it") means this is expected to move once
+// there's real play data on how much a friendly-fire-capable AOE is worth
+// per mission.
+export const MISSILE_CHARGES_PER_MISSION = 2;
+
 // Regrowth pacing — first tick, then repeat interval, then how many NEW
 // tiles convert per tick (engine/mission.ts's tickBloomRegrowth). Kept
 // deliberately small and DETERMINISTIC (no Math.random — see that method's

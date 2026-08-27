@@ -161,12 +161,12 @@ export const BLOOM: Record<string, BloomArchetype> = {
   },
   // Independent campaign addition (Amaranth Act III, Mission 35 "The Last
   // Ring" — claude/Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md
-  // §8: "The Cradle (Act 3 final threat) — the source, growing beneath
+  // §8: "The Unnamed (Act 3 final threat) — the source, growing beneath
   // Meridian, emergent-tier, the campaign's true final boss, largest
   // Endurance wall in the campaign, built to make the Collapse rule do
   // maximum horror work." Same lineage as bloom_heartwood — same
   // weaponType/movementType/perception/intelligence, i.e. this campaign's
-  // reading of "the Cradle" is "what the Heartwood becomes at the actual
+  // reading of "the Unnamed" is "what the Heartwood becomes at the actual
   // source" rather than an unrelated new creature, same relationship
   // bloom_choir already has to bloom_sirenmaw. Every stat pushed past
   // Heartwood's own: END 400->560 (+40%, the same escalation ratio Choir
@@ -185,9 +185,17 @@ export const BLOOM: Record<string, BloomArchetype> = {
   // not inventing one). See this mission's own comment in
   // campaignAmaranth.ts for the hold_zone-not-eliminate_all interpretation
   // call this stat block feeds into.
-  bloom_cradle: {
-    id: "bloom_cradle",
-    displayName: "The Cradle",
+  //
+  // Renamed from an earlier working name to "The Unnamed" on 26 Aug 2026
+  // after a cross-project naming collision was caught (the old name is
+  // already load-bearing, locked material on the Qiraki side) — deliberate,
+  // in-fiction irony, not a placeholder: the thing at the heart of a
+  // 36-mission war that command never gets around to properly designating.
+  // Stats, lineage, and mission behavior are all unchanged; only the id,
+  // displayName, and spriteKey moved.
+  bloom_unnamed: {
+    id: "bloom_unnamed",
+    displayName: "The Unnamed",
     weaponType: "concussive",
     movementType: "sessile",
     perception: "seismic",
@@ -200,7 +208,7 @@ export const BLOOM: Record<string, BloomArchetype> = {
     vision: 9,
     onHit: "fx_knockback_1",
     colorPalette: ["#0D0D14", "#7A3AA0", "#8B1E3F"],
-    spriteKey: "bloom_cradle_colossal",
+    spriteKey: "bloom_unnamed_colossal",
   },
 };
 

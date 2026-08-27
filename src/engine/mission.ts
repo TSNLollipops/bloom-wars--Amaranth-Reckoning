@@ -47,6 +47,8 @@ import {
   FIRE_SUPPORT_CHARGES_PER_MISSION,
   FIRE_SUPPORT_RADIUS,
   FIRE_SUPPORT_DAMAGE,
+  MISSILE_SPLASH_RADIUS,
+  MISSILE_CHARGES_PER_MISSION,
   PROTECT_ASSET_DEFAULT_MAX_HP,
   PROTECT_ASSET_TICK_DAMAGE,
 } from "../data/combatTables";
@@ -1582,6 +1584,183 @@ export class Mission {
       `${unit.displayName} calls in fire support on (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${this.fireSupportChargesRemaining} charge(s) left).`
     );
     for (const victim of hit) if (victim.downed) this.handleDowned(victim);
+    return { hitIds: hit.map((u) => u.instanceId), killedIds };
+  }
+
+  // ---- abil_missile (26 Aug 2026, SOFT pass) — see data/abilities.ts's
+  // own comment for the full design context. Same canX()/getX()/verb shape
+  // as fireSupport just above (target a tile, not a unit), but the
+  // resource is per-unit (mirrors sensorSweepUsesRemaining, NOT
+  // fireSupportChargesRemaining) and the damage runs through the ordinary
+  // per-target combat formula instead of a flat off-board number — this is
+  // a Reeps' own weapon, not a called-in strike.
+
+  /** Charges of abil_missile this unit has left this mission. Exposed for the HUD. Undefined reads as a full, unspent budget — see missileUsesRemaining's own comment in engine/units.ts. */
+  missileChargesRemaining(unitId: string): number {
+    const unit = this.unitById(unitId);
+    if (!unit) return 0;
+    return unit.missileUsesRemaining ?? MISSILE_CHARGES_PER_MISSION;
+  }
+
+  canMissileStrike(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_missile")) return false;
+    if (this.missileChargesRemaining(unitId) <= 0) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every in-bounds tile this unit could target a missile at, from its
+   * current position — its own attackRange (this is the unit's own
+   * weapon, not an off-board asset the way Fire Support is, so it uses the
+   * same range a normal attack would), enumerated as a click target set
+   * the same way getFireSupportAreaFrom is. No vision/LOS check here,
+   * matching attack()/resolveAttack's own shape — fog-of-war targeting
+   * restrictions live in scenes/Battle.ts's rendering layer, same as for a
+   * normal attack, not in this engine-level enumeration.
+   */
+  getMissileAreaFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canMissileStrike(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const [minR, maxR] = unit.attackRange;
+    const tiles: Coord[] = [];
+    for (let y = Math.max(0, from.y - maxR); y <= Math.min(this.map.height - 1, from.y + maxR); y++) {
+      for (let x = Math.max(0, from.x - maxR); x <= Math.min(this.map.width - 1, from.x + maxR); x++) {
+        const d = chebyshevDistance(from, { x, y });
+        if (d >= minR && d <= maxR) tiles.push({ x, y });
+      }
+    }
+    return tiles;
+  }
+
+  /**
+   * Fire a missile at `target`: every living unit within
+   * MISSILE_SPLASH_RADIUS (Chebyshev) of that tile takes damage through
+   * the ordinary per-target combat formula — resolveMechAttack for a
+   * mech-shape target, resolveAttackOnBloom for a Bloom-shape one, exactly
+   * the branches resolveAttack() uses for a normal attack, just run once
+   * per unit caught in the blast instead of once against a single chosen
+   * defender. Deliberately NOT filtered by side (see abilities.ts's own
+   * comment) — this is the one attack in the game that can hit its own
+   * caster's side. The caster itself is excluded even if it would
+   * otherwise be in radius of its own shot; friendly fire means allies
+   * near the target, not the launcher blowing itself up.
+   *
+   * The one exception to "not filtered by side": a splash victim's
+   * COUNTER, if it would land on the caster and the victim is on the
+   * caster's own side, is suppressed (26 Aug 2026, Maxime: "the counter
+   * shouldnt be ff able") — see the friendlyCounter check inline, below.
+   * The primary hit still lands on a friendly victim same as ever; it just
+   * doesn't shoot back at whoever cast it.
+   *
+   * Each hit reuses recordPerformance() (built from a synthetic
+   * AttackOutcome per target) so campaign-economy crediting — damage,
+   * kills, assists — works identically to a normal attack, with no
+   * separate bookkeeping path to drift out of sync. One consequence worth
+   * being explicit about, not a bug: resolveMechAttack scales damage by
+   * attacker.currentHp / attacker.maxHp, so if an early target's counter
+   * downs the caster mid-loop, every target resolved after it takes zero —
+   * the formula already handles "the launcher got destroyed mid-volley"
+   * without any extra guard here.
+   *
+   * Costs this unit's entire remaining action budget and ends the turn,
+   * and spends one of THIS unit's own MISSILE_CHARGES_PER_MISSION charges
+   * (contrast fireSupportChargesRemaining, one shared squad-wide pool) —
+   * regardless of how many units the blast actually hits, including zero,
+   * same "a wasted call still costs you" rule fireSupport already has.
+   */
+  missileStrike(unitId: string, target: Coord): { hitIds: string[]; killedIds: string[] } | null {
+    if (!this.canMissileStrike(unitId)) return null;
+    const attacker = this.unitById(unitId)!;
+    const d = chebyshevDistance(attacker.pos, target);
+    if (d < attacker.attackRange[0] || d > attacker.attackRange[1]) return null;
+
+    const hit = this.livingUnits().filter(
+      (u) => u.instanceId !== attacker.instanceId && chebyshevDistance(u.pos, target) <= MISSILE_SPLASH_RADIUS
+    );
+    const killedIds: string[] = [];
+
+    for (const victim of hit) {
+      const sameSideAsVictim = this.units.filter((u) => u.side === victim.side);
+      const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
+      let outcome: AttackOutcome;
+
+      if (victim.kind !== "bloom") {
+        // Correction (26 Aug 2026, Maxime): "splash shouldn't be dodgable."
+        // MEEPS_DODGE_CHANCE models a Meeps reading an aimed shot and
+        // stepping out of its path — that doesn't hold for an explosion
+        // already covering the whole blast tile, so victimDodged is
+        // deliberately hardcoded false here, NOT rolled the way a normal
+        // attack (resolveAttack, just above) rolls it. The counter-dodge
+        // stays a real roll: a surviving victim's counter-shot back at the
+        // attacker is its own aimed, single-target hit, not part of the
+        // splash, so the attacker can still juke it same as any other
+        // counter.
+        const victimDodged = false;
+        const attackerDodgedCounter = rollMeepsDodge(attacker, victim);
+        const r = resolveMechAttack(
+          this.map,
+          attacker,
+          victim,
+          sameSideAsVictim,
+          sameSideAsAttacker,
+          attacker.chargedThisMove,
+          victimDodged,
+          attackerDodgedCounter
+        );
+        applyMechDamage(victim, r.damage);
+        // Correction (26 Aug 2026, Maxime): "the counter shouldnt be ff
+        // able." resolveMechAttack computes r.countered purely off
+        // canCounter + counterMaxRange, with no idea a splash victim might
+        // be on the CASTER'S OWN side — it can't, that's a mission.ts-level
+        // fact. A friendly unit caught in your own blast still visibly
+        // takes the primary splash damage (that part's the whole point of
+        // "no friendly fire unless the dude has missile"), it just doesn't
+        // shoot back at the person who cast it. Gated here, at the
+        // application layer, same shape as the dodge fix just above —
+        // combat.ts's own formula stays untouched and still returns the
+        // "would a normal 1-v-1 attack have drawn a counter here" answer,
+        // this call site just declines to apply it when the answer would
+        // mean an ally countering their own caster.
+        const friendlyCounter = r.countered && victim.side === attacker.side;
+        if (r.countered && r.counterDamage !== undefined && !friendlyCounter) {
+          applyMechDamage(attacker, r.counterDamage);
+        }
+        outcome = {
+          attackerId: unitId,
+          defenderId: victim.instanceId,
+          damage: r.damage,
+          countered: r.countered && !friendlyCounter,
+          counterDamage: friendlyCounter ? undefined : r.counterDamage,
+          defenderDowned: victim.downed,
+          attackerDowned: attacker.downed,
+          defenderDodged: r.dodged,
+          counterDodged: friendlyCounter ? undefined : r.counterDodged,
+        };
+      } else {
+        const r = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove);
+        applyBloomDamage(victim, r.damage);
+        outcome = { attackerId: unitId, defenderId: victim.instanceId, damage: r.damage, countered: false, defenderDowned: victim.downed };
+      }
+
+      this.recordPerformance(attacker, victim, outcome);
+      if (outcome.defenderDowned) killedIds.push(victim.instanceId);
+    }
+
+    const chargesLeft = this.missileChargesRemaining(unitId) - 1;
+    attacker.missileUsesRemaining = chargesLeft;
+    attacker.actionsRemaining = 0;
+    // Firing gives your position away, same as any other attack (see
+    // resolveAttack's identical line) — a missile launch is not stealthy.
+    attacker.concealed = false;
+    this.log.push(
+      `${attacker.displayName} fires a missile at (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${chargesLeft} charge(s) left).`
+    );
+
+    for (const victim of hit) if (victim.downed) this.handleDowned(victim);
+    if (attacker.downed) this.handleDowned(attacker);
     return { hitIds: hit.map((u) => u.instanceId), killedIds };
   }
 

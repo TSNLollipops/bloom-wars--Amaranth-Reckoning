@@ -279,6 +279,59 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // The Heirloom. See engine/combat.ts SEVERANCE and Data Pack §11.5.
     // Not attached to any archetype — it belongs to the Party.
   },
+  abil_missile: {
+    id: "abil_missile",
+    displayName: "Missile",
+    kind: "active",
+    // Reeps — 26 Aug 2026, from a chat conversation about giving ranged
+    // attacks an actual "impression of distance" rather than every hit
+    // resolving in the same instant regardless of range. SOFT pass, per
+    // Maxime's own framing: "it's a weapon path. like alternative g-a rank
+    // weapon upgrade." — meaning the real way a Reeps gets this is meant to
+    // be a fork in the gear-tier ladder (data/combatTables.ts TIERS: take
+    // the next tier's stat bump, OR branch into missiles instead), which
+    // is explicitly NOT built here — "we gonna build the upgrade path
+    // later." This pass only makes the mechanic itself real: nothing
+    // grants abil_missile to any archetype or pilot yet (same bootstrap
+    // state abil_fire_support was in before Mission 14 existed to grant
+    // it) — attach it to a unit by hand (its abilities array, or a
+    // mission's bonusAbilityUnlocks, the same mechanism Taunt/Fire Support
+    // already use) to play with it via npm run sim.
+    //
+    // Effect: instead of a normal attack, target any tile within this
+    // unit's own attackRange. Every living unit within
+    // MISSILE_SPLASH_RADIUS (data/combatTables.ts) of that tile takes
+    // damage through the ordinary per-target combat formula
+    // (resolveMechAttack / resolveAttackOnBloom — same math a normal
+    // attack uses, just run once per unit caught in the blast) — NOT the
+    // flat, hostile-only, no-retaliation model abil_fire_support uses,
+    // because this is the Reeps' own weapon, scaled by its own stats, not
+    // an off-board call-in. Confirmed explicitly, not assumed, in the same
+    // conversation: "no friendly fire unless the dude has missile. missiles
+    // will be aoe splash at range." — an ordinary Reeps shot stays single-
+    // target and clean; missile is the one thing in the game that can hit
+    // your own side, same "doesn't check sides" family as abil_severance,
+    // but tuned as a real, balance-adjustable weapon rather than a fixed
+    // Heirloom-tier ultimate.
+    //
+    // Counters are NOT special-cased — resolveMechAttack's own counter
+    // check (attacker within the DEFENDER's counterMaxRange) runs
+    // per-target exactly as it would for a normal attack, so anyone caught
+    // in the blast who's actually adjacent to the caster can still counter
+    // it back, same as always. And because that same formula scales
+    // damage by attacker.currentHp / attacker.maxHp, a mid-blast counter
+    // that downs the caster automatically zeroes out every target resolved
+    // after it in that same splash — no extra guard needed for "the
+    // launcher got destroyed mid-volley."
+    //
+    // Cost: this unit's entire remaining action budget, ends the turn —
+    // same tier as Ambush/Interdict/Taunt/Fire Support. Charges are
+    // PER-UNIT, not squad-shared (mirrors sensorSweepUsesRemaining exactly,
+    // NOT fireSupportChargesRemaining) — this is each Reeps' own ordnance,
+    // not one ship's radio. MISSILE_CHARGES_PER_MISSION (data/
+    // combatTables.ts) per mission. Firing breaks concealment (abil_ambush/
+    // abil_screen), same as any other attack.
+  },
   abil_fire_support: {
     id: "abil_fire_support",
     displayName: "Fire Support",

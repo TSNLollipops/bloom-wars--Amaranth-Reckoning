@@ -22,10 +22,16 @@ import {
   applyMissionTimeout,
   MISSION_REAL_TIME_LIMIT_MS,
   DISCRETIONARY_RECRUIT_COST,
+  ensureHubSocialState,
+  ensureNpcSocialState,
+  integrateSecondLance,
+  integrateThirdLance,
+  deriveRourkeRank,
+  rankDisplayTitle,
   type CampaignStorage,
 } from "../campaignState";
 import { testUnit } from "./testHelpers";
-import { WARDEN_PILOTS, WARDEN_MEKS } from "../../data/campaignAmaranth";
+import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS } from "../../data/campaignAmaranth";
 
 describe("createCampaignState / createWardenCampaignState", () => {
   it("seeds every pilot as active, at the record's own tier, and copies rather than aliases the static rows", () => {
@@ -445,5 +451,358 @@ describe("evaluateMissionTimeout / applyMissionTimeout — the 12-hour real-time
     const loaded = loadCampaignState(storage);
     expect(loaded).not.toBeNull();
     expect(evaluateMissionTimeout(loaded!, Date.now()).timedOut).toBe(false);
+  });
+});
+
+// Section 11 (26 Aug 2026) — the Hub's persistent Favorability/Stress/
+// Morale/relationship/social-log. Hub.ts's buildNpcs() and
+// persistNpcSocial() are the real callers (a live Phaser scene, not
+// unit-testable here); these pin the pure helper's own contract directly —
+// seed-once, hand-back-the-same-object-after, fails open on a missing
+// entry, and survives the same save/load round trip everything else in
+// this file does.
+describe("ensureHubSocialState — section 11, the Hub's persistent social state", () => {
+  it("seeds from the given values the first time a pilot is ever asked for, and attaches the result to the CampaignPilotEntry", () => {
+    const state = createWardenCampaignState();
+    const social = ensureHubSocialState(state, "pilot_bosk", { favorability: 35, stress: 30, morale: 75 });
+    expect(social).toEqual({ favorability: 35, stress: 30, morale: 75, inRelationship: false, socialLog: [] });
+    expect(state.pilots["pilot_bosk"].social).toBe(social); // attached, not a detached copy
+  });
+
+  it("a second call for the same pilot returns the SAME object and ignores the seed — proves state isn't silently reset every time buildNpcs() runs", () => {
+    const state = createWardenCampaignState();
+    const first = ensureHubSocialState(state, "pilot_anand", { favorability: 10, stress: 78, morale: 60 });
+    first.favorability = 62; // simulates Hub.ts having persisted a real mutation
+    first.socialLog.push({ verb: "shareADrink", line: "cheers", at: 12345 });
+
+    const second = ensureHubSocialState(state, "pilot_anand", { favorability: 10, stress: 78, morale: 60 });
+    expect(second).toBe(first);
+    expect(second.favorability).toBe(62); // NOT reset back to the seed's 10
+    expect(second.socialLog).toHaveLength(1);
+  });
+
+  it("mutations round-trip through save/load exactly, same as every other field in CampaignState", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    const social = ensureHubSocialState(state, "pilot_iyari", { favorability: -5, stress: 40, morale: 68 });
+    social.favorability = 55;
+    social.inRelationship = false; // Iyari is Hiopi — capped at close-friend, never actually true, but the field still round-trips
+    social.socialLog.push({ verb: "pegBoard", line: "good game", at: 999 });
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.pilots["pilot_iyari"].social).toEqual({
+      favorability: 55,
+      stress: 40,
+      morale: 68,
+      inRelationship: false,
+      socialLog: [{ verb: "pegBoard", line: "good game", at: 999 }],
+    });
+  });
+
+  it("fails open for a pilotId with no CampaignPilotEntry at all — returns a fresh, usable object instead of throwing", () => {
+    const state = createWardenCampaignState();
+    const social = ensureHubSocialState(state, "pilot_does_not_exist", { favorability: 0, stress: 0, morale: 0 });
+    expect(social).toEqual({ favorability: 0, stress: 0, morale: 0, inRelationship: false, socialLog: [] });
+    expect(state.pilots["pilot_does_not_exist"]).toBeUndefined(); // nothing to hang it off of — correctly not persisted
+  });
+
+  it("a save from before this field existed (a CampaignPilotEntry with no social key) seeds fresh on first access, not a crash", () => {
+    const state = createWardenCampaignState();
+    // No ensureHubSocialState call yet — state.pilots["pilot_bosk"].social
+    // is genuinely undefined here, matching a real pre-26-Aug-2026 save.
+    expect(state.pilots["pilot_bosk"].social).toBeUndefined();
+
+    const social = ensureHubSocialState(state, "pilot_bosk", { favorability: 35, stress: 30, morale: 75 });
+    expect(social.favorability).toBe(35);
+    expect(state.pilots["pilot_bosk"].social).toBeDefined();
+  });
+
+  // drunkUntil, 26 Aug 2026 — added the same day as the field itself
+  // (Maxime: "drunk should last for a bit"). This is the field that makes
+  // shareADrink's timer survive a reload instead of resetting to sober —
+  // same round-trip contract as every other field above, pinned separately
+  // since it's the newest and the one most likely to regress silently
+  // (an optional field is easy to forget in a future refactor of this
+  // object's shape).
+  it("drunkUntil round-trips through save/load exactly", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    const social = ensureHubSocialState(state, "pilot_bosk", { favorability: 20, stress: 15, morale: 80 });
+    const until = Date.now() + 5 * 60 * 1000;
+    social.drunkUntil = until;
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.pilots["pilot_bosk"].social).toEqual({
+      favorability: 20,
+      stress: 15,
+      morale: 80,
+      inRelationship: false,
+      socialLog: [],
+      drunkUntil: until,
+    });
+  });
+
+  it("a save from before drunkUntil existed (social present, but no drunkUntil key) loads with it simply absent, not a crash or a false-drunk", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    ensureHubSocialState(state, "pilot_bosk", { favorability: 20, stress: 15, morale: 80 });
+    // Simulate an actual pre-drunkUntil save on disk: serialize, then strip
+    // the key the way an older build's JSON simply wouldn't have had it —
+    // same technique the mission-timeout test above uses for the same
+    // reason (real old saves, not what a fresh seed happens to produce).
+    saveCampaignState(state, storage);
+    const raw = JSON.parse(storage.getItem("bloomwars_campaign_state_v1")!);
+    delete raw.pilots["pilot_bosk"].social.drunkUntil;
+    storage.setItem("bloomwars_campaign_state_v1", JSON.stringify(raw));
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.pilots["pilot_bosk"].social!.drunkUntil).toBeUndefined();
+  });
+});
+
+// Section 12, 26 Aug 2026 — the background social-sim harness
+// (engine/socialSim.ts). Same "seed once, hand back the same object after"
+// contract as ensureHubSocialState above, except there's exactly one of
+// these per CampaignState (a bond belongs to a PAIR, not one pilot), so
+// there's no missing-CampaignPilotEntry fail-open case to cover the way
+// section 11's own tests do.
+describe("ensureNpcSocialState — section 12, persistent NPC-to-NPC bonds", () => {
+  it("seeds bonds from the given seed the first time it's asked for, with an empty relationships list", () => {
+    const state = createWardenCampaignState();
+    const seed = { "pilot_anand::pilot_bosk": 40, "pilot_bosk::pilot_iyari": 5 };
+    const social = ensureNpcSocialState(state, seed);
+    expect(social).toEqual({ bonds: { "pilot_anand::pilot_bosk": 40, "pilot_bosk::pilot_iyari": 5 }, relationships: [] });
+    expect(state.npcSocial).toBe(social); // attached to the CampaignState itself, not a detached copy
+  });
+
+  it("seeding copies the seed object rather than aliasing it — mutating the returned bonds never mutates the caller's original seed constant", () => {
+    const state = createWardenCampaignState();
+    const seed = { "pilot_anand::pilot_bosk": 40 };
+    const social = ensureNpcSocialState(state, seed);
+    social.bonds["pilot_anand::pilot_bosk"] = 99;
+    expect(seed["pilot_anand::pilot_bosk"]).toBe(40); // the module-level NPC_BOND_SEED-style constant must stay untouched
+  });
+
+  it("a second call for the same CampaignState returns the SAME object and ignores the seed — proves a real run's bond movement isn't silently reset", () => {
+    const state = createWardenCampaignState();
+    const first = ensureNpcSocialState(state, { "pilot_anand::pilot_bosk": 40 });
+    first.bonds["pilot_anand::pilot_bosk"] = 46;
+    first.relationships.push("pilot_bosk::pilot_iyari");
+
+    const second = ensureNpcSocialState(state, { "pilot_anand::pilot_bosk": 40 });
+    expect(second).toBe(first);
+    expect(second.bonds["pilot_anand::pilot_bosk"]).toBe(46); // NOT reset back to the seed's 40
+    expect(second.relationships).toEqual(["pilot_bosk::pilot_iyari"]);
+  });
+
+  it("defaults to an empty seed when none is given — a fresh, empty bond store rather than a crash", () => {
+    const state = createWardenCampaignState();
+    const social = ensureNpcSocialState(state);
+    expect(social).toEqual({ bonds: {}, relationships: [] });
+  });
+
+  it("bonds and relationships round-trip through save/load exactly", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    const social = ensureNpcSocialState(state, { "pilot_anand::pilot_bosk": 40 });
+    social.bonds["pilot_anand::pilot_bosk"] = 52;
+    social.relationships.push("pilot_anand::pilot_bosk");
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.npcSocial).toEqual({
+      bonds: { "pilot_anand::pilot_bosk": 52 },
+      relationships: ["pilot_anand::pilot_bosk"],
+    });
+  });
+
+  it("a save from before section 12 existed (no npcSocial key at all) loads with it simply absent, not a crash", () => {
+    function memoryStorage(): CampaignStorage {
+      const backing = new Map<string, string>();
+      return {
+        getItem: (k) => backing.get(k) ?? null,
+        setItem: (k, v) => void backing.set(k, v),
+        removeItem: (k) => void backing.delete(k),
+      };
+    }
+    const storage = memoryStorage();
+    const state = createWardenCampaignState(); // never touches ensureNpcSocialState — simulates a real pre-26-Aug-2026 save
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.npcSocial).toBeUndefined();
+    // And confirms ensureNpcSocialState still seeds cleanly on top of that old save, same as section 11's own equivalent test.
+    const social = ensureNpcSocialState(loaded!, { "pilot_anand::pilot_bosk": 40 });
+    expect(social.bonds["pilot_anand::pilot_bosk"]).toBe(40);
+  });
+});
+
+// Section 8/8a, 27 Aug 2026 — rourkeRank's own wiring, found dead while
+// building the "Hello, Sir" rank-greeting mechanic: initialized once in
+// createWardenCampaignState, read every mission by campaignEconomy.ts's
+// CO_BONUS_BY_RANK, but never previously written by integrateSecondLance/
+// integrateThirdLance despite their own doc comments already citing
+// Rourke's promotions as landing on exactly those two beats. No test file
+// covered integrateSecondLance/integrateThirdLance's roster-integration
+// behavior at all before this pass either — covered here alongside the
+// rank fix rather than left untested.
+describe("integrateSecondLance / integrateThirdLance — roster integration and Rourke's rank, 27 Aug 2026", () => {
+  it("integrateSecondLance adds the five Second Lance pilots/meks and promotes rourkeRank to capt", () => {
+    const state = createWardenCampaignState();
+    expect(state.rourkeRank).toBe("2nd_lt");
+    const result = integrateSecondLance(state);
+    expect(result.integrated).toBe(true);
+    expect(result.pilots).toBe(SECOND_LANCE_PILOTS);
+    for (const p of SECOND_LANCE_PILOTS) expect(state.pilots[p.id]?.status).toBe("active");
+    expect(state.rourkeRank).toBe("capt");
+  });
+
+  it("integrateSecondLance is idempotent — a second call adds nothing and reports integrated: false", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    const rosterSize = Object.keys(state.pilots).length;
+    const second = integrateSecondLance(state);
+    expect(second.integrated).toBe(false);
+    expect(second.pilots).toBeUndefined();
+    expect(Object.keys(state.pilots)).toHaveLength(rosterSize);
+    expect(state.rourkeRank).toBe("capt"); // unchanged, not reset
+  });
+
+  it("integrateThirdLance adds the five Third Lance pilots/meks and promotes rourkeRank to maj", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state); // realistic ordering — Third Lance's own trigger (Mission 24) always comes after Second Lance's (Mission 12)
+    const result = integrateThirdLance(state);
+    expect(result.integrated).toBe(true);
+    expect(result.pilots).toBe(THIRD_LANCE_PILOTS);
+    for (const p of THIRD_LANCE_PILOTS) expect(state.pilots[p.id]?.status).toBe("active");
+    expect(state.rourkeRank).toBe("maj");
+  });
+
+  it("integrateThirdLance is idempotent — a second call adds nothing and reports integrated: false", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    const rosterSize = Object.keys(state.pilots).length;
+    const second = integrateThirdLance(state);
+    expect(second.integrated).toBe(false);
+    expect(Object.keys(state.pilots)).toHaveLength(rosterSize);
+    expect(state.rourkeRank).toBe("maj");
+  });
+});
+
+describe("deriveRourkeRank — pure roster-derived rank, 27 Aug 2026", () => {
+  it("a fresh campaign derives 2nd_lt", () => {
+    expect(deriveRourkeRank(createWardenCampaignState())).toBe("2nd_lt");
+  });
+
+  it("a roster with Second Lance integrated (not Third) derives capt", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    expect(deriveRourkeRank(state)).toBe("capt");
+  });
+
+  it("a roster with Third Lance integrated derives maj, even if rourkeRank itself was never touched", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    state.rourkeRank = "2nd_lt"; // simulate a pre-fix save where the roster advanced but the rank field never did
+    expect(deriveRourkeRank(state)).toBe("maj");
+  });
+});
+
+describe("loadCampaignState backfills a stale rourkeRank, 27 Aug 2026", () => {
+  function memoryStorage(): CampaignStorage {
+    const backing = new Map<string, string>();
+    return {
+      getItem: (k) => backing.get(k) ?? null,
+      setItem: (k, v) => void backing.set(k, v),
+      removeItem: (k) => void backing.delete(k),
+    };
+  }
+
+  it("a save that already has Third Lance integrated but a stale 2nd_lt rourkeRank (a real pre-fix save) loads corrected to maj", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    state.rourkeRank = "2nd_lt"; // simulate the exact bug: lances integrated, rank field never written
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.rourkeRank).toBe("maj");
+  });
+
+  it("a save that already has Second Lance integrated (not Third) but a stale 2nd_lt rourkeRank loads corrected to capt", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    state.rourkeRank = "2nd_lt";
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.rourkeRank).toBe("capt");
+  });
+
+  it("a fresh save with no lances integrated round-trips as 2nd_lt — no false-positive promotion", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.rourkeRank).toBe("2nd_lt");
+  });
+
+  it("a save already correctly at maj (post-fix, played entirely after this pass) round-trips unchanged", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.rourkeRank).toBe("maj");
+  });
+});
+
+// Roadmap #5, 27 Aug 2026 (later pass) — the visible Stage/rank cue.
+describe("rankDisplayTitle — the Hub UI's own rank readout, 27 Aug 2026", () => {
+  it("maps all three ranks to their real display titles", () => {
+    expect(rankDisplayTitle("2nd_lt")).toBe("2nd Lt.");
+    expect(rankDisplayTitle("capt")).toBe("Capt.");
+    expect(rankDisplayTitle("maj")).toBe("Maj.");
   });
 });

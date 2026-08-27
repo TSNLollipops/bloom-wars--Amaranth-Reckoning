@@ -16,4 +16,9 @@ new Phaser.Game({
   backgroundColor: "#0c0f12",
   scene: [Boot, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub],
   render: { pixelArt: false, antialias: true },
+  // Build Plan §9 piece #3, 26 Aug 2026 — first use of Phaser's DOM Element
+  // game object in this project, for the Hub's real typed-chat input
+  // (Hub.ts). createContainer:true is required for this.add.dom(...) to
+  // work at all; off by default. No effect on any other scene.
+  dom: { createContainer: true },
 });

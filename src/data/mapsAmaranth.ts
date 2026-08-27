@@ -836,7 +836,7 @@ const THE_RECKONING_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
-// The Cradle Beneath (26) — undercity hive tunnels, four bloom_mat
+// The Unnamed Beneath (26) — undercity hive tunnels, four bloom_mat
 // chambers (two north, two south) off a single central corridor, walled
 // (not just ridge-bordered, like every prior undercity map) since this is
 // explicitly the Wellroot network's own architecture, not open ground.
@@ -846,7 +846,7 @@ const THE_RECKONING_TILES: TileType[][] = [
 // mission's fast/fragile targets, and the corridor's kept single and
 // straight rather than a maze specifically so a slow unit's own path stays
 // simple to escort.
-const THE_CRADLE_BENEATH_TILES: TileType[][] = [
+const THE_UNNAMED_BENEATH_TILES: TileType[][] = [
   ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
   ["wall", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "wall"],
   ["wall", "rubble", "rubble", "rubble", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "rubble", "rubble", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "rubble", "wall"],
@@ -1098,10 +1098,10 @@ const NO_WORD_FROM_THE_FLEET_TILES: TileType[][] = [
   ["ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge"],
 ];
 
-// Mission 35, "The Last Ring" (hold_zone, The Cradle breaches mid-siege).
+// Mission 35, "The Last Ring" (hold_zone, The Unnamed breaches mid-siege).
 // Same single-doorway room as Mission 33, plus a single SEALED one-tile
 // pocket directly below the room's own south wall (no gap, unreachable by
-// movement) at (18,12): The Cradle's own fixed spawn tile, mission-event-
+// movement) at (18,12): The Unnamed's own fixed spawn tile, mission-event-
 // spawned mid-battle rather than present at turn 1. moveRange 0 means it
 // never leaves that tile; centered under the room, (18,12) sits within
 // Chebyshev distance 5 of EVERY hold tile (x=16-20, y=7-10) — attackRange
@@ -1109,7 +1109,7 @@ const NO_WORD_FROM_THE_FLEET_TILES: TileType[][] = [
 // slice of it, so however the squad spreads out to hold the zone, nobody
 // is ever out of range. A first draft placed the pocket beside the room's
 // east wall instead (~9 tiles from the doorway) and 20 sim runs never
-// logged a single Cradle attack — the squad never needed to stand near it
+// logged a single Unnamed attack — the squad never needed to stand near it
 // to satisfy hold_zone's own win check, a real design bug (a boss that
 // spawns but never fights), not flavor; see the build log addendum. It
 // still never triggers hold_zone's own hostileOnHold loss check either
@@ -1160,7 +1160,7 @@ const UNTIL_RELIEF_TILES: TileType[][] = [
 ];
 
 export const map_amaranth_the_reckoning = makeMap("map_amaranth_the_reckoning", "The Reckoning", 34, 16, THE_RECKONING_TILES);
-export const map_amaranth_the_cradle_beneath = makeMap("map_amaranth_the_cradle_beneath", "The Cradle Beneath", 30, 15, THE_CRADLE_BENEATH_TILES);
+export const map_amaranth_the_unnamed_beneath = makeMap("map_amaranth_the_unnamed_beneath", "The Unnamed Beneath", 30, 15, THE_UNNAMED_BENEATH_TILES);
 export const map_amaranth_falling_back_to_meridian = makeMap("map_amaranth_falling_back_to_meridian", "Falling Back to Meridian", 36, 14, FALLING_BACK_TO_MERIDIAN_TILES);
 export const map_amaranth_marrows_reckoning = makeMap("map_amaranth_marrows_reckoning", "Marrow's Reckoning", 28, 15, MARROWS_RECKONING_TILES);
 export const map_amaranth_outer_ring_falls = makeMap("map_amaranth_outer_ring_falls", "The Outer Ring Falls", 30, 16, OUTER_RING_FALLS_TILES);
@@ -1198,7 +1198,7 @@ export const MAPS_AMARANTH: Record<string, MapDefinition> = {
   map_amaranth_the_amaranth_accord,
   map_amaranth_two_fires,
   map_amaranth_the_reckoning,
-  map_amaranth_the_cradle_beneath,
+  map_amaranth_the_unnamed_beneath,
   map_amaranth_falling_back_to_meridian,
   map_amaranth_marrows_reckoning,
   map_amaranth_outer_ring_falls,

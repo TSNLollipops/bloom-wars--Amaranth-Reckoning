@@ -278,37 +278,40 @@ export const THIRD_LANCE_MEKS: Record<string, MekArchetype> = {
 
 export const THIRD_LANCE_ROSTER_IDS = THIRD_LANCE_PILOTS.map((p) => p.id);
 
-// Act II's own static playerPilotIds default (25 Aug 2026) — read only by
-// `npm run sim`/tests/any direct `new Mission(missionDef)` call with no
-// deployRoster (see engine/mission.ts's deployPlayerUnits comment); a real
-// playthrough always goes through scenes/TransporterPad.ts's picker
-// instead, which reads the campaign's actual live roster, not this. Picked
-// as a genuine 8-of-10 composition (2 bench: Tarrant, Reyes) rather than
-// "all five Wardens plus three Second Lance alphabetically" specifically so
-// the sim exercises the same choice a player faces — including the
-// two-Munti case the roster doc flags (Lask + Vashti both deployed). Kept
-// IDENTICAL across all four Act II missions built this pass so a stress-test
-// run compares mission-to-mission on a fixed squad rather than a moving
-// one; a real campaign obviously won't stay this static once losses and
-// picker choices start diverging it.
+// Act II's own static playerPilotIds default (26 Aug 2026 — Maxime's
+// original intent, clarified in chat: a full 10-pilot Act II deploy, not
+// an 8-of-10 composition choice. Previously this was 8 of 10, benching
+// Tarrant and Reyes, specifically so the sim exercised the same "who sits
+// out" choice a player faced at the Transporter Pad picker; that choice is
+// gone now that ACT2_DEPLOY_CAP below equals the full roster — everyone
+// always deploys, same shape as Act I) — read only by `npm run sim`/
+// tests/any direct `new Mission(missionDef)` call with no deployRoster
+// (see engine/mission.ts's deployPlayerUnits comment); a real playthrough
+// always goes through scenes/TransporterPad.ts's picker instead, which
+// reads the campaign's actual live roster, not this — but with no bench
+// left, the picker won't even show for Act II anymore (showPicker is
+// activePilotIds.length > deployCap, and those are now equal). Kept
+// IDENTICAL across all Act II missions so a stress-test run compares
+// mission-to-mission on a fixed squad rather than a moving one; a real
+// campaign obviously won't stay this static once losses start diverging it.
 const ACT2_DEFAULT_SQUAD = [
   "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
-  "pilot_okafor", "pilot_solheim", "pilot_vashti",
+  "pilot_okafor", "pilot_solheim", "pilot_tarrant", "pilot_vashti", "pilot_reyes",
 ];
 
-// Act III's own static playerPilotIds default (25 Aug 2026, same-day
-// correction) — same role as ACT2_DEFAULT_SQUAD above (sim/test only,
-// never read by a real playthrough), now a genuine 12-of-15 composition
-// against ACT3_DEPLOY_CAP (scenes/TransporterPad.ts) rather than
-// ACT2_DEFAULT_SQUAD's 8-of-10. Bench: Tarrant and Reyes again (Second
-// Lance's own perpetual reserve pair, unchanged since Act II) plus Ness
-// (Third Lance's second Tank) — chosen so this squad deploys three
-// Munti at once (Lask + Vashti + Yeun), a genuine new edge case past Act
-// II's own "two Munti" coverage, on top of the size increase itself.
+// Act III's own static playerPilotIds default (26 Aug 2026, same correction
+// as ACT2_DEFAULT_SQUAD above — Maxime's original intent was a full
+// 15-pilot Act III deploy) — same role as ACT2_DEFAULT_SQUAD (sim/test
+// only, never read by a real playthrough). Previously 12 of 15, benching
+// Tarrant, Reyes, and Ness; now all 15, no bench, matching
+// ACT3_DEPLOY_CAP below. Mission 26 (The Unnamed Beneath) deliberately does
+// NOT use this constant — it keeps its own smaller, explicit squad because
+// its map corridor gridlocks a squad this size; see that mission's own
+// comment, unchanged by this pass.
 const ACT3_DEFAULT_SQUAD = [
   "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
-  "pilot_okafor", "pilot_solheim", "pilot_vashti",
-  "pilot_kova", "pilot_onwuka", "pilot_delgado", "pilot_yeun",
+  "pilot_okafor", "pilot_solheim", "pilot_tarrant", "pilot_vashti", "pilot_reyes",
+  "pilot_kova", "pilot_ness", "pilot_onwuka", "pilot_delgado", "pilot_yeun",
 ];
 
 // bonusAbilityUnlocks are per-mission-deploy, not a persistent campaign
@@ -840,11 +843,17 @@ export const AMARANTH_MISSION_13: CampaignMission = {
   // scaled for an 8-pilot squad rather than linearly off Mission 1's 12 —
   // tuned against the actual sim, not just arithmetic (see the build log
   // addendum for this batch's real numbers).
+  // Bumped 26 Aug 2026 (same-day 8->10 default-squad correction): 70%->100%
+  // at the new squad size, real attrition gone (avgDowned already low,
+  // heading toward a guaranteed clean win). First attempt (11/3 -> 14/4,
+  // matching the squad's own +25% growth) overshot to 50% — this mission's
+  // sim response isn't linear with squad size. Settled at 12/4 after
+  // re-testing.
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -920,13 +929,15 @@ export const AMARANTH_MISSION_15: CampaignMission = {
   objective: "contested_landing",
   objectiveParams: { turnLimit: 14 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // Bumped 26 Aug 2026 (same-day 8->10 default-squad correction): 75%->100%
+  // at the new squad size. 10/6/4 -> 12/7/5, re-verified below.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 1, spawnAt: "enemy_deploy" },
     // A second landing wave, turn 3 — reinforcements arriving behind the
     // squad's own beachhead rather than a scripted "pursuit," same device
     // The Long Walk Back used for its own turn-3 wave (Mission 11).
-    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 3, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1107,6 +1118,14 @@ export const AMARANTH_MISSION_19: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 14 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // Bumped 26 Aug 2026 (same-day 8->10 default-squad correction): already
+  // 100% at 8 pilots, but avgDowned dropped to 0 and every win became a
+  // zero-loss win at 10 — the more telling sign this was "too easy" than
+  // the win rate alone. Crawlmass count only (Undertow stays 3, one per
+  // chamber — a fixed-position, per-room count, not a pool to scale). A
+  // first attempt (5 -> 7 crawlmass) barely moved the needle — a single
+  // clustered group at one junction tile just gets mobbed cleanly
+  // regardless of a modest count change — so pushed further to 10.
   enemyWaves: [
     // Undertow back in rotation — first since Mission 4's Tunnel Rats,
     // same template exactly: fixed coords + burrowed: true, never
@@ -1121,7 +1140,7 @@ export const AMARANTH_MISSION_19: CampaignMission = {
     },
     // Crawlmass holding the central junction chamber everything else
     // funnels through.
-    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
   ],
   events: [
     {
@@ -1157,6 +1176,26 @@ export const AMARANTH_MISSION_20: CampaignMission = {
   // with an escort, not a three-way brawl that dilutes the beat.
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // NOT a balance fix, deliberately left as originally shipped (26 Aug
+  // 2026 investigation) — this mission sims at a clean, deterministic
+  // 0/20 regardless of squad size (8 or 10) or enemy-wave timing (tried
+  // staggering the escort two different ways below before reverting both;
+  // neither moved the result at all). Root-caused instead of tuned around:
+  // Rourke's own arch_meeps_bipedal has moveRange 6, well ahead of the
+  // rest of the squad's, so she consistently arrives alone; the player
+  // test AI's seek_fight/attack targeting has no class-triangle awareness,
+  // so it has her attack hostile_mech_amaranth_01 (path: "tank") — the one
+  // matchup the game's own combat rules hit hardest, Tank beating Meeps —
+  // and eats a 46-51 damage counter on top of Marrow's own attack the same
+  // hostile turn, well past her 105 max HP either way. A human who knows
+  // Tank beats Meeps would simply not send Rourke into that fight alone,
+  // or would send a Reeps pilot at the Tank instead (Reeps beats Tank) —
+  // this is a test-AI blind spot to the game's own signature mechanic, not
+  // a mission-balance bug, so no mission data below was changed to chase
+  // it. Flagged to Maxime rather than silently "fixed" with numbers that
+  // wouldn't address the real cause; worth knowing this same blind spot
+  // could be quietly skewing sim results on other missions too, not just
+  // this one.
   enemyWaves: [
     // hostile_mech_marrow's own spawnAt ({x:23,y:7}) already matches this
     // coordinate — listed explicitly anyway so this wave reads the same
@@ -1219,7 +1258,22 @@ export const AMARANTH_MISSION_21: CampaignMission = {
     "Whatever's rooted under the terraces isn't spreading anymore — it's settled. Anand's reading one enormous signature dead center of a walled chamber, not moving, not hiding. It doesn't have to. Cut the root, or it keeps feeding everything Wellroot's been growing since Mission 17.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
-  playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // NOT ACT2_DEFAULT_SQUAD (26 Aug 2026, same-day cap correction) — this
+  // mission's own tuning above already documents that only a small number
+  // of units can actually reach the Heartwood's single tile, and that the
+  // player AI's focus_weak heuristic keeps peeling units off onto fresh
+  // Undertow reinforcements. Re-simmed at the new 10-pilot Act II default:
+  // 35%->0%, the same "never lands a hit on the Heartwood" failure this
+  // mission's build-log already root-caused once, just worse with two more
+  // units for focus_weak to get distracted by. Same fix shape as Mission 26
+  // (Act III): keep this one mission's own smaller, explicit squad rather
+  // than the act's shared default. Re-simmed at this 8: back to the
+  // original 35% (real, not broken — see this mission's own comment on the
+  // Heartwood fight being deliberately tight).
+  playerPilotIds: [
+    "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
+    "pilot_okafor", "pilot_solheim", "pilot_vashti",
+  ],
   enemyWaves: [
     // The Heartwood itself — single spawn tile, dead center of the walled
     // root chamber CUT_THE_ROOT_TILES builds for it. moveRange 0 per
@@ -1407,9 +1461,16 @@ export const AMARANTH_MISSION_24: CampaignMission = {
   // own comment already flagged for her "mirror-match" framing.
   objectiveParams: { turnLimit: 16 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // Bloom counts bumped 26 Aug 2026 (same-day 8->10 default-squad
+  // correction): 50%->100%, permLosses 20->0 across a 20-run sample — the
+  // clearest "got easier" case in the whole act. The four named mechs
+  // (House Amaranth's own regulars) stay at one each — that's the fixed
+  // narrative force from the briefing, not a scalable pool. First attempt
+  // (10/4 -> 13/5) overshot to 40%, worse than the pre-change 50% baseline
+  // — dialed back to 11/5 after re-testing.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 6, y: 1 }, { x: 12, y: 1 }, { x: 18, y: 1 }, { x: 24, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 6, y: 1 }, { x: 12, y: 1 }, { x: 18, y: 1 }, { x: 24, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: [{ x: 6, y: 1 }, { x: 12, y: 1 }, { x: 18, y: 1 }, { x: 24, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 6, y: 1 }, { x: 12, y: 1 }, { x: 18, y: 1 }, { x: 24, y: 1 }] },
     { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
     { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
     { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 16 }, { x: 12, y: 16 }, { x: 18, y: 16 }, { x: 24, y: 16 }] },
@@ -1552,7 +1613,21 @@ export const AMARANTH_MISSION_25: CampaignMission = {
   // long reads fine for an Act III opener meant to establish scale, not
   // be the hardest fight in the act.
   objectiveParams: { turnLimit: 18 },
-  playerPilotIds: ACT3_DEFAULT_SQUAD,
+  // NOT ACT3_DEFAULT_SQUAD (26 Aug 2026, same-day cap correction) — the
+  // 13/6/4 count directly above was locked against a real, deliberately
+  // found cliff at exactly 12 pilots ("a real cliff sits somewhere between
+  // 23 and 25 [total hostiles]... not something worth chasing to a single
+  // enemy's precision"). Re-simmed at the new 15-pilot Act III default:
+  // 90%->0%, turns collapsing to ~6 — the same shape Mission 26 already
+  // found (more units than a map's frontage can actually use just crowd
+  // each other out). Same fix as Mission 21 and Mission 26: this mission
+  // keeps its own explicit 12-pilot squad rather than the act's shared
+  // default. Re-simmed at 12: back to ~90%, matching the original tuning.
+  playerPilotIds: [
+    "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
+    "pilot_okafor", "pilot_solheim", "pilot_vashti",
+    "pilot_kova", "pilot_onwuka", "pilot_delgado", "pilot_yeun",
+  ],
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 13, atTurn: 1, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }, { x: 28, y: 2 }, { x: 28, y: 13 }] },
     { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }] },
@@ -1579,8 +1654,8 @@ export const AMARANTH_MISSION_25: CampaignMission = {
 
 export const AMARANTH_MISSION_26: CampaignMission = {
   id: "mission_amaranth_26",
-  displayName: "Amaranth III.26 — The Cradle Beneath",
-  mapId: "map_amaranth_the_cradle_beneath",
+  displayName: "Amaranth III.26 — The Unnamed Beneath",
+  mapId: "map_amaranth_the_unnamed_beneath",
   briefing:
     "Okafor's beacon went dark under the terraces two days after Mission 19's tunnels first opened up, and it just came back live — stationary, not moving, but live. Whatever's down there let her signal through on purpose or couldn't stop it. Either way, someone has to walk into the hive to walk her back out.",
   objective: "extract_unit",
@@ -1597,7 +1672,7 @@ export const AMARANTH_MISSION_26: CampaignMission = {
   // Third Lance correction, not tuned around silently. Deploying the full
   // 12 here jammed: by turn 15 in the losing runs, EVERY unit (including
   // Okafor herself) stopped acting entirely — "hold_no_target" dominates
-  // the decision tally — because THE_CRADLE_BENEATH_TILES' own main
+  // the decision tally — because THE_UNNAMED_BENEATH_TILES' own main
   // corridor is only 3 tiles tall, and 12 units competing for the same
   // narrow lane toward one exit block gridlock each other (movement
   // treats other player units as occupied tiles, same as everywhere else
@@ -1609,7 +1684,7 @@ export const AMARANTH_MISSION_26: CampaignMission = {
   // 12 into this mission and would hit the same jam — flagging that
   // explicitly rather than pretending this squad size is a hard cap.
   // Tried a 9-pilot squad first (down from 12) — went 0/15, WORSE than 12.
-  // Real finding, not noise: THE_CRADLE_BENEATH_TILES' own exit block is
+  // Real finding, not noise: THE_UNNAMED_BENEATH_TILES' own exit block is
   // only 6 tiles (2 cols x 3 rows), and with enough escorts converging on
   // it, they fill every exit tile themselves before Okafor gets there —
   // in the losing logs she reaches (25,7), two tiles from the block, and
@@ -1661,7 +1736,7 @@ export const AMARANTH_MISSION_26: CampaignMission = {
   ],
   events: [
     {
-      id: "ev_the_cradle_beneath_opening",
+      id: "ev_the_unnamed_beneath_opening",
       trigger: { type: "turn_start", turn: 1 },
       action: { type: "dialogue", text: "Okafor: “I'm not hurt, I'm just not going anywhere fast down here. Take your time getting to me — don't take your time getting me out.”" },
       once: true,
@@ -1808,7 +1883,7 @@ export const AMARANTH_MISSION_28: CampaignMission = {
 // see this batch's build-log addendum. House Amaranth's military is done
 // as a threat as of Mission 28 (Marrow's own closure, above) — per the
 // Independent Campaign doc, everything from here to the Act III finale
-// (35, "The Last Ring") is Bloom-only, specifically the Cradle (first
+// (35, "The Last Ring") is Bloom-only, specifically the Unnamed (first
 // found at Mission 26, "the source, growing beneath Meridian... the
 // campaign's true final boss"). Every enemyWave below is drawn from
 // data/bloom.ts accordingly — no hostile_mech_* archetypes appear in this
@@ -2162,12 +2237,27 @@ export const AMARANTH_MISSION_32: CampaignMission = {
   // revisited, retest in small steps, not big jumps.
   objectiveParams: { turnLimit: 22, assetMaxHp: 420 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
+  // Counts trimmed 26 Aug 2026 — this mission's own tuning history above
+  // already flags it as sitting right at a sensitive margin ("retest in
+  // small steps, not big jumps"). Re-simmed at the documented 11/5/4/6/3
+  // and found 0% at BOTH the old 12-pilot squad and the new 15-pilot one
+  // (deep-clone-verified, not a harness artifact) — not something this
+  // pass caused (12 already failed), and not explained by squad size
+  // either. Verbose log shows Rourke dying to ordinary cumulative chip
+  // damage over several turns, not one bad matchup like Mission 20 — this
+  // mission's own balance has drifted since the 50%-win figure above was
+  // recorded, likely from later changes elsewhere in the same files
+  // (campaignState.ts/socialSim.ts/etc. all show later edit timestamps
+  // than this comment). Trimmed by roughly the same proportion the
+  // original draft->doubled move used elsewhere in this file (9/4/3/5/2,
+  // 21 total, down from 29) and re-verified below rather than re-deriving
+  // a whole new tuning pass from scratch.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
-    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 3, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 9, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
   ],
   events: [
     {
@@ -2190,7 +2280,7 @@ export const AMARANTH_MISSION_32: CampaignMission = {
 
 // ---- Batch 7 (missions 33-36, Act III finale, 25 Aug 2026) ----
 // The campaign's actual finale — Independent Campaign doc's own Act III
-// mission list, §8's Cradle entry (data/bloom.ts's own bloom_cradle
+// mission list, §8's Unnamed entry (data/bloom.ts's own bloom_unnamed
 // comment has the full stat derivation). Maps built and BFS-validated via
 // a throwaway gen_maps7.py script, same disciplined-then-deleted
 // convention as every prior batch — see the build log addendum for the
@@ -2201,8 +2291,8 @@ export const AMARANTH_MISSION_32: CampaignMission = {
 // tags it "[final boss breaches]," not "[eliminate_all boss]" the way
 // Mission 21 tagged the Heartwood fight — and mechanically, checkWinLoss's
 // hold_zone branch (engine/mission.ts) only ever reads holdZone/turn state,
-// never hostileAlive.length, so The Cradle's own survival or death never
-// enters the win/loss check either way. The Cradle is sessile (moveRange 0,
+// never hostileAlive.length, so The Unnamed's own survival or death never
+// enters the win/loss check either way. The Unnamed is sessile (moveRange 0,
 // data/bloom.ts) and spawned in a sealed alcove that is deliberately NOT
 // tagged "hold" (see mapsAmaranth.ts's own comment on THE_LAST_RING_TILES)
 // — it can never itself stand on the zone and trigger the hostileOnHold
@@ -2362,15 +2452,15 @@ export const AMARANTH_MISSION_35: CampaignMission = {
   // the full hold_zone-not-eliminate_all reasoning — this is where that
   // call actually gets used. Same proven single-doorway room shape again;
   // THE_LAST_RING_TILES' own comment (mapsAmaranth.ts) covers the sealed
-  // Cradle pocket at (18,12), directly under the room and centered so its
+  // Unnamed pocket at (18,12), directly under the room and centered so its
   // attackRange [1,5] (data/bloom.ts) covers every hold tile, not just a
   // slice of the room — a first draft placed it beside the east wall
-  // instead and 20 sim runs never logged a single Cradle attack, a real
+  // instead and 20 sim runs never logged a single Unnamed attack, a real
   // bug (see that map comment for the finding). holdUntilTurn/turnLimit
   // both pushed one notch past Mission 33's own numbers — the campaign's
-  // toughest hold yet. Sim-tested at 11/20 win (55%) after the Cradle
+  // toughest hold yet. Sim-tested at 11/20 win (55%) after the Unnamed
   // repositioning fix, with real permanent losses even on wins (the
-  // Cradle's own attacks land 56-68 damage a hit, close to a full-HP kill
+  // Unnamed's own attacks land 56-68 damage a hit, close to a full-HP kill
   // on most archetypes) — see this batch's build log addendum for the
   // full numbers.
   objectiveParams: { turnLimit: 22, holdUntilTurn: 16 },
@@ -2395,22 +2485,22 @@ export const AMARANTH_MISSION_35: CampaignMission = {
       action: { type: "dialogue", text: "Anand: “That signature's still growing, and it's close to the surface now. I don't think it's staying under much longer.”" },
       once: true,
     },
-    // The Cradle's own debut — spawned mid-siege, not present at turn 1
+    // The Unnamed's own debut — spawned mid-siege, not present at turn 1
     // (see this mission's own objectiveParams comment and this batch's
     // header comment above Mission 33 for why). archetypeIds/at both
     // single-element arrays; burrowed omitted (defaults false, correct for
     // a sessile archetype — burrowed/surfacing is Undertow's own mechanic,
-    // data/bloom.ts's special-rules comment, not the Cradle's).
+    // data/bloom.ts's special-rules comment, not the Unnamed's).
     {
-      id: "ev_the_cradle_breaches",
+      id: "ev_the_unnamed_breaches",
       trigger: { type: "turn_start", turn: 6 },
       action: { type: "dialogue", text: "Anand: “Contact — it's through the floor, right under the room! It's not moving, but it is NOT small, and it can reach every one of us from there!”" },
       once: true,
     },
     {
-      id: "ev_the_cradle_spawn",
+      id: "ev_the_unnamed_spawn",
       trigger: { type: "turn_start", turn: 6 },
-      action: { type: "spawn", archetypeIds: ["bloom_cradle"], at: [{ x: 18, y: 12 }] },
+      action: { type: "spawn", archetypeIds: ["bloom_unnamed"], at: [{ x: 18, y: 12 }] },
       once: true,
     },
   ],
@@ -2426,10 +2516,10 @@ export const AMARANTH_MISSION_36: CampaignMission = {
   briefing:
     "The relief fleet finally answered — a real countdown this time, not a promise. Everything the Bloom has left in this sector is coming to make sure Warden Company doesn't last long enough to see it arrive. Hold until the clock runs out. That's the whole plan, and it's the only one left.",
   // Survive N Turns again, same shape as Mission 34 — this is deliberately
-  // NOT a second Cradle encounter (see this batch's header comment on
+  // NOT a second Unnamed encounter (see this batch's header comment on
   // Mission 35's own hold_zone-not-eliminate_all call): "Until Relief" is a
   // mission about time, not about a specific threat, and repeating the
-  // Cradle here would make Mission 35's own confrontation read as
+  // Unnamed here would make Mission 35's own confrontation read as
   // incomplete rather than as the campaign's real climax. This is the
   // swarm at large, at the largest scale the campaign ever throws it.
   objective: "survive_n_turns",
@@ -2445,7 +2535,7 @@ export const AMARANTH_MISSION_36: CampaignMission = {
   // (33 total) overcorrected to 20/20 win. A middle step (12/5/5/8/7/2, 39
   // total) landed at 16/20 win (80%) — meaningfully harder than a formality
   // but still reads as the triumphant final stand rather than the hardest
-  // fight in the game, which stays Mission 35's own Cradle siege (55% win).
+  // fight in the game, which stays Mission 35's own Unnamed siege (55% win).
   // If this ever gets revisited, retest in small steps — the swing from
   // 33 to 46 total (a 39% increase) was enough to go from certain win to
   // certain loss.

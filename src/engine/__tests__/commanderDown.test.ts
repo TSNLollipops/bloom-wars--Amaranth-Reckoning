@@ -9,7 +9,7 @@
 // PilotRecord.exemptFromPermadeath flag itself, BEFORE ever calling
 // evaluatePermadeathCheck, and short-circuits to a third, distinct
 // MissionOutcome — "commander_down" — instead.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { Mission } from "../mission";
 import { AMARANTH_MISSION_1 } from "../../data/campaignAmaranth";
 import { createWardenCampaignState, applyCommanderDownAttempt } from "../campaignState";
@@ -22,6 +22,30 @@ import { MAX_ACTIONS_PER_TURN } from "../../data/combatTables";
 // a real downing through the public attack() path rather than poking
 // unit.downed directly (which skips handleDowned's own side effects
 // entirely).
+//
+// Flaky-test fix, 27 Aug 2026 (tracked since §8 of the build log, diagnosed
+// in the Master Index's priority queue, fixed here at Maxime's own request).
+// Root cause: pilot_rourke is Meeps-path, and House rule #1b (added 23 Aug
+// 2026 — mission.ts's rollMeepsDodge / data/combatTables.ts's
+// MEEPS_DODGE_CHANCE) gives any Meeps a real, per-hit chance to dodge a
+// non-Tank-sourced attack outright — including this rigged one, since
+// bloom_crawlmass isn't Tank-path. This test suite predates House rule
+// #1b and never accounted for it: on the runs where Rourke's dodge roll
+// happened to succeed, currentHp never reaches 0, handleDowned() never
+// fires, and every assertion below the call fails — a different one
+// depending on which test ran and which roll it hit, which is exactly the
+// "different specific assertion fails on different runs" symptom this was
+// filed under. Math.random() is used NOWHERE else anywhere in the attack
+// path (grep-confirmed across combat.ts/mission.ts — rollMeepsDodge is the
+// only call site), so pinning it here can't mask or distort anything about
+// the damage/hit-chance math itself, only this one dodge check. Same fix
+// shape dodge.test.ts's own "Mission.attack — dodge wiring end-to-end"
+// block already established for this exact RNG source, just scoped
+// tightly to this one helper (spy-then-restore around the single
+// mission.attack() call) rather than a describe-level beforeEach/afterEach
+// — nothing else in this file touches Math.random, so there's no risk of
+// leaking the mock into an unrelated assertion, and every call site of
+// this helper gets the guarantee automatically with no per-test wiring.
 function riggedHostileAttack(mission: Mission, targetId: string) {
   const target = mission.units.find((u) => u.instanceId === targetId)!;
   const hostile = mission.units.find((u) => u.side === "hostile" && u.archetypeId === "bloom_crawlmass")!;
@@ -29,7 +53,12 @@ function riggedHostileAttack(mission: Mission, targetId: string) {
   hostile.attackPower = 9999;
   hostile.actionsRemaining = MAX_ACTIONS_PER_TURN;
   target.currentHp = 1;
-  return mission.attack(hostile.instanceId, targetId);
+  const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.99); // well over MEEPS_DODGE_CHANCE (0.4) — guarantees no dodge
+  try {
+    return mission.attack(hostile.instanceId, targetId);
+  } finally {
+    randomSpy.mockRestore();
+  }
 }
 
 describe("Mission.handleDowned — commander down", () => {
