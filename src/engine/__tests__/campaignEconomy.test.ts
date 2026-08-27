@@ -17,6 +17,9 @@ import {
   purchaseTierUpgrade,
   purchaseMekSecondary,
   purchaseSpareParts,
+  purchaseWeaponBranch,
+  equipWeaponBranch,
+  convertPersonalToCompany,
   computeMissionCompletionBonus,
   computeCoBonus,
   applyCompanyEarnings,
@@ -27,7 +30,9 @@ import {
   KILL_BONUS,
   SURVIVAL_BONUS,
   OBJECTIVE_BONUS,
+  CONVERSION_RATE,
 } from "../campaignEconomy";
+import { WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE } from "../../data/weaponBranches";
 
 describe("Mission per-unit performance tracking (the new bookkeeping this pass adds)", () => {
   it("credits the attacker's own damage and a kill when their attack downs a hostile Bloom", () => {
@@ -485,6 +490,163 @@ describe("purchaseSpareParts — company-pool spending, deliberately NOT persona
     expect(result.reason).toMatch(/not enough company points/);
     expect(state.points).toBe(SPARE_PART_COST - 1);
     expect(state.meks["mek_fab"].spareParts).toBe(0);
+  });
+});
+
+describe("purchaseWeaponBranch / equipWeaponBranch — the Weapon Branch Point System, 27 Aug 2026", () => {
+  it("buys a pilot's 1st branch once their tier meets WEAPON_BRANCH_TIER_GATE[0] (D), deducting WEAPON_BRANCH_COSTS[0]", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = WEAPON_BRANCH_TIER_GATE[0]; // "D"
+    state.pilots["pilot_rourke"].personalPoints = WEAPON_BRANCH_COSTS[0];
+    const result = purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(result.ok).toBe(true);
+    expect(result.cost).toBe(WEAPON_BRANCH_COSTS[0]);
+    expect(state.pilots["pilot_rourke"].pilot.ownedWeaponBranches).toEqual(["meeps_impact_lance"]);
+    expect(state.pilots["pilot_rourke"].personalPoints).toBe(0);
+  });
+
+  it("refuses a branch below the pilot's own path — a Meeps pilot can't buy a Reeps branch", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = "A";
+    state.pilots["pilot_rourke"].personalPoints = 100000;
+    const result = purchaseWeaponBranch(state, "pilot_rourke", "reeps_missiles");
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/not a valid weapon branch/);
+  });
+
+  it("refuses the 1st branch below tier D even with unlimited points", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = "E"; // one rung below D
+    state.pilots["pilot_rourke"].personalPoints = 100000;
+    const result = purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/needs gear tier D/);
+    expect(state.pilots["pilot_rourke"].pilot.ownedWeaponBranches ?? []).toHaveLength(0);
+  });
+
+  it("refuses buying the same branch twice", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = "A";
+    state.pilots["pilot_rourke"].personalPoints = 100000;
+    purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    const second = purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(second.ok).toBe(false);
+    expect(second.reason).toMatch(/already owns/);
+  });
+
+  it("gates a Reeps pilot's 2nd branch at WEAPON_BRANCH_TIER_GATE[1] (C), priced at WEAPON_BRANCH_COSTS[1]", () => {
+    const state = createWardenCampaignState();
+    const reeps = "pilot_anand"; // arch_reeps_bipedal, per WARDEN_PILOTS
+    state.pilots[reeps].pilot.tier = WEAPON_BRANCH_TIER_GATE[1]; // "C" — enough for the 2nd, not gate-blocked
+    state.pilots[reeps].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1];
+    const first = purchaseWeaponBranch(state, reeps, "reeps_missiles");
+    expect(first.ok).toBe(true);
+    const second = purchaseWeaponBranch(state, reeps, "reeps_rail_lance");
+    expect(second.ok).toBe(true);
+    expect(second.cost).toBe(WEAPON_BRANCH_COSTS[1]);
+    expect(state.pilots[reeps].personalPoints).toBe(0);
+  });
+
+  it("fails cleanly when the pilot can't afford it, leaving ownedWeaponBranches untouched", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = "A";
+    state.pilots["pilot_rourke"].personalPoints = WEAPON_BRANCH_COSTS[0] - 1;
+    const result = purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/not enough personal points/);
+    expect(state.pilots["pilot_rourke"].pilot.ownedWeaponBranches ?? []).toHaveLength(0);
+  });
+
+  it("fails cleanly on an unknown pilot id", () => {
+    const state = createWardenCampaignState();
+    const result = purchaseWeaponBranch(state, "not_a_real_pilot", "meeps_impact_lance");
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/unknown pilot id/);
+  });
+
+  it("equipWeaponBranch cycles an owned branch on, then back off (null), but refuses one never bought", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = "A";
+    state.pilots["pilot_rourke"].personalPoints = WEAPON_BRANCH_COSTS[0];
+    purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+
+    const equip = equipWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(equip.ok).toBe(true);
+    expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBe("meeps_impact_lance");
+
+    const unequip = equipWeaponBranch(state, "pilot_rourke", null);
+    expect(unequip.ok).toBe(true);
+    expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBeUndefined();
+
+    const neverOwned = equipWeaponBranch(state, "pilot_rourke", "reeps_missiles");
+    expect(neverOwned.ok).toBe(false);
+    expect(neverOwned.reason).toMatch(/doesn't own/);
+  });
+});
+
+describe("convertPersonalToCompany — the release-valve mechanism, Weapon Branch Point System §5", () => {
+  it("moves `amount` off personal and floor(amount / CONVERSION_RATE) onto company, at the placeholder rate", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].personalPoints = 100;
+    const result = convertPersonalToCompany(state, "pilot_lask", 60);
+    expect(result.ok).toBe(true);
+    expect(result.personalSpent).toBe(60);
+    expect(result.companyGained).toBe(Math.floor(60 / CONVERSION_RATE));
+    expect(state.pilots["pilot_lask"].personalPoints).toBe(40);
+    expect(state.points).toBe(Math.floor(60 / CONVERSION_RATE));
+  });
+
+  it("floors on an odd amount rather than rounding in the player's favor", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].personalPoints = 5;
+    const result = convertPersonalToCompany(state, "pilot_lask", 5);
+    expect(result.ok).toBe(true);
+    expect(result.companyGained).toBe(2); // floor(5/2), not 2.5 or 3
+    expect(state.points).toBe(2);
+  });
+
+  it("is one-directional — there is no inverse; company points never move back to personal via this function", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].personalPoints = 10;
+    state.points = 500;
+    convertPersonalToCompany(state, "pilot_lask", 10);
+    expect(state.points).toBe(505); // 500 + floor(10/2), only ever additive to company
+    expect(state.pilots["pilot_lask"].personalPoints).toBe(0);
+  });
+
+  it("fails cleanly, changing nothing, when the pilot can't afford the requested amount", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].personalPoints = 10;
+    state.points = 0;
+    const result = convertPersonalToCompany(state, "pilot_lask", 11);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/not enough personal points/);
+    expect(state.pilots["pilot_lask"].personalPoints).toBe(10);
+    expect(state.points).toBe(0);
+  });
+
+  it("refuses a zero or negative amount", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].personalPoints = 10;
+    expect(convertPersonalToCompany(state, "pilot_lask", 0).ok).toBe(false);
+    expect(convertPersonalToCompany(state, "pilot_lask", -5).ok).toBe(false);
+    expect(state.pilots["pilot_lask"].personalPoints).toBe(10);
+  });
+
+  it("refuses to convert a lost pilot's (zeroed) balance", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].status = "permanently_lost";
+    state.pilots["pilot_lask"].personalPoints = 0;
+    const result = convertPersonalToCompany(state, "pilot_lask", 1);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/not active/);
+  });
+
+  it("fails cleanly on an unknown pilot id", () => {
+    const state = createWardenCampaignState();
+    const result = convertPersonalToCompany(state, "not_a_real_pilot", 10);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/unknown pilot id/);
   });
 });
 

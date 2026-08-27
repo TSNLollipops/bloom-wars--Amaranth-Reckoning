@@ -400,6 +400,73 @@ export function equipWeaponBranch(state: CampaignState, pilotId: string, branchI
   return { ok: true, equipped: branchId };
 }
 
+// ---- Personal points: the conversion valve ------------------------------
+//
+// claude/Bloom_Wars_Weapon_Branch_Point_System_v1.md §5, decided 27 Aug
+// 2026 — a universal release valve, not specific to Weapon Branch, for two
+// reasons the source doc names explicitly: (1) a pilot who's bought
+// everything (tier maxed, mek secondary, all owned weapon branches) would
+// otherwise have nowhere for new personal points to go, and (2) a
+// permanently-lost pilot's banked personal points are zeroed outright by
+// applyPermadeathCheck (campaignState.ts) — this gives a player a real,
+// deliberate way to hedge that before a mission they're worried about,
+// rather than just watching the balance evaporate if the worst happens.
+//
+// One-directional only — company points never convert back to personal —
+// and deliberately lossy, so it reads as a real sacrifice rather than a
+// free way to launder a maxed-out pilot's idle points into shared spending
+// power (Maxime's own framing: a rate "bad enough that converting is a
+// real sacrifice, not a free insurance policy"). The 2:1 rate is
+// confirmed staying a placeholder — "conversion would be adjust in
+// testing," Maxime, 27 Aug 2026 — until there's a real economy-sim harness
+// to tune it against, the same discipline combat_sim.py already holds for
+// balance numbers but that this project doesn't have an equivalent tool
+// for yet on the economy side.
+
+export const CONVERSION_RATE = 2; // N personal points -> floor(N / CONVERSION_RATE) company points
+
+export interface ConversionResult {
+  ok: boolean;
+  reason?: string;
+  personalSpent?: number;
+  companyGained?: number;
+}
+
+/**
+ * Converts `amount` of `pilotId`'s PERSONAL points into COMPANY points at
+ * the placeholder CONVERSION_RATE (floor, so an odd amount loses the
+ * remainder rather than rounding in the player's favor — e.g. converting
+ * 5 personal points yields 2 company points, not 2.5 or 3). There is no
+ * inverse function; this only ever moves value personal -> company, never
+ * back, matching the source doc's own asymmetry between the two pools
+ * (personal is scarce and pilot-specific, company is the shared, more
+ * fungible pool).
+ *
+ * Fails cleanly (state untouched, a reason string) on an unknown pilot, a
+ * non-active pilot, a non-positive amount, or insufficient personal
+ * points — never partially converts.
+ */
+export function convertPersonalToCompany(state: CampaignState, pilotId: string, amount: number): ConversionResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: `unknown pilot id: ${pilotId}` };
+  if (entry.status !== "active") {
+    return { ok: false, reason: `${entry.pilot.displayName} is not active — cannot convert a lost pilot's points` };
+  }
+  if (amount <= 0) {
+    return { ok: false, reason: `conversion amount must be positive (got ${amount})` };
+  }
+  if (entry.personalPoints < amount) {
+    return {
+      ok: false,
+      reason: `not enough personal points — ${entry.pilot.displayName} has ${entry.personalPoints}, tried to convert ${amount}`,
+    };
+  }
+  entry.personalPoints -= amount;
+  const companyGained = Math.floor(amount / CONVERSION_RATE);
+  state.points += companyGained;
+  return { ok: true, personalSpent: amount, companyGained };
+}
+
 // ---- Company points: earning — mission completion + CO bonus -----------
 
 export interface MissionCompletionBonus {

@@ -35,6 +35,8 @@ import {
   fabricatorMaxSpareParts,
   purchaseWeaponBranch,
   equipWeaponBranch,
+  convertPersonalToCompany,
+  CONVERSION_RATE,
   TIER_ORDER,
   TIER_UPGRADE_COST,
   MEK_SECONDARY_COST,
@@ -307,6 +309,29 @@ export class ShopPanel {
         }
       }
     }
+
+    // Personal -> company conversion valve (same design doc, §5, decided
+    // 27 Aug 2026 — a universal release valve, not tied to weapon branches
+    // specifically, so it renders unconditionally here rather than behind
+    // the `if (!path) return` guard just below). One button, converts
+    // everything this pilot is currently holding at once — no partial-
+    // amount picker, since neither the source doc nor this scene has a
+    // numeric-entry UI convention yet, and "convert what you're not about
+    // to spend" (idle points, or a hedge before a mission you're worried
+    // about) is the actual use case the doc describes, not a precise
+    // partial cash-out.
+    const convertX = SHOP_CARD_R - 104;
+    this.shopLayer.add(
+      this.scene.add
+        .text(convertX, top + 96, "Convert to company:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+        .setOrigin(0.5, 0)
+    );
+    const convertGain = Math.floor(entry.personalPoints / CONVERSION_RATE);
+    const convertLabel = entry.personalPoints > 0 ? `CONVERT ALL (${entry.personalPoints} -> ${convertGain})` : "NOTHING TO CONVERT";
+    makeShopButton(this.scene, this.shopLayer, convertX, top + 112, 170, 22, convertLabel, entry.personalPoints > 0, () => {
+      convertPersonalToCompany(this.state, pilotId, entry.personalPoints);
+      this.render();
+    });
 
     // Weapon Branch Point System (claude/Bloom_Wars_Weapon_Branch_Point_System_v1.md,
     // 27 Aug 2026) — one row of buttons per branch buildable on this

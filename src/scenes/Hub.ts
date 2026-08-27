@@ -133,6 +133,9 @@ import { NPC_SEED, NPC_BOND_SEED } from "../data/npcSeed";
 // updateNpcEncounters()/runNpcEncounter() below and socialSim.ts's own
 // header for the full design history.
 import { simulateEncounter, isCommitted, type SocialSimPilot } from "../engine/socialSim";
+// The egg hull, 27 Aug 2026 — kept in its own Phaser-free module so its
+// math is directly unit-testable; see hubGeometry.ts's own header for why.
+import { clampToEllipse } from "../engine/hubGeometry";
 
 // Every room reuses this exact footprint — placeholder-stage simplicity,
 // GDD §12.2 style. Only which doors/NPCs are active changes between rooms;
@@ -478,11 +481,121 @@ const DECK_TITLES: Record<DeckId, string> = {
 // recroom's own slice here without needing to move.
 const ZONE_SPLIT_X = 550;
 const ZONE_SPLIT_Y = 330;
+
+// The egg hull, first pass — 27 Aug 2026. Maxime: "lets build us an egg
+// shape 3 layered cake of a ship with preplaned space for each buildable
+// room and more room to expand," then, asked to choose between an
+// outline-only version and the real thing: "have fun take your take. do
+// everything." This first pass gave that treatment to ONE of the three
+// decks — see the comment on LOWER_BOUNDS/UPPER_BOUNDS below for the
+// second pass, same day, that gives the other two real (if more modest)
+// new floor too, without touching their existing rooms at all.
+//
+// Why the grotto got the dramatic version and the other two didn't:
+// Upper and Lower's three rooms already tile ROOM_BOUNDS corner-to-corner
+// with zero spare pixels (see ROOM_ZONE_BOUNDS just below — the left
+// column plus the two right rows add up to the exact same box, nothing
+// left over). Swapping their movement clamp from that rectangle to a
+// same-size ellipse would cut off those rooms' own corners — real,
+// already-shipped, already-tested floor the player can stand on today — a
+// regression, not a redesign. The grotto has no such conflict: its "zone"
+// has only ever BEEN the whole box, and Bloom_Wars_Antfarm_Grid_v1.md §3c
+// already frames it as the deck "insulated... to itself," the one the
+// design docs themselves point to as where the ship has room to grow. So
+// the grotto gets pushed out into genuinely empty screen margin and
+// reshaped into a real ellipse; Upper and Lower's existing 700×444
+// rectangles are never resized or reshaped — see below for how they still
+// get real new floor without touching that rectangle at all.
+const GROTTO_BOUNDS = {
+  // Right stays at ROOM_BOUNDS.right (830) — CHAT_LOG_X sits 8px past it,
+  // so there's no free margin on that side without relocating the chat
+  // panel, a separate change this pass doesn't make.
+  left: 40, // clear of both fixed-position corner texts (16,20)/(16,80) at y<=85, well above this deck's own top below
+  right: ROOM_BOUNDS.right,
+  // deckIndicatorText sits at (16, 80); this deck's zone doesn't start
+  // until x=40, but the text's own 10px height (y 75-85) is the real
+  // constraint on how far up ANY deck's floor can safely reach. 100 leaves
+  // it clear with room to spare.
+  top: 100,
+  // interactPrompt is fixed at (480, ROOM_BOUNDS.bottom + 20) = (480, 572)
+  // regardless of deck; 566 keeps this deck's floor a clean 6px short of
+  // it. BACK TO HANGAR's footer button starts at y=588 — well clear either
+  // way.
+  bottom: 566,
+};
+const GROTTO_ELLIPSE = {
+  cx: (GROTTO_BOUNDS.left + GROTTO_BOUNDS.right) / 2,
+  cy: (GROTTO_BOUNDS.top + GROTTO_BOUNDS.bottom) / 2,
+  rx: (GROTTO_BOUNDS.right - GROTTO_BOUNDS.left) / 2,
+  ry: (GROTTO_BOUNDS.bottom - GROTTO_BOUNDS.top) / 2,
+};
+
+// The egg hull, second pass, same day — 27 Aug 2026. Maxime, asked whether
+// to stop at the grotto or keep going and give Upper/Lower the reserved-bay
+// space from the hull proposal too: "keep going now." The key realization
+// that makes this safe, unlike the ellipse swap above: Upper and Lower's
+// screen-margin constraints are IDENTICAL to the grotto's (all three decks
+// reuse the same on-screen region, one at a time) — what made an ellipse
+// unsafe there was RESHAPING their existing rectangle, not the idea of
+// having more space at all. So this doesn't touch ROOM_ZONE_BOUNDS or
+// either deck's three existing rooms in any way — it only makes the
+// OUTER walkable box each deck's rectangle sits inside strictly BIGGER,
+// bolting new floor onto the left/top/bottom (the same margin the grotto
+// used), for the two reserved-bay markers below to stand on. A bigger
+// superset can never make an already-reachable point unreachable, so
+// there's no version of the corner-cutting problem here — confirmed by
+// the full pre-existing suite passing unchanged (checked again after this
+// second pass, not just the first).
+//
+// Left edges differ slightly per deck (40/50/60) to keep a little of the
+// egg's own taper — grotto (middle, widest) got the most margin, Lower
+// (base) a bit less, Upper (crown, narrowest) the least — though with only
+// ~90px of real slack on screen to work with, the visible difference is
+// modest, not dramatic; said plainly rather than oversold.
+const LOWER_BOUNDS = { left: 50, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
+const UPPER_BOUNDS = { left: 60, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
+
+type ReservedBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom";
+
+interface ReservedBayDef {
+  id: ReservedBayId;
+  deck: DeckId;
+  label: string;
+  x: number;
+  y: number;
+}
+
+// The two reserved bays per deck named in the hull proposal — Sensor Array
+// + Beacon Control on Upper, Generator + Restock Room on Lower, both from
+// Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2's own twelve-bay list.
+// Deliberately visual-only markers, not real rooms: no RoomId, no
+// ROOM_NOTES, no door, no minigame — "reserved" means exactly that, a
+// placeholder for wherever the real player-placement economy (still fully
+// unbuilt — Antfarm Grid §3b/§3d/§3e/§6) eventually lets a player build one
+// of these for real. Positioned inside the new LOWER_BOUNDS/UPPER_BOUNDS
+// margin strip, at x < ROOM_BOUNDS.left (130) — nothing could ever stand
+// there before this pass, so placement here can't collide with anything
+// that already existed.
+const RESERVED_BAYS: ReservedBayDef[] = [
+  { id: "sensorArray", deck: "upper", label: "SENSOR\nARRAY\n(reserved)", x: 95, y: 200 },
+  { id: "beaconControl", deck: "upper", label: "BEACON\nCONTROL\n(reserved)", x: 95, y: 450 },
+  { id: "generator", deck: "lower", label: "GENERATOR\n(reserved)", x: 90, y: 200 },
+  { id: "restockRoom", deck: "lower", label: "RESTOCK\nROOM\n(reserved)", x: 90, y: 450 },
+];
+
 const ROOM_ZONE_BOUNDS: Record<RoomId, { left: number; right: number; top: number; bottom: number }> = {
   recroom: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
   hangarDeck: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
   berths: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
-  grotto: { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
+  // The egg hull, 27 Aug 2026 — GROTTO_BOUNDS, not ROOM_BOUNDS: this deck's
+  // real floor is now bigger than (and off-center from) the shared box
+  // every other room still uses. zoneAt only needs this as a bounding-box
+  // membership test (see its own comment on the rectangle-vs-ellipse
+  // distinction not mattering there), so the rectangle here being a loose
+  // superset of the true elliptical floor is fine — nothing can actually
+  // stand in the rectangle's corners, since movement is clamped to the
+  // ellipse, not this rect.
+  grotto: { left: GROTTO_BOUNDS.left, right: GROTTO_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom },
   workshop: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
   vault: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
   cic: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
@@ -507,6 +620,32 @@ function zoneAt(deck: DeckId, x: number, y: number): RoomId {
     if (x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) return id;
   }
   return (Object.keys(ROOM_DECK) as RoomId[]).find((id) => ROOM_DECK[id] === deck)!;
+}
+
+// The one place player/NPC movement decides which floor shape/size actually
+// applies for the deck they're on — grotto gets the real ellipse
+// (GROTTO_BOUNDS/GROTTO_ELLIPSE), Lower and Upper get their own bigger
+// rectangle (LOWER_BOUNDS/UPPER_BOUNDS, a strict superset of the old shared
+// ROOM_BOUNDS both decks' three existing rooms still use unchanged — see
+// the egg-hull comments above for why a bigger rectangle is safe where a
+// same-size ellipse wasn't). Every one of tryMove/tryMoveNpc/
+// completeDoorHop's landing clamp/updateNpcRoaming's two target-clamp
+// sites goes through this now instead of inlining Phaser.Math.Clamp
+// against ROOM_BOUNDS directly, so there's exactly one place that ever
+// needs to change if a deck's floor shape changes again later.
+function clampToDeckFloor(deck: DeckId, x: number, y: number, radius: number): { x: number; y: number } {
+  if (deck === "grotto") {
+    const rectClamped = {
+      x: Phaser.Math.Clamp(x, GROTTO_BOUNDS.left + radius, GROTTO_BOUNDS.right - radius),
+      y: Phaser.Math.Clamp(y, GROTTO_BOUNDS.top + radius, GROTTO_BOUNDS.bottom - radius),
+    };
+    return clampToEllipse(rectClamped.x, rectClamped.y, GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx, GROTTO_ELLIPSE.ry, radius);
+  }
+  const bounds = deck === "lower" ? LOWER_BOUNDS : UPPER_BOUNDS;
+  return {
+    x: Phaser.Math.Clamp(x, bounds.left + radius, bounds.right - radius),
+    y: Phaser.Math.Clamp(y, bounds.top + radius, bounds.bottom - radius),
+  };
 }
 
 // Experimental, 25 Aug 2026 — Maxime: "can you check if its possible to get
@@ -1000,6 +1139,17 @@ export class Hub extends Phaser.Scene {
   // fixed once (see roomTitleText's own history).
   private zoneDecor: { room: RoomId; nodes: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] }[] = [];
   private deckIndicatorText!: Phaser.GameObjects.Text;
+  // The egg hull, 27 Aug 2026 — drawRoom()'s single shared rectangle used
+  // to be the background for every deck, always visible, never toggled
+  // (nothing about it ever differed between rooms before this pass). Now
+  // every deck draws its own floor at its own size/shape, and exactly one
+  // of these three is visible at a time — see refreshRoomVisibility.
+  private lowerFloor!: Phaser.GameObjects.Graphics;
+  private upperFloor!: Phaser.GameObjects.Graphics;
+  private grottoFloor!: Phaser.GameObjects.Graphics;
+  // The egg hull, second pass, 27 Aug 2026 — one marker per RESERVED_BAYS
+  // entry, same "built once, toggled by deck" pattern as doorMarkers above.
+  private reservedBayMarkers: { def: ReservedBayDef; outline: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text }[] = [];
 
   constructor() {
     super("Hub");
@@ -1092,10 +1242,13 @@ export class Hub extends Phaser.Scene {
       .text(16, 80, "", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
       .setOrigin(0, 0.5);
 
-    this.drawRoom();
+    this.lowerFloor = this.drawDeckFloor(LOWER_BOUNDS);
+    this.upperFloor = this.drawDeckFloor(UPPER_BOUNDS);
+    this.drawGrottoFloor();
     this.drawMusterPoint();
     this.buildDoors();
     this.buildZoneDecor();
+    this.buildReservedBays();
     this.roomNoteText = this.add.text(480, 330, "", { fontFamily: "monospace", fontSize: "12px", color: TEXT_DIM, align: "center", wordWrap: { width: 460 } }).setOrigin(0.5);
     this.buildNpcs();
     this.buildPlayer();
@@ -2645,15 +2798,37 @@ export class Hub extends Phaser.Scene {
     }
   }
 
-  // Every room draws the exact same box (see ROOM_BOUNDS's own comment) —
-  // called once, not per room-switch, since nothing about its position or
-  // size ever changes between rooms in this pass.
-  private drawRoom() {
+  // Every deck draws its own floor rectangle/ellipse now — Lower and Upper
+  // each at their own (bigger, since the egg-hull second pass) box, the
+  // grotto as a real ellipse (drawGrottoFloor, right below). Built once
+  // per deck, not per room-switch, since nothing about any of their
+  // positions/sizes changes between rooms sharing a deck. Exactly one of
+  // lowerFloor/upperFloor/grottoFloor is visible at a time —
+  // refreshRoomVisibility toggles by current deck, since drawing more than
+  // one at once would show overlapping straight-edged rectangles (or a
+  // rectangle poking out past the grotto's curve).
+  private drawDeckFloor(bounds: { left: number; right: number; top: number; bottom: number }): Phaser.GameObjects.Graphics {
     const g = this.add.graphics();
     g.fillStyle(0x14181c, 1);
-    g.fillRect(ROOM_BOUNDS.left, ROOM_BOUNDS.top, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top);
+    g.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
     g.lineStyle(2, PANEL_BORDER, 1);
-    g.strokeRect(ROOM_BOUNDS.left, ROOM_BOUNDS.top, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top);
+    g.strokeRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+    return g;
+  }
+
+  // The egg hull, 27 Aug 2026 — the grotto's real oval floor, drawn as its
+  // own layer rather than reshaping drawRoom() itself, since Upper/Lower
+  // still need the plain rectangle unchanged. Phaser's fillEllipse/
+  // strokeEllipse both take a CENTER point plus full width/height (not a
+  // corner + size, like fillRect above) — GROTTO_ELLIPSE already stores
+  // radii, hence the *2 below.
+  private drawGrottoFloor() {
+    const g = this.add.graphics();
+    g.fillStyle(0x14181c, 1);
+    g.fillEllipse(GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx * 2, GROTTO_ELLIPSE.ry * 2);
+    g.lineStyle(2, PANEL_BORDER, 1);
+    g.strokeEllipse(GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx * 2, GROTTO_ELLIPSE.ry * 2);
+    this.grottoFloor = g;
   }
 
   // Where a mustered NPC walks to (piece #2) — a placeholder stand-in for
@@ -2736,6 +2911,35 @@ export class Hub extends Phaser.Scene {
         nodes.push(this.add.text((b.left + b.right) / 2, b.top + 16, ROOM_TITLES[id], { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM }).setOrigin(0.5));
       }
       this.zoneDecor.push({ room: id, nodes });
+    }
+  }
+
+  // The egg hull, second pass, 27 Aug 2026 — one dashed marker + label per
+  // RESERVED_BAYS entry (see its own header for what "reserved" means
+  // here). Same dash-drawing shape as drawMusterPoint's BAY marker above,
+  // built once up front and toggled by deck in refreshRoomVisibility, same
+  // pattern as doorMarkers/zoneDecor.
+  private buildReservedBays() {
+    const w = 68;
+    const h = 40;
+    const dash = 6;
+    for (const bay of RESERVED_BAYS) {
+      const x = bay.x - w / 2;
+      const y = bay.y - h / 2;
+      const g = this.add.graphics();
+      g.lineStyle(1, 0x556270, 0.7);
+      for (let dx = 0; dx < w; dx += dash * 2) {
+        g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+        g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+      }
+      for (let dy = 0; dy < h; dy += dash * 2) {
+        g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+        g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+      }
+      const label = this.add
+        .text(bay.x, bay.y, bay.label, { fontFamily: "monospace", fontSize: "8px", color: "#556270", align: "center" })
+        .setOrigin(0.5);
+      this.reservedBayMarkers.push({ def: bay, outline: g, label });
     }
   }
 
@@ -3197,8 +3401,9 @@ export class Hub extends Phaser.Scene {
   }
 
   private tryMove(dx: number, dy: number) {
-    const nx = Phaser.Math.Clamp(this.playerX + dx, ROOM_BOUNDS.left + PLAYER_R, ROOM_BOUNDS.right - PLAYER_R);
-    const ny = Phaser.Math.Clamp(this.playerY + dy, ROOM_BOUNDS.top + PLAYER_R, ROOM_BOUNDS.bottom - PLAYER_R);
+    const clamped = clampToDeckFloor(ROOM_DECK[this.currentRoomId], this.playerX + dx, this.playerY + dy, PLAYER_R);
+    const nx = clamped.x;
+    const ny = clamped.y;
     for (const npc of this.npcs) {
       if (!sameDeck(npc.room, this.currentRoomId)) continue; // an NPC on a different deck can't physically block this one
       if (Phaser.Math.Distance.Between(nx, ny, npc.x, npc.y) < PLAYER_R + NPC_R) return; // blocked, don't apply this axis
@@ -3362,8 +3567,9 @@ export class Hub extends Phaser.Scene {
   }
 
   private tryMoveNpc(npc: HubNpc, dx: number, dy: number) {
-    const nx = Phaser.Math.Clamp(npc.x + dx, ROOM_BOUNDS.left + NPC_R, ROOM_BOUNDS.right - NPC_R);
-    const ny = Phaser.Math.Clamp(npc.y + dy, ROOM_BOUNDS.top + NPC_R, ROOM_BOUNDS.bottom - NPC_R);
+    const clamped = clampToDeckFloor(ROOM_DECK[npc.room], npc.x + dx, npc.y + dy, NPC_R);
+    const nx = clamped.x;
+    const ny = clamped.y;
     if (sameDeck(npc.room, this.currentRoomId) && Phaser.Math.Distance.Between(nx, ny, this.playerX, this.playerY) < NPC_R + PLAYER_R) return; // blocked by the player, only when they're actually sharing this deck's open floor
     for (const other of this.npcs) {
       if (other === npc) continue;
@@ -3457,9 +3663,8 @@ export class Hub extends Phaser.Scene {
       door,
       this.npcs.filter((n) => n !== npc && n.room === door.toRoom),
     );
-    const landX = Phaser.Math.Clamp(landing.x, ROOM_BOUNDS.left + NPC_R, ROOM_BOUNDS.right - NPC_R);
-    const landY = Phaser.Math.Clamp(landing.y, ROOM_BOUNDS.top + NPC_R, ROOM_BOUNDS.bottom - NPC_R);
-    this.setNpcRoom(npc, door.toRoom, landX, landY);
+    const land = clampToDeckFloor(ROOM_DECK[door.toRoom], landing.x, landing.y, NPC_R);
+    this.setNpcRoom(npc, door.toRoom, land.x, land.y);
     if (npc.room === npc.travelTargetRoom) {
       npc.travelTargetRoom = undefined;
       return;
@@ -3531,9 +3736,23 @@ export class Hub extends Phaser.Scene {
       if (Math.random() < EXPLORE_CHANCE) {
         const target = pickExploreTarget(npc.room);
         if (sameDeck(npc.room, target)) {
+          // ROOM_ZONE_BOUNDS[target] is grotto's own (bigger, off-center)
+          // bounding rect for that deck (see its own comment) — picking a
+          // random point inside that RECT and then running it through
+          // clampToDeckFloor pulls anything that landed outside the true
+          // ellipse back onto the boundary, same as any other movement
+          // clamp here. Upper/Lower targets are unaffected: their zone
+          // rects fully tile ROOM_BOUNDS, so clampToDeckFloor's rectangle
+          // branch is a no-op there, exactly like before this pass.
           const zone = ROOM_ZONE_BOUNDS[target];
-          npc.targetX = Phaser.Math.Clamp(zone.left + Math.random() * (zone.right - zone.left), zone.left + NPC_R, zone.right - NPC_R);
-          npc.targetY = Phaser.Math.Clamp(zone.top + Math.random() * (zone.bottom - zone.top), zone.top + NPC_R, zone.bottom - NPC_R);
+          const pick = clampToDeckFloor(
+            ROOM_DECK[target],
+            zone.left + Math.random() * (zone.right - zone.left),
+            zone.top + Math.random() * (zone.bottom - zone.top),
+            NPC_R,
+          );
+          npc.targetX = pick.x;
+          npc.targetY = pick.y;
           continue;
         }
         const door = nextHopDoor(npc.room, target);
@@ -3582,9 +3801,11 @@ export class Hub extends Phaser.Scene {
       // unclamped target near a wall could sit outside the room entirely,
       // and since only the ACTUAL (clamped) position is compared against
       // the (unclamped) target for arrival, that would leave the NPC
-      // walking toward a point it can structurally never reach.
-      npc.targetX = Phaser.Math.Clamp(dest.x, ROOM_BOUNDS.left + NPC_R, ROOM_BOUNDS.right - NPC_R);
-      npc.targetY = Phaser.Math.Clamp(dest.y, ROOM_BOUNDS.top + NPC_R, ROOM_BOUNDS.bottom - NPC_R);
+      // walking toward a point it can structurally never reach. Deck-aware
+      // for the same reason every other clamp site here is now.
+      const destClamped = clampToDeckFloor(ROOM_DECK[npc.room], dest.x, dest.y, NPC_R);
+      npc.targetX = destClamped.x;
+      npc.targetY = destClamped.y;
     }
   }
 
@@ -3814,6 +4035,21 @@ export class Hub extends Phaser.Scene {
     const deck = ROOM_DECK[this.currentRoomId];
     this.roomTitleText.setText(`THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]} (PROTOTYPE)`);
     this.deckIndicatorText.setText(`DECK: ${DECK_TITLES[deck]}`);
+
+    // The egg hull, 27 Aug 2026 (both passes) — exactly one of the three
+    // floors is ever visible: each deck's own. See drawDeckFloor/
+    // drawGrottoFloor's own headers.
+    this.lowerFloor.setVisible(deck === "lower");
+    this.upperFloor.setVisible(deck === "upper");
+    this.grottoFloor.setVisible(deck === "grotto");
+
+    // The egg hull, second pass, 27 Aug 2026 — same by-deck toggle as
+    // doorMarkers/zoneDecor above.
+    for (const marker of this.reservedBayMarkers) {
+      const show = marker.def.deck === deck;
+      marker.outline.setVisible(show);
+      marker.label.setVisible(show);
+    }
 
     for (const marker of this.doorMarkers) {
       const show = sameDeck(marker.def.room, this.currentRoomId);
