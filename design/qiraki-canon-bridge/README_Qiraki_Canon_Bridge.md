@@ -1,10 +1,10 @@
 # The Qiraki Files — Canon Bridge
 
-Mirrored into the Bloom Wars code project on 2026-08-25, so the two projects (the *Enlightened* novel series, working title *The Qiraki Files*, and the *Bloom Wars* game) can draw on the same worldbuilding, systems, and tone instead of drifting apart independently.
+Mirrored into the Bloom Wars code project on 2026-08-25, so the two projects (the *Enlightened* novel series, working title *The Qiraki Files*, and the *Bloom Wars* game) can draw on the same worldbuilding, systems, and tone instead of drifting apart independently. Re-synced 2026-08-27 (see "Sync log" below).
 
 ## Where this came from, and where it stays current
 
-Canonical source lives in the **"qiraki files. book title: Enlightened"** Claude project. Everything in this folder is a snapshot taken 2026-08-25. **Treat this folder as read reference, not the source of truth** — if a Qiraki writing session locks something new, this mirror goes stale until someone re-syncs it. If you're working on Bloom Wars and need to check whether something here is still current, the writing project is where to look.
+Canonical source lives in the **"qiraki files. book title: Enlightened"** Claude project. Everything in this folder was last checked against that project on 2026-08-27. **Treat this folder as read reference, not the source of truth** — if a Qiraki writing session locks something new, this mirror goes stale until someone re-syncs it. If you're working on Bloom Wars and need to check whether something here is still current, the writing project is where to look.
 
 The reverse direction matters too: this project already has its own design docs (`Bloom_Wars_Rank_And_Command_v1.md`, `Bloom_Wars_Antfarm_Carrier_Hub_v1.md`, the Independent Campaign doc, the Crew Banter bank, and so on) that the *writing* side hasn't seen. `Qiraki_Military_Rank_Path_v1.md` in this bridge was written the same day as `Bloom_Wars_Rank_And_Command_v1.md` already in your `design/` folder — worth diffing the two directly if the rank ladders need to agree, or worth deliberately keeping them distinct if the game and the novel are meant to depict different eras or factions.
 
@@ -25,9 +25,20 @@ Worldbuilding and systems reference only — no drafted prose (chapters), no out
 - `Qiraki_Character_Sheets.md` — the full named cast (Trav, Reqa, Zeteii, Vrassik, and the rest), useful if the game ever wants cameos, tie-in characters, or just tonally-consistent NPC writing.
 - `Qiraki_Preserve_Species.md` — the 26 preserve species roster (mostly one-line entries, deliberately thin).
 - `Qiraki_Master_Style_Guide.md` — prose/voice rules for the novel. Less directly applicable to a game, but useful for in-game text (flavor text, propaganda fragments, UI copy) that wants to sound like it belongs to the same universe: no caricatures, real science under every invented system, quiet critique rather than stated theme, gritty/gory/gorgeous in balance.
+- `Qiraki_Propaganda_Bank.md` — **new 2026-08-27.** In-universe short-form text: recruitment slogans, curriculum-year fragments, mess-hall and dorm-hall signage, Hiopi and Osnius proverbs, condolence-letter templates. Real, directly usable material for in-game flavor text, loading-screen copy, or UI strings that need to sound like they belong to this institution rather than a generic sci-fi one. Each fragment pairs an official line with the true thing it's quietly papering over — worth keeping that irony in mind if any of this gets reused verbatim in-game, since the joke depends on the surrounding context the game may not carry.
+- `Qiraki_Character_Lens_Reference.md` — **new 2026-08-27.** Not canon (defers entirely to Character_Sheets.md on anything factual) — a craft doc on how six named characters *think and speak*: perception order, core fear, stress behavior, voice tics. Useful mainly if Bloom Wars ever writes dialogue or barks for Trav, Reqa, Zeteii, Peregrine, Vrassik, or Coherence of Process and wants it to sound like the same character the books are building, rather than a generic combat-game voice line.
 
 ## A few things worth knowing before using any of this in-game
 
 - **"Qiraki" is spoiler-locked** in the novel — it's the enemy's true name and doesn't appear in drafted prose before the reveal point. That constraint is specific to the book's reveal structure; it's your call whether Bloom Wars (as a separate work) needs to honor it too, but flagging it so it's a deliberate choice either way.
 - **The hard content boundary**: no romantic or sexual content involving any character while a minor, full stop — this governs the novel's cast (tracked from early adolescence into adulthood) and is worth carrying over as a floor for any tie-in material using these characters, even though it may not be directly relevant to Bloom Wars' own content.
 - Several numeric systems here (the points economy, the G–S tier costs, the spread-math tables) were built for pacing a ~130k-word-per-book prose series, not for real-time game balance. Treat the *shape* of these systems (tiered progression, points-for-gear, exponential-then-frontier-limited threat scaling) as the reusable part, and re-derive actual numbers against Bloom Wars' own pacing rather than importing them verbatim.
+
+## Sync log
+
+- **2026-08-25** — Initial snapshot, 19 files plus this README.
+- **2026-08-27** — Checked all 19 mirrored files against the writing project's current doc list by creation date. Two were stale or ambiguous:
+  - `Qiraki_Concept.md` replaced in full — the writing-project source (`Qiraki_Concept_v5.docx`) was updated 2026-08-26, after the original snapshot. Notable additions since the snapshot: the Cradle Circle daycare/early-education function, and a pointer to FCAST's now-built-out battle-clan roster (see the "Battle clans" section note).
+  - `Qiraki_Military_Rank_Path_v1.md` re-synced — diffed word-for-word against the current writing-project copy. One trivial wording fix in Part One ("hold no command slot" → the source's current phrasing), no substantive canon change. Still worth the cross-check against `Bloom_Wars_Rank_And_Command_v1.md` this file's own header already flags.
+  - The other 17 mirrored files predate the 2026-08-25 snapshot and were not re-pulled this pass.
+  - Two files added that fit this bridge's own stated scope but were missing from the original snapshot: `Qiraki_Propaganda_Bank.md` and `Qiraki_Character_Lens_Reference.md` (both sourced from writing-project docs dated 2026-08-21, i.e. before the original snapshot — an omission from the first pass, not new material).

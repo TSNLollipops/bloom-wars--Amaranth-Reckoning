@@ -173,6 +173,12 @@ describe("Bloom Endurance / Vitality Collapse rule", () => {
     { id: "bloom_sporethrower", hitDmg: 45, hitsToKill: 4 },
     { id: "bloom_crawlmass", hitDmg: 45, hitsToKill: 3 },
     { id: "bloom_heartwood", hitDmg: 70, hitsToKill: 7 },
+    // Wellroot (27 Aug 2026, real stat block replacing the old Heartwood
+    // reuse) — deliberately checked at the same 70 dmg/hit as Heartwood so
+    // the two boss hit-counts are directly comparable: this is the
+    // "strictly escalating Act I (7) < Act II (8) < Act III (9)" gate from
+    // design/combat_sim.py's own "THE WELLROOT" section.
+    { id: "bloom_wellroot", hitDmg: 70, hitsToKill: 8 },
   ];
   for (const c of cases) {
     it(`${c.id} dies in ${c.hitsToKill} hits at ${c.hitDmg}/hit`, () => {

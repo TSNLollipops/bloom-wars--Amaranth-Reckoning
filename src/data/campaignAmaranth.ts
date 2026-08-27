@@ -1228,18 +1228,29 @@ export const AMARANTH_MISSION_20: CampaignMission = {
 // as every prior batch; all four validated clean first pass (see this
 // batch's build-log addendum).
 //
-// Cut the Root is this batch's real content: bloom_heartwood (data/bloom.ts)
-// has been fully defined — endurance 400, sessile, Munti-prioritising via
-// engine/ai.ts's emergentDecision() — since before Act I shipped, and never
-// used anywhere. Its own documented special rule ("every 2 turns from turn
-// 3, spawns 2 Undertow burrowed at the map's spawn seams") is built here as
-// pure mission data through the existing generic MissionEvent system, once
-// one small real gap was closed: the "spawn" event action never threaded a
-// burrowed flag through to createBloomUnit (every existing spawn event was
+// Cut the Root is this batch's real content: originally built (25 Aug 2026)
+// reusing bloom_heartwood (data/bloom.ts) directly — sessile, endurance
+// 400, Munti-prioritising via engine/ai.ts's emergentDecision() — since it
+// sat fully defined and unused since before Act I shipped. The turn-3+
+// Undertow reinforcement rule ("every 2 turns from turn 3, spawns 2
+// Undertow burrowed at the map's spawn seams") is built here as pure
+// mission data through the generic MissionEvent system, once one small
+// real gap was closed: the "spawn" event action never threaded a burrowed
+// flag through to createBloomUnit (every existing spawn event was
 // flavor/reveal, never a burrower) — see data/types.ts's MissionEvent
 // action comment and engine/mission.ts's applyEventAction for the fix. Not
 // treated as a scope-flag conversation: a small extension to a generic
 // capability, not a new system.
+//
+// SWAPPED to bloom_wellroot, 27 Aug 2026 — the Heartwood reuse was always
+// flagged as a placeholder (build log's own "still open" list, Codex
+// Design doc §6/§9, Independent Campaign doc §8's own caveat), since the
+// story calls the Wellroot "acid-heavy" and it was mechanically identical
+// to Act I's concussive tutorial boss. See data/bloom.ts's bloom_wellroot
+// entry for the real stat block and its own sim validation. The reinforcement
+// event above is mission-scripted content, not archetype-driven — it keeps
+// working unchanged regardless of which boss anchors the chamber, so this
+// swap only touched the enemyWaves entry below and this comment block.
 //
 // Ash on the Water is the one genuine new system this batch: protect_asset
 // (data/types.ts's CampaignMission.objective, MapDefinition.defendZone,
@@ -1260,42 +1271,53 @@ export const AMARANTH_MISSION_21: CampaignMission = {
   objectiveParams: { turnLimit: 16 },
   // NOT ACT2_DEFAULT_SQUAD (26 Aug 2026, same-day cap correction) — this
   // mission's own tuning above already documents that only a small number
-  // of units can actually reach the Heartwood's single tile, and that the
+  // of units can actually reach the boss's single tile, and that the
   // player AI's focus_weak heuristic keeps peeling units off onto fresh
   // Undertow reinforcements. Re-simmed at the new 10-pilot Act II default:
-  // 35%->0%, the same "never lands a hit on the Heartwood" failure this
+  // 35%->0%, the same "never lands a hit on the boss" failure this
   // mission's build-log already root-caused once, just worse with two more
   // units for focus_weak to get distracted by. Same fix shape as Mission 26
   // (Act III): keep this one mission's own smaller, explicit squad rather
   // than the act's shared default. Re-simmed at this 8: back to the
   // original 35% (real, not broken — see this mission's own comment on the
-  // Heartwood fight being deliberately tight).
+  // boss fight being deliberately tight).
+  //
+  // Re-validated 27 Aug 2026 after the bloom_wellroot swap — same 8-pilot
+  // squad, 3 independent batches of the actual mission harness (not just
+  // the idealized 1v1 math): 35%/25%/37%, averaging right back to the
+  // documented 35%. See data/bloom.ts's bloom_wellroot comment for why
+  // attackPower ended up unchanged from Heartwood's own 60 rather than the
+  // lower number first proposed.
   playerPilotIds: [
     "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
     "pilot_okafor", "pilot_solheim", "pilot_vashti",
   ],
   enemyWaves: [
-    // The Heartwood itself — single spawn tile, dead center of the walled
+    // The Wellroot itself — single spawn tile, dead center of the walled
     // root chamber CUT_THE_ROOT_TILES builds for it. moveRange 0 per
     // data/bloom.ts, so it never leaves this tile; the fight comes to it.
-    { archetypeId: "bloom_heartwood", count: 1, atTurn: 1, spawnAt: [{ x: 22, y: 7 }] },
+    // (Was bloom_heartwood here until 27 Aug 2026 — see data/bloom.ts's
+    // bloom_wellroot entry for why that was always a placeholder.)
+    { archetypeId: "bloom_wellroot", count: 1, atTurn: 1, spawnAt: [{ x: 22, y: 7 }] },
     // No opening escort — see this mission's build-log tuning note for why.
     // First sim pass (6 Crawlmass, open-field coords) produced a 0% win
     // rate that had nothing to do with the escort's own numbers: the squad
     // spent turns 1-4 mopping up Crawlmass, reached the chamber around
     // turn 5 right as reinforcement pressure was already building, and
     // then — this is the real finding — never landed a single attack on
-    // the Heartwood in the entire 15-turn loss. The player AI's
-    // focus_weak heuristic always prefers the freshly-spawned, low-HP
-    // Undertow over a 400-Endurance stationary target, and with a fresh
-    // pair arriving every 2 turns forever, that preference never lets up.
-    // Cutting the escort entirely buys the squad two genuinely clean turns
-    // (1-2) against the Heartwood before turn 3's first reinforcement
-    // wave — the only real lever available without touching either the
-    // archetype's own documented stats or the player AI's targeting logic,
-    // both out of scope for a mission-design pass. No opening wave entry
-    // at all now (a count: 0 wave was tried first and dropped — better to
-    // just not author a wave that spawns nothing).
+    // the boss in the entire 15-turn loss. The player AI's focus_weak
+    // heuristic always prefers the freshly-spawned, low-HP Undertow over a
+    // stationary boss target, and with a fresh pair arriving every 2 turns
+    // forever, that preference never lets up. Cutting the escort entirely
+    // buys the squad two genuinely clean turns (1-2) against the boss
+    // before turn 3's first reinforcement wave — the only real lever
+    // available without touching either the archetype's own documented
+    // stats or the player AI's targeting logic, both out of scope for a
+    // mission-design pass. No opening wave entry at all now (a count: 0
+    // wave was tried first and dropped — better to just not author a wave
+    // that spawns nothing). This reasoning predates the Wellroot swap and
+    // still holds — the escort-timing problem was never about which
+    // archetype anchors the chamber.
   ],
   events: [
     {
@@ -1304,13 +1326,16 @@ export const AMARANTH_MISSION_21: CampaignMission = {
       action: { type: "dialogue", text: "Anand: “That's not a wave pattern, that's a heartbeat. Whatever's down there, it's been there a while.”" },
       once: true,
     },
-    // bloom_heartwood's own documented special rule, data/bloom.ts: "Every
-    // 2 turns from turn 3, spawns 2 Undertow burrowed at the map's spawn
-    // seams." The two fixed seam tiles flanking the root chamber
-    // (CUT_THE_ROOT_TILES' own (20,5)/(24,9) spawn tiles) are exactly that
-    // — never touched by enemy_deploy resolution, only ever by this event.
+    // Originally documented as bloom_heartwood's own special rule; kept as
+    // mission-scripted content (not archetype data) through the 27 Aug
+    // 2026 Wellroot swap, so it needed no changes beyond this comment and
+    // the event id below. "Every 2 turns from turn 3, spawns 2 Undertow
+    // burrowed at the map's spawn seams." The two fixed seam tiles
+    // flanking the root chamber (CUT_THE_ROOT_TILES' own (20,5)/(24,9)
+    // spawn tiles) are exactly that — never touched by enemy_deploy
+    // resolution, only ever by this event.
     {
-      id: "ev_heartwood_reinforcements",
+      id: "ev_wellroot_reinforcements",
       trigger: { type: "turn_start", turn: 3, repeatEvery: 2 },
       action: {
         type: "spawn",
@@ -2289,7 +2314,7 @@ export const AMARANTH_MISSION_32: CampaignMission = {
 // Mission 35's own interpretation call, decided here rather than left
 // implicit: hold_zone, NOT eliminate_all. The Independent Campaign doc
 // tags it "[final boss breaches]," not "[eliminate_all boss]" the way
-// Mission 21 tagged the Heartwood fight — and mechanically, checkWinLoss's
+// Mission 21 tags the Wellroot fight — and mechanically, checkWinLoss's
 // hold_zone branch (engine/mission.ts) only ever reads holdZone/turn state,
 // never hostileAlive.length, so The Unnamed's own survival or death never
 // enters the win/loss check either way. The Unnamed is sessile (moveRange 0,

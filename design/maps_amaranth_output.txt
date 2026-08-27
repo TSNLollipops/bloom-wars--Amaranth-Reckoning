@@ -1,0 +1,191 @@
+==============================================================================
+THE AMARANTH RECKONING -- MAP VALIDATION (36 missions)
+==============================================================================
+id                                    name                               w   h  tiles   P   E   H   X   D
+map_amaranth_muster                   Muster — Thistledown Watch        20  12    240   7   3   0   0   0
+map_amaranth_wire_and_mud             Wire and Mud — the Listening Pos  22  11    242   7   2  20   0   0
+map_amaranth_the_low_ground           The Low Ground                    24  15    360   7   3   0   0   0
+map_amaranth_tunnel_rats              Tunnel Rats                       30  19    570   7   3   0   0   0
+map_amaranth_foraging_party           Foraging Party                    22  13    286   7   3   0   7   0
+map_amaranth_house_colors             House Colors                      20  12    240   5   4   0   0   0
+map_amaranth_sporewatch_ridge         Sporewatch Ridge                  20  12    240   8   4  12   0   0
+map_amaranth_the_choir_sings          The Choir Sings                   22  13    286   6   8   0   0   0
+map_amaranth_cut_off                  Cut Off                           22  14    308   5   7   0   0   0
+map_amaranth_the_amaranth_betrayal    The Amaranth Betrayal             24  13    312   5   4   0   5   0
+map_amaranth_the_long_walk_back       The Long Walk Back                34  13    442   5   6   0   5   0
+map_amaranth_the_fallow_line          The Fallow Line — Thistledown Wa  26  14    364   5   8   8   0   0
+map_amaranth_new_colors               New Colors — The Muster Ground    26  14    364   8   4   0   0   0
+map_amaranth_steel_rain               Steel Rain                        28  16    448   8   6   0   0   0
+map_amaranth_landfall                 Landfall                          24  14    336  10   6   0   0   0
+map_amaranth_collaborators            Collaborators                     24  14    336   8   4   0   0   0
+map_amaranth_wellroot                 The Wellroot Uncovered            28  15    420   9   4   0   4   0
+map_amaranth_dravens_cut              Draven's Cut                      32  14    448   8   8   0   0   0
+map_amaranth_silent_ward              The Silent Ward                   26  16    416   9   4   0   0   0
+map_amaranth_marrows_line             Marrow's Line                     26  14    364   9   3   0   0   0
+map_amaranth_cut_the_root             Cut the Root                      26  15    390  36   3   0   0   0
+map_amaranth_ash_on_the_water         Ash on the Water                  28  14    392  20   2   0   0  32
+map_amaranth_the_amaranth_accord      The Amaranth Accord               26  13    338  15   2   0  35   0
+map_amaranth_two_fires                Two Fires                         30  18    540  12   8   0   0   0
+map_amaranth_the_reckoning            The Reckoning                     34  16    544  40   5   0   0   0
+map_amaranth_the_unnamed_beneath      The Unnamed Beneath               30  15    450  10   4   0   6   0
+map_amaranth_falling_back_to_meridian Falling Back to Meridian          36  14    504  32   4  32   0   0
+map_amaranth_marrows_reckoning        Marrow's Reckoning                28  15    420  21   5   0   0   0
+map_amaranth_outer_ring_falls         The Outer Ring Falls              30  16    480  16   6  16   0   0
+map_amaranth_ashes_of_the_second_ring Ashes of the Second Ring          28  15    420  16   6   0   0   0
+map_amaranth_the_last_convoy          The Last Convoy                   32  13    416  16   6   0   6   0
+map_amaranth_hold_at_the_spire        Hold at the Spire                 26  16    416  16   4   0   0  42
+map_amaranth_the_innermost_ring       The Innermost Ring                28  16    448  16   3  20   0   0
+map_amaranth_no_word_from_the_fleet   No Word from the Fleet            26  16    416  16   8   0   0   0
+map_amaranth_the_last_ring            The Last Ring                     32  17    544  16   3  20   0   0
+map_amaranth_until_relief             Until Relief                      30  18    540  24  12   0   0   0
+
+==============================================================================
+All 36 Amaranth maps valid.
+==============================================================================
+
+==============================================================================
+RECONSTRUCTION CHECK -- round-trip vs. the live src/data/mapsAmaranth.ts
+==============================================================================
+  [OK  ] map_amaranth_muster tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_wire_and_mud tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_low_ground tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_tunnel_rats tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_foraging_party tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_house_colors tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_sporewatch_ridge tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_choir_sings tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_cut_off tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_amaranth_betrayal tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_long_walk_back tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_fallow_line tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_new_colors tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_steel_rain tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_landfall tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_collaborators tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_wellroot tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_dravens_cut tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_silent_ward tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_marrows_line tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_cut_the_root tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_ash_on_the_water tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_amaranth_accord tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_two_fires tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_reckoning tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_unnamed_beneath tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_falling_back_to_meridian tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_marrows_reckoning tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_outer_ring_falls tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_ashes_of_the_second_ring tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_last_convoy tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_hold_at_the_spire tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_innermost_ring tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_no_word_from_the_fleet tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_the_last_ring tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_until_relief tile grid round-trips to its ASCII
+  [OK  ] map_amaranth_muster (MUSTER_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_wire_and_mud (WIRE_AND_MUD_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_low_ground (THE_LOW_GROUND_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_tunnel_rats (TUNNEL_RATS_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_foraging_party (FORAGING_PARTY_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_house_colors (HOUSE_COLORS_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_sporewatch_ridge (SPOREWATCH_RIDGE_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_choir_sings (THE_CHOIR_SINGS_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_cut_off (CUT_OFF_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_amaranth_betrayal (THE_AMARANTH_BETRAYAL_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_long_walk_back (THE_LONG_WALK_BACK_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_fallow_line (THE_FALLOW_LINE_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_new_colors (NEW_COLORS_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_steel_rain (STEEL_RAIN_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_landfall (LANDFALL_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_collaborators (COLLABORATORS_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_wellroot (WELLROOT_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_dravens_cut (DRAVENS_CUT_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_silent_ward (SILENT_WARD_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_marrows_line (MARROWS_LINE_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_cut_the_root (CUT_THE_ROOT_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_ash_on_the_water (ASH_ON_THE_WATER_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_amaranth_accord (THE_AMARANTH_ACCORD_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_two_fires (TWO_FIRES_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_reckoning (THE_RECKONING_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_unnamed_beneath (THE_UNNAMED_BENEATH_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_falling_back_to_meridian (FALLING_BACK_TO_MERIDIAN_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_marrows_reckoning (MARROWS_RECKONING_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_outer_ring_falls (OUTER_RING_FALLS_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_ashes_of_the_second_ring (ASHES_OF_THE_SECOND_RING_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_last_convoy (THE_LAST_CONVOY_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_hold_at_the_spire (HOLD_AT_THE_SPIRE_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_innermost_ring (THE_INNERMOST_RING_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_no_word_from_the_fleet (NO_WORD_FROM_THE_FLEET_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_the_last_ring (THE_LAST_RING_TILES) byte-diff vs live mapsAmaranth.ts
+  [OK  ] map_amaranth_until_relief (UNTIL_RELIEF_TILES) byte-diff vs live mapsAmaranth.ts
+
+  72/72 OK, 0 FAIL
+  Reconstruction VERIFIED -- round-trips cleanly, matches the live file exactly.
+
+==============================================================================
+REACHABILITY DETAIL -- deploy-pad flood fill to every objective tile
+==============================================================================
+mapsAmaranth.ts's own header says the lost validator checked reachability
+'from every deploy pad to every spawn/hold tile' -- it does not mention
+exit or dock. This script checks all four objective types uniformly.
+'orphan' = walkable ground no squad can reach. Legal on its own, but
+worth seeing.
+
+id                                     walkable  reachable  orphan
+map_amaranth_muster                         240        240       0
+map_amaranth_wire_and_mud                   221        221       0
+map_amaranth_the_low_ground                 360        360       0
+map_amaranth_tunnel_rats                    570        570       0
+map_amaranth_foraging_party                 286        286       0
+map_amaranth_house_colors                   232        232       0
+map_amaranth_sporewatch_ridge               240        240       0
+map_amaranth_the_choir_sings                286        286       0
+map_amaranth_cut_off                        282        282       0
+map_amaranth_the_amaranth_betrayal          312        312       0
+map_amaranth_the_long_walk_back             424        424       0
+map_amaranth_the_fallow_line                364        364       0
+map_amaranth_new_colors                     364        364       0
+map_amaranth_steel_rain                     448        448       0
+map_amaranth_landfall                       308        308       0
+map_amaranth_collaborators                  336        336       0
+map_amaranth_wellroot                       338        338       0
+map_amaranth_dravens_cut                    360        360       0
+map_amaranth_silent_ward                    336        336       0
+map_amaranth_marrows_line                   288        288       0
+map_amaranth_cut_the_root                   312        312       0
+map_amaranth_ash_on_the_water               198        198       0
+map_amaranth_the_amaranth_accord            264        264       0
+map_amaranth_two_fires                      448        448       0
+map_amaranth_the_reckoning                  544        544       0
+map_amaranth_the_unnamed_beneath            364        364       0
+map_amaranth_falling_back_to_meridian       504        504       0
+map_amaranth_marrows_reckoning              420        420       0
+map_amaranth_outer_ring_falls               462        462       0
+map_amaranth_ashes_of_the_second_ring       420        420       0
+map_amaranth_the_last_convoy                416        416       0
+map_amaranth_hold_at_the_spire              416        416       0
+map_amaranth_the_innermost_ring             428        428       0
+map_amaranth_no_word_from_the_fleet         416        416       0
+map_amaranth_the_last_ring                  521        520       1
+map_amaranth_until_relief                   540        540       0
+
+==============================================================================
+NOTES
+==============================================================================
+1. This script's tile-cost table is copied verbatim from design/maps.py,
+   not imported -- see the file header on why the two scripts stay
+   independent. If maps.py's table ever changes (e.g. the blockhouse-wall
+   flight-cost question flagged in its own NOTES), this file needs the
+   same edit made by hand, or the two will quietly disagree.
+
+2. No per-map difficulty/balance judgment is made here, same honest limit
+   as maps.py. This confirms the 36 maps are well-formed and physically
+   playable -- not that they are fun, fair, or correctly tuned.
+
+3. Team One's four maps are untouched by this file. design/maps.py, its
+   own frozen reference, and its own generated output are exactly as
+   they were before this script existed.
+
+==============================================================================
+DONE. All 36 maps valid, reconstruction verified. Wrote: maps_amaranth_generated.ts, maps_amaranth_ascii.json
+==============================================================================

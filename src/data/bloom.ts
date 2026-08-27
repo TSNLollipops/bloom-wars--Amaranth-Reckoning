@@ -159,6 +159,74 @@ export const BLOOM: Record<string, BloomArchetype> = {
     colorPalette: ["#1A1A24", "#5C4A78", "#6B4358"],
     spriteKey: "bloom_mass_large",
   },
+  // The Wellroot (Amaranth Act II boss, Mission 21 "Cut the Root") — real
+  // stat block, 27 Aug 2026. Independent Campaign doc §8 always described
+  // this as "a sessile hive-node rooted into House Amaranth's terraces;
+  // huge Endurance, acid-heavy," but until this pass Mission 21 shipped it
+  // as a straight, unmodified reuse of bloom_heartwood's own stat block —
+  // flagged as a real gap in both the build log's "still open" list and
+  // the Codex Design doc's own bestiary section (§6, "flagged, not
+  // written" — a codex entry describing this as a unique escalated threat
+  // would have been describing a creature that didn't actually exist).
+  //
+  // Deliberately Gallcyst's lineage (weaponType/onHit), not Heartwood's —
+  // Gallcyst is the one other acid archetype already in the game, and
+  // "acid-heavy" was never true of the old Heartwood-reuse (concussive,
+  // knockback). This also means each of the three named Amaranth threats
+  // now descends from a distinct base archetype instead of two of them
+  // sharing one: the Choir from Sirenmaw (flight), the Wellroot from
+  // Gallcyst (acid), the Unnamed from Heartwood (concussive) — see that
+  // archetype's own comment below for its side of the same lineage split.
+  //
+  // Endurance/vitality placed on the campaign's own escalation curve
+  // (Act I's Heartwood at 400/60, Act III's Unnamed at 560/70) rather than
+  // picked freehand — validated via design/combat_sim.py's own "THE
+  // WELLROOT" section and the matching case in engine/__tests__/
+  // combat.test.ts's Collapse-rule suite: at a flat 70 dmg/hit, Heartwood
+  // dies in 7 hits, Wellroot in 8, the Unnamed in 9 — strictly escalating,
+  // same test attack across all three.
+  //
+  // attackPower / attackRange, 27 Aug 2026 — NOT the first numbers tried.
+  // The original plan was attackPower 40 (down from Heartwood's 60) on the
+  // theory that fx_acid_dot's stacking damage would make up the difference
+  // — Gallcyst's own design already leans on its DoT the same way. That
+  // theory turned out to be wrong in a way worth recording: NONE of the
+  // BLOOM_ON_HIT_EFFECTS below (acid_dot, debuff_attack, knockback) are
+  // actually wired into the engine — `engine/turnManager.ts`, the file
+  // this same comment block says DoT/debuff ticking "lives in," doesn't
+  // exist. Every Bloom archetype's onHit field is pure flavor data right
+  // now, Heartwood's own fx_knockback_1 included — this predates the
+  // Wellroot and isn't specific to it. Running the actual mission
+  // (tools/_scratch_batch_sim.ts, a throwaway wrapper around npm run sim's
+  // own per-turn loop, 3 independent batches of 40-60) at attackPower 40
+  // came back 80% win — nearly 2.5x the documented 35% "deliberately
+  // tight" baseline this fight was tuned to — because the compensating DoT
+  // was never actually landing. Restoring attackPower to 60 (matching
+  // Heartwood) while keeping attackRange pulled in to [1,3] (down from
+  // Heartwood's [1,4]) reproduced 35/25/37% across the same three batches
+  // — close enough to the original tuning to call it a match. Shipped at
+  // that config. The acid identity here is weaponType/onHit/colorPalette/
+  // perception only for now, not a mechanical difference from Heartwood's
+  // concussive kit — see the build log / Master Index for the flagged,
+  // separate, real gap (an unbuilt on-hit-effects engine that would affect
+  // Gallcyst and Sirenmaw/Choir too, not just this archetype).
+  bloom_wellroot: {
+    id: "bloom_wellroot",
+    displayName: "The Wellroot",
+    weaponType: "acid",
+    movementType: "sessile",
+    perception: "chemical",
+    intelligence: "emergent",
+    endurance: 480,
+    vitality: 65,
+    moveRange: 0,
+    attackRange: [1, 3],
+    attackPower: 60,
+    vision: 6,
+    onHit: "fx_acid_dot",
+    colorPalette: ["#2A1F14", "#5C6B2E", "#9ACD32"],
+    spriteKey: "bloom_wellroot_colossal",
+  },
   // Independent campaign addition (Amaranth Act III, Mission 35 "The Last
   // Ring" — claude/Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md
   // §8: "The Unnamed (Act 3 final threat) — the source, growing beneath

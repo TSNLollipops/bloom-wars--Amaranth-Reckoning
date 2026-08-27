@@ -1,0 +1,160 @@
+==============================================================================
+MAP VALIDATION
+==============================================================================
+id                  name                  w   h  tiles   P   E   H   X
+map_city_sweep_01   The City Sweep       18  12    216   7   3   0   0
+map_bunker_01       The Bunker           18  12    216   6   4  12   0
+map_attrition_01    The Real Fight       20  12    240   6   2   0   0
+map_sessile_tomb    The Sessile Tomb     20  12    240   6   8   0   6
+
+==============================================================================
+TILE LEGEND   (move cost: bipedal / centauroid / flight;  * = defence stars)
+==============================================================================
+chr  id          name                     bip  cent  fly  def*
+.    plain       Plain / ferrocrete         1     1    1     1
+=    road        Road / rail spine          1     1    1     0
+,    scrub       Open scrub                 1     1    1     0
+%    rubble      Rubble                     2     3    1     2
+#    structure   Structure / habblock       1     2    1     3
+~    bloom_mat   Bloom mat                  2     2    1     1
+^    ridge       Ridge / elevated           2     3    1     4
+w    sump        Water / sump               -     -    1     0
+P    deploy      Deploy pad (player)        1     1    1     1
+E    spawn       Bloom spawn seam           1     1    1     0
+X    exit        Extraction tile            1     1    1     1
+H    hold        Hold-zone tile             1     1    1     2
+B    wall        Blockhouse wall            -     -   99     0
+D    dock        Dock perimeter             1     1    1     2
+
+==============================================================================
+RENDERED MAPS
+==============================================================================
+
+map_city_sweep_01  -  The City Sweep   (18 x 12)
+     012345678901234567
+   0 ,,,..##..%%..^^^^^
+   1 ,,,..##..%%...^^^^
+   2 ,,....##....~~..^^
+   3 ..==============..
+   4 P.==##....%%==..~~
+   5 PP==##....%%==.~~~
+   6 P.==........==..~~
+   7 PP==##..%%%%==..~E
+   8 P.==##..%%%%==...E
+   9 ..==============..
+  10 ,,....##....~~~..,
+  11 ,,,...##...~~~~..E
+
+map_bunker_01  -  The Bunker   (18 x 12)
+     012345678901234567
+   0 ^^^^....%%%%....^^
+   1 ^^^.....%%%.....^^
+   2 ..................
+   3 P.%%..BBB.BB..%%..
+   4 P.%%..BHHHHB..%%..
+   5 PP....BHHHHB....~E
+   6 PP....BHHHHB....~E
+   7 ..%%..BBB.BB..%%..
+   8 ..%%....==....%%..
+   9 ..................
+  10 ~~~~..%%%%%%..~~~~
+  11 E~~~..%%%%%%..~~~E
+
+map_attrition_01  -  The Real Fight   (20 x 12)
+     01234567890123456789
+   0 ,,,,......====......
+   1 ,,,,......====......
+   2 ..%%%%....====....%%
+   3 ..%%%%....====....%%
+   4 PP........====......
+   5 PP..##....====....##
+   6 PP..##....====....##
+   7 ..........====......
+   8 ..~~~~....====....~~
+   9 ..~~~~....====....~~
+  10 ^^^~~~........~~~^^^
+  11 ^^^~~E........E~~^^^
+
+map_sessile_tomb  -  The Sessile Tomb   (20 x 12)
+     01234567890123456789
+   0 ^^^^^^~~~~~~~~^^^^^^
+   1 ^^^^^~~~~~~~~~~^^^^^
+   2 ^^^..~~~~~~~~~~..^^^
+   3 PP...~~%%%%%%~~...XX
+   4 PP...~~%#EE#%~~...XX
+   5 PP..~~~%#EE#%~~~..XX
+   6 ....~~~%#EE#%~~~....
+   7 ..~~~~~%%%%%%~~~~~..
+   8 ..~~~~~~~~~~~~~~~~..
+   9 ^^..~~~~~~~~~~~~..^^
+  10 ^^^..~~E~~~~E~~..^^^
+  11 ^^^^^..~~~~~~..^^^^^
+
+==============================================================================
+All maps valid. Emitted maps_generated.ts and maps_ascii.json.
+==============================================================================
+
+==============================================================================
+RECONSTRUCTION CHECK -- fresh output vs. the original maps_output.txt
+==============================================================================
+  [OK  ] map_city_sweep_01 table row
+  [OK  ] map_bunker_01 table row
+  [OK  ] map_attrition_01 table row
+  [OK  ] map_sessile_tomb table row
+  [OK  ] tile legend (13 original rows, in order)
+  [OK  ] map_city_sweep_01 tile grid round-trips to its ASCII
+  [OK  ] map_bunker_01 tile grid round-trips to its ASCII
+  [OK  ] map_attrition_01 tile grid round-trips to its ASCII
+  [OK  ] map_sessile_tomb tile grid round-trips to its ASCII
+  [OK  ] byte-exact diff vs maps_output_reference_21Aug2026.txt
+
+  10/10 OK, 0 FAIL
+  Reconstruction VERIFIED against the original output.
+
+==============================================================================
+REACHABILITY DETAIL -- extra coverage, not in the original output
+==============================================================================
+Flood-fill on foot from every deploy pad. 'orphan' = walkable ground no
+squad can actually get to. Legal (decorative pockets happen), but if a
+number here is large, the map probably has an accidental wall.
+
+id                   walkable  reachable  orphan
+map_city_sweep_01         216        216       0
+map_bunker_01             200        200       0
+map_attrition_01          240        240       0
+map_sessile_tomb          240        240       0
+
+==============================================================================
+NOTES -- real differences found against the live engine, flagged not fixed
+==============================================================================
+1. Blockhouse wall, flight cost. The original legend prints 99 (passable
+   to flyers at an absurd cost). The live src/data/tiles.ts sets flying to
+   Infinity and carries an explicit comment -- 'Impassable to everything,
+   flyers included. GDD Sec.4.6 / Data Pack Sec.7.3'. Those disagree. This
+   script keeps 99 so its output still matches the original artifact it is
+   being checked against; the engine is almost certainly the correct one.
+   Maxime's call which is canon -- if the engine wins, change the 99 above
+   to IMPASSABLE and update the ORIGINAL_LEGEND row to match.
+
+2. Deploy pad display name. Legend says 'Deploy pad (player)'; tiles.ts
+   says 'Deploy pad'. Cosmetic, no gameplay effect. Not changed.
+
+3. The 'dock' tile (Mission 22 Protect Asset, 25 Aug 2026) exists in
+   tiles.ts but postdates the original script, so it is excluded from the
+   legend comparison above. It IS registered in this script's tile table,
+   so a future map using 'D' will validate rather than be rejected.
+
+4. Tile effects this script does not model: bloom_mat's 5 turn-start
+   damage, deploy's 20 turn-start repair, ridge's +1 Reeps range. They
+   live in tiles.ts and matter in play, but none of them affect map
+   *validity*, which is all this script is for.
+
+5. maps.py only covers the four archived Team One maps -- the same four
+   the original covered. The live Amaranth campaign's 36 maps live in
+   src/data/mapsAmaranth.ts and were generated by ad hoc per-batch
+   scripts, not by this one. Bringing them under this script would be a
+   real piece of work and a real scope decision, not a quiet extension.
+
+==============================================================================
+DONE. Maps valid, reconstruction verified. Wrote: maps_generated.ts, maps_ascii.json
+==============================================================================

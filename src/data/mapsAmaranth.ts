@@ -655,18 +655,21 @@ const MARROWS_LINE_TILES: TileType[][] = [
 // own validated output is.
 //
 // Cut the Root (Mission 21) — the Wellroot boss fight the doc calls for
-// ("First proper Bloom boss since the Choir"), built almost entirely for
-// free out of an archetype that's sat fully defined and completely unused
-// since data/bloom.ts was first written: bloom_heartwood, sessile,
-// endurance 400, already Munti-prioritising via engine/ai.ts's own
-// emergentDecision(). The map is a walled root chamber at the east end —
-// the Heartwood's single spawn tile sits dead center of it — reached
-// through open scrub with scattered rubble cover for the squad's approach.
-// Two more spawn tiles flank the chamber, NOT enemy waves: they're the
-// coordinates AMARANTH_MISSION_21's own scripted turn_start/repeatEvery
-// event burrows a fresh pair of Undertow into, every 2 turns from turn 3,
-// straight out of bloom_heartwood's own documented (and until this batch,
-// never-built) special rule.
+// ("First proper Bloom boss since the Choir"). Originally built (25 Aug
+// 2026) almost entirely for free out of an archetype that had sat fully
+// defined and completely unused since data/bloom.ts was first written:
+// bloom_heartwood, sessile, endurance 400, already Munti-prioritising via
+// engine/ai.ts's own emergentDecision(). Swapped to a real bloom_wellroot
+// archetype 27 Aug 2026 (see data/bloom.ts's own comment) — the chamber
+// layout below is unchanged, since the swap only reduced the boss's
+// attackRange (4 -> 3 tiles) and didn't require redesigning the room. The
+// map is a walled root chamber at the east end — the boss's single spawn
+// tile sits dead center of it — reached through open scrub with scattered
+// rubble cover for the squad's approach. Two more spawn tiles flank the
+// chamber, NOT enemy waves: they're the coordinates AMARANTH_MISSION_21's
+// own scripted turn_start/repeatEvery event burrows a fresh pair of
+// Undertow into, every 2 turns from turn 3 — mission-scripted content,
+// unaffected by which archetype anchors the chamber.
 const CUT_THE_ROOT_TILES: TileType[][] = [
   ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
   ["wall", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "wall"],

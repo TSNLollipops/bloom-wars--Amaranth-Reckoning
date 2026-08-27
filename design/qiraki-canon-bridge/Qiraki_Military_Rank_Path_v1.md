@@ -1,4 +1,4 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context, and note this doc was written the same day as this project's own `Bloom_Wars_Rank_And_Command_v1.md` — worth cross-checking the two directly.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25, re-synced 2026-08-27 (minor wording fix in Part One, no substantive change). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context, and note this doc was written the same day as this project's own `Bloom_Wars_Rank_And_Command_v1.md` — worth cross-checking the two directly.
 
 # THE QIRAKI FILES — MILITARY RANK PATH: PILOT TO FACTION LEADER
 
@@ -24,7 +24,7 @@ Already LOCKED in Bible_Skeleton §4: **rank** and **command position** are sepa
 
 **Rank** is an individual soldier's personal standing, climbed alone, gated by connective-AI level under the points economy, regardless of whether that soldier ever leads anyone.
 
-**Command position** is a merit-based authority track layered on top of rank. A soldier can sit at high rank and never hold a command slot. A soldier can be pulled into a command role without being the highest-ranked person nearby. Trav and Vrassik each inherit a command by walking into the other's old vacancy, not by seniority order.
+**Command position** is a merit-based authority track layered on top of rank. A soldier can sit at high rank and hold no command slot. A soldier can be pulled into a command role without being the highest-ranked person nearby. Trav and Vrassik each inherit a command by walking into the other's old vacancy, not by seniority order.
 
 This document's job is to lay both tracks out as one usable reference, and then show where that reference bends once the oligarchy stops being the thing the ladder answers to.
 
