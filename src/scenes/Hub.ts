@@ -83,11 +83,30 @@ import {
   pickStagePromotionLine,
   detectRankPromotion,
   pickRankGreetingLine,
+  STRESS_PANIC_THRESHOLD,
   type AmbientPilotState,
   type HubMessage,
   type Stage,
   type Catalyst,
 } from "../data/ambientLines";
+// Groups 3-5 batch rebuild, 28 Aug 2026 — Anger Blowup, Toxic Pairs, and
+// Breakdown (see each module's own header for the full design). Third
+// build of all three — the first two were verified clean in cloud sandboxes
+// that were each lost before reaching this device; see
+// claude/Bloom_Wars_Master_Index.md and claude/Bloom_Wars_Pending_Device_
+// Commit_28Aug2026.md for that history.
+import { isAngerBlowupEligible, applyAngerBlowupStressRelief, pickAngerBlowupExchange, ANGER_BLOWUP_CHANCE, ANGER_BLOWUP_BOND_DELTA } from "../data/angerBlowup";
+import { applyToxicPairStressTick } from "../data/toxicPairs";
+import {
+  isBreakdownEligible,
+  applyBreakdownStressRelief,
+  pickBreakdownOnsetLine,
+  pickBreakdownResolutionLine,
+  BREAKDOWN_CHANCE,
+  BREAKDOWN_FAVORABILITY_GAIN,
+  BREAKDOWN_SLEEP_TIMEOUT_MS,
+  type BreakdownFlavor,
+} from "../data/breakdown";
 import {
   interpretPlayerChat,
   detectUnbuiltVerbLine,
@@ -331,6 +350,35 @@ const ENCOUNTER_RADIUS = 90;
 const ENCOUNTER_COOLDOWN_MIN_MS = 12000;
 const ENCOUNTER_COOLDOWN_MAX_MS = 22000;
 
+// Anger Blowup, 28 Aug 2026 (Groups 3-5 batch rebuild) — its own, longer,
+// RANDOMIZED cooldown range, deliberately separate from
+// ENCOUNTER_COOLDOWN_MIN/MAX_MS above. A blowup is the heavier of the two
+// encounter kinds this scene can produce; letting it repeat on the same
+// ~12-22s clock an ordinary encounter uses would make it read as routine
+// instead of a real flare-up. 90 seconds to 3 real minutes, per the
+// authoritative spec (Social Sim Roadmap #15 / Master Index Group 3) —
+// the first rebuild pass used a flat 45s instead of this range.
+const ANGER_BLOWUP_COOLDOWN_MIN_MS = 90_000;
+const ANGER_BLOWUP_COOLDOWN_MAX_MS = 180_000;
+
+// Breakdown, 28 Aug 2026 — how often updateBreakdownTrigger rerolls
+// eligibility for an NPC not currently mid-crisis. 15 real seconds per
+// the authoritative spec (Social Sim Roadmap #16 / Master Index Group 5)
+// — the first rebuild pass used 30s, borrowed from WORRY_RECHECK_MS's own
+// cadence rather than the real spec's own number.
+const BREAKDOWN_CHECK_INTERVAL_MS = 15_000;
+
+// Breakdown's own post-resolution cooldown — 90 seconds to 3 real
+// minutes, mirroring Anger Blowup's cooldown shape exactly (Social Sim
+// Roadmap #16: "sets a 90-180 second cooldown before the pilot can
+// trigger again, mirroring #15's own cooldown shape exactly"). Reuses
+// nextBreakdownCheckAt rather than a second dedicated field — the
+// trigger recheck and the post-resolution cooldown are the same kind of
+// "don't reroll yet" gate, just set to a longer value right after a
+// resolution than an ordinary 15s recheck would.
+const BREAKDOWN_RESOLUTION_COOLDOWN_MIN_MS = 90_000;
+const BREAKDOWN_RESOLUTION_COOLDOWN_MAX_MS = 180_000;
+
 // Live-visual staging, 26 Aug 2026 — Maxime: "we go ham bro" on the "full
 // live-Hub-visual NPC-to-NPC feature" this file's own header already
 // named as an acknowledged future goal. Gap between npcA's opening line
@@ -466,7 +514,15 @@ function dartsAccuracyFromPos(pos: number): number {
 // Build Plan §9, piece #4's own room ("transporter pad is its own room")
 // plus Antfarm §2/§11.3's five rooms + the grotto. "recroom" is Phase 1's
 // original room, unchanged; the other six are new this pass.
-type RoomId = "recroom" | "hangarDeck" | "workshop" | "vault" | "berths" | "cic" | "grotto";
+// sparRoom, 28 Aug 2026 — Groups 3-5 batch rebuild. A 4th deck, single-room
+// like the grotto, reached from the lower deck (see DECK_ORDER/DOORS
+// below). Where crew who've had a real Anger Blowup or Breakdown can
+// eventually work things out physically — nothing mechanical hooks into
+// it yet this pass (that's a real, separate follow-up, not silently
+// assumed done), it's built now as a real walkable destination so it
+// exists before anything needs it, same "build the room, wire the
+// mechanic later" order the other six rooms already established.
+type RoomId = "recroom" | "hangarDeck" | "workshop" | "vault" | "berths" | "cic" | "grotto" | "sparRoom";
 
 const ROOM_TITLES: Record<RoomId, string> = {
   recroom: "REC ROOM",
@@ -476,6 +532,7 @@ const ROOM_TITLES: Record<RoomId, string> = {
   berths: "BERTHS",
   cic: "CIC / BRIDGE",
   grotto: "THE GROTTO",
+  sparRoom: "THE SPAR ROOM",
 };
 
 // Antfarm §2 (the five-room table) and §11.3 (the grotto) already give
@@ -492,6 +549,7 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   vault: "Heirloom dedications belong here eventually. Nothing built yet.",
   berths: "Recruitment, romance, one-on-one scenes — not wired in yet.",
   cic: "Fire-support config, Energy allocation — not wired in yet.",
+  sparRoom: "Where crew work things out with their fists, once there's a real reason to. Nothing wired in yet.",
 };
 
 // The Antfarm Grid, v0 — 27 Aug 2026 ("start the antfarm... stress test the
@@ -516,7 +574,9 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
 // (the more operational rooms) went to the upper deck — arbitrary but
 // legible, and it keeps recroom's existing NPC seats and the bay/muster
 // point exactly where they already are (see ROOM_ZONE_BOUNDS.recroom).
-type DeckId = "lower" | "grotto" | "upper";
+// sparRoom, 28 Aug 2026 — same "deck named after its one room" pattern
+// grotto already established, not a new pattern invented for this.
+type DeckId = "lower" | "grotto" | "upper" | "sparRoom";
 
 const ROOM_DECK: Record<RoomId, DeckId> = {
   recroom: "lower",
@@ -526,12 +586,14 @@ const ROOM_DECK: Record<RoomId, DeckId> = {
   workshop: "upper",
   vault: "upper",
   cic: "upper",
+  sparRoom: "sparRoom",
 };
 
 const DECK_TITLES: Record<DeckId, string> = {
   lower: "LOWER DECK",
   grotto: "GROTTO DECK",
   upper: "UPPER DECK",
+  sparRoom: "SPAR DECK",
 };
 
 // Every room used to reuse the exact same ROOM_BOUNDS box as its own,
@@ -619,6 +681,16 @@ const GROTTO_ELLIPSE = {
 // modest, not dramatic; said plainly rather than oversold.
 const LOWER_BOUNDS = { left: 50, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
 const UPPER_BOUNDS = { left: 60, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
+
+// sparRoom, 28 Aug 2026 — Groups 3-5 batch rebuild. Deliberately NOT given
+// the egg-hull treatment the three original decks got (no margin strip, no
+// ellipse) — this pass's job is the functional plumbing (a real deck that
+// exists, is reachable, and clamps movement correctly), not another visual
+// pass. Reuses ROOM_BOUNDS's own plain rectangle outright rather than
+// inventing a fourth bespoke shape; a hull pass can widen this later
+// exactly the way it widened Lower/Upper's own margin, without touching
+// anything below.
+const SPAR_ROOM_BOUNDS = { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom };
 
 // Antfarm build economy, first slice, 27 Aug 2026 — Arangement of
 // Content's own pilotId, hoisted here from buildNpcs() (where it's set
@@ -730,6 +802,9 @@ const ROOM_ZONE_BOUNDS: Record<RoomId, { left: number; right: number; top: numbe
   workshop: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
   vault: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
   cic: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
+  // Alone on its own deck, same as grotto — the whole SPAR_ROOM_BOUNDS box
+  // is its zone, no split needed.
+  sparRoom: { left: SPAR_ROOM_BOUNDS.left, right: SPAR_ROOM_BOUNDS.right, top: SPAR_ROOM_BOUNDS.top, bottom: SPAR_ROOM_BOUNDS.bottom },
 };
 
 function sameDeck(a: RoomId, b: RoomId): boolean {
@@ -772,7 +847,14 @@ function clampToDeckFloor(deck: DeckId, x: number, y: number, radius: number): {
     };
     return clampToEllipse(rectClamped.x, rectClamped.y, GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx, GROTTO_ELLIPSE.ry, radius);
   }
-  const bounds = deck === "lower" ? LOWER_BOUNDS : UPPER_BOUNDS;
+  // sparRoom, 28 Aug 2026 — was a binary `deck === "lower" ? LOWER_BOUNDS :
+  // UPPER_BOUNDS` ternary, written back when grotto/lower/upper were the
+  // only three decks that could ever reach here. Adding a 4th deck without
+  // touching this would have silently clamped sparRoom's own movement to
+  // UPPER_BOUNDS instead — caught before it ever ran, not after — so this
+  // is now one explicit branch per deck instead of an either/or that
+  // assumed there could only ever be two remaining options.
+  const bounds = deck === "lower" ? LOWER_BOUNDS : deck === "upper" ? UPPER_BOUNDS : SPAR_ROOM_BOUNDS;
   return {
     x: Phaser.Math.Clamp(x, bounds.left + radius, bounds.right - radius),
     y: Phaser.Math.Clamp(y, bounds.top + radius, bounds.bottom - radius),
@@ -875,12 +957,42 @@ type DoorDef = {
 // already used) and, on the grotto deck specifically, from BOTH of its own
 // stairs — recroom's seats/MUSTER_POINT and workshop's own layout are
 // otherwise untouched by any of this, see ROOM_ZONE_BOUNDS above.
+// recroom-to-sparRoom / sparRoom-to-recroom, 28 Aug 2026 — the one new
+// edge Groups 3-5 adds to this graph. SECOND pass: the first rebuild
+// hosted this in berths, but the authoritative spec is explicit — "One
+// door pair connects it directly to the Rec Room only
+// (recroom-to-sparRoom / sparRoom-to-recroom)" (Social Sim Roadmap #16 /
+// Master Index Group 5). Rooms sharing a deck (recroom/hangarDeck/berths
+// all on "lower") share one coordinate space but isAtDoor() still filters
+// by the SPECIFIC room a door is hosted in, not just the deck — so
+// hosting this in berths instead of recroom, as the first pass did, would
+// make it reachable from the wrong physical spot even though the deck-
+// level routing happened to work out the same either way. Placed at
+// (160, 150) — recroom's own zone is x:[130,550] y:[108,552]; that point
+// sits well clear of every other fixed thing already in this zone: the
+// existing recroom-to-grotto door (480, 130), MUSTER_POINT (480, 502),
+// and all three seated NPCs (220,268)/(460,268)/(340,462) — the nearest
+// of those, the recroom-to-grotto door, is still ~320px away, far past
+// DOOR_RADIUS (45) plus DOOR_LANDING_JITTER_DIST (30). Landing points
+// offset ~100px from each door, same margin convention as the grotto's
+// own door pairs.
 const DOORS: DoorDef[] = [
   { id: "recroom-to-grotto", room: "recroom", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 470, label: "THE GROTTO" },
   { id: "grotto-to-recroom", room: "grotto", x: 480, y: ROOM_BOUNDS.bottom - 22, toRoom: "recroom", toX: 480, toY: 170, label: "LOWER DECK" },
   { id: "grotto-to-workshop", room: "grotto", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "workshop", toX: 480, toY: 470, label: "UPPER DECK" },
   { id: "workshop-to-grotto", room: "workshop", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 300, label: "THE GROTTO" },
+  { id: "recroom-to-sparRoom", room: "recroom", x: 160, y: 150, toRoom: "sparRoom", toX: 480, toY: 208, label: "THE SPAR ROOM" },
+  { id: "sparRoom-to-recroom", room: "sparRoom", x: 480, y: 300, toRoom: "recroom", toX: 260, toY: 150, label: "LOWER DECK" },
 ];
+
+// DECK_ORDER, 28 Aug 2026 — the three original decks were always a
+// straight line (lower — grotto — upper); sparRoom extends that same line
+// by one more hop off the lower end (lower — sparRoom), not a branch off
+// it, so the whole deck graph is still just a path, not a tree. Named here
+// so nextHopDoor (right below) can walk it generically instead of the old
+// hand-written three-deck if/else chain, which had no room left in its own
+// shape for a 4th deck without a rewrite anyway.
+const DECK_ORDER: DeckId[] = ["upper", "grotto", "lower", "sparRoom"];
 
 // 26 Aug 2026, Build Plan §24 — cross-room NPC wandering's own routing.
 // Rewritten for the Antfarm Grid, 27 Aug 2026: used to rely on DOORS being
@@ -889,18 +1001,30 @@ const DOORS: DoorDef[] = [
 // decks, not rooms — so this only ever fires for a genuinely cross-deck
 // trip; two same-deck rooms need no door at all (open floor, the caller
 // should just walk there directly — see updateNpcRoaming's own explore
-// branch for that split). The three decks form a straight line, lower —
-// grotto — upper, so routing is still just as cheap as before: from the
-// lower or upper deck there's exactly one stair, straight to the grotto;
-// from the grotto, pick whichever of its two stairs actually leads toward
-// the target deck. Never more than two hops, same as the old star.
+// branch for that split).
+//
+// Rewritten again, 28 Aug 2026, Groups 3-5 batch rebuild: the old version
+// hand-coded the three-deck line as a literal if/else chain (lower/upper
+// each one hop from the grotto, the grotto picks whichever of its two
+// stairs points the right way). sparRoom extends that line to four stops
+// (upper — grotto — lower — sparRoom, DECK_ORDER above), and the old
+// three-branch shape had no room left in it for a 4th deck without
+// duplicating itself — so this walks DECK_ORDER generically instead: step
+// one deck at a time toward the target, find the door connecting the
+// current deck to that next one. Confirmed by hand this returns the exact
+// same door the old version did for all three original decks — a
+// generalization, not a behavior change, for anything that predates
+// sparRoom. Never more than three hops now (up from two), for a trip that
+// spans the whole line end to end.
 function nextHopDoor(fromRoom: RoomId, toRoom: RoomId): DoorDef | undefined {
   const fromDeck = ROOM_DECK[fromRoom];
   const toDeck = ROOM_DECK[toRoom];
   if (fromDeck === toDeck) return undefined; // same deck — open floor, no door to hop through
-  if (fromDeck === "lower") return DOORS.find((d) => d.room === "recroom" && d.toRoom === "grotto");
-  if (fromDeck === "upper") return DOORS.find((d) => d.room === "workshop" && d.toRoom === "grotto");
-  return DOORS.find((d) => d.room === "grotto" && ROOM_DECK[d.toRoom] === toDeck);
+  const fromIndex = DECK_ORDER.indexOf(fromDeck);
+  const toIndex = DECK_ORDER.indexOf(toDeck);
+  const step = toIndex > fromIndex ? 1 : -1;
+  const nextDeck = DECK_ORDER[fromIndex + step];
+  return DOORS.find((d) => ROOM_DECK[d.room] === fromDeck && ROOM_DECK[d.toRoom] === nextDeck);
 }
 
 // Hub polish, 26 Aug 2026 — see DOOR_LANDING_MAX_ATTEMPTS's own header for
@@ -1090,6 +1214,14 @@ type HubNpc = {
   // seed/reread-each-tick shape as nextRoamAt above but pairwise in effect
   // (both participants get a fresh one after an encounter fires).
   nextEncounterAt?: number;
+  // Anger Blowup, 28 Aug 2026 (Groups 3-5 batch rebuild) — its own,
+  // separate cooldown clock, checked alongside (not instead of)
+  // nextEncounterAt inside updateNpcEncounters. Kept apart from
+  // nextEncounterAt on purpose: an ordinary encounter's own cooldown is
+  // deliberately short (12-22s), and a blowup shouldn't be able to repeat
+  // on that same short clock the instant it's next eligible again — see
+  // ANGER_BLOWUP_COOLDOWN_MIN_MS/MAX_MS's own comment.
+  nextBlowupAt?: number;
   // Worry with real texture, first slice, 27 Aug 2026 — same staggered
   // per-NPC recheck clock shape as nextEncounterAt above, but for
   // updateMissionWorry()'s own probabilistic reroll. Not persisted, same
@@ -1159,6 +1291,28 @@ type HubNpc = {
   // two already use: the needs counter is about a deployable pilot's
   // off-duty life, not the CO's.
   nextNeedsTickAt?: number;
+  // Breakdown, 28 Aug 2026 (Groups 3-5 batch rebuild) — see
+  // data/breakdown.ts's own header. Ephemeral, not persisted, same
+  // deliberate choice Mission Worry already made (WORRY_ONSET_MS's own
+  // comment) — a breakdown mid-crisis on save-out just isn't there anymore
+  // on reload, rather than needing a whole new persisted-state shape for
+  // an in-progress event. true from the moment updateBreakdownTrigger
+  // fires one until updateBreakdownResolution resolves it; while true,
+  // updateBreakdownTrigger skips this NPC outright (mirrors HubNpc.mustered's
+  // own "one system owns you while this is true" shape).
+  breakdown?: boolean;
+  // this.time.now at onset — compared against BREAKDOWN_SLEEP_TIMEOUT_MS
+  // by updateBreakdownResolution's own "sleep" fallback. undefined
+  // whenever breakdown is falsy.
+  breakdownSince?: number;
+  // Same staggered-cooldown shape as nextRoamAt/nextEncounterAt/
+  // nextBlowupAt above — how often updateBreakdownTrigger rerolls
+  // eligibility for an NPC who isn't currently mid-breakdown. Also
+  // doubles as the post-resolution cooldown (see
+  // BREAKDOWN_RESOLUTION_COOLDOWN_MIN/MAX_MS's own comment) — resolveBreakdown
+  // sets this to a 90-180s value on the way out rather than the ordinary
+  // 15s recheck, same field, just a longer wait after a real event.
+  nextBreakdownCheckAt?: number;
 };
 
 // NPC_SEED / NPC_BOND_SEED used to be declared right here as scene-local
@@ -1333,6 +1487,9 @@ export class Hub extends Phaser.Scene {
   private lowerFloor!: Phaser.GameObjects.Graphics;
   private upperFloor!: Phaser.GameObjects.Graphics;
   private grottoFloor!: Phaser.GameObjects.Graphics;
+  // sparRoom, 28 Aug 2026 — 4th floor, same "exactly one of these visible
+  // at a time" contract as the three above (see refreshRoomVisibility).
+  private sparRoomFloor!: Phaser.GameObjects.Graphics;
   // The egg hull, second pass, 27 Aug 2026 — one marker per RESERVED_BAYS
   // entry, same "built once, toggled by deck" pattern as doorMarkers above.
   private reservedBayMarkers: { def: ReservedBayDef; outline: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text }[] = [];
@@ -1430,6 +1587,7 @@ export class Hub extends Phaser.Scene {
 
     this.lowerFloor = this.drawDeckFloor(LOWER_BOUNDS);
     this.upperFloor = this.drawDeckFloor(UPPER_BOUNDS);
+    this.sparRoomFloor = this.drawDeckFloor(SPAR_ROOM_BOUNDS);
     this.drawGrottoFloor();
     this.drawMusterPoint();
     this.buildDoors();
@@ -3377,7 +3535,7 @@ export class Hub extends Phaser.Scene {
       return g;
     };
     for (const id of Object.keys(ROOM_ZONE_BOUNDS) as RoomId[]) {
-      if (id === "grotto") continue; // alone on its own deck — the deck-wide box already reads as its one room, no divider/second label needed
+      if (id === "grotto" || id === "sparRoom") continue; // both alone on their own deck — the deck-wide box already reads as its one room, no divider/second label needed
       const b = ROOM_ZONE_BOUNDS[id];
       const nodes: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] = [dashedRect(b)];
       // Only the two smaller right-column rooms per deck (hangarDeck/
@@ -3598,6 +3756,9 @@ export class Hub extends Phaser.Scene {
         // Same staggering instinct as nextRoamAt, independent offset —
         // there's no reason the two clocks should sync up.
         nextEncounterAt: Math.random() * 4000,
+        // Anger Blowup, 28 Aug 2026 — same staggering instinct, independent
+        // offset again.
+        nextBlowupAt: Math.random() * 4000,
         pendingStagePromotion,
         pendingRankGreeting,
         // Needs Counter — always starts fully fine (spec §5, not persisted).
@@ -3606,6 +3767,10 @@ export class Hub extends Phaser.Scene {
         sleep: 100,
         // Same staggering instinct as nextRoamAt/nextEncounterAt above.
         nextNeedsTickAt: Math.random() * 4000,
+        // Breakdown, 28 Aug 2026 — same staggering instinct one more time.
+        // breakdown/breakdownSince stay unset — nobody starts the scene
+        // mid-crisis.
+        nextBreakdownCheckAt: Math.random() * 4000,
       };
     });
 
@@ -3819,6 +3984,12 @@ export class Hub extends Phaser.Scene {
     // Same unconditional placement as the three above — a hot topic should
     // go stale on its own clock even while an overlay owns input.
     this.hotTopics = pruneExpiredHotTopics(this.hotTopics, Date.now());
+    // Breakdown, 28 Aug 2026 (Groups 3-5 batch rebuild) — same unconditional
+    // placement as everything above: a pilot's Morale collapsing, and
+    // whoever's nearby to help, shouldn't freeze just because an overlay
+    // owns input this frame.
+    this.updateBreakdownTrigger(this.time.now);
+    this.updateBreakdownResolution(this.time.now);
 
     // Chat box open: suspend the game's own input handling entirely except
     // bubble fade-out (purely visual, harmless either way). Enter/Escape
@@ -4441,10 +4612,92 @@ export class Hub extends Phaser.Scene {
         if (npcB.nextEncounterAt === undefined || now < npcB.nextEncounterAt) continue;
         if (Phaser.Math.Distance.Between(npcA.x, npcA.y, npcB.x, npcB.y) > ENCOUNTER_RADIUS) continue;
 
+        // Anger Blowup, 28 Aug 2026 (Groups 3-5 batch rebuild) — checked
+        // ahead of the ordinary encounter roll, not on top of it: a pair
+        // that blows up this tick gets that INSTEAD of an ordinary
+        // encounter, same "one real thing happens per settled pair per
+        // tick" shape this loop already has.
+        if (this.tryAngerBlowup(npcA, npcB, now)) {
+          break;
+        }
+
         this.runNpcEncounter(npcA, npcB, now);
         break;
       }
     }
+  }
+
+  // Anger Blowup, 28 Aug 2026 (Groups 3-5 batch rebuild) — see
+  // data/angerBlowup.ts's own header for the full design and the gate-
+  // verification chain this closes (needs -> Stress -> this -> a real bond
+  // shift). Gated on both NPCs' own nextBlowupAt, not just npcA's — a
+  // one-sided cooldown would let npcB re-trigger a blowup against a fresh
+  // partner the very next tick after being the "calm" side of one.
+  private tryAngerBlowup(npcA: HubNpc, npcB: HubNpc, now: number): boolean {
+    if (npcA.nextBlowupAt === undefined || now < npcA.nextBlowupAt) return false;
+    if (npcB.nextBlowupAt === undefined || now < npcB.nextBlowupAt) return false;
+    const key = pairKey(npcA.pilotId, npcB.pilotId);
+    const bond = this.npcSocial.bonds[key] ?? 0;
+    if (!isAngerBlowupEligible(bond, npcA.ambient.stress, npcB.ambient.stress)) return false;
+    if (Math.random() >= ANGER_BLOWUP_CHANCE) return false;
+    this.runAngerBlowup(npcA, npcB, bond, key, now);
+    return true;
+  }
+
+  // The actual blowup — bond takes a real hit, whichever side (or both)
+  // was actually over STRESS_PANIC_THRESHOLD gets real relief (venting,
+  // not a full reset — see applyAngerBlowupStressRelief's own comment),
+  // and it's logged as a real socialLog entry so the Highlights reel and
+  // any future curated-recall line can reference it by name, same as any
+  // other verb.
+  private runAngerBlowup(npcA: HubNpc, npcB: HubNpc, bond: number, key: string, now: number) {
+    const exchange = pickAngerBlowupExchange();
+    this.npcSocial.bonds[key] = bond + ANGER_BLOWUP_BOND_DELTA;
+
+    if (npcA.ambient.stress >= STRESS_PANIC_THRESHOLD) {
+      npcA.ambient.stress = applyAngerBlowupStressRelief(npcA.ambient.stress);
+      this.persistNpcSocial(npcA);
+    }
+    if (npcB.ambient.stress >= STRESS_PANIC_THRESHOLD) {
+      npcB.ambient.stress = applyAngerBlowupStressRelief(npcB.ambient.stress);
+      this.persistNpcSocial(npcB);
+    }
+    // Covers the bond write above even on the (real, allowed) case where
+    // neither side was individually over threshold this exact tick —
+    // isAngerBlowupEligible only requires bond eligibility plus at least
+    // one side's stress at eligibility TIME, which can drift by the time
+    // this actually resolves in the same frame. persistNpcSocial already
+    // calls saveCampaignState, so this is only ever a harmless extra call
+    // when it does, never a missed one.
+    saveCampaignState(this.campaignState);
+
+    // Staged two-line exchange, same shape runNpcEncounter's own "talk"
+    // kind already uses (npcA's line first, npcB's reply after a beat).
+    this.showBubble(npcA, exchange.lineA, now);
+    const lineB = exchange.lineB;
+    this.time.delayedCall(NPC_REPLY_DELAY_MS, () => {
+      this.showBubble(npcB, lineB, this.time.now);
+    });
+
+    // Logged into BOTH pilots' own socialLog — the first NPC-vs-NPC verb
+    // entry to do that (every other verb is player-vs-one-NPC, so it only
+    // ever logs to one side). The first rebuild pass only pushed to
+    // npcA — missed per the authoritative spec (Social Sim Roadmap #15):
+    // "both sides get their own dated entry holding the line they
+    // actually said." Fixed here.
+    npcA.socialLog?.push({ verb: "angerBlowup", line: `${exchange.lineA} / ${exchange.lineB}`, at: Date.now() });
+    npcB.socialLog?.push({ verb: "angerBlowup", line: `${exchange.lineA} / ${exchange.lineB}`, at: Date.now() });
+
+    const nextA = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
+    const nextB = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
+    npcA.nextEncounterAt = nextA;
+    npcB.nextEncounterAt = nextB;
+    // Randomized 90s-3min range (ANGER_BLOWUP_COOLDOWN_MIN/MAX_MS), not a
+    // flat 45s — the first rebuild pass used a flat cooldown instead of
+    // the real spec's range. Independent draws per side, same pattern
+    // ENCOUNTER_COOLDOWN_MIN/MAX_MS already uses just above.
+    npcA.nextBlowupAt = now + ANGER_BLOWUP_COOLDOWN_MIN_MS + Math.random() * (ANGER_BLOWUP_COOLDOWN_MAX_MS - ANGER_BLOWUP_COOLDOWN_MIN_MS);
+    npcB.nextBlowupAt = now + ANGER_BLOWUP_COOLDOWN_MIN_MS + Math.random() * (ANGER_BLOWUP_COOLDOWN_MAX_MS - ANGER_BLOWUP_COOLDOWN_MIN_MS);
   }
 
   // Turns a same-room, idle, close-enough pair into one real
@@ -4463,6 +4716,24 @@ export class Hub extends Phaser.Scene {
   private runNpcEncounter(npcA: HubNpc, npcB: HubNpc, now: number) {
     const key = pairKey(npcA.pilotId, npcB.pilotId);
     const bond = this.npcSocial.bonds[key] ?? 0;
+
+    // Toxic Pairs, 28 Aug 2026 (Groups 3-5 batch rebuild) — see
+    // data/toxicPairs.ts's own header. A small ambient Stress cost for
+    // sharing a hub with a real rival, applied every time this pair
+    // actually encounters each other (not every frame) — a no-op for any
+    // pair that isn't a real rivalry (toxicPairStressTick's own 0 return).
+    // Deliberately doesn't skip the ordinary encounter below: this is the
+    // quiet background cost of the interaction, on top of whatever
+    // simulateEncounter itself rolls, not a replacement for it (Anger
+    // Blowup, checked before this function is ever called, is that
+    // replacement).
+    const preStressA = npcA.ambient.stress;
+    const preStressB = npcB.ambient.stress;
+    npcA.ambient.stress = applyToxicPairStressTick(npcA.ambient.stress, bond);
+    npcB.ambient.stress = applyToxicPairStressTick(npcB.ambient.stress, bond);
+    if (npcA.ambient.stress !== preStressA) this.persistNpcSocial(npcA);
+    if (npcB.ambient.stress !== preStressB) this.persistNpcSocial(npcB);
+
     const playerCommitted = new Set(this.npcs.filter((n) => n.inRelationship).map((n) => n.pilotId));
     const aCommitted = isCommitted(npcA.pilotId, this.npcSocial, playerCommitted);
     const bCommitted = isCommitted(npcB.pilotId, this.npcSocial, playerCommitted);
@@ -4596,6 +4867,158 @@ export class Hub extends Phaser.Scene {
     return other ? `clashing with ${other.displayName.split("—")[0].trim()}` : undefined;
   }
 
+  // Breakdown, 28 Aug 2026 (Groups 3-5 batch rebuild) — a real NPC-NPC
+  // couple, mirroring npcPartnerLabel's own NPC-NPC branch exactly
+  // (this.npcSocial.relationships is the same source of truth, just
+  // returning the actual HubNpc here instead of a display string). A
+  // player-committed pilot has no separate NPC partner to find this way on
+  // purpose — Ask Out's own "with you" relationship isn't a second pilot
+  // who can physically walk over and comfort someone; updateBreakdownResolution
+  // checks npc.inRelationship separately for that case. SECOND pass, gated
+  // on deriveRelationshipStage(bond) === "committed" specifically — the
+  // authoritative spec (Master Index Group 5): "gated specifically on
+  // deriveRelationshipStage(...) === 'committed' (not 'dating' or
+  // 'flirting')." The first rebuild pass returned the first NPC-NPC
+  // relationships-list entry regardless of stage, which would've let a
+  // pair still just "flirting" resolve someone else's breakdown as if
+  // already committed.
+  private findCommittedPartner(npc: HubNpc): HubNpc | undefined {
+    for (const key of this.npcSocial.relationships) {
+      const [a, b] = key.split("::");
+      if (a !== npc.pilotId && b !== npc.pilotId) continue;
+      const otherId = a === npc.pilotId ? b : a;
+      const bond = this.npcSocial.bonds[key] ?? 0;
+      if (deriveRelationshipStage(bond) !== "committed") continue;
+      const other = this.npcs.find((n) => n.pilotId === otherId);
+      if (other) return other;
+    }
+    return undefined;
+  }
+
+  // Breakdown trigger — see data/breakdown.ts's own header for the full
+  // design and its place in the gate-verification chain (needs -> Stress
+  // -> this, gated by Worry). Checked here, in update()'s unconditional
+  // top block, rather than folded into updateNpcEncounters: unlike Anger
+  // Blowup, a breakdown needs no second pilot present to START — it's a
+  // single-pilot crisis, not a pair-scoped one. SECOND pass — the first
+  // rebuild gated on Morale alone; the real spec gates on Stress AND the
+  // live ambient.worried boolean together (isBreakdownEligible's own
+  // header explains why Stress alone isn't enough here — that's Anger
+  // Blowup's own gate, paired with a rivalry instead of Worry).
+  private updateBreakdownTrigger(now: number) {
+    for (const npc of this.npcs) {
+      if (npc.breakdown) continue; // already mid-crisis — updateBreakdownResolution owns them until it resolves
+      if (npc.nextBreakdownCheckAt === undefined || now < npc.nextBreakdownCheckAt) continue;
+      npc.nextBreakdownCheckAt = now + BREAKDOWN_CHECK_INTERVAL_MS;
+      if (!isBreakdownEligible(npc.ambient.stress, npc.ambient.worried ?? false)) continue;
+      if (Math.random() >= BREAKDOWN_CHANCE) continue;
+
+      npc.breakdown = true;
+      npc.breakdownSince = now;
+      this.showBubble(npc, pickBreakdownOnsetLine(), now);
+    }
+  }
+
+  // Breakdown resolution — checked every tick a breakdown is open, not
+  // just once: who's actually nearby can change frame to frame as NPCs
+  // roam, and BREAKDOWN_SLEEP_TIMEOUT_MS only means anything if it's
+  // genuinely being watched for. SECOND pass, rewritten against the real
+  // spec's own three paths (Social Sim Roadmap #16 / Master Index Group
+  // 5) rather than the first pass's invented partner/bondmate/alone shape:
+  //  - "spar": the breakdown pilot is in the Spar Room together with
+  //    either the player or another idle NPC also standing there.
+  //  - "intimacy": the pilot has a committed partner — player or NPC,
+  //    Maxime's own mid-build correction on the original, now-lost build
+  //    ("the intimacy can be npc to npc... anything player can do npc can
+  //    as well") — and that partner is at Berths too, and idle.
+  //  - "sleep": unconditional once BREAKDOWN_SLEEP_TIMEOUT_MS (8 real
+  //    minutes) passes unresolved, no location or partner required.
+  // Checked in that order — a witnessed resolution always wins over the
+  // sleep fallback on the rare tick both would technically qualify (only
+  // possible right at the 8-minute mark itself).
+  private updateBreakdownResolution(now: number) {
+    for (const npc of this.npcs) {
+      if (!npc.breakdown) continue;
+
+      if (npc.room === "sparRoom") {
+        const withPlayer = this.currentRoomId === "sparRoom";
+        const sparPartner = this.npcs.find((n) => n.pilotId !== npc.pilotId && n.room === "sparRoom" && n.targetX === undefined);
+        if (withPlayer || sparPartner) {
+          this.resolveBreakdown(npc, "spar", withPlayer ? "player" : sparPartner, now);
+          continue;
+        }
+      }
+
+      if (npc.room === "berths") {
+        // "committed partner (player or NPC)" — the spec's own wording
+        // applies "committed" symmetrically to both cases (Social Sim
+        // Roadmap #16: "once the pilot has a committed partner AND that
+        // partner... is also there and idle"), so the player case checks
+        // deriveRelationshipStage the same way findCommittedPartner does
+        // for the NPC case, not just the flatter inRelationship boolean.
+        const withPlayer =
+          (npc.inRelationship ?? false) && deriveRelationshipStage(npc.favorability) === "committed" && this.currentRoomId === "berths";
+        const partner = this.findCommittedPartner(npc);
+        const withNpcPartner = partner !== undefined && partner.room === "berths" && partner.targetX === undefined;
+        if (withPlayer || withNpcPartner) {
+          this.resolveBreakdown(npc, "intimacy", withPlayer ? "player" : partner, now);
+          continue;
+        }
+      }
+
+      if (npc.breakdownSince !== undefined && now - npc.breakdownSince >= BREAKDOWN_SLEEP_TIMEOUT_MS) {
+        this.resolveBreakdown(npc, "sleep", undefined, now);
+      }
+    }
+  }
+
+  // The actual resolution — `partner` is whichever party
+  // updateBreakdownResolution already identified for this flavor
+  // ("player", a specific committed/present HubNpc, or undefined for
+  // "sleep"), threaded straight through rather than re-derived here, so
+  // whoever gets the Favorability/bond credit is always the exact same
+  // one who's shown as having shown up. SECOND pass: Stress relief (not a
+  // Morale gain) via applyBreakdownStressRelief, and a flat
+  // BREAKDOWN_FAVORABILITY_GAIN applied UNCLAMPED — confirmed against the
+  // real codebase convention (every other favorability/bond write in this
+  // file has no ceiling/floor) rather than the clamped per-flavor gains
+  // the first rebuild pass invented.
+  private resolveBreakdown(npc: HubNpc, flavor: BreakdownFlavor, partner: HubNpc | "player" | undefined, now: number) {
+    npc.ambient.stress = applyBreakdownStressRelief(npc.ambient.stress);
+    this.persistNpcSocial(npc);
+
+    if (partner === "player") {
+      npc.favorability += BREAKDOWN_FAVORABILITY_GAIN;
+      this.persistNpcSocial(npc);
+    } else if (partner) {
+      const key = pairKey(npc.pilotId, partner.pilotId);
+      const bond = this.npcSocial.bonds[key] ?? 0;
+      this.npcSocial.bonds[key] = bond + BREAKDOWN_FAVORABILITY_GAIN;
+      saveCampaignState(this.campaignState);
+    }
+    // "sleep" (partner undefined) gets Stress relief only — nobody was
+    // there to earn a relationship gain, per the spec's own framing.
+
+    const line = pickBreakdownResolutionLine(flavor);
+    this.showBubble(npc, line, now);
+    npc.socialLog?.push({ verb: "breakdown", line, at: Date.now() });
+    // Logged to both parties' socialLog when the partner is a real NPC —
+    // same "both sides get their own dated entry" precedent Anger
+    // Blowup's own runAngerBlowup already set. The player has no
+    // socialLog of their own to push into.
+    if (partner && partner !== "player") {
+      partner.socialLog?.push({ verb: "breakdown", line, at: Date.now() });
+    }
+
+    npc.breakdown = false;
+    npc.breakdownSince = undefined;
+    // Post-resolution cooldown — 90-180s before this pilot can trigger
+    // again, mirroring Anger Blowup's own cooldown shape exactly. Reuses
+    // nextBreakdownCheckAt rather than a new field — see that field's own
+    // comment.
+    npc.nextBreakdownCheckAt = now + BREAKDOWN_RESOLUTION_COOLDOWN_MIN_MS + Math.random() * (BREAKDOWN_RESOLUTION_COOLDOWN_MAX_MS - BREAKDOWN_RESOLUTION_COOLDOWN_MIN_MS);
+  }
+
   private updateProximity() {
     let anyoneInRange = false;
     for (const npc of this.npcs) {
@@ -4670,6 +5093,7 @@ export class Hub extends Phaser.Scene {
     this.lowerFloor.setVisible(deck === "lower");
     this.upperFloor.setVisible(deck === "upper");
     this.grottoFloor.setVisible(deck === "grotto");
+    this.sparRoomFloor.setVisible(deck === "sparRoom");
 
     // The egg hull, second pass, 27 Aug 2026 — same by-deck toggle as
     // doorMarkers/zoneDecor above.

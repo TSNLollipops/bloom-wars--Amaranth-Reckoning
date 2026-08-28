@@ -81,7 +81,19 @@
 // flagged, not silently decided, since tightening it to Berths once NPCs
 // actually inhabit that room (piece three, autonomous roaming) is a real
 // follow-up worth doing on purpose rather than by accident.
-export type VerbId = "talk" | "shareADrink" | "pegBoard" | "poker" | "fletchers" | "askOut";
+// angerBlowup / breakdown, 28 Aug 2026 — Groups 3-5 batch rebuild (see
+// data/angerBlowup.ts and data/breakdown.ts for the real math and content
+// these two ids stand for). Not player-initiated the way every verb above
+// is — Hub.ts triggers these on its own, off Stress/Morale crossing a
+// threshold, not off a menu click. Given VerbId entries anyway, same
+// reasoning as Talk sharing this shape despite also being different in
+// kind from Share a Drink/Ask Out: every socialLog entry and the
+// Highlights reel (highlights.ts's buildFirstMilestones, keyed off
+// VERBS[verb].label) already work generically over VerbId, so routing
+// these two through the same pipe means "First Blowup"/"First Breakdown"
+// milestones and social-log lines come for free, no parallel plumbing
+// needed for the fact that these two didn't come from a click.
+export type VerbId = "talk" | "shareADrink" | "pegBoard" | "poker" | "fletchers" | "askOut" | "angerBlowup" | "breakdown";
 
 export interface VerbRequirements {
   minFavorability?: number;
@@ -131,6 +143,11 @@ export const VERBS: Record<VerbId, VerbDef> = {
   poker: { id: "poker", label: "Poker", broadcast: false },
   fletchers: { id: "fletchers", label: "Fletchers", broadcast: false },
   askOut: { id: "askOut", label: "Ask Out", broadcast: false },
+  // broadcast: false for both — these are a pair-scoped event (Blowup) and
+  // a single-pilot event (Breakdown), never a room-wide announcement the
+  // way Talk is.
+  angerBlowup: { id: "angerBlowup", label: "Blowup", broadcast: false },
+  breakdown: { id: "breakdown", label: "Breakdown", broadcast: false },
 };
 
 // The "Log entry" §3 asks for ("feeds the social-history record... it's

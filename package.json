@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "sim": "tsx src/sim/run.ts",
     "sim:social": "tsx src/sim/runSocialSim.ts",
+    "sim:gate": "tsx src/sim/runGateVerification.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
