@@ -35,21 +35,27 @@ describe("Two-action-per-turn house rule", () => {
     expect(mission.moveUnit(unit.instanceId, { x: 8, y: 5 })).toBe(false);
   });
 
-  it("a healer can move adjacent to a wounded ally, then Repair — Move first doesn't cost the Repair its action", () => {
+  it("a healer can move into repair range of a wounded ally, then Repair — Move first doesn't cost the Repair its action", () => {
+    // Repositioned 28 Aug 2026 (ally 2 tiles -> 4 tiles off): Munti's base
+    // Repair range changed 1 -> DEFAULT_REPAIR_RANGE (3) the same day, so
+    // the old "2 tiles off, not adjacent yet" premise stopped being true —
+    // 2 tiles is inside the new range before the healer even moves. 4
+    // tiles keeps this test's actual point (Repair isn't offered until
+    // the move closes the distance) true at the new range.
     const mission = new Mission(MISSION_1A);
     const healer = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
     const ally = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
     healer.pos = { x: 5, y: 5 };
-    ally.pos = { x: 7, y: 5 }; // two tiles off — not adjacent yet
+    ally.pos = { x: 9, y: 5 }; // four tiles off — outside DEFAULT_REPAIR_RANGE (3) until the move
     ally.currentHp -= 20;
 
-    // Not adjacent yet — Repair isn't offered.
+    // Out of range — Repair isn't offered.
     expect(mission.getRepairableFrom(healer.instanceId, healer.pos)).toEqual([]);
 
     expect(mission.moveUnit(healer.instanceId, { x: 6, y: 5 })).toBe(true);
     expect(healer.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN - 1);
 
-    // Now adjacent, and still has an action to spend on Repair.
+    // Now exactly at the range edge (distance 3), and still has an action to spend on Repair.
     const repairable = mission.getRepairableFrom(healer.instanceId, healer.pos);
     expect(repairable.map((u) => u.instanceId)).toEqual([ally.instanceId]);
 

@@ -68,9 +68,10 @@ export const MISSILE_GRANT_ABILITY = "abil_missile";
 /** Reeps — armor-piercing. Ignores a fraction of the DEFENDER's effective defense, but ONLY against a Tank-path defender (data/types.ts Path) — sharpens Reeps-beats-Tank rather than a flat damage buff that would blur the triangle. */
 export const RAIL_LANCE_DEF_IGNORE_PCT = 0.25;
 
-/** Munti Support Branch — Repair's range extends from 1 tile (adjacent only, today's hardcoded rule in engine/mission.ts's repairUnit) to 2, matching the archetype's own attackRange[1] the ability never used before this branch existed. */
-export const RAPID_RESPONSE_REPAIR_RANGE = 2;
-export const DEFAULT_REPAIR_RANGE = 1;
+/** Base Repair range, every Munti, 28 Aug 2026 — raised from the original 1 tile (adjacent only) to 3, per Maxime's "give more range to munty heal" -> "Base range, everyone (1->3)" call. engine/mission.ts's getRepairableFrom() and sim/playerAi/support.ts's own repair-target search both used to hardcode the old adjacent-only distance regardless of this constant — that was the real bug, fixed alongside this change so both actually read it. */
+export const DEFAULT_REPAIR_RANGE = 3;
+/** Munti Support Branch — one further tile beyond the base range above, not a fixed absolute number, so raising the base later keeps this branch meaningfully better rather than converging with it. */
+export const RAPID_RESPONSE_REPAIR_RANGE = DEFAULT_REPAIR_RANGE + 1;
 
 export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
   meeps_impact_lance: {

@@ -8,6 +8,7 @@ import { Mission } from "../mission";
 import { MISSION_1A } from "../../data/campaign";
 import { testUnit } from "./testHelpers";
 import { MAX_ACTIONS_PER_TURN } from "../../data/combatTables";
+import { DEFAULT_REPAIR_RANGE, RAPID_RESPONSE_REPAIR_RANGE } from "../../data/weaponBranches";
 
 describe("Mission.repairUnit", () => {
   it("Barasj (Fieldwright primary) heals 38 HP (30 x 1.25, rounded) to an adjacent damaged ally", () => {
@@ -129,5 +130,42 @@ describe("Mission.repairUnit", () => {
     expect(fullHpAlly.currentHp).toBe(fullHpAlly.maxHp);
 
     expect(mission.getRepairableFrom(healer.instanceId, healer.pos)).toEqual([]);
+  });
+
+  // Munti base Repair range, 28 Aug 2026: raised 1 -> DEFAULT_REPAIR_RANGE
+  // (3), Rapid Response one tile further still — getRepairableFrom() used
+  // to hardcode adjacent-only regardless of these constants; these two
+  // tests pin the actual range edges now that it reads them.
+  it("default range (DEFAULT_REPAIR_RANGE): reaches exactly to the range edge, refuses one tile beyond it", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    mission.units.push(healer);
+    const atEdge = testUnit("munti", { x: DEFAULT_REPAIR_RANGE, y: 0 });
+    const oneBeyond = testUnit("munti", { x: DEFAULT_REPAIR_RANGE + 1, y: 0 });
+    atEdge.currentHp -= 10;
+    oneBeyond.currentHp -= 10;
+    mission.units.push(atEdge, oneBeyond);
+
+    expect(mission.getRepairableFrom(healer.instanceId, healer.pos).map((u) => u.instanceId)).toEqual([atEdge.instanceId]);
+    expect(mission.repairUnit(healer.instanceId, atEdge.instanceId)).not.toBeNull();
+    expect(mission.repairUnit(healer.instanceId, oneBeyond.instanceId)).toBeNull();
+  });
+
+  it("Rapid Response (RAPID_RESPONSE_REPAIR_RANGE): extends one tile past the default range, still refuses beyond that", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.weaponBranchId = "munti_rapid_response";
+    mission.units.push(healer);
+    const atExtendedEdge = testUnit("munti", { x: RAPID_RESPONSE_REPAIR_RANGE, y: 0 });
+    const oneBeyond = testUnit("munti", { x: RAPID_RESPONSE_REPAIR_RANGE + 1, y: 0 });
+    atExtendedEdge.currentHp -= 10;
+    oneBeyond.currentHp -= 10;
+    mission.units.push(atExtendedEdge, oneBeyond);
+
+    expect(mission.getRepairableFrom(healer.instanceId, healer.pos).map((u) => u.instanceId)).toEqual([atExtendedEdge.instanceId]);
+    expect(mission.repairUnit(healer.instanceId, atExtendedEdge.instanceId)).not.toBeNull();
+    expect(mission.repairUnit(healer.instanceId, oneBeyond.instanceId)).toBeNull();
   });
 });

@@ -1285,9 +1285,13 @@ export const AMARANTH_MISSION_21: CampaignMission = {
   // Re-validated 27 Aug 2026 after the bloom_wellroot swap — same 8-pilot
   // squad, 3 independent batches of the actual mission harness (not just
   // the idealized 1v1 math): 35%/25%/37%, averaging right back to the
-  // documented 35%. See data/bloom.ts's bloom_wellroot comment for why
-  // attackPower ended up unchanged from Heartwood's own 60 rather than the
-  // lower number first proposed.
+  // documented 35%. That pass predates `engine/turnManager.ts` actually
+  // wiring fx_acid_dot in, though — once it did, this same squad collapsed
+  // to 0% at attackPower 60. Final call, 28 Aug 2026: attackPower 50 (down
+  // from 60), the number a fuller sweep landed closest to this mission's
+  // own ~35% target once the DoT was live. See data/bloom.ts's
+  // bloom_wellroot comment for the full sweep and the two-batch agreement
+  // behind that number.
   playerPilotIds: [
     "pilot_rourke", "pilot_bosk", "pilot_iyari", "pilot_anand", "pilot_lask",
     "pilot_okafor", "pilot_solheim", "pilot_vashti",

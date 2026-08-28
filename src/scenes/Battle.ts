@@ -505,11 +505,12 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
-    // Repairing an adjacent ally currently highlighted as repairable. Costs
-    // 1 action and doesn't end the turn (two-action house rule, Maxime, 22
-    // Aug 2026) — stay selected and recompute options if the healer still
-    // has an action left, so a Munti can Repair a second ally, or Repair
-    // then move.
+    // Repairing an ally in range (branch-aware, not just adjacent — see
+    // engine/mission.ts's getRepairableFrom) currently highlighted as
+    // repairable. Costs 1 action and doesn't end the turn (two-action house
+    // rule, Maxime, 22 Aug 2026) — stay selected and recompute options if
+    // the healer still has an action left, so a Munti can Repair a second
+    // ally, or Repair then move.
     if (this.selectedUnitId && unitHere && this.repairable.some((a) => a.instanceId === unitHere.instanceId)) {
       this.mission.repairUnit(this.selectedUnitId, unitHere.instanceId);
       this.refreshSelectionAfterAction();

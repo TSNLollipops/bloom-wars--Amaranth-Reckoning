@@ -43,8 +43,10 @@ export const ABILITIES: Record<string, AbilityDef> = {
     id: "abil_repair",
     displayName: "Repair",
     kind: "active",
-    // Instead of attacking, restore 30 HP to one adjacent friendly unit.
-    // Once per turn. x1.25 if the Munti's mek has Fieldwright as primary.
+    // Instead of attacking, restore 30 HP to one friendly unit in range
+    // (DEFAULT_REPAIR_RANGE, data/weaponBranches.ts — RAPID_RESPONSE_REPAIR_RANGE
+    // one tile further with the Rapid Response branch equipped). Once per
+    // turn. x1.25 if the Munti's mek has Fieldwright as primary.
   },
   abil_cockpit_evac: {
     id: "abil_cockpit_evac",

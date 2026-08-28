@@ -109,6 +109,7 @@ import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStage
 import { pickFrictionLine } from "../data/friction";
 import { worryTriggerChance } from "../data/missionWorry";
 import { gate0Reacts } from "../data/reactionGate";
+import { NEED_ROOM, NEEDS_FLAVOR_BANK, NEEDS_FLAVOR_CHANCE, needsStressMoraleDelta, tickNeed, worstNeed } from "../data/needsCounter";
 import { resolveAskOut, isRomanceableSpecies, ALREADY_TOGETHER_LINES, CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { pairKey, findClosestBond, findWorstRival, pointNear, pointAwayFrom, CLIQUE_THRESHOLD, RIVAL_THRESHOLD } from "../data/npcBonds";
@@ -247,15 +248,28 @@ const DOOR_LANDING_MAX_ATTEMPTS = 5;
 // in this file.
 const BERTHS_EXPLORE_WEIGHT = 3;
 
+// Off-Duty Needs Counter, 28 Aug 2026 (spec §4: "an NPC below a meter's
+// threshold should roam toward the matching room more often, not just by
+// the existing flat weight") — an extra weighted-bag bump toward
+// `biasRoom` (worstNeed/NEED_ROOM, data/needsCounter.ts) on top of
+// whatever that room's baseline weight already was. Stacks with
+// BERTHS_EXPLORE_WEIGHT rather than replacing it — a below-threshold-sleep
+// NPC gets Berths' existing romance-context bump AND this one at once, not
+// one or the other. Placeholder magnitude, same "not tuned" caveat as
+// BERTHS_EXPLORE_WEIGHT itself.
+const NEEDS_ROAM_WEIGHT_BONUS = 3;
+
 // Weighted pick among every room but fromRoom — Berths counted
-// BERTHS_EXPLORE_WEIGHT times, everyone else once. A plain weighted-bag
-// approach rather than a probability table: cheap, obviously correct, and
-// consistent with how small this room count is (six candidates, tops).
-function pickExploreTarget(fromRoom: RoomId): RoomId {
+// BERTHS_EXPLORE_WEIGHT times, everyone else once, plus NEEDS_ROAM_WEIGHT_BONUS
+// more for `biasRoom` if one's passed. A plain weighted-bag approach rather
+// than a probability table: cheap, obviously correct, and consistent with
+// how small this room count is (six candidates, tops).
+function pickExploreTarget(fromRoom: RoomId, biasRoom?: RoomId): RoomId {
   const otherRooms = (Object.keys(ROOM_TITLES) as RoomId[]).filter((r) => r !== fromRoom);
   const weighted: RoomId[] = [];
   for (const r of otherRooms) {
-    const weight = r === "berths" ? BERTHS_EXPLORE_WEIGHT : 1;
+    let weight = r === "berths" ? BERTHS_EXPLORE_WEIGHT : 1;
+    if (r === biasRoom) weight += NEEDS_ROAM_WEIGHT_BONUS;
     for (let i = 0; i < weight; i++) weighted.push(r);
   }
   return weighted[Math.floor(Math.random() * weighted.length)];
@@ -912,6 +926,14 @@ const WORRY_ONSET_MS = 60_000; // placeholder — 1 real minute
 // Placeholder, not tuned, same as every other timing constant on this line.
 const WORRY_RECHECK_MS = 20_000; // 20 real seconds between rerolls, per NPC
 
+// Off-Duty Needs Counter, 28 Aug 2026 — data/needsCounter.ts's own decay/
+// restore numbers (NEEDS_DECAY_PER_MIN, NEEDS_RESTORE_PER_MIN) are both
+// stated per real minute (spec §2), so this scene's own tick clock fires
+// once a real minute too, same staggered-per-NPC shape as WORRY_RECHECK_MS
+// just above. Placeholder, same "not tuned" caveat as every other timing
+// constant on this line.
+const NEEDS_TICK_INTERVAL_MS = 60_000;
+
 // Hot topics, first slice, 27 Aug 2026 — see data/hotTopics.ts's own header
 // for the full scope cut. Chance a given NPC leads with a fresh topic
 // instead of their ordinary ambient line, checked in speak() below.
@@ -1070,6 +1092,27 @@ type HubNpc = {
   // rourkeRank), not this pilot's Stage. Consumed exactly once by speak(),
   // cleared via ackRankGreeting.
   pendingRankGreeting?: "capt" | "maj";
+  // Off-Duty Needs Counter, 28 Aug 2026 (Bloom_Wars_Needs_Counter_Spec_v1,
+  // Maxime's own build spec — item 1 of the Antfarm Réalisation plan's
+  // Phase 1 gate, written under his "you'll make a lot of decisions for
+  // me" latitude). Per-pilot, 0-100, 100 = fully fine, off-duty only. Not
+  // persisted (spec §5 — same "ephemeral, gone on reload" choice Mission
+  // Worry already made) — buildNpcs() reseeds every one of these to 100
+  // every time this scene is (re)created, which is also what makes
+  // "frozen while deployed" true for free: nothing ticks these while the
+  // Hub scene itself isn't running (a live mission attempt runs in the
+  // Battle scene instead), and a fresh 100 on return is the "resumes
+  // decaying the moment they're back" the spec asked for, not a separate
+  // freeze/resume mechanism.
+  hunger: number;
+  thirst: number;
+  sleep: number;
+  // Same staggered-real-minute-cooldown shape as nextRoamAt/nextEncounterAt
+  // above. Deliberately left undefined for the CO (see his own push() call
+  // below) — same "undefined clock = this NPC opts out" convention those
+  // two already use: the needs counter is about a deployable pilot's
+  // off-duty life, not the CO's.
+  nextNeedsTickAt?: number;
 };
 
 // NPC_SEED / NPC_BOND_SEED used to be declared right here as scene-local
@@ -1828,12 +1871,39 @@ export class Hub extends Phaser.Scene {
   // general ambient idle roll) — same population, one layer deeper, not a
   // new decision about which call sites qualify.
   private pickAmbientLineWithMemory(npc: HubNpc): { line: string } {
+    // Off-Duty Needs Counter, 28 Aug 2026 (spec §4: "drawn the same way
+    // sub-animal bleed already draws an off-primary line... a curious
+    // player gets a real textual tell without a meter ever being shown").
+    // Checked first, ahead of sub-animal bleed and the curated-recall
+    // slotted-variant layer below — a flat override, not routed through
+    // LINE_BANK/pickSlottedVariant, since these six lines are fixed text,
+    // not personality-flavored per catalyst. Every one of this function's
+    // five call sites (Gate 0's own fallback in speak(), shareADrink, peg
+    // board, poker, darts — pickAmbientLineWithBleed's own header names
+    // the same five) picks this up for free.
+    const needsLine = this.pickNeedsFlavorLine(npc);
+    if (needsLine) return { line: needsLine };
     const { line, pick, bled } = pickAmbientLineWithBleed(npc.pilotId, npc.ambient);
     const catalyst = bled?.catalyst ?? npc.ambient.catalyst;
     const variant = pickSlottedVariant(catalyst, pick.echo, npc.ambient.stage);
     if (!variant) return { line };
     const resolved = resolveSlotText(variant, this.buildSlotContext(npc));
     return { line: resolved ?? line };
+  }
+
+  // Off-Duty Needs Counter, 28 Aug 2026 — the flavor-bank half of spec §4.
+  // worstNeed/NEEDS_FLAVOR_BANK/NEEDS_FLAVOR_CHANCE all live in
+  // data/needsCounter.ts (pure); this just reads this NPC's own live
+  // meters and rolls the chance. undefined (no override) the large
+  // majority of the time — nothing below threshold, or the chance roll
+  // missed — same "usually nothing happens" shape GATE0_BASE_CHANCE/
+  // AMBIENT_BLEED_CHANCE already have.
+  private pickNeedsFlavorLine(npc: HubNpc): string | undefined {
+    const kind = worstNeed(npc.hunger, npc.thirst, npc.sleep);
+    if (!kind) return undefined;
+    if (Math.random() >= NEEDS_FLAVOR_CHANCE) return undefined;
+    const bank = NEEDS_FLAVOR_BANK[kind];
+    return bank.lines[Math.floor(Math.random() * bank.lines.length)];
   }
 
   // Sets ambient.drunk and lets pickAmbientLineWithBleed (catalystProfile.ts,
@@ -3423,6 +3493,12 @@ export class Hub extends Phaser.Scene {
         nextEncounterAt: Math.random() * 4000,
         pendingStagePromotion,
         pendingRankGreeting,
+        // Needs Counter — always starts fully fine (spec §5, not persisted).
+        hunger: 100,
+        thirst: 100,
+        sleep: 100,
+        // Same staggering instinct as nextRoamAt/nextEncounterAt above.
+        nextNeedsTickAt: Math.random() * 4000,
       };
     });
 
@@ -3502,6 +3578,14 @@ export class Hub extends Phaser.Scene {
       // (their own `=== undefined` guards), so leaving these unset is what
       // keeps him stationed at his post rather than wandering the ship or
       // getting swept into clique/rival rolls built for deployable pilots.
+      // Needs Counter fields set (type requires them) but nextNeedsTickAt
+      // deliberately left unset too, same convention — a CO who never
+      // deploys isn't who this system is about; he just reads as
+      // permanently 100/100/100 rather than opting into a system built for
+      // pilots' off-duty life.
+      hunger: 100,
+      thirst: 100,
+      sleep: 100,
     });
 
     // Click an NPC directly (as opposed to clicking empty room space, which
@@ -3621,7 +3705,11 @@ export class Hub extends Phaser.Scene {
     // ticking even while an overlay owns input, not freeze the moment the
     // player opens the peg board.
     this.updateMissionWorry();
-    // Same unconditional placement as the two above — a hot topic should
+    // Same unconditional placement as the two above — a hungry or
+    // under-slept pilot's meter shouldn't stall just because an overlay
+    // owns input this frame.
+    this.updateNeeds(this.time.now);
+    // Same unconditional placement as the three above — a hot topic should
     // go stale on its own clock even while an overlay owns input.
     this.hotTopics = pruneExpiredHotTopics(this.hotTopics, Date.now());
 
@@ -3846,6 +3934,36 @@ export class Hub extends Phaser.Scene {
       const worried = Math.random() < worryTriggerChance(elapsedSinceOnset, npc.favorability);
       if (npc.ambient.worried === worried) continue;
       npc.ambient = { ...npc.ambient, worried };
+    }
+  }
+
+  // Off-Duty Needs Counter, 28 Aug 2026 — data/needsCounter.ts's own header
+  // has the full spec account; this is just the wiring. Same shape and same
+  // "run every frame, unconditional" reasoning as updateDrunkExpiry/
+  // updateMissionWorry just above (three NPCs is nothing to scan, and a
+  // hungry pilot's clock shouldn't stall just because the peg board is
+  // open) — each NPC only actually ticks once its own staggered
+  // nextNeedsTickAt clock elapses, one real minute apart, same convention
+  // as nextRoamAt/nextEncounterAt/nextWorryCheckAt. Undefined clock (the CO
+  // — see his own buildNpcs() comment) skips entirely, same guard shape
+  // those other clocks already use.
+  private updateNeeds(now: number) {
+    for (const npc of this.npcs) {
+      if (npc.nextNeedsTickAt === undefined || now < npc.nextNeedsTickAt) continue;
+      npc.nextNeedsTickAt = now + NEEDS_TICK_INTERVAL_MS;
+
+      npc.hunger = tickNeed(npc.hunger, npc.room === "recroom");
+      npc.thirst = tickNeed(npc.thirst, npc.room === "recroom");
+      npc.sleep = tickNeed(npc.sleep, npc.room === "berths");
+
+      const { stressDelta, moraleDelta } = needsStressMoraleDelta(npc.hunger, npc.thirst, npc.sleep);
+      if (stressDelta === 0 && moraleDelta === 0) continue;
+      npc.ambient = {
+        ...npc.ambient,
+        stress: Math.max(0, Math.min(100, npc.ambient.stress + stressDelta)),
+        morale: Math.max(0, Math.min(100, npc.ambient.morale + moraleDelta)),
+      };
+      this.persistNpcSocial(npc);
     }
   }
 
@@ -4114,7 +4232,13 @@ export class Hub extends Phaser.Scene {
       // below just aimed at a zone instead of a person. Only a genuinely
       // cross-deck target still uses the stairs/travelTargetRoom machinery.
       if (Math.random() < EXPLORE_CHANCE) {
-        const target = pickExploreTarget(npc.room);
+        // Needs Counter roaming bias, 28 Aug 2026 — see NEEDS_ROAM_WEIGHT_BONUS's
+        // own comment. worstNeed reads straight off this NPC's live
+        // hunger/thirst/sleep; NEED_ROOM maps whichever one's worst to the
+        // room that actually restores it.
+        const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep);
+        const biasRoom = worstOfNeeds ? NEED_ROOM[worstOfNeeds] : undefined;
+        const target = pickExploreTarget(npc.room, biasRoom);
         if (sameDeck(npc.room, target)) {
           // ROOM_ZONE_BOUNDS[target] is grotto's own (bigger, off-center)
           // bounding rect for that deck (see its own comment) — picking a

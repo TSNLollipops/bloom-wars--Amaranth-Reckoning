@@ -223,12 +223,19 @@ export const BLOOM: Record<string, BloomArchetype> = {
   // tile conversion) at attackPower 60 was already 0/40; at attackPower 40
   // it was 1/40 (3%). Cutting attackPower all the way to 20 (with the full
   // effect — DoT + tile conversion — restored) reproduced the original
-  // target band: 30% and 35% across two independent N=40 batches. That
-  // number is a validated CANDIDATE, not shipped here — attackPower is
-  // still 60 below, unchanged, pending Maxime's call, since this is
-  // exactly the kind of balance-number decision the project's own rules
-  // reserve for him rather than an engine change quietly re-tuning around.
-  // See the Master Index's 27 Aug batch-job entry for the full account.
+  // target band: 30% and 35% across two independent N=40 batches — a
+  // validated CANDIDATE at that point, not yet the final call.
+  //
+  // Final decision, 28 Aug 2026 — a fuller sweep run off the back of that
+  // candidate, widening the search around 20 rather than stopping there:
+  // 20→~48%, 30→11%, 40→0-2%, 45→1%, 48→14%, 50→35%/36%, 52→21%, 55→32%,
+  // 60→23%/28%, 70→13%. 50 lands closest to the documented ~35% target,
+  // with its two independent batches actually agreeing with each other
+  // (the other candidates near it either miss the target band or don't
+  // reproduce consistently run to run) — attackPower set to 50 below.
+  // See the Master Index's 27 Aug batch-job entry for the earlier partial
+  // sweep, and `claude/Bloom_Wars_Pending_Device_Commit_28Aug2026.md` for
+  // this final sweep's own record.
   bloom_wellroot: {
     id: "bloom_wellroot",
     displayName: "The Wellroot",
@@ -240,7 +247,7 @@ export const BLOOM: Record<string, BloomArchetype> = {
     vitality: 65,
     moveRange: 0,
     attackRange: [1, 3],
-    attackPower: 60,
+    attackPower: 50,
     vision: 6,
     onHit: "fx_acid_dot",
     colorPalette: ["#2A1F14", "#5C6B2E", "#9ACD32"],

@@ -8,7 +8,7 @@ import type { Coord } from "../../data/types";
 export interface PlayerAiDecision {
   path?: Coord[]; // full path incl. start; last element is the move destination
   attackTargetId?: string;
-  repairTargetId?: string; // must already be adjacent when returned — see support.ts
+  repairTargetId?: string; // must already be in repair range (branch-aware — DEFAULT_REPAIR_RANGE, or RAPID_RESPONSE_REPAIR_RANGE for Rapid Response) when returned — see support.ts
   /**
    * Objective-awareness pass (25 Aug 2026, Phase 1/2 of
    * claude/Bloom_Wars_Player_AI_Ability_And_Objective_Plan_v1.md — Maxime:
@@ -78,8 +78,8 @@ export interface PlayerAiMissionContext {
 
 export type PlayerAiReason =
   | "kill" // a reachable target dies to this attack this turn
-  | "repair_critical_ally" // an adjacent ally is hurt badly enough to interrupt anything else, even this unit's own self-preservation
-  | "repair_ally" // an adjacent ally is hurt enough to be worth healing instead of chip-damaging a target that isn't dying this turn anyway
+  | "repair_critical_ally" // an ally in repair range is hurt badly enough to interrupt anything else, even this unit's own self-preservation
+  | "repair_ally" // an ally in repair range is hurt enough to be worth healing instead of chip-damaging a target that isn't dying this turn anyway
   | "clear_bloom" // Munti-only, objective-gated: cleared bloom_mat in place instead of attacking — see index.ts's clear_bloom branch
   | "use_screen" // Munti-only, objective-gated, spotted, charge unspent: put up abil_screen instead of attacking — see index.ts's use_screen branch
   | "focus_weak" // attacked the weakest in-range target (no kill, no repair, available)

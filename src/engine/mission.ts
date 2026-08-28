@@ -648,12 +648,22 @@ export class Mission {
     const unit = this.unitById(unitId);
     if (!unit || unit.downed || unit.actionsRemaining <= 0) return [];
     if (!unit.abilities.includes("abil_repair")) return [];
+    // Range-aware and branch-aware, 28 Aug 2026 — this UI-highlight source
+    // used to hardcode adjacent-only (distance === 1) regardless of
+    // DEFAULT_REPAIR_RANGE/RAPID_RESPONSE_REPAIR_RANGE above, the real bug
+    // Munti's base range fix (1->3) exposed: the highlight and the actual
+    // repairUnit() action it drives (this function's own comment, and
+    // repairUnit's below) fell out of sync. Now mirrors repairUnit()'s own
+    // per-healer-branch range exactly, rather than re-deriving it a second
+    // way.
+    const repairRange =
+      unit.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
     return this.livingUnits().filter(
       (t) =>
         t.side === unit.side &&
         t.instanceId !== unit.instanceId &&
         t.currentHp < t.maxHp &&
-        chebyshevDistance(from, t.pos) === 1
+        chebyshevDistance(from, t.pos) <= repairRange
     );
   }
 

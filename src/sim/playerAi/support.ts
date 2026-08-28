@@ -12,24 +12,31 @@
 // canLaunchMission / evaluatePermadeathCheck).
 //
 // Deliberately heal-IN-PLACE only: this does not path a healer toward a
-// hurt ally who isn't already adjacent. engine/mission.ts's own
-// getRepairableFrom only ever offers adjacent (distance === 1) targets —
-// this matches that exactly rather than inventing a "walk to whoever's
-// hurt" pathing problem this pass doesn't need to solve. In practice this
-// already covers the common case (a fireteam fights clustered, not
-// scattered), and the harness's own per-unit action loop (sim/run.ts) means
-// a Munti that heals with its first action still gets a second action to
-// move or attack, rather than the heal eating the whole turn for nothing.
+// hurt ally who isn't already in repair range. Was adjacent-only (distance
+// === 1) to match engine/mission.ts's own getRepairableFrom exactly; both
+// became range-aware together, 28 Aug 2026, once Munti's base Repair range
+// changed (1->3, Rapid Response one further) and getRepairableFrom's own
+// hardcoded adjacency turned out to be the reason the two had drifted apart
+// in the first place — this still matches that function exactly, just at
+// its new, wider range rather than inventing a "walk to whoever's hurt"
+// pathing problem this pass doesn't need to solve. In practice this already
+// covers the common case (a fireteam fights clustered, not scattered), and
+// the harness's own per-unit action loop (sim/run.ts) means a Munti that
+// heals with its first action still gets a second action to move or
+// attack, rather than the heal eating the whole turn for nothing.
 import type { BattleUnit } from "../../engine/units";
 import { chebyshevDistance } from "../../engine/grid";
+import { DEFAULT_REPAIR_RANGE, RAPID_RESPONSE_REPAIR_RANGE } from "../../data/weaponBranches";
 
-/** Below this HP fraction, an adjacent ally is worth interrupting anything else for — even this unit's own retreat-on-low-HP instinct (index.ts checks this ahead of that). */
+/** Below this HP fraction, an ally in repair range is worth interrupting anything else for — even this unit's own retreat-on-low-HP instinct (index.ts checks this ahead of that). */
 export const CRITICAL_ALLY_HP_FRACTION = 0.4;
-/** Below this HP fraction (but not critical), an adjacent ally is worth healing instead of chip-damaging a target that isn't dying to this attack anyway. */
+/** Below this HP fraction (but not critical), an ally in repair range is worth healing instead of chip-damaging a target that isn't dying to this attack anyway. */
 export const ROUTINE_ALLY_HP_FRACTION = 0.85;
 
 function worstAdjacentAlly(unit: BattleUnit, allUnits: BattleUnit[], belowFraction: number): BattleUnit | undefined {
   if (!unit.abilities.includes("abil_repair")) return undefined;
+  const repairRange =
+    unit.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
   const candidates = allUnits.filter(
     (t) =>
       !t.downed &&
@@ -37,7 +44,7 @@ function worstAdjacentAlly(unit: BattleUnit, allUnits: BattleUnit[], belowFracti
       t.instanceId !== unit.instanceId &&
       t.maxHp > 0 &&
       t.currentHp / t.maxHp < belowFraction &&
-      chebyshevDistance(unit.pos, t.pos) === 1
+      chebyshevDistance(unit.pos, t.pos) <= repairRange
   );
   if (!candidates.length) return undefined;
   return candidates.reduce((worst, t) => (t.currentHp / t.maxHp < worst.currentHp / worst.maxHp ? t : worst));
