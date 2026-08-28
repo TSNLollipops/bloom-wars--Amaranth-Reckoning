@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import type { Path } from "../../data/types";
 import { POWER, TIERS, FULL_HP_DAMAGE_CAP } from "../../data/combatTables";
-import { resolveMechAttack } from "../combat";
+import { resolveMechAttack, resolveAttackOnBloom } from "../combat";
 import { applyBloomDamage } from "../combat";
 import { BLOOM } from "../../data/bloom";
 import { makeUniformMap, testUnit } from "./testHelpers";
@@ -244,4 +244,69 @@ describe("Centauroid charge (>=3 tiles straight line over cost-1 terrain)", () =
       expect(r.damage).toBe(c.dealt);
     });
   }
+});
+
+describe("Bloom on-hit effects engine — attackDebuffMultiplier wiring (engine/turnManager.ts, 27 Aug 2026)", () => {
+  // Every case below is deliberately arithmetic-clean (G-tier, full HP, 0
+  // terrain stars, defenderDodged forced true where a counter's own HP
+  // ratio would otherwise complicate the expected number) so the debuff's
+  // effect is exactly "multiply by 1 - magnitude, then round once" — the
+  // same no-op-when-absent contract turnManager.test.ts already verifies
+  // for attackDebuffMultiplier in isolation. This block only checks that
+  // combat.ts's three call sites actually read it.
+
+  it("an active fx_debuff_attack on the ATTACKER reduces resolveMechAttack's primary damage", () => {
+    const attacker = testUnit("meeps", { x: 0, y: 0 });
+    const defender = testUnit("tank", { x: 5, y: 0 }); // far apart — isolates the primary hit, no counter
+    attacker.statusEffects.push({ kind: "debuff_attack", magnitude: 0.2, turnsRemaining: 2 });
+    const r = resolveMechAttack(OPEN, attacker, defender, [defender], [attacker], false);
+    expect(r.damage).toBe(Math.round(POWER.meeps.tank * 0.8)); // 30 -> 24
+  });
+
+  it("no debuff is a no-op — matches the base damage matrix exactly", () => {
+    const attacker = testUnit("meeps", { x: 0, y: 0 });
+    const defender = testUnit("tank", { x: 5, y: 0 });
+    const r = resolveMechAttack(OPEN, attacker, defender, [defender], [attacker], false);
+    expect(r.damage).toBe(POWER.meeps.tank);
+  });
+
+  it("an active fx_debuff_attack on the DEFENDER reduces their own counter-swing", () => {
+    const attacker = testUnit("meeps", { x: 0, y: 0 });
+    const defender = testUnit("tank", { x: 1, y: 0 }); // adjacent — in counter range
+    defender.statusEffects.push({ kind: "debuff_attack", magnitude: 0.2, turnsRemaining: 2 });
+    // Forcing the primary hit to dodge keeps defenderHpAfter at defender.maxHp
+    // exactly, so the counter's own HP-ratio term is a clean 1 and doesn't
+    // fold rounding from the primary hit into the counter's expected value.
+    const r = resolveMechAttack(OPEN, attacker, defender, [defender], [attacker], false, true);
+    expect(r.countered).toBe(true);
+    expect(r.counterDamage).toBe(Math.round(POWER.tank.meeps * 0.8)); // 65 -> 52
+  });
+
+  it("fx_choir_dissonance's larger magnitude reduces damage proportionally more", () => {
+    const attacker = testUnit("meeps", { x: 0, y: 0 });
+    const defender = testUnit("tank", { x: 5, y: 0 });
+    attacker.statusEffects.push({ kind: "debuff_attack", magnitude: 0.3, turnsRemaining: 3 });
+    const r = resolveMechAttack(OPEN, attacker, defender, [defender], [attacker], false);
+    expect(r.damage).toBe(Math.round(POWER.meeps.tank * 0.7)); // 30 -> 21
+  });
+
+  it("an active fx_debuff_attack on the attacker reduces resolveAttackOnBloom's damage", () => {
+    const attacker = testUnit("meeps", { x: 0, y: 0 }); // effectiveAttack 100 (default) -> base 50 dmg vs Bloom
+    const bloomStandIn = testUnit("meeps", { x: 5, y: 0 }); // only terrain/overshield of this position matter here
+    attacker.statusEffects.push({ kind: "debuff_attack", magnitude: 0.2, turnsRemaining: 2 });
+    const r = resolveAttackOnBloom(OPEN, attacker, bloomStandIn, [bloomStandIn], false);
+    expect(r.damage).toBe(40); // 100 * 0.5 * 0.8
+
+    const undebuffedAttacker = testUnit("meeps", { x: 0, y: 0 });
+    const undebuffed = resolveAttackOnBloom(OPEN, undebuffedAttacker, bloomStandIn, [bloomStandIn], false);
+    expect(undebuffed.damage).toBe(50); // no-op baseline
+  });
+
+  it("an expired debuff (turnsRemaining <= 0) no longer reduces damage", () => {
+    const attacker = testUnit("meeps", { x: 0, y: 0 });
+    const defender = testUnit("tank", { x: 5, y: 0 });
+    attacker.statusEffects.push({ kind: "debuff_attack", magnitude: 0.2, turnsRemaining: 0 });
+    const r = resolveMechAttack(OPEN, attacker, defender, [defender], [attacker], false);
+    expect(r.damage).toBe(POWER.meeps.tank);
+  });
 });

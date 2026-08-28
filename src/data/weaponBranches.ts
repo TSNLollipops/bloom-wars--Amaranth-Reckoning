@@ -8,6 +8,14 @@
 // no knockback, no DoT, no attack-debuff — those wait for a dedicated
 // status-effect pass, same Tier-3 split the design doc itself calls out).
 //
+// That status-effect pass exists now (engine/turnManager.ts, 27 Aug 2026)
+// — BattleUnit.statusEffects, acid_dot/debuff_attack ticking, and the
+// knockback resolver are all real, generic infrastructure, not Bloom-
+// specific. No weapon branch here uses any of it yet; this note is just
+// the pointer for whenever a future Tier-3 branch wants stun/knockback/
+// DoT/attack-debuff on the player side — the plumbing to reuse is already
+// built, not a new system to design from scratch.
+//
 // Shape, per the doc's own §3/§9: cost and tier-gate depend on PURCHASE
 // ORDER (1st/2nd/3rd/4th branch a pilot ever buys), not on which specific
 // branch — so WEAPON_BRANCH_COSTS/WEAPON_BRANCH_TIER_GATE are indexed by

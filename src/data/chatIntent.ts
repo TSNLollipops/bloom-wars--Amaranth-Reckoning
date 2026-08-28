@@ -223,6 +223,71 @@ export function detectHighlightsRequest(raw: string): boolean {
   return countHits(text, HIGHLIGHTS_KEYWORDS) > 0;
 }
 
+// Antfarm build economy, first slice, 27 Aug 2026 — Maxime: "the room
+// should be built from asking the CO carabil... he ask what you wana
+// build. player gotta ask. 'build me this' mek workshop." Same
+// keyword-bucket philosophy as every other detect* function in this file,
+// not a free-text parser — confirmed scope (AskUserQuestion, 27 Aug 2026):
+// the CO recognizes requests for rooms already designed somewhere in the
+// project's docs, matched by keyword/synonym, rather than accepting any
+// string the player types. This function itself doesn't know or care who
+// the player is talking to — same as every other detect* export here —
+// that gate (must be standing with the CO specifically) lives in Hub.ts's
+// submitChat, the one place that actually knows which NPC is nearby.
+//
+// Two outcomes, not one, because "recognized" and "buildable right now"
+// are genuinely different things: BuildableBayId covers the four reserved
+// markers Hub.ts's egg-hull pass actually placed on the deck (Sensor
+// Array, Beacon Control, Generator, Restock Room — real physical space to
+// build into); KnownUnbuildableId covers real, named things elsewhere in
+// this project's docs that have no space carved out yet (Weapons Bay,
+// Fabricator — Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2), already exist
+// as a pre-built room and aren't something to "build" again (Rec Room),
+// or are a whole separate, still-100%-design system with no bay of its
+// own at all (Mek Workshop — Bloom_Wars_Mek_Workshop_And_Weapon_
+// Progression_v1.md). Distinguishing these lets the CO give an honest
+// "not yet, here's why" instead of either silently ignoring the request
+// or fabricating a room nobody designed.
+export type BuildableBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom";
+export type KnownUnbuildableId = "weaponsBay" | "fabricator" | "recRoom" | "mekWorkshop";
+export type BuildRequest = { kind: "buildable"; id: BuildableBayId } | { kind: "unbuildable"; id: KnownUnbuildableId };
+
+const BUILDABLE_BAY_KEYWORDS: Record<BuildableBayId, string[]> = {
+  sensorArray: ["sensor array", "sensor", "long range sensor", "long-range sensor"],
+  beaconControl: ["beacon", "beacon control", "resupply beacon"],
+  generator: ["generator", "reactor"],
+  restockRoom: ["restock room", "restock", "resupply room"],
+};
+
+// "workshop" alone deliberately resolves to Mek Workshop, not the
+// already-live Workshop room — a player typing that word while talking to
+// the CO is almost certainly asking about the still-unbuilt lance
+// workshop this pass is surfacing honestly, not asking to build a room
+// that's already standing on the upper deck.
+const UNBUILDABLE_KEYWORDS: Record<KnownUnbuildableId, string[]> = {
+  weaponsBay: ["weapons bay", "weapon bay"],
+  fabricator: ["fabricator", "fabrication bay"],
+  recRoom: ["rec room", "recroom", "mess hall", "mess deck"],
+  mekWorkshop: ["mek workshop", "mech workshop", "workshop"],
+};
+
+// Buildable bays checked first — if a message somehow hits both buckets
+// (none do today, checked by inspection: no keyword string above appears
+// in more than one bucket) a real, actionable outcome should win over an
+// honest "not yet," same precedence reasoning as everything else in this
+// file (detectVerbRequest before detectUnbuiltVerbLine, etc.).
+export function detectBuildRequest(raw: string): BuildRequest | null {
+  const text = raw.trim().toLowerCase();
+  if (!text) return null;
+  for (const [id, keywords] of Object.entries(BUILDABLE_BAY_KEYWORDS) as [BuildableBayId, string[]][]) {
+    if (countHits(text, keywords) > 0) return { kind: "buildable", id };
+  }
+  for (const [id, keywords] of Object.entries(UNBUILDABLE_KEYWORDS) as [KnownUnbuildableId, string[]][]) {
+    if (countHits(text, keywords) > 0) return { kind: "unbuildable", id };
+  }
+  return null;
+}
+
 export function interpretPlayerChat(raw: string): HubMessage | null {
   const text = raw.trim().toLowerCase();
   if (!text) return null;

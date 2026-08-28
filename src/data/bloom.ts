@@ -190,26 +190,45 @@ export const BLOOM: Record<string, BloomArchetype> = {
   // The original plan was attackPower 40 (down from Heartwood's 60) on the
   // theory that fx_acid_dot's stacking damage would make up the difference
   // — Gallcyst's own design already leans on its DoT the same way. That
-  // theory turned out to be wrong in a way worth recording: NONE of the
-  // BLOOM_ON_HIT_EFFECTS below (acid_dot, debuff_attack, knockback) are
-  // actually wired into the engine — `engine/turnManager.ts`, the file
-  // this same comment block says DoT/debuff ticking "lives in," doesn't
-  // exist. Every Bloom archetype's onHit field is pure flavor data right
-  // now, Heartwood's own fx_knockback_1 included — this predates the
-  // Wellroot and isn't specific to it. Running the actual mission
-  // (tools/_scratch_batch_sim.ts, a throwaway wrapper around npm run sim's
-  // own per-turn loop, 3 independent batches of 40-60) at attackPower 40
-  // came back 80% win — nearly 2.5x the documented 35% "deliberately
-  // tight" baseline this fight was tuned to — because the compensating DoT
-  // was never actually landing. Restoring attackPower to 60 (matching
-  // Heartwood) while keeping attackRange pulled in to [1,3] (down from
-  // Heartwood's [1,4]) reproduced 35/25/37% across the same three batches
-  // — close enough to the original tuning to call it a match. Shipped at
-  // that config. The acid identity here is weaponType/onHit/colorPalette/
-  // perception only for now, not a mechanical difference from Heartwood's
-  // concussive kit — see the build log / Master Index for the flagged,
-  // separate, real gap (an unbuilt on-hit-effects engine that would affect
-  // Gallcyst and Sirenmaw/Choir too, not just this archetype).
+  // theory turned out to be wrong in a way worth recording: at the time
+  // this fight shipped, NONE of the BLOOM_ON_HIT_EFFECTS below (acid_dot,
+  // debuff_attack, knockback) were actually wired into the engine —
+  // `engine/turnManager.ts`, the file this same comment block said
+  // DoT/debuff ticking "lives in," didn't exist yet. Every Bloom
+  // archetype's onHit field was pure flavor data at that point, Heartwood's
+  // own fx_knockback_1 included — this predates the Wellroot and isn't
+  // specific to it. Running the actual mission (tools/_scratch_batch_sim.ts,
+  // a throwaway wrapper around npm run sim's own per-turn loop, 3
+  // independent batches of 40-60) at attackPower 40 came back 80% win —
+  // nearly 2.5x the documented 35% "deliberately tight" baseline this
+  // fight was tuned to — because the compensating DoT was never actually
+  // landing. Restoring attackPower to 60 (matching Heartwood) while
+  // keeping attackRange pulled in to [1,3] (down from Heartwood's [1,4])
+  // reproduced 35/25/37% across the same three batches — close enough to
+  // the original tuning to call it a match. Shipped at that config, with
+  // the acid identity being weaponType/onHit/colorPalette/perception only,
+  // not yet a mechanical difference from Heartwood's concussive kit — and
+  // an explicit flag left here (and in the build log / Master Index) that
+  // wiring the on-hit-effects engine later would need this number
+  // re-validated, since attackPower 60 was calibrated assuming the DoT
+  // stayed inert.
+  //
+  // That flag came due, 27 Aug 2026 — engine/turnManager.ts now exists and
+  // fx_acid_dot actually fires (status-effect DoT + the tile-under-target
+  // converting to bloom_mat, both real). Re-running the identical batch
+  // validation at the still-shipped attackPower 60 came back 0/40 wins
+  // (two independent N=40 batches, 0% and 0%) — not a milder version of
+  // the predicted double-dip, a total collapse of this fight's win rate.
+  // Isolating the two new effects separately: acid_dot's DoT alone (no
+  // tile conversion) at attackPower 60 was already 0/40; at attackPower 40
+  // it was 1/40 (3%). Cutting attackPower all the way to 20 (with the full
+  // effect — DoT + tile conversion — restored) reproduced the original
+  // target band: 30% and 35% across two independent N=40 batches. That
+  // number is a validated CANDIDATE, not shipped here — attackPower is
+  // still 60 below, unchanged, pending Maxime's call, since this is
+  // exactly the kind of balance-number decision the project's own rules
+  // reserve for him rather than an engine change quietly re-tuning around.
+  // See the Master Index's 27 Aug batch-job entry for the full account.
   bloom_wellroot: {
     id: "bloom_wellroot",
     displayName: "The Wellroot",

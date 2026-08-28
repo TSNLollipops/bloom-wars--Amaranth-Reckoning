@@ -84,6 +84,16 @@ export function rankDisplayTitle(rank: Rank): string {
   return rank === "2nd_lt" ? "2nd Lt." : rank === "capt" ? "Capt." : "Maj.";
 }
 
+// Antfarm build economy, first slice, 27 Aug 2026 — the four reserved-bay
+// markers Hub.ts placed in the egg-hull pass (Sensor Array + Beacon
+// Control on Upper, Generator + Restock Room on Lower — see that pass's
+// own RESERVED_BAYS) are becoming real, buildable rooms rather than
+// staying visual-only. The id union lives here rather than in Hub.ts
+// because it's now also persisted campaign state (CampaignState.builtBays,
+// below) — an engine-layer concern, not a scene-layer one — with Hub.ts
+// importing this type rather than owning a second copy of it.
+export type ReservedBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom";
+
 export interface CampaignPilotEntry {
   pilot: PilotRecord; // a campaign-owned copy — pilot.tier is this pilot's live, campaign-persistent gear tier (rule 4: "an active pilot's tier can change between missions via existing gear-tier-purchase logic")
   status: PilotStatus;
@@ -156,6 +166,14 @@ export interface CampaignState {
   // attempt" is this field's normal resting state for most of a campaign,
   // not an edge case to paper over.
   activeMissionAttempt?: ActiveMissionAttempt;
+  // Antfarm build economy, first slice, 27 Aug 2026 — which of the four
+  // reserved bays the player has actually had the CO build. Optional and
+  // read as `?? []` everywhere, same pattern as npcSocial/social below: a
+  // save from before this pass has none, and that's identical in meaning
+  // to an empty array, so no migration/backfill step is needed the way
+  // rourkeRank's backfillRourkeRank had to be for a field whose absence
+  // meant something different from its default.
+  builtBays?: ReservedBayId[];
   // Section 12 below (26 Aug 2026) — persistent NPC-to-NPC bonds and
   // pairing, for the background social-sim harness. Optional for the same
   // reason `social` on CampaignPilotEntry is: every save from before this

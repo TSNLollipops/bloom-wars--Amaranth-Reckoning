@@ -12,7 +12,7 @@
 // \b-anchored word-boundary matching before writing this file, so the
 // false-positive cases below are regression tests, not just coverage.
 import { describe, it, expect } from "vitest";
-import { interpretPlayerChat, detectUnbuiltVerbLine, detectVerbRequest, detectHistoryRequest, detectHighlightsRequest } from "../chatIntent";
+import { interpretPlayerChat, detectUnbuiltVerbLine, detectVerbRequest, detectHistoryRequest, detectHighlightsRequest, detectBuildRequest } from "../chatIntent";
 
 describe("interpretPlayerChat — muster recognition", () => {
   it("recognizes the literal word 'muster'", () => {
@@ -291,5 +291,51 @@ describe("detectHighlightsRequest — Highlights reel, 27 Aug 2026", () => {
   it("returns false for empty or whitespace-only input", () => {
     expect(detectHighlightsRequest("")).toBe(false);
     expect(detectHighlightsRequest("   ")).toBe(false);
+  });
+});
+
+describe("detectBuildRequest — Antfarm build economy, first slice, 27 Aug 2026", () => {
+  // 27 Aug 2026, Maxime: "he ask what you wana build. player gotta ask.
+  // build me this'' mek workshop" — build requests go through the CO via
+  // typed chat, matched against known bays (buildable now, or named but not
+  // yet built) rather than accepting arbitrary free text. Room/proximity
+  // gating (talking to the CO specifically) lives in Hub.ts's submitChat,
+  // same as every other verb here — this function only classifies the text.
+  it("recognizes each of the four buildable reserved bays", () => {
+    expect(detectBuildRequest("build me a sensor array")).toEqual({ kind: "buildable", id: "sensorArray" });
+    expect(detectBuildRequest("can you build the beacon control")).toEqual({ kind: "buildable", id: "beaconControl" });
+    expect(detectBuildRequest("build a generator")).toEqual({ kind: "buildable", id: "generator" });
+    expect(detectBuildRequest("build me a restock room")).toEqual({ kind: "buildable", id: "restockRoom" });
+  });
+
+  it("recognizes shorthand and synonym phrasing for the buildable bays", () => {
+    expect(detectBuildRequest("build a reactor")).toEqual({ kind: "buildable", id: "generator" });
+    expect(detectBuildRequest("build the resupply beacon")).toEqual({ kind: "buildable", id: "beaconControl" });
+    expect(detectBuildRequest("build restock")).toEqual({ kind: "buildable", id: "restockRoom" });
+  });
+
+  it("recognizes named-but-unbuilt systems as a distinct, honest 'not yet' outcome (Maxime's own example)", () => {
+    expect(detectBuildRequest("build me this, mek workshop")).toEqual({ kind: "unbuildable", id: "mekWorkshop" });
+    expect(detectBuildRequest("can we get a fabricator built")).toEqual({ kind: "unbuildable", id: "fabricator" });
+    expect(detectBuildRequest("build a weapons bay")).toEqual({ kind: "unbuildable", id: "weaponsBay" });
+  });
+
+  it("recognizes a request for the rec room as unbuildable — it's already standing, not a bay to build", () => {
+    expect(detectBuildRequest("build a rec room")).toEqual({ kind: "unbuildable", id: "recRoom" });
+  });
+
+  it("returns null for ordinary text and for muster/emotion/verb-request text — doesn't swallow unrelated messages", () => {
+    expect(detectBuildRequest("what's the weather like today")).toBeNull();
+    expect(detectBuildRequest("muster up")).toBeNull();
+    expect(detectBuildRequest("let's play poker")).toBeNull();
+  });
+
+  it("returns null for a request naming something not tracked anywhere in the design docs", () => {
+    expect(detectBuildRequest("build me a swimming pool")).toBeNull();
+  });
+
+  it("returns null for empty or whitespace-only input", () => {
+    expect(detectBuildRequest("")).toBeNull();
+    expect(detectBuildRequest("   ")).toBeNull();
   });
 });

@@ -94,7 +94,11 @@ import {
   detectVerbRequest,
   detectHistoryRequest,
   detectHighlightsRequest,
+  detectBuildRequest,
   CHAT_FALLBACK_LINES,
+  type BuildRequest,
+  type KnownUnbuildableId,
+  type BuildableBayId,
 } from "../data/chatIntent";
 import { pickCatalystReaction, pickAmbientLineWithBleed, findCatalystClash } from "../data/catalystProfile";
 import { pickSlottedVariant, resolveSlotText, type SlotContext } from "../data/crewBanterSlots";
@@ -124,6 +128,8 @@ import {
   rankDisplayTitle,
   type CampaignState,
   type NpcSocialState,
+  type Rank,
+  type ReservedBayId,
 } from "../engine/campaignState";
 import { NPC_SEED, NPC_BOND_SEED } from "../data/npcSeed";
 // 26 Aug 2026 — the "visible interaction" piece §17.3's own roaming never
@@ -555,7 +561,12 @@ const GROTTO_ELLIPSE = {
 const LOWER_BOUNDS = { left: 50, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
 const UPPER_BOUNDS = { left: 60, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
 
-type ReservedBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom";
+// Antfarm build economy, first slice, 27 Aug 2026 — Arangement of
+// Content's own pilotId, hoisted here from buildNpcs() (where it's set
+// when he's actually seated) so submitChat can gate build requests on
+// "standing with the CO specifically" without either duplicating the
+// literal string or reaching into buildNpcs's own local scope.
+const CO_PILOT_ID = "npc_co";
 
 interface ReservedBayDef {
   id: ReservedBayId;
@@ -582,6 +593,38 @@ const RESERVED_BAYS: ReservedBayDef[] = [
   { id: "generator", deck: "lower", label: "GENERATOR\n(reserved)", x: 90, y: 200 },
   { id: "restockRoom", deck: "lower", label: "RESTOCK\nROOM\n(reserved)", x: 90, y: 450 },
 ];
+
+// Antfarm build economy, first slice, 27 Aug 2026 — the reserved markers
+// above stop being visual-only: talking to the CO and asking for one of
+// these four now actually builds it (see submitChat/handleBuildRequest).
+// Every number below is a placeholder, same footing as every other unset
+// balance figure in this project (Energy's cap, Stress's math, the peg
+// game's turn counts) — reuses the campaign's existing shared `points`
+// pool rather than a new currency (AskUserQuestion, 27 Aug 2026: "reuse
+// existing points" over inventing a fifth resource). Generator priced a
+// little above the other three since Carrier Hub §11.2 already flags it
+// as the bay everything else plausibly needs built first.
+const BAY_BUILD_COST: Record<ReservedBayId, number> = {
+  generator: 140,
+  sensorArray: 110,
+  beaconControl: 110,
+  restockRoom: 110,
+};
+
+// Scaled down from Carrier Hub §12.1's own three-tier rank/space table
+// (2-3 bay slots at 2nd Lt., "medium" at Capt., "full" — the whole
+// twelve-bay grid — at Maj.). That table was sized for the eventual full
+// twelve-bay grid; with only these four bays actually buildable this
+// pass, the same small/medium/full shape lands on 1/3/4 instead of
+// 2-3/~6/12. Confirmed direction (AskUserQuestion, 27 Aug 2026: reuse
+// §12's rank gating rather than design fresh numbers for a literal grid)
+// — the specific integers here are still a first-pass placeholder, same
+// "flagged, not locked" footing §12.1's own table carries.
+const RANK_BAY_SLOTS: Record<Rank, number> = {
+  "2nd_lt": 1,
+  capt: 3,
+  maj: 4,
+};
 
 const ROOM_ZONE_BOUNDS: Record<RoomId, { left: number; right: number; top: number; bottom: number }> = {
   recroom: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
@@ -971,6 +1014,20 @@ type HubNpc = {
   // mingle branches entirely and just computes the next door to walk
   // through via nextHopDoor() instead.
   travelTargetRoom?: RoomId;
+  // 27 Aug 2026 — Maxime: "the antfarmer need to stay near the bay when a
+  // muster waiting until muster is done or cancelled." Before this, a
+  // mustered NPC's stay at MUSTER_POINT lasted exactly until its own
+  // nextRoamAt cooldown next fired — sendToMuster only ever set a target
+  // to walk toward, nothing distinguished "arrived and holding" from
+  // ordinary idle, so updateNpcRoaming would eventually send them
+  // wandering off again like any other idle NPC. This flag is that
+  // missing distinction: true from the moment a muster message reaches
+  // this NPC (sendToMuster) until endMuster() releases them (deploy — the
+  // muster's real end — or the debug M-key toggle standing in for a
+  // cancel). While true, updateNpcRoaming skips this NPC outright, so
+  // once they arrive at the bay they simply stay — no new roam/explore/
+  // mingle target ever gets assigned to them until this clears.
+  mustered?: boolean;
   // Stage-promotion "graduation" reveal, 27 Aug 2026 — set by buildNpcs()
   // when detectStagePromotion finds a real, unacknowledged Stage change;
   // consumed exactly once by speak()'s new branch, which shows the
@@ -1024,6 +1081,12 @@ export class Hub extends Phaser.Scene {
   private interactPrompt!: Phaser.GameObjects.Text;
   private eKey?: Phaser.Input.Keyboard.Key;
   private mKey?: Phaser.Input.Keyboard.Key; // debug: test muster-call propagation (Build Plan §9 piece #1)
+  // 27 Aug 2026 — tracks whether the debug M key's own muster is currently
+  // "in effect," so a second press means cancel rather than calling a
+  // second muster on top of the first. Deliberately scoped to just this
+  // debug binding, not to musters in general (a real chat-triggered muster
+  // has no cancel UI yet either) — see callMuster/endMuster's own headers.
+  private musterActive = false;
   private rKey?: Phaser.Input.Keyboard.Key; // debug: test rumor propagation (Build Plan §9 piece #1)
   private tKey?: Phaser.Input.Keyboard.Key; // piece #3: open the real typed-chat box
   private chatInput!: Phaser.GameObjects.DOMElement;
@@ -1519,6 +1582,26 @@ export class Hub extends Phaser.Scene {
       return;
     }
 
+    // Build request — Antfarm build economy, first slice, 27 Aug 2026.
+    // Checked in the same slot as the real verbs above (a genuine build
+    // request beats both the history/highlights reads and the generic
+    // catch-all below), but unlike those verbs it isn't room-gated — the CO
+    // sits in the grotto, not a room the player toggles into — it's gated on
+    // standing next to the CO specifically. Asking to build while standing
+    // next to anyone else gets a clear redirect rather than a silent miss or
+    // a fallback shrug, since "who do I even ask" is a real new-player
+    // question this design creates.
+    const buildRequest = detectBuildRequest(trimmed);
+    if (buildRequest) {
+      const nearby = this.nearestNpcInRange(APPROACH_RADIUS);
+      if (nearby?.pilotId !== CO_PILOT_ID) {
+        this.showFallback("Only the CO signs off on that — find him in the grotto.");
+        return;
+      }
+      this.handleBuildRequest(buildRequest);
+      return;
+    }
+
     // History request — Hub polish, 26 Aug 2026. Checked after the real
     // verbs (a genuine "let's drink" always wins over a false-positive
     // reading) but before detectUnbuiltVerbLine/interpretPlayerChat, same
@@ -1825,6 +1908,72 @@ export class Hub extends Phaser.Scene {
       this.showBubble(gossipSource, gossipLine, this.time.now);
       this.propagate(gossipSource, message, new Set([gossipSource.pilotId]), 1);
     });
+  }
+
+  // --- Antfarm build economy, first slice, 27 Aug 2026 -------------------
+  // Maxime: "the room should be built from asking the CO carabil... he ask
+  // what you wana build. player gotta ask. 'build me this' mek workshop."
+  // Small line banks rather than one hardcoded string apiece per outcome,
+  // matching this file's own established pattern for any repeatable
+  // in-fiction response (TOXIC_LINES, GOSSIP_WARM_LINES/GOSSIP_TOXIC_LINES).
+  // {bay}/{cost}/{points}/{rank} are plain string placeholders substituted
+  // in handleBuildRequest below — not a general template engine, just
+  // enough to keep four outcome banks from needing four separate
+  // hand-written sentences per bay.
+  private pickBuildLine(lines: string[]): string {
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+
+  private buildLine(bayId: BuildableBayId): string {
+    return RESERVED_BAYS.find((b) => b.id === bayId)!.label.replace("\n(reserved)", "").replace(/\n/g, " ");
+  }
+
+  // Recognized, but no space carved out yet — see chatIntent.ts's own
+  // KnownUnbuildableId header for why these four specifically get an
+  // honest "not yet" instead of either silence or a fabricated build.
+  private readonly BUILD_UNAVAILABLE_LINES: Record<KnownUnbuildableId, string[]> = {
+    weaponsBay: ["Weapons Bay's on the books, but there's no deck space cleared for it yet."],
+    fabricator: ["Fabricator's a good call. We just don't have anywhere to put one yet."],
+    recRoom: ["Rec Room's already up and running — you'll find it on the lower deck."],
+    mekWorkshop: ["A proper workshop for the Meks — I like it. Nobody's drawn that one up yet, though."],
+  };
+
+  private handleBuildRequest(request: BuildRequest) {
+    const co = this.npcs.find((n) => n.pilotId === CO_PILOT_ID);
+    if (!co) return; // shouldn't happen — the CO exists the moment buildNpcs() runs
+    const now = this.time.now;
+
+    if (request.kind === "unbuildable") {
+      this.showBubble(co, this.pickBuildLine(this.BUILD_UNAVAILABLE_LINES[request.id]), now);
+      return;
+    }
+
+    const bayId = request.id;
+    const bayName = this.buildLine(bayId);
+    const built = this.campaignState.builtBays ?? [];
+
+    if (built.includes(bayId)) {
+      this.showBubble(co, `${bayName}'s already standing, Commander.`, now);
+      return;
+    }
+
+    const rank = this.campaignState.rourkeRank;
+    if (built.length >= RANK_BAY_SLOTS[rank]) {
+      this.showBubble(co, `Not at your rank yet — a ${rankDisplayTitle(rank)} doesn't get the space for that. Wait for the next bar.`, now);
+      return;
+    }
+
+    const cost = BAY_BUILD_COST[bayId];
+    if (this.campaignState.points < cost) {
+      this.showBubble(co, `We don't have the material for that yet. ${bayName} runs ${cost}, and we're sitting on ${this.campaignState.points}.`, now);
+      return;
+    }
+
+    this.campaignState.points -= cost;
+    this.campaignState.builtBays = [...built, bayId];
+    saveCampaignState(this.campaignState);
+    this.markBayBuilt(bayId);
+    this.showBubble(co, `Approved. ${bayName}, logged and building.`, now);
   }
 
   // --- Social history view — Hub polish, 26 Aug 2026 --------------------
@@ -2919,28 +3068,68 @@ export class Hub extends Phaser.Scene {
   // here). Same dash-drawing shape as drawMusterPoint's BAY marker above,
   // built once up front and toggled by deck in refreshRoomVisibility, same
   // pattern as doorMarkers/zoneDecor.
-  private buildReservedBays() {
+  //
+  // Antfarm build economy, first slice, 27 Aug 2026 — split the actual
+  // drawing out into drawReservedBayOutline() so the same shape can be
+  // redrawn solid once a bay is actually built (markBayBuilt, called from
+  // handleBuildRequest) instead of only ever drawn once as dashed. Reads
+  // campaignState.builtBays on scene start too, so a save that already has
+  // a bay built shows it correctly from the first frame, not just after
+  // the next build this session.
+  private drawReservedBayOutline(g: Phaser.GameObjects.Graphics, bay: ReservedBayDef, built: boolean) {
     const w = 68;
     const h = 40;
     const dash = 6;
+    const x = bay.x - w / 2;
+    const y = bay.y - h / 2;
+    g.clear();
+    if (built) {
+      // Solid outline, brighter color — reads as "real" against the still-
+      // dashed reserved markers around it, same visual language a built
+      // vs. planned structure would use anywhere else in this file.
+      g.lineStyle(2, 0x8fd0ff, 0.9);
+      g.strokeRect(x, y, w, h);
+      return;
+    }
+    g.lineStyle(1, 0x556270, 0.7);
+    for (let dx = 0; dx < w; dx += dash * 2) {
+      g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+      g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+    }
+    for (let dy = 0; dy < h; dy += dash * 2) {
+      g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+      g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+    }
+  }
+
+  private buildReservedBays() {
+    const built = this.campaignState.builtBays ?? [];
     for (const bay of RESERVED_BAYS) {
-      const x = bay.x - w / 2;
-      const y = bay.y - h / 2;
+      const isBuilt = built.includes(bay.id);
       const g = this.add.graphics();
-      g.lineStyle(1, 0x556270, 0.7);
-      for (let dx = 0; dx < w; dx += dash * 2) {
-        g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
-        g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
-      }
-      for (let dy = 0; dy < h; dy += dash * 2) {
-        g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
-        g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
-      }
+      this.drawReservedBayOutline(g, bay, isBuilt);
       const label = this.add
-        .text(bay.x, bay.y, bay.label, { fontFamily: "monospace", fontSize: "8px", color: "#556270", align: "center" })
+        .text(bay.x, bay.y, isBuilt ? bay.label.replace("\n(reserved)", "") : bay.label, {
+          fontFamily: "monospace",
+          fontSize: "8px",
+          color: isBuilt ? "#8fd0ff" : "#556270",
+          align: "center",
+        })
         .setOrigin(0.5);
       this.reservedBayMarkers.push({ def: bay, outline: g, label });
     }
+  }
+
+  // Called from handleBuildRequest the moment a build actually goes
+  // through — flips one marker from dashed/"(reserved)" to solid/built
+  // without rebuilding the other three or touching campaignState again
+  // (the caller already did that).
+  private markBayBuilt(bayId: ReservedBayId) {
+    const marker = this.reservedBayMarkers.find((m) => m.def.id === bayId);
+    if (!marker) return; // shouldn't happen — every ReservedBayId has exactly one marker
+    this.drawReservedBayOutline(marker.outline, marker.def, true);
+    marker.label.setColor("#8fd0ff");
+    marker.label.setText(marker.def.label.replace("\n(reserved)", ""));
   }
 
   private buildNpcs() {
@@ -3108,7 +3297,10 @@ export class Hub extends Phaser.Scene {
     // isRomanceableSpecies() check every other NPC uses, not a hand-set
     // boolean — the exact drift bug that check exists to prevent (see
     // romance.ts's own header on the Iyari miss).
-    const CO_PILOT_ID = "npc_co";
+    // CO_PILOT_ID is now a module-level const (see its own header, added
+    // for the build-economy pass) — submitChat needs the same identifier
+    // to gate build requests, so it moved out of this function's own
+    // local scope rather than being duplicated as a second literal.
     const coDisplayName = "Arangement of Content";
     const coInitials = pilotInitials(coDisplayName);
     // Own color, not a PATH_COLORS pick — he isn't a meeps/tank/reeps/munti
@@ -3357,7 +3549,18 @@ export class Hub extends Phaser.Scene {
       else if (this.isAtBay()) this.deploy();
       else this.speak();
     }
-    if (this.mKey && Phaser.Input.Keyboard.JustDown(this.mKey)) this.callMuster();
+    if (this.mKey && Phaser.Input.Keyboard.JustDown(this.mKey)) {
+      // 27 Aug 2026 — toggle, not a one-shot call, so a second press stands
+      // in for "muster cancelled" (Maxime's own "done or cancelled"; deploy()
+      // above already covers "done"). See musterActive's own header.
+      if (this.musterActive) {
+        this.endMuster();
+        this.musterActive = false;
+      } else {
+        this.callMuster();
+        this.musterActive = true;
+      }
+    }
     if (this.rKey && Phaser.Input.Keyboard.JustDown(this.rKey)) this.startRumor();
     if (this.tKey && Phaser.Input.Keyboard.JustDown(this.tKey)) this.openChat();
   }
@@ -3699,6 +3902,13 @@ export class Hub extends Phaser.Scene {
   // relationship actually stands right now.
   private updateNpcRoaming(now: number) {
     for (const npc of this.npcs) {
+      // 27 Aug 2026 — see HubNpc.mustered's own header. Checked before the
+      // targetX check on purpose: a mustered NPC that has already arrived
+      // at MUSTER_POINT has targetX cleared by ordinary arrival logic
+      // (updateNpcMovement), and without this guard the very next
+      // nextRoamAt tick would hand them a brand-new explore/mingle target
+      // as if they were any other idle NPC — exactly the gap Maxime flagged.
+      if (npc.mustered) continue;
       if (npc.targetX !== undefined) continue;
       if (npc.nextRoamAt === undefined || now < npc.nextRoamAt) continue;
 
@@ -3922,6 +4132,23 @@ export class Hub extends Phaser.Scene {
   private sendToMuster(npc: HubNpc) {
     npc.targetX = MUSTER_POINT.x;
     npc.targetY = MUSTER_POINT.y;
+    // 27 Aug 2026 — see HubNpc.mustered's own header. Marks this NPC as
+    // "holding for muster" from the moment the message reaches them, not
+    // just "currently walking somewhere" — updateNpcRoaming reads this to
+    // keep them parked at the bay once they arrive, until endMuster() runs.
+    npc.mustered = true;
+  }
+
+  // 27 Aug 2026 — the release valve for sendToMuster's mustered flag. Two
+  // callers: deploy() (the muster's real fulfillment — the player actually
+  // takes the troop out) and the debug M key's second press (standing in
+  // for a future real "cancel muster" action, per Maxime's own "done or
+  // cancelled" phrasing). Unconditionally clears every NPC rather than
+  // tracking which ones actually answered the call — cheap, and correct
+  // either way: an NPC who never got mustered has mustered === undefined
+  // already, so clearing it again is a no-op for them.
+  private endMuster() {
+    for (const npc of this.npcs) npc.mustered = false;
   }
 
   // Hub polish, 26 Aug 2026 — closes a gap flagged since §22/§19: neither
@@ -4092,6 +4319,13 @@ export class Hub extends Phaser.Scene {
   // as CAMPAIGN SHOP -> MapSelect already does elsewhere; no new mission-
   // choice logic lives here.
   private deploy() {
+    // 27 Aug 2026 — the muster's real "done" case (see HubNpc.mustered's
+    // header). Also resets musterActive: this Hub scene instance is reused
+    // (Phaser doesn't recreate the class on scene.start), so without this
+    // the debug M key's next first-press-after-returning would read as a
+    // cancel of a muster nobody's currently in, instead of calling a fresh one.
+    this.endMuster();
+    this.musterActive = false;
     this.scene.start("MapSelect");
   }
 

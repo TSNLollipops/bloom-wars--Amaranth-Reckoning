@@ -54,6 +54,7 @@ import {
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 import { BLOOM } from "../data/bloom";
+import { applyBloomOnHitEffect, tickStatusEffects } from "./turnManager";
 import { GRINDER_CLAW_HEAL_PCT, RAPID_RESPONSE_REPAIR_RANGE, DEFAULT_REPAIR_RANGE } from "../data/weaponBranches";
 import { decideHostileAction, decideCivilianAction, isVisibleTo } from "./ai";
 import {
@@ -971,6 +972,29 @@ export class Mission {
       const dmg = bloomDamage(attacker, defender, this.map, sameSideAsDefender, surfaced, defenderDodged);
       applyMechDamage(defender, dmg);
       outcome = { attackerId, defenderId, damage: dmg, countered: false, defenderDowned: defender.downed, defenderDodged };
+
+      // Bloom on-hit effects engine (engine/turnManager.ts, 27 Aug 2026) —
+      // data/bloom.ts's own BLOOM_ON_HIT_EFFECTS, wired for real for the
+      // first time. Only reachable from this branch: onHit is a property
+      // of Bloom archetypes, and this is the only place a Bloom is ever the
+      // attacker against a mech-shape (player or hostile-mech) defender.
+      // Skipped on a dodge (defenderDodged already zeroed dmg to 0 in
+      // bloomDamage — a hit that never landed shouldn't DoT/debuff/knock
+      // back the target either) and applyBloomOnHitEffect's own guard
+      // no-ops if the hit downed the defender outright.
+      if (!defenderDodged) {
+        const fxId = BLOOM[attacker.archetypeId]?.onHit;
+        if (fxId) {
+          const occupied = new Set(
+            this.units.filter((u) => !u.downed && u.instanceId !== defender.instanceId).map((u) => coordKey(u.pos))
+          );
+          const fxResult = applyBloomOnHitEffect(fxId, attacker, defender, sameSideAsDefender, this.map, occupied);
+          if (fxResult.tileConvertedAt) {
+            const { x, y } = fxResult.tileConvertedAt;
+            this.map.tiles[y][x] = "bloom_mat";
+          }
+        }
+      }
     }
 
     this.recordPerformance(attacker, defender, outcome);
@@ -2182,6 +2206,24 @@ export class Mission {
       }
       if (def.turnStartRepair && !unit.downed && unit.kind !== "bloom") {
         unit.currentHp = Math.min(unit.maxHp, unit.currentHp + def.turnStartRepair);
+      }
+      // Bloom on-hit effects engine (engine/turnManager.ts, 27 Aug 2026) —
+      // acid_dot's per-turn tick, same once-per-cycle cadence as the tile
+      // turnStartDamage right above it. tickStatusEffects() always runs
+      // (it also ages/expires debuff_attack, which has no HP cost but
+      // still needs its duration ticked down every cycle, even on a unit
+      // already downed this iteration — some missions allow a downed unit
+      // to be revived/rescued, and a stale effect should still expire on
+      // schedule rather than outlive it). The damage it returns is only
+      // APPLIED if the unit wasn't already downed by the tile-damage block
+      // above: handleDowned() is a one-time, non-idempotent side effect
+      // (commander-down check, rescue-fail check, permadeath roll, log
+      // line) and must never fire twice for the same downing event.
+      const dotDamage = tickStatusEffects(unit);
+      if (dotDamage && !unit.downed) {
+        if (unit.kind === "bloom") applyBloomDamage(unit, dotDamage);
+        else applyMechDamage(unit, dotDamage);
+        if (unit.downed) this.handleDowned(unit);
       }
     }
     // Runs after the per-unit tile-damage loop above, deliberately: this

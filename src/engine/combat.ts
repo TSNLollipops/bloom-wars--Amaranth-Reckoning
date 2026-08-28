@@ -9,6 +9,7 @@ import { TILES } from "../data/tiles";
 import { chebyshevDistance, tileAt } from "./grid";
 import type { BattleUnit } from "./units";
 import { UNDERTOW_SURFACE_DAMAGE_MULT } from "../data/bloom";
+import { attackDebuffMultiplier } from "./turnManager";
 
 export interface AttackResult {
   damage: number;
@@ -78,6 +79,11 @@ export function resolveMechAttack(
   let dmg = POWER[attacker.path][defender.path];
   dmg *= attacker.currentHp / attacker.maxHp;
   dmg *= attacker.effectiveAttack / 100;
+  // Bloom on-hit effects engine (engine/turnManager.ts, 27 Aug 2026) —
+  // fx_debuff_attack/fx_choir_dissonance (Sirenmaw/Choir). 1 when no such
+  // effect is active, so this is a no-op for every attacker without one —
+  // every pre-existing sim_output.txt test case stays byte-identical.
+  dmg *= attackDebuffMultiplier(attacker);
   // Rail Lance (Weapon Branch Point System, data/weaponBranches.ts) —
   // armor-piercing, ONLY on the primary attacker->defender hit, ONLY
   // against a Tank-path defender: sharpens Reeps-beats-Tank rather than a
@@ -119,6 +125,7 @@ export function resolveMechAttack(
     let counterDmg = POWER[defender.path][attacker.path];
     counterDmg *= defenderHpAfter / defender.maxHp;
     counterDmg *= defender.effectiveAttack / 100;
+    counterDmg *= attackDebuffMultiplier(defender); // same on-hit debuff, applied to the defender's own counter-swing
     counterDmg *= 100 / attacker.effectiveDefense;
     counterDmg *= 1 - 0.1 * counterTerrain;
     counterDmg = Math.round(counterDmg);
@@ -236,6 +243,7 @@ export function resolveAttackOnBloom(
   // sim_output.txt the way resolveMechAttack is. Cheap to change — it's
   // isolated to this one function.
   let dmg = attacker.effectiveAttack * 0.5;
+  dmg *= attackDebuffMultiplier(attacker); // Bloom on-hit effects engine — see resolveMechAttack's identical comment
   dmg *= attacker.currentHp / attacker.maxHp;
   dmg *= 1 - 0.1 * terrain;
   if (charged) dmg *= CENTAUROID_CHARGE_MULT;
