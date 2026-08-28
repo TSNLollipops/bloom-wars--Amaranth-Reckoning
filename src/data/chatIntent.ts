@@ -236,20 +236,23 @@ export function detectHighlightsRequest(raw: string): boolean {
 // submitChat, the one place that actually knows which NPC is nearby.
 //
 // Two outcomes, not one, because "recognized" and "buildable right now"
-// are genuinely different things: BuildableBayId covers the four reserved
-// markers Hub.ts's egg-hull pass actually placed on the deck (Sensor
-// Array, Beacon Control, Generator, Restock Room — real physical space to
-// build into); KnownUnbuildableId covers real, named things elsewhere in
-// this project's docs that have no space carved out yet (Weapons Bay,
-// Fabricator — Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2), already exist
-// as a pre-built room and aren't something to "build" again (Rec Room),
-// or are a whole separate, still-100%-design system with no bay of its
-// own at all (Mek Workshop — Bloom_Wars_Mek_Workshop_And_Weapon_
-// Progression_v1.md). Distinguishing these lets the CO give an honest
-// "not yet, here's why" instead of either silently ignoring the request
-// or fabricating a room nobody designed.
-export type BuildableBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom";
-export type KnownUnbuildableId = "weaponsBay" | "fabricator" | "recRoom" | "mekWorkshop";
+// are genuinely different things: BuildableBayId covers every reserved
+// marker Hub.ts's egg-hull/expansion passes have actually placed on the
+// deck — real physical space to build into. Originally just the first
+// four (Sensor Array, Beacon Control, Generator, Restock Room, 27 Aug
+// 2026); Weapons Bay and Fabricator joined this list 28 Aug 2026 once
+// Hub.ts grew two more markers for them (see that file's own RESERVED_BAYS
+// comment) — they are NOT still in KnownUnbuildableId below. That list now
+// covers only things that genuinely have no space carved out anywhere yet:
+// an already-live pre-built room that isn't something to "build" again
+// (Rec Room), or a whole separate, still-100%-design system with no bay of
+// its own at all (Mek Workshop — Bloom_Wars_Mek_Workshop_And_Weapon_
+// Progression_v1.md, not being built this pass — see that doc's own status
+// note). Distinguishing these lets the CO give an honest "not yet, here's
+// why" instead of either silently ignoring the request or fabricating a
+// room nobody designed.
+export type BuildableBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom" | "weaponsBay" | "fabricator";
+export type KnownUnbuildableId = "recRoom" | "mekWorkshop";
 export type BuildRequest = { kind: "buildable"; id: BuildableBayId } | { kind: "unbuildable"; id: KnownUnbuildableId };
 
 const BUILDABLE_BAY_KEYWORDS: Record<BuildableBayId, string[]> = {
@@ -257,6 +260,8 @@ const BUILDABLE_BAY_KEYWORDS: Record<BuildableBayId, string[]> = {
   beaconControl: ["beacon", "beacon control", "resupply beacon"],
   generator: ["generator", "reactor"],
   restockRoom: ["restock room", "restock", "resupply room"],
+  weaponsBay: ["weapons bay", "weapon bay"],
+  fabricator: ["fabricator", "fabrication bay"],
 };
 
 // "workshop" alone deliberately resolves to Mek Workshop, not the
@@ -265,8 +270,6 @@ const BUILDABLE_BAY_KEYWORDS: Record<BuildableBayId, string[]> = {
 // workshop this pass is surfacing honestly, not asking to build a room
 // that's already standing on the upper deck.
 const UNBUILDABLE_KEYWORDS: Record<KnownUnbuildableId, string[]> = {
-  weaponsBay: ["weapons bay", "weapon bay"],
-  fabricator: ["fabricator", "fabrication bay"],
   recRoom: ["rec room", "recroom", "mess hall", "mess deck"],
   mekWorkshop: ["mek workshop", "mech workshop", "workshop"],
 };

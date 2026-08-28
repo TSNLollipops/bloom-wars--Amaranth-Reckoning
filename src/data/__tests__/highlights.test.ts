@@ -3,7 +3,7 @@
 // highlights.ts's own header for the full "what's honestly derivable"
 // reasoning this file's test cases are built to lock in.
 import { describe, it, expect } from "vitest";
-import { buildFirstMilestones } from "../highlights";
+import { buildFirstMilestones, buildStagePromotionMilestones } from "../highlights";
 import { VERBS } from "../verbs";
 import type { SocialLogEntry } from "../verbs";
 
@@ -94,5 +94,48 @@ describe("buildFirstMilestones", () => {
     const snapshot = JSON.parse(JSON.stringify(log));
     buildFirstMilestones(log);
     expect(log).toEqual(snapshot);
+  });
+});
+
+// Stage-promotion milestones — 28 Aug 2026, closing the honest gap this
+// file's own header originally flagged ("no timestamp exists for when a
+// Stage transition actually happened"). See highlights.ts's own header
+// correction note and engine/campaignEconomy.ts's purchaseTierUpgrade for
+// where the real timestamp this reads now actually gets written.
+describe("buildStagePromotionMilestones", () => {
+  it("returns an empty array for undefined input — every pilot who hasn't lived through a real promotion yet, honestly, not a fabricated one", () => {
+    expect(buildStagePromotionMilestones(undefined)).toEqual([]);
+  });
+
+  it("returns an empty array for an empty object", () => {
+    expect(buildStagePromotionMilestones({})).toEqual([]);
+  });
+
+  it("builds one milestone for a blooded-only record", () => {
+    expect(buildStagePromotionMilestones({ blooded: 1000 })).toEqual([{ stage: "blooded", label: "Reached Blooded", at: 1000 }]);
+  });
+
+  it("builds one milestone for a command-only record", () => {
+    expect(buildStagePromotionMilestones({ command: 2000 })).toEqual([{ stage: "command", label: "Reached Command", at: 2000 }]);
+  });
+
+  it("builds both milestones, sorted chronologically, when both are on record", () => {
+    const result = buildStagePromotionMilestones({ blooded: 1000, command: 5000 });
+    expect(result).toEqual([
+      { stage: "blooded", label: "Reached Blooded", at: 1000 },
+      { stage: "command", label: "Reached Command", at: 5000 },
+    ]);
+  });
+
+  it("sorts by actual timestamp, not insertion order — a hand-built out-of-order record still comes back chronological", () => {
+    // Can't happen from a real save (command can never be recorded before
+    // blooded — tiers only move up), but the function itself doesn't
+    // assume that invariant, it sorts for real.
+    const result = buildStagePromotionMilestones({ command: 100, blooded: 9000 });
+    expect(result.map((m) => m.stage)).toEqual(["command", "blooded"]);
+  });
+
+  it("a timestamp of 0 still counts as recorded — falsy is not the same as absent", () => {
+    expect(buildStagePromotionMilestones({ blooded: 0 })).toEqual([{ stage: "blooded", label: "Reached Blooded", at: 0 }]);
   });
 });

@@ -256,7 +256,16 @@ export class Battle extends Phaser.Scene {
 
   init(data: { missionId: string; selectedPilotIds?: string[] }) {
     const missionDef = MISSIONS_BY_ID[data.missionId] ?? Object.values(MISSIONS_BY_ID)[0];
-    this.mission = new Mission(missionDef, this.resolveDeployRoster(missionDef.playerPilotIds, data.selectedPilotIds));
+    // builtBays (28 Aug 2026, Weapons Bay pass): read once here, same
+    // "snapshot for the mission's lifetime" treatment the rest of this
+    // constructor call already gets — a bay built mid-mission (it can't be,
+    // since the CO build-request flow only runs in the Hub, but even so)
+    // wouldn't retroactively arm a bonus charge on an in-progress mission.
+    this.mission = new Mission(
+      missionDef,
+      this.resolveDeployRoster(missionDef.playerPilotIds, data.selectedPilotIds),
+      loadCampaignState()?.builtBays ?? []
+    );
     this.selectedUnitId = null;
     this.clearSelectionHighlights();
     // Mission real-time clock (25 Aug 2026) — the HUD half of "add that

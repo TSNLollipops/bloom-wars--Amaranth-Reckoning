@@ -194,6 +194,25 @@ export const FIRE_SUPPORT_RADIUS = 1;
 // were either (Screen/Taunt/Interdict all shipped the same way).
 export const FIRE_SUPPORT_DAMAGE = 60;
 
+// Weapons Bay (28 Aug 2026, Antfarm buildable-bay pass) — see
+// `claude/Bloom_Wars_Antfarm_Carrier_Hub_v1.md` §11.2 for the room itself.
+// Deliberately does NOT touch FIRE_SUPPORT_CHARGES_PER_MISSION or how it's
+// spent — 22 missions (14 through 36) are already tuned against that flat
+// 2-charge pool, and this is additive, not a replacement. Building the
+// Weapons Bay instead grants ONE bonus Fire Support charge per mission that
+// recharges on a real turn-based cooldown (engine/cooldown.ts) once the
+// squad's baseline charges are exhausted — the shared "one ship, one
+// budget" call-in still exists underneath; the bay just gives that ship a
+// second gun to bring back online mid-mission instead of just a bigger
+// one-shot pool. Reuses engine/cooldown.ts rather than inventing a bespoke
+// counter here specifically because Maxime wants Heirloom to share the same
+// primitive later ("heirloom will use same system," 28 Aug 2026) — see
+// engine/mission.ts's own fireSupportBonusReadyTurn field for the wiring.
+// First-pass placeholder, not run through combat_sim.py — same status as
+// FIRE_SUPPORT_DAMAGE above; needs real playtesting once the Weapons Bay is
+// actually reachable in a run before this is a tuned number.
+export const WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS = 3;
+
 // abil_missile (26 Aug 2026) — SOFT pass, see data/abilities.ts's own
 // comment for the full design context (a chat conversation about giving
 // Reeps' ranged attacks "the impression of distance," which turned into a

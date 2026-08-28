@@ -92,7 +92,14 @@ export function rankDisplayTitle(rank: Rank): string {
 // because it's now also persisted campaign state (CampaignState.builtBays,
 // below) — an engine-layer concern, not a scene-layer one — with Hub.ts
 // importing this type rather than owning a second copy of it.
-export type ReservedBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom";
+//
+// weaponsBay/fabricator added 28 Aug 2026, second slice — the first bay
+// pair to actually DO something once built rather than just redraw solid
+// (see engine/mission.ts's fireSupportBonusReadyTurn for Weapons Bay,
+// engine/campaignEconomy.ts's fabricatorMaxSpareParts for Fabricator). The
+// original four stay purely cosmetic markers for now — deliberately not in
+// scope for this pass, flagged separately rather than silently expanded.
+export type ReservedBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom" | "weaponsBay" | "fabricator";
 
 export interface CampaignPilotEntry {
   pilot: PilotRecord; // a campaign-owned copy — pilot.tier is this pilot's live, campaign-persistent gear tier (rule 4: "an active pilot's tier can change between missions via existing gear-tier-purchase logic")
@@ -956,6 +963,20 @@ export interface HubPilotSocialState {
   // pendingStagePromotion per-NPC-field shape (the pilot this is ABOUT is
   // no longer in the Hub to self-announce it).
   muntiLossAnnounced?: boolean;
+  // Real Stage-promotion timestamps, 28 Aug 2026 (Maxime, closing the
+  // STAGE_MOMENT gap flagged in the Recall Item 3 delivery: "highlight
+  // reel should date itself with calandar. down to the sec."). Distinct
+  // from lastAcknowledgedStage above on purpose — that field tracks what
+  // the PLAYER has been shown, a UI-consumption flag; this one tracks when
+  // the promotion actually, really happened, epoch ms, written once by
+  // engine/campaignEconomy.ts's purchaseTierUpgrade at the real moment a
+  // purchase crosses a Stage boundary, never backfilled or guessed at
+  // later. Keyed by the Stage reached — nothing promotes INTO green (see
+  // detectStagePromotion's own comment in data/ambientLines.ts), so at
+  // most two keys, "blooded" and "command", ever exist. Feeds both the
+  // Highlights reel (data/highlights.ts's buildStagePromotionMilestones)
+  // and the {STAGE_MOMENT} recall slot (data/crewBanterSlots.ts).
+  stagePromotedAt?: Partial<Record<Stage, number>>;
 }
 
 /**

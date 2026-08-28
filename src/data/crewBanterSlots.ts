@@ -60,15 +60,35 @@ const GEAR_TIER_NAMES: Record<Path, Record<Tier, string>> = {
   munti: { G: "Quickfix kit", F: "Longarm", E: "Farfix", D: "Lifebox", C: "Quickbox", B: "Widefix", A: "Overcharge" },
 };
 
-export type SlotType = "SQUADMATE" | "CLASS" | "LOADOUT" | "ENEMY" | "MISSION" | "ROOM" | "SHIP";
+// RIVAL and LOST added 28 Aug 2026 — Recall Item 3 Decision + Spec v1's
+// "expanded curated recall" (the replacement for the original, shelved
+// generative-recall item — see that doc's own §1/§2 for why). STAGE_MOMENT,
+// the spec's third proposed slot, was HELD BACK the same day (its own
+// justification didn't hold up against the actual code — see this file's
+// own note further down, right above SlotContext) and then added for real
+// once Maxime closed the underlying gap directly: "highlight reel should
+// date itself with calandar. down to the sec." — see
+// engine/campaignEconomy.ts's purchaseTierUpgrade and
+// engine/campaignState.ts's HubPilotSocialState.stagePromotedAt for the
+// real timestamp this now reads.
+export type SlotType = "SQUADMATE" | "CLASS" | "LOADOUT" | "ENEMY" | "MISSION" | "ROOM" | "SHIP" | "RIVAL" | "LOST" | "STAGE_MOMENT";
 
 export interface SlottedLine {
   catalyst: Catalyst;
   echo: Echo;
   stage: Stage;
   flat: string; // already live in LINE_BANK — shown as-is whenever resolution isn't possible
-  slotted: string; // the templated sibling; contains exactly one token matching slotType
+  slotted: string; // the templated sibling; contains one token matching slotType, plus a second matching slotType2 if that's set
   slotType: SlotType;
+  // Two-fact lines, 28 Aug 2026 (Recall Item 3 spec §3: "a line that names
+  // both a squadmate AND a mission in the same breath reads as noticeably
+  // more specific than either alone"). Optional and additive — every one of
+  // the 39 existing entries below leaves this undefined and resolves
+  // exactly as it did before this field existed. When set, resolveSlotText
+  // requires BOTH tokens to have real data before returning anything —
+  // same all-or-nothing "never a raw {TOKEN} on screen" contract a
+  // single-slot miss already has, just checked twice instead of once.
+  slotType2?: SlotType;
 }
 
 // SQUADMATE and MISSION carry real per-pilot/per-campaign memory — Roadmap
@@ -86,11 +106,53 @@ export interface SlottedLine {
 // gap, see the roadmap doc's #17 entry: a genuine "last enemy actually
 // fought this mission" version would need new persisted state this pass
 // didn't add).
+//
+// RIVAL and LOST, added 28 Aug 2026 (Recall Item 3 spec §3), both real,
+// both checked against actual code before building rather than assumed
+// from the spec's own one-line description:
+//   - RIVAL mirrors Hub.ts's own npcRivalLabel exactly — findWorstRival
+//     (data/npcBonds.ts) plus the same RIVAL_THRESHOLD gate that function
+//     already uses. Deliberately NOT a "closest of the others" fallback the
+//     way SQUADMATE has one: SQUADMATE names *somebody* real because any
+//     squadmate is a valid thing to recall, but a friendly or neutral bond
+//     isn't a rivalry, so a line built to say "my rival" only fires once a
+//     real one (bond <= RIVAL_THRESHOLD) exists — same standard the Hub's
+//     own UI already holds itself to for this exact fact.
+//   - LOST is a fallen MUNTI's name specifically, not any permanent loss —
+//     matches the spec's own wording and Hub.ts's existing checkMuntiLoss()
+//     semantics (a lost Munti is the one loss type with a dedicated
+//     one-shot announcement already, since Munti presence is what keeps
+//     everyone else's permadeath check from firing at all). Reads directly
+//     off CampaignState.pilots filtered to status "permanently_lost" +
+//     path "munti" — real, persisted, no new state needed.
+//
+// STAGE_MOMENT, added 28 Aug 2026, resolved after being held back earlier
+// the same day. The spec's original justification ("their own promotion
+// history, off the Highlights reel's dated milestones") didn't hold up
+// against the actual code at the time — data/highlights.ts's own header
+// had already checked this exact question during Roadmap #11's build and
+// recorded the honest answer: no timestamp existed anywhere for when a
+// Stage transition actually happened. Rather than fake one or quietly
+// redefine the slot, that gap got flagged in the delivery note instead —
+// Maxime's direct answer closed it for real: "highlight reel should date
+// itself with calandar. down to the sec." engine/campaignEconomy.ts's
+// purchaseTierUpgrade now stamps the REAL moment (epoch ms) a purchase
+// crosses a Stage boundary, so this slot fills off genuine recorded
+// history, not a current-status guess. stageMomentText carries the
+// already-resolved display name of the pilot's most recently RECORDED
+// promotion (Hub.ts's buildSlotContext picks "Command" over "Blooded" when
+// both exist) — a short noun-phrase token, same shape as {CLASS}/
+// {LOADOUT}, meant for a template like "since I made {STAGE_MOMENT}", not
+// a full date embedded in spoken dialogue (the calendar precision lives in
+// the Highlights reel's own display, not in what an NPC says out loud).
 export interface SlotContext {
   squadmateName?: string;
   missionName?: string;
   speakerPath?: Path;
   speakerTier?: Tier;
+  rivalName?: string;
+  lostMuntiName?: string;
+  stageMomentText?: string;
 }
 
 const CLASS_DISPLAY_NAMES: Record<Path, string> = { meeps: "Meeps", tank: "Tank", reeps: "Reeps", munti: "Munti" };
@@ -276,27 +338,49 @@ export function pickSlottedVariant(catalyst: Catalyst, echo: Echo, stage: Stage)
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-// Fills the one {SLOT} token in `line.slotted` using real context data.
-// Returns undefined when the needed data isn't available (no squadmate
-// around, no completed mission yet this session) — the caller's job is to
-// fall back to `line.flat` in that case, never to show a raw {TOKEN}.
-export function resolveSlotText(line: SlottedLine, context: SlotContext): string | undefined {
-  switch (line.slotType) {
+// Fills exactly one {SLOT} token of the given type in `text`. Pulled out of
+// resolveSlotText below, 28 Aug 2026, so a two-fact line (slotType2 set)
+// can call this twice — once per token — without duplicating the per-type
+// logic. Returns undefined when the needed data isn't available (no
+// squadmate around, no completed mission yet this session, no real rival,
+// no fallen Munti on record); the caller's job is to fall back to
+// `line.flat` in that case, never to show a raw {TOKEN}.
+function resolveOneSlot(slotType: SlotType, text: string, context: SlotContext): string | undefined {
+  switch (slotType) {
     case "SQUADMATE":
-      return context.squadmateName ? line.slotted.replace("{SQUADMATE}", context.squadmateName) : undefined;
+      return context.squadmateName ? text.replace("{SQUADMATE}", context.squadmateName) : undefined;
     case "MISSION":
-      return context.missionName ? line.slotted.replace("{MISSION}", context.missionName) : undefined;
+      return context.missionName ? text.replace("{MISSION}", context.missionName) : undefined;
     case "CLASS":
-      return context.speakerPath ? line.slotted.replace("{CLASS}", CLASS_DISPLAY_NAMES[context.speakerPath]) : undefined;
+      return context.speakerPath ? text.replace("{CLASS}", CLASS_DISPLAY_NAMES[context.speakerPath]) : undefined;
     case "LOADOUT":
       return context.speakerPath && context.speakerTier
-        ? line.slotted.replace("{LOADOUT}", GEAR_TIER_NAMES[context.speakerPath][context.speakerTier])
+        ? text.replace("{LOADOUT}", GEAR_TIER_NAMES[context.speakerPath][context.speakerTier])
         : undefined;
     case "ENEMY":
-      return line.slotted.replace("{ENEMY}", pickRandom(ENEMY_NAMES));
+      return text.replace("{ENEMY}", pickRandom(ENEMY_NAMES));
     case "SHIP":
-      return line.slotted.replace("{SHIP}", pickRandom(SHIP_NAMES));
+      return text.replace("{SHIP}", pickRandom(SHIP_NAMES));
     case "ROOM":
-      return line.slotted.replace("{ROOM}", pickRandom(ROOM_NAMES));
+      return text.replace("{ROOM}", pickRandom(ROOM_NAMES));
+    case "RIVAL":
+      return context.rivalName ? text.replace("{RIVAL}", context.rivalName) : undefined;
+    case "LOST":
+      return context.lostMuntiName ? text.replace("{LOST}", context.lostMuntiName) : undefined;
+    case "STAGE_MOMENT":
+      return context.stageMomentText ? text.replace("{STAGE_MOMENT}", context.stageMomentText) : undefined;
   }
+}
+
+// Fills every token in `line.slotted` using real context data — one token
+// for an ordinary single-slot line, two for a two-fact line (slotType2
+// set). All-or-nothing: if either token's data is missing, the whole call
+// returns undefined and the caller falls back to `line.flat`, same as a
+// single-slot miss always has — a two-fact line never partially resolves
+// with one real fact and one leftover {TOKEN}.
+export function resolveSlotText(line: SlottedLine, context: SlotContext): string | undefined {
+  const first = resolveOneSlot(line.slotType, line.slotted, context);
+  if (first === undefined) return undefined;
+  if (!line.slotType2) return first;
+  return resolveOneSlot(line.slotType2, first, context);
 }

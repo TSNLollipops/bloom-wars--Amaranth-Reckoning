@@ -3,7 +3,7 @@
 // personal points (per-pilot earning + spending) and the company pool
 // (CampaignState.points, now explicitly company-level). See that file's
 // own header for every placeholder number this suite pins down.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { Mission, ASSIST_MIN_FRACTION, ASSIST_MAX_FRACTION, REPAIR_ASSIST_FRACTION } from "../mission";
 import { createHostileMechUnit } from "../units";
 import { MAX_ACTIONS_PER_TURN } from "../../data/combatTables";
@@ -17,6 +17,8 @@ import {
   purchaseTierUpgrade,
   purchaseMekSecondary,
   purchaseSpareParts,
+  fabricatorMaxSpareParts,
+  FABRICATOR_BAY_CAP_BONUS,
   purchaseWeaponBranch,
   equipWeaponBranch,
   convertPersonalToCompany,
@@ -408,6 +410,83 @@ describe("purchaseTierUpgrade — personal-pool spending", () => {
   });
 });
 
+// Stage-promotion timestamp — 28 Aug 2026 (Maxime, closing the
+// STAGE_MOMENT gap the Recall Item 3 delivery flagged: "highlight reel
+// should date itself with calandar. down to the sec."). See
+// engine/campaignState.ts's HubPilotSocialState.stagePromotedAt for the
+// field this writes and data/highlights.ts's buildStagePromotionMilestones
+// / data/crewBanterSlots.ts's STAGE_MOMENT for the two things that read it.
+describe("purchaseTierUpgrade — Stage-promotion timestamp", () => {
+  it("does NOT record a timestamp when the purchase stays within the same Stage (G -> F, both green)", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].personalPoints = TIER_UPGRADE_COST.G;
+    purchaseTierUpgrade(state, "pilot_lask");
+    expect(state.pilots["pilot_lask"].pilot.tier).toBe("F"); // still green — stageFromTier(F) === "green"
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toBeUndefined();
+  });
+
+  it("records a real epoch-ms timestamp under 'blooded' the instant a purchase crosses green -> blooded (F -> E)", () => {
+    vi.spyOn(Date, "now").mockReturnValue(123456789);
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].pilot.tier = "F";
+    state.pilots["pilot_lask"].personalPoints = TIER_UPGRADE_COST.F;
+    const result = purchaseTierUpgrade(state, "pilot_lask");
+    vi.restoreAllMocks();
+    expect(result.newTier).toBe("E");
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toEqual({ blooded: 123456789 });
+  });
+
+  it("records a real epoch-ms timestamp under 'command' the instant a purchase crosses blooded -> command (C -> B)", () => {
+    vi.spyOn(Date, "now").mockReturnValue(987654321);
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].pilot.tier = "C";
+    state.pilots["pilot_lask"].personalPoints = TIER_UPGRADE_COST.C;
+    const result = purchaseTierUpgrade(state, "pilot_lask");
+    vi.restoreAllMocks();
+    expect(result.newTier).toBe("B");
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toEqual({ command: 987654321 });
+  });
+
+  it("both timestamps accumulate across two separate crossings — the earlier one is never overwritten by the later purchase", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].pilot.tier = "F";
+    state.pilots["pilot_lask"].personalPoints = TIER_UPGRADE_COST.F + TIER_UPGRADE_COST.E + TIER_UPGRADE_COST.D + TIER_UPGRADE_COST.C;
+
+    vi.spyOn(Date, "now").mockReturnValue(1000);
+    purchaseTierUpgrade(state, "pilot_lask"); // F -> E, crosses into blooded
+    vi.restoreAllMocks();
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toEqual({ blooded: 1000 });
+
+    purchaseTierUpgrade(state, "pilot_lask"); // E -> D, still blooded, no new timestamp
+    purchaseTierUpgrade(state, "pilot_lask"); // D -> C, still blooded, no new timestamp
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toEqual({ blooded: 1000 });
+
+    vi.spyOn(Date, "now").mockReturnValue(9999);
+    purchaseTierUpgrade(state, "pilot_lask"); // C -> B, crosses into command
+    vi.restoreAllMocks();
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toEqual({ blooded: 1000, command: 9999 });
+  });
+
+  it("a failed purchase (can't afford it) never touches stagePromotedAt", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].pilot.tier = "F";
+    state.pilots["pilot_lask"].personalPoints = TIER_UPGRADE_COST.F - 1;
+    const result = purchaseTierUpgrade(state, "pilot_lask");
+    expect(result.ok).toBe(false);
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt).toBeUndefined();
+  });
+
+  it("creates the pilot's social state on the spot if it didn't exist yet (ensureHubSocialState's own fail-open, reused here)", () => {
+    const state = createWardenCampaignState();
+    expect(state.pilots["pilot_lask"].social).toBeUndefined();
+    state.pilots["pilot_lask"].pilot.tier = "F";
+    state.pilots["pilot_lask"].personalPoints = TIER_UPGRADE_COST.F;
+    purchaseTierUpgrade(state, "pilot_lask");
+    expect(state.pilots["pilot_lask"].social).toBeDefined();
+    expect(state.pilots["pilot_lask"].social?.stagePromotedAt?.blooded).toBeTypeOf("number");
+  });
+});
+
 describe("purchaseMekSecondary — personal-pool spending", () => {
   it("succeeds, deducting MEK_SECONDARY_COST and assigning the requested track", () => {
     const state = createWardenCampaignState();
@@ -490,6 +569,45 @@ describe("purchaseSpareParts — company-pool spending, deliberately NOT persona
     expect(result.reason).toMatch(/not enough company points/);
     expect(state.points).toBe(SPARE_PART_COST - 1);
     expect(state.meks["mek_fab"].spareParts).toBe(0);
+  });
+});
+
+describe("fabricatorMaxSpareParts + the Fabricator bay (28 Aug 2026, Antfarm buildable-bay pass)", () => {
+  it("WITHOUT the bay built (or the param omitted entirely), the cap is unchanged from before this pass", () => {
+    const primary = { primary: "fabricator" as const, secondary: null };
+    const secondary = { primary: "armorer" as const, secondary: "fabricator" as const };
+    const none = { primary: "armorer" as const, secondary: null };
+    expect(fabricatorMaxSpareParts(primary)).toBe(2); // no second arg at all — every pre-existing call site's shape
+    expect(fabricatorMaxSpareParts(primary, [])).toBe(2);
+    expect(fabricatorMaxSpareParts(secondary, [])).toBe(1);
+    expect(fabricatorMaxSpareParts(none, [])).toBe(0);
+    // Every OTHER bay built, just not fabricator — still unchanged.
+    expect(fabricatorMaxSpareParts(primary, ["sensorArray", "beaconControl", "generator", "restockRoom", "weaponsBay"])).toBe(2);
+  });
+
+  it("WITH the bay built, raises the cap by FABRICATOR_BAY_CAP_BONUS for a mek already on a Fabricator track", () => {
+    const primary = { primary: "fabricator" as const, secondary: null };
+    const secondary = { primary: "armorer" as const, secondary: "fabricator" as const };
+    expect(fabricatorMaxSpareParts(primary, ["fabricator"])).toBe(2 + FABRICATOR_BAY_CAP_BONUS);
+    expect(fabricatorMaxSpareParts(secondary, ["fabricator"])).toBe(1 + FABRICATOR_BAY_CAP_BONUS);
+  });
+
+  it("does NOT open the Fabricator track up to a mek that has none at all, bay or no bay", () => {
+    const none = { primary: "armorer" as const, secondary: null };
+    expect(fabricatorMaxSpareParts(none, ["fabricator"])).toBe(0);
+  });
+
+  it("purchaseSpareParts actually honors the raised cap once CampaignState.builtBays includes fabricator", () => {
+    const state = createCampaignState([], { mek_fab: { id: "mek_fab", displayName: "Fab Mek", primary: "fabricator", secondary: null, spareParts: 0 } }, SPARE_PART_COST * 3);
+    state.builtBays = ["fabricator"];
+
+    for (let i = 0; i < 2 + FABRICATOR_BAY_CAP_BONUS; i++) {
+      expect(purchaseSpareParts(state, "mek_fab").ok).toBe(true);
+    }
+    expect(state.meks["mek_fab"].spareParts).toBe(2 + FABRICATOR_BAY_CAP_BONUS);
+    const overCap = purchaseSpareParts(state, "mek_fab");
+    expect(overCap.ok).toBe(false);
+    expect(overCap.reason).toMatch(new RegExp(`Fabricator track maximum \\(${2 + FABRICATOR_BAY_CAP_BONUS}\\)`));
   });
 });
 

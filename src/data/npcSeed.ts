@@ -73,3 +73,42 @@ export const NPC_BOND_SEED: Record<string, number> = {
   [pairKey("pilot_bosk", "pilot_iyari")]: 5,
   [pairKey("pilot_anand", "pilot_iyari")]: -25,
 };
+
+// catalystForPilot — added 28 Aug 2026, Grief Catalyst live port
+// (claude_Bloom_Wars_Grief_Catalyst_Port_Spec_v1.pdf). A real, previously-
+// unflagged gap surfaced while building that port: NPC_SEED above only
+// covers three named pilots, plus scenes/Hub.ts hardcodes the CO's own
+// catalyst ("bear") separately. Every other roster pilot — Rourke, Lask,
+// every Second/Third Lance pilot, every generated recruit — has no
+// catalyst assigned anywhere, which is a hard requirement for
+// pickSoloEcho/pickAmbientLine (ambientLines.ts). Grief Catalyst needs a
+// catalyst for WHOEVER was on the deployed squad, not just the three
+// pilots this file happens to name, so leaving the gap unclosed would mean
+// most mourners simply couldn't get a line.
+//
+// Not re-asked about — this is a small, mechanical extension of an
+// existing lookup (give every pilot a catalyst, the way every pilot
+// already has a Stage), not a new system or a content decision worth
+// blocking on. Flagged plainly in the delivery note instead: named-pilot
+// catalysts stay hand-picked (NPC_SEED, above) exactly where they already
+// are; anyone not in that list gets a stable, deterministic pick derived
+// from their own pilotId, so the same pilot always reads the same
+// catalyst across a save (no re-roll on reload) without hand-authoring a
+// row for every recruit that will ever exist. Placeholder assignments,
+// same caveat as NPC_SEED's own catalyst picks above — worth a real pass
+// once catalysts for the wider roster get decided for real.
+const ALL_CATALYSTS: Catalyst[] = ["wolf", "dog", "cat", "crow", "raven", "bear", "fox", "rabbit", "shark"];
+
+export function catalystForPilot(pilotId: string): Catalyst {
+  const seeded = NPC_SEED.find((s) => s.pilotId === pilotId);
+  if (seeded) return seeded.catalyst;
+  // Simple deterministic string hash (djb2-ish) — not cryptographic, just
+  // stable and spread out enough that adjacent recruit ids (pilot_recruit_1,
+  // pilot_recruit_2, ...) don't all land on the same catalyst.
+  let hash = 5381;
+  for (let i = 0; i < pilotId.length; i++) {
+    hash = (hash * 33 + pilotId.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % ALL_CATALYSTS.length;
+  return ALL_CATALYSTS[index];
+}

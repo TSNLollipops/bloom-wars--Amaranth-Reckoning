@@ -10,7 +10,7 @@ import { LINE_BANK, type Catalyst, type Echo, type Stage } from "../ambientLines
 const ALL_CATALYSTS = Object.keys(LINE_BANK) as Catalyst[];
 const ALL_ECHOES: Echo[] = ["love", "fear", "anger", "sadness"];
 const ALL_STAGES: Stage[] = ["green", "blooded", "command"];
-const ALL_SLOT_TYPES: SlotType[] = ["SQUADMATE", "CLASS", "LOADOUT", "ENEMY", "MISSION", "ROOM", "SHIP"];
+const ALL_SLOT_TYPES: SlotType[] = ["SQUADMATE", "CLASS", "LOADOUT", "ENEMY", "MISSION", "ROOM", "SHIP", "RIVAL", "LOST", "STAGE_MOMENT"];
 
 function makeLine(overrides: Partial<SlottedLine> = {}): SlottedLine {
   return {
@@ -220,6 +220,9 @@ describe("resolveSlotText", () => {
       missionName: "Cut the Root",
       speakerPath: "tank" as const,
       speakerTier: "D" as const,
+      rivalName: "Iyari",
+      lostMuntiName: "Barasj",
+      stageMomentText: "Blooded",
     };
     for (const slotType of ALL_SLOT_TYPES) {
       const token = `{${slotType}}`;
@@ -242,5 +245,95 @@ describe("resolveSlotText", () => {
       expect(result).toBeDefined();
       expect(result).not.toMatch(/\{[A-Z]+\}/);
     }
+  });
+});
+
+// RIVAL and LOST — Recall Item 3 Decision + Spec v1 §3, 28 Aug 2026. Both
+// verified against real code before building (see this file's own header
+// on why STAGE_MOMENT, the spec's third proposed slot, isn't here at all).
+describe("resolveSlotText — RIVAL", () => {
+  it("resolves when rivalName is present", () => {
+    const line = makeLine({ slotType: "RIVAL", slotted: "Touch {RIVAL} again and find out." });
+    expect(resolveSlotText(line, { rivalName: "Iyari" })).toBe("Touch Iyari again and find out.");
+  });
+
+  it("returns undefined when rivalName is missing — caller falls back to the flat line, same as SQUADMATE/MISSION misses", () => {
+    const line = makeLine({ slotType: "RIVAL", slotted: "Touch {RIVAL} again and find out." });
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+});
+
+describe("resolveSlotText — LOST", () => {
+  it("resolves when lostMuntiName is present", () => {
+    const line = makeLine({ slotType: "LOST", slotted: "Not since {LOST}." });
+    expect(resolveSlotText(line, { lostMuntiName: "Barasj" })).toBe("Not since Barasj.");
+  });
+
+  it("returns undefined when lostMuntiName is missing — no fallen Munti on record yet is the normal, common case, not an edge case", () => {
+    const line = makeLine({ slotType: "LOST", slotted: "Not since {LOST}." });
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+});
+
+// STAGE_MOMENT — added 28 Aug 2026 after being held back earlier the same
+// day (see this file's own header on SlotType for why, and
+// engine/campaignEconomy.ts's purchaseTierUpgrade for where
+// stageMomentText's underlying real timestamp now actually gets written).
+describe("resolveSlotText — STAGE_MOMENT", () => {
+  it("resolves when stageMomentText is present", () => {
+    const line = makeLine({ slotType: "STAGE_MOMENT", slotted: "Everything's different since I made {STAGE_MOMENT}." });
+    expect(resolveSlotText(line, { stageMomentText: "Blooded" })).toBe("Everything's different since I made Blooded.");
+  });
+
+  it("returns undefined when stageMomentText is missing — a pilot with no recorded live promotion has nothing to recall here", () => {
+    const line = makeLine({ slotType: "STAGE_MOMENT", slotted: "Everything's different since I made {STAGE_MOMENT}." });
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+});
+
+// Two-fact lines — Recall Item 3 spec §3: "a line that names both a
+// squadmate AND a mission in the same breath." slotType2 is additive and
+// optional (SlottedLine's own comment) — every one of the 39 real entries
+// above leaves it undefined and is untouched by this addition, covered
+// already by the "real SLOTTED_LINES entries" test just above.
+describe("resolveSlotText — two-fact lines (slotType2)", () => {
+  it("resolves both tokens when both facts are present", () => {
+    const line = makeLine({ slotType: "SQUADMATE", slotType2: "MISSION", slotted: "{SQUADMATE} and I walked off {MISSION} together." });
+    expect(resolveSlotText(line, { squadmateName: "Bosk", missionName: "Cut the Root" })).toBe("Bosk and I walked off Cut the Root together.");
+  });
+
+  it("falls back to undefined when only the FIRST fact is present — never a half-resolved line with one stray token", () => {
+    const line = makeLine({ slotType: "SQUADMATE", slotType2: "MISSION", slotted: "{SQUADMATE} and I walked off {MISSION} together." });
+    const result = resolveSlotText(line, { squadmateName: "Bosk" });
+    expect(result).toBeUndefined();
+  });
+
+  it("falls back to undefined when only the SECOND fact is present", () => {
+    const line = makeLine({ slotType: "SQUADMATE", slotType2: "MISSION", slotted: "{SQUADMATE} and I walked off {MISSION} together." });
+    const result = resolveSlotText(line, { missionName: "Cut the Root" });
+    expect(result).toBeUndefined();
+  });
+
+  it("falls back to undefined when neither fact is present", () => {
+    const line = makeLine({ slotType: "SQUADMATE", slotType2: "MISSION", slotted: "{SQUADMATE} and I walked off {MISSION} together." });
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+
+  it("works with a categorical second slot (always resolvable) paired with a real-data first slot", () => {
+    const line = makeLine({ slotType: "SQUADMATE", slotType2: "SHIP", slotted: "{SQUADMATE} and I, somewhere on {SHIP}." });
+    const result = resolveSlotText(line, { squadmateName: "Anand" });
+    expect(result).toBeDefined();
+    expect(result).toMatch(/^Anand and I, somewhere on (Providence|the Antfarm)\.$/);
+  });
+
+  it("a single-slot line (no slotType2) is completely unaffected by this feature existing", () => {
+    const line = makeLine({ slotType: "SQUADMATE", slotted: "Ask {SQUADMATE} yourself." });
+    expect(resolveSlotText(line, { squadmateName: "Bosk" })).toBe("Ask Bosk yourself.");
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+
+  it("resolves two DIFFERENT tokens correctly even though String.replace only touches the first occurrence — order doesn't bleed between the two fills", () => {
+    const line = makeLine({ slotType: "RIVAL", slotType2: "LOST", slotted: "{RIVAL} took it harder than most, after {LOST}." });
+    expect(resolveSlotText(line, { rivalName: "Iyari", lostMuntiName: "Barasj" })).toBe("Iyari took it harder than most, after Barasj.");
   });
 });

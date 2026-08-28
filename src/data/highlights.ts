@@ -33,10 +33,20 @@
 //     no `at`/timestamp field at all. There is no NPC-NPC pairing event
 //     with a date anywhere in the save.
 //   - "The stage-promotion moment" / a rank-promotion moment: NOT
-//     derivable. lastAcknowledgedStage / lastAcknowledgedRourkeRank
-//     (HubPilotSocialState) are snapshot fields — "the last value the
-//     player has seen," not "the moment it changed." No timestamp exists
-//     for when a Stage or rourkeRank transition actually happened.
+//     derivable as of this file's original build. lastAcknowledgedStage /
+//     lastAcknowledgedRourkeRank (HubPilotSocialState) are snapshot fields
+//     — "the last value the player has seen," not "the moment it
+//     changed." No timestamp existed for when a Stage or rourkeRank
+//     transition actually happened.
+//     CORRECTION, 28 Aug 2026: the Stage half of this is no longer true.
+//     Maxime asked for it directly after this exact gap got flagged in a
+//     delivery note ("highlight reel should date itself with calandar.
+//     down to the sec.") — engine/campaignEconomy.ts's purchaseTierUpgrade
+//     now records a real epoch-ms timestamp the moment a purchase crosses
+//     a Stage boundary (HubPilotSocialState.stagePromotedAt). See
+//     buildStagePromotionMilestones below. rourkeRank's own transition
+//     still has no timestamp anywhere — that half of this bullet still
+//     stands, nothing asked for it and nothing built it.
 //   - "A bad fight": not a system that exists at all yet (roadmap #7,
 //     "surfacing friction," is explicitly still backlog — see the roadmap
 //     doc). Nothing to derive.
@@ -60,6 +70,7 @@
 // invent new engine state" shape.
 import type { SocialLogEntry, VerbId } from "./verbs";
 import { VERBS } from "./verbs";
+import type { Stage } from "./ambientLines";
 
 export interface HighlightMilestone {
   verb: VerbId;
@@ -91,6 +102,47 @@ export function buildFirstMilestones(log: SocialLogEntry[] | undefined): Highlig
   const milestones: HighlightMilestone[] = [];
   for (const entry of firstByVerb.values()) {
     milestones.push({ verb: entry.verb, label: `First ${VERBS[entry.verb].label}`, line: entry.line, at: entry.at });
+  }
+  milestones.sort((a, b) => a.at - b.at);
+  return milestones;
+}
+
+// Stage-promotion milestones, 28 Aug 2026 — closes the honest gap this
+// file's own header flagged during the original build ("the stage-
+// promotion moment... NOT derivable... no timestamp exists"). That's no
+// longer true: engine/campaignEconomy.ts's purchaseTierUpgrade now records
+// a real epoch-ms timestamp the instant a purchase actually crosses a
+// Stage boundary (CampaignState.pilots[id].social.stagePromotedAt) — see
+// that field's own comment in engine/campaignState.ts. This is a sibling
+// to buildFirstMilestones above, not a merge into it: a Stage promotion
+// isn't a VerbId (nothing a player presses, no SocialLogEntry line to
+// quote), so it gets its own small parallel type rather than being forced
+// into HighlightMilestone's verb-shaped fields. Hub.ts's renderHighlights
+// merges both lists' output by `at` into one chronological reel.
+export interface StagePromotionMilestone {
+  stage: Exclude<Stage, "green">; // nothing promotes INTO green — see detectStagePromotion's own comment
+  label: string; // "Reached Blooded" / "Reached Command"
+  at: number;
+}
+
+const STAGE_MILESTONE_LABEL: Record<Exclude<Stage, "green">, string> = {
+  blooded: "Reached Blooded",
+  command: "Reached Command",
+};
+
+// At most two entries (blooded, then command, in that fixed order — tiers
+// only ever move up, so command can never be recorded before blooded).
+// Returns an empty array for a pilot with no recorded promotions at all —
+// every pilot who started the campaign already at a mid/high tier, or
+// simply hasn't purchased one yet, falls here honestly rather than
+// fabricating a "promotion" that never actually happened as a live event.
+export function buildStagePromotionMilestones(stagePromotedAt: Partial<Record<Stage, number>> | undefined): StagePromotionMilestone[] {
+  const milestones: StagePromotionMilestone[] = [];
+  if (stagePromotedAt?.blooded !== undefined) {
+    milestones.push({ stage: "blooded", label: STAGE_MILESTONE_LABEL.blooded, at: stagePromotedAt.blooded });
+  }
+  if (stagePromotedAt?.command !== undefined) {
+    milestones.push({ stage: "command", label: STAGE_MILESTONE_LABEL.command, at: stagePromotedAt.command });
   }
   milestones.sort((a, b) => a.at - b.at);
   return milestones;

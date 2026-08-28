@@ -22,10 +22,12 @@
 // canon in the Data Pack is flagged inline as a placeholder judgment call,
 // exactly like campaignState.ts's own DISCRETIONARY_RECRUIT_COST.
 import type { MekTrack, Tier } from "../data/types";
-import type { CampaignState, Rank } from "./campaignState";
+import type { CampaignState, Rank, ReservedBayId } from "./campaignState";
+import { ensureHubSocialState } from "./campaignState";
 import type { Mission, UnitPerformance } from "./mission";
 import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../data/weaponBranches";
 import { UNIT_ARCHETYPES } from "../data/units";
+import { stageFromTier } from "../data/ambientLines";
 
 // ---- Personal points: earning -------------------------------------------
 
@@ -171,7 +173,32 @@ export function purchaseTierUpgrade(state: CampaignState, pilotId: string): Tier
     };
   }
   entry.personalPoints -= cost;
+  const oldStage = stageFromTier(entry.pilot.tier);
   entry.pilot.tier = TIER_ORDER[idx + 1];
+
+  // Stage-promotion timestamp, 28 Aug 2026 — Maxime, closing the
+  // STAGE_MOMENT gap the Recall Item 3 delivery flagged: "highlight reel
+  // should date itself with calandar. down to the sec." This is the real
+  // event — the actual moment a purchase crosses a Stage boundary — so
+  // it's recorded HERE, not backfilled later whenever the Hub scene next
+  // happens to rebuild its NPCs. Epoch ms (Date.now()), same precision
+  // every other dated field in this codebase already uses
+  // (SocialLogEntry.at, HubPilotSocialState.drunkUntil) — well past "down
+  // to the sec." Only writes once per Stage: an already-recorded entry for
+  // the newly-reached Stage is left untouched (shouldn't be reachable in
+  // practice, since a pilot can only cross into a given Stage once ever —
+  // tiers only move up, never down — but this stays defensive rather than
+  // clobbering a real timestamp on the off chance something calls this
+  // twice for the same transition).
+  const newStage = stageFromTier(entry.pilot.tier);
+  if (newStage !== oldStage) {
+    const social = ensureHubSocialState(state, pilotId, { favorability: 0, stress: 0, morale: 0 });
+    social.stagePromotedAt = social.stagePromotedAt ?? {};
+    if (social.stagePromotedAt[newStage] === undefined) {
+      social.stagePromotedAt[newStage] = Date.now();
+    }
+  }
+
   return { ok: true, newTier: entry.pilot.tier, cost };
 }
 
@@ -227,16 +254,30 @@ export function purchaseMekSecondary(state: CampaignState, pilotId: string, trac
 // Data Pack §12.1's own cost, transcribed, not invented here.
 export const SPARE_PART_COST = 40;
 
+// Fabricator (Antfarm buildable bay, 28 Aug 2026) — see
+// claude/Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2 for the room itself.
+// Deliberately does NOT grant a spare-parts cap to a mek with no Fabricator
+// track at all (primary or secondary) — the bay raises the ceiling for a
+// mek already routed through Fabricator, it doesn't open the track up to
+// every mek in the roster. First-pass placeholder, same "not run through
+// combat_sim.py, needs real playtesting" status as SPARE_PART_COST's
+// neighbors in this file.
+export const FABRICATOR_BAY_CAP_BONUS = 1;
+
 /**
  * Data Pack §12.1: "Up to the Fabricator track maximum (2 primary, 1
  * secondary)." Exported (Debrief pass, 22 Aug 2026) so the debrief shop can
  * decide which meks have anywhere to put a spare part before calling
  * purchaseSpareParts, instead of re-deriving this rule in scenes/Debrief.ts.
+ *
+ * `builtBays` (28 Aug 2026, Fabricator pass) is optional and defaults to
+ * none built, so every pre-existing call site keeps returning exactly what
+ * it always did until it's updated to pass the campaign's real builtBays.
  */
-export function fabricatorMaxSpareParts(mek: { primary: MekTrack; secondary: MekTrack | null }): number {
-  if (mek.primary === "fabricator") return 2;
-  if (mek.secondary === "fabricator") return 1;
-  return 0;
+export function fabricatorMaxSpareParts(mek: { primary: MekTrack; secondary: MekTrack | null }, builtBays: ReservedBayId[] = []): number {
+  const base = mek.primary === "fabricator" ? 2 : mek.secondary === "fabricator" ? 1 : 0;
+  if (base === 0) return 0;
+  return builtBays.includes("fabricator") ? base + FABRICATOR_BAY_CAP_BONUS : base;
 }
 
 export interface SparePartsPurchaseResult {
@@ -266,7 +307,7 @@ export interface SparePartsPurchaseResult {
 export function purchaseSpareParts(state: CampaignState, mekId: string): SparePartsPurchaseResult {
   const mek = state.meks[mekId];
   if (!mek) return { ok: false, reason: `unknown mek id: ${mekId}` };
-  const max = fabricatorMaxSpareParts(mek);
+  const max = fabricatorMaxSpareParts(mek, state.builtBays ?? []);
   if (max === 0) {
     return { ok: false, reason: `${mek.displayName} has no Fabricator track (primary or secondary) — cannot hold spare parts` };
   }

@@ -175,7 +175,7 @@ export class ShopPanel {
     entries.push({ type: "sectionHeader", label: "COMPANY — SPARE PARTS" });
     const fabricatorPilotIds = activePilotIds.filter((id) => {
       const mek = this.state.meks[this.state.pilots[id].pilot.mekId];
-      return mek && fabricatorMaxSpareParts(mek) > 0;
+      return mek && fabricatorMaxSpareParts(mek, this.state.builtBays ?? []) > 0;
     });
     if (fabricatorPilotIds.length === 0) {
       entries.push({ type: "info", label: "No mek currently carries a Fabricator track — nowhere to put spare parts yet." });
@@ -385,7 +385,7 @@ export class ShopPanel {
     if (!entry) return;
     const mek = this.state.meks[entry.pilot.mekId];
     if (!mek) return;
-    const max = fabricatorMaxSpareParts(mek);
+    const max = fabricatorMaxSpareParts(mek, this.state.builtBays ?? []);
     const cardH = h - 6;
     const cy = top + cardH / 2;
 

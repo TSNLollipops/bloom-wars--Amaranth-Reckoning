@@ -47,6 +47,7 @@ import {
   FIRE_SUPPORT_CHARGES_PER_MISSION,
   FIRE_SUPPORT_RADIUS,
   FIRE_SUPPORT_DAMAGE,
+  WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS,
   MISSILE_SPLASH_RADIUS,
   MISSILE_CHARGES_PER_MISSION,
   PROTECT_ASSET_DEFAULT_MAX_HP,
@@ -65,7 +66,8 @@ import {
   evaluateObjectiveComplete,
   type EventRuntimeState,
 } from "./events";
-import { evaluatePermadeathCheck } from "./campaignState";
+import { evaluatePermadeathCheck, type ReservedBayId } from "./campaignState";
+import { isCooldownReady, startCooldown, cooldownTurnsRemaining } from "./cooldown";
 
 // "commander_down" (25 Aug 2026 — see Mission.handleDowned() below for
 // where this actually gets set) is its own distinct outcome, not a flavor
@@ -328,6 +330,24 @@ export class Mission {
   // abil_fire_support at all — canFireSupport's own ability check means
   // this counter simply never gets read on Missions 1-13).
   fireSupportChargesRemaining: number = FIRE_SUPPORT_CHARGES_PER_MISSION;
+  // Weapons Bay's bonus Fire Support charge (28 Aug 2026, Antfarm
+  // buildable-bay pass) — see WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS's own
+  // comment in data/combatTables.ts for the design. A readyAtTurn value for
+  // engine/cooldown.ts's isCooldownReady/startCooldown, NOT a second charge
+  // counter — 0 (the default) reads as "ready," same "never started reads
+  // ready" convention as everywhere else that file's used. Only ever
+  // consulted when weaponsBuiltBay is true; harmless dead weight on every
+  // mission/save without the bay built, same as fireSupportChargesRemaining
+  // is harmless on Missions 1-13's units that lack abil_fire_support at all.
+  fireSupportBonusReadyTurn: number = 0;
+  // Which Antfarm bays are built on the campaign save this mission was
+  // launched from (engine/campaignState.ts's CampaignState.builtBays) —
+  // passed in once at construction, not re-read live, same "snapshot for
+  // the mission's lifetime" treatment `mission`/`deployRoster` already get.
+  // Defaults to none built, so every existing call site (tests, npm run
+  // sim, anywhere that doesn't yet pass a third constructor arg) behaves
+  // exactly as it did before this field existed.
+  private builtBays: ReservedBayId[] = [];
   // Protect Asset (Mission 22, 25 Aug 2026) — see data/types.ts's
   // CampaignMission.objective comment for the full design. Field-default
   // here is just a safe placeholder; the real per-mission value is set in
@@ -338,8 +358,9 @@ export class Mission {
   assetMaxHp: number = PROTECT_ASSET_DEFAULT_MAX_HP;
   assetHp: number = PROTECT_ASSET_DEFAULT_MAX_HP;
 
-  constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[]) {
+  constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[], builtBays: ReservedBayId[] = []) {
     this.mission = mission;
+    this.builtBays = builtBays;
     if (mission.objective === "protect_asset") {
       this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
       this.assetHp = this.assetMaxHp;
@@ -1357,7 +1378,7 @@ export class Mission {
   abilityCooldownRemaining(unitId: string, abilityId: string): number {
     const unit = this.unitById(unitId);
     if (!unit) return 0;
-    return Math.max(0, this.cooldownReadyTurn(unit, abilityId) - this.turn);
+    return cooldownTurnsRemaining(this.cooldownReadyTurn(unit, abilityId), this.turn);
   }
 
   /** Charges of abil_sensor_sweep this unit has left this mission. Exposed for the HUD. Undefined reads as a full, unspent budget — see sensorSweepUsesRemaining's own comment in engine/units.ts. */
@@ -1595,13 +1616,32 @@ export class Mission {
   // calling unit, and the target is a tile, not another unit — closer in
   // shape to Clear Bloom's radius effect below than to Screen's own
   // "centered on the caster" reach.
+  //
+  // Weapons Bay (28 Aug 2026) adds a second, additive resource on top of
+  // this without touching it: once fireSupportChargesRemaining hits 0, a
+  // squad with the bay built can still call in ONE more strike as long as
+  // fireSupportBonusReadyTurn's cooldown (WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_
+  // TURNS, data/combatTables.ts) has elapsed. Baseline charges are always
+  // spent first — the bonus is a fallback, not an alternative — so a save
+  // without the bay built takes the exact same canFireSupport/fireSupport
+  // path it always has.
+
+  /** True if this campaign save has the Weapons Bay built (engine/campaignState.ts's ReservedBayId) — gates the bonus Fire Support charge below. */
+  private get weaponsBayBuilt(): boolean {
+    return this.builtBays.includes("weaponsBay");
+  }
+
+  /** True if the Weapons Bay's bonus charge is currently available — built, baseline charges already spent, and its cooldown has elapsed. Exposed for the HUD alongside fireSupportChargesRemaining. */
+  fireSupportBonusChargeReady(): boolean {
+    return this.weaponsBayBuilt && isCooldownReady(this.fireSupportBonusReadyTurn, this.turn);
+  }
 
   canFireSupport(unitId: string): boolean {
     const unit = this.unitById(unitId);
     if (!unit || unit.downed) return false;
     if (unit.side !== "player") return false;
     if (!unit.abilities.includes("abil_fire_support")) return false;
-    if (this.fireSupportChargesRemaining <= 0) return false;
+    if (this.fireSupportChargesRemaining <= 0 && !this.fireSupportBonusChargeReady()) return false;
     return unit.actionsRemaining > 0;
   }
 
@@ -1665,10 +1705,21 @@ export class Mission {
         this.resolveKill(victim.instanceId, unit.pilotId);
       }
     }
-    this.fireSupportChargesRemaining -= 1;
+    // Baseline pool spent first; the Weapons Bay's bonus charge only ever
+    // covers a call-in once that pool is actually empty (canFireSupport
+    // above already guarantees at least one of the two is available here).
+    let usedBonusCharge = false;
+    if (this.fireSupportChargesRemaining > 0) {
+      this.fireSupportChargesRemaining -= 1;
+    } else {
+      usedBonusCharge = true;
+      this.fireSupportBonusReadyTurn = startCooldown(this.turn, WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS);
+    }
     unit.actionsRemaining = 0;
     this.log.push(
-      `${unit.displayName} calls in fire support on (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${this.fireSupportChargesRemaining} charge(s) left).`
+      usedBonusCharge
+        ? `${unit.displayName} calls in fire support on (${target.x},${target.y}) via the Weapons Bay's reserve line — ${hit.length} hit, ${killedIds.length} downed (bonus charge on cooldown for ${WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS} turn(s)).`
+        : `${unit.displayName} calls in fire support on (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${this.fireSupportChargesRemaining} charge(s) left).`
     );
     for (const victim of hit) if (victim.downed) this.handleDowned(victim);
     return { hitIds: hit.map((u) => u.instanceId), killedIds };

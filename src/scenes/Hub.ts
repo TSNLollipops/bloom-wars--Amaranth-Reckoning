@@ -103,7 +103,7 @@ import {
 import { pickCatalystReaction, pickAmbientLineWithBleed, findCatalystClash } from "../data/catalystProfile";
 import { pickSlottedVariant, resolveSlotText, type SlotContext } from "../data/crewBanterSlots";
 import { VERBS, type SocialLogEntry } from "../data/verbs";
-import { buildFirstMilestones } from "../data/highlights";
+import { buildFirstMilestones, buildStagePromotionMilestones } from "../data/highlights";
 import { pruneExpiredHotTopics, pickHotTopicForSpeaker, renderHotTopicLine, type HotTopic } from "../data/hotTopics";
 import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStageLine } from "../data/relationshipStage";
 import { pickFrictionLine } from "../data/friction";
@@ -293,6 +293,23 @@ function historyTimeLabel(at: number): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+// Real calendar date/time, down to the second — Maxime, 28 Aug 2026,
+// specifically for the Highlights reel: "highlight reel should date
+// itself with calandar. down to the sec." Deliberately separate from
+// historyTimeLabel just above rather than a shared/renamed function: the
+// two panels stay on their own established conventions — renderHistory's
+// relative "3d ago" labels are untouched, this is scoped to
+// renderHighlights only, which is the panel actually named in the ask.
+// Hand-formatted (getFullYear/getMonth/etc.) rather than toLocaleString —
+// same reasoning every other display string in this file avoids locale-
+// dependent formatting: deterministic output regardless of the machine's
+// locale settings, real calendar precision either way.
+function calendarTimeLabel(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // 26 Aug 2026 — the missing other half of autonomous roaming: two NPCs
@@ -629,11 +646,23 @@ interface ReservedBayDef {
 // margin strip, at x < ROOM_BOUNDS.left (130) — nothing could ever stand
 // there before this pass, so placement here can't collide with anything
 // that already existed.
+// weaponsBay/fabricator added 28 Aug 2026, second slice — one more marker
+// per deck, dropped into the untouched gap between the original pair's
+// y=200/y=450 (250px apart; a third marker at the midpoint sits 125px from
+// each neighbor, well clear of the 40px-tall marker box drawn by
+// drawReservedBayOutline). Same x as that deck's existing pair — the
+// margin strip's width was already sized for one column of markers, not a
+// second, so a new column isn't needed. Unlike the original four, these
+// two aren't purely visual — see engine/mission.ts's weaponsBayBuilt and
+// engine/campaignEconomy.ts's fabricatorMaxSpareParts for the real effects
+// building them now has.
 const RESERVED_BAYS: ReservedBayDef[] = [
   { id: "sensorArray", deck: "upper", label: "SENSOR\nARRAY\n(reserved)", x: 95, y: 200 },
   { id: "beaconControl", deck: "upper", label: "BEACON\nCONTROL\n(reserved)", x: 95, y: 450 },
+  { id: "weaponsBay", deck: "upper", label: "WEAPONS\nBAY\n(reserved)", x: 95, y: 325 },
   { id: "generator", deck: "lower", label: "GENERATOR\n(reserved)", x: 90, y: 200 },
   { id: "restockRoom", deck: "lower", label: "RESTOCK\nROOM\n(reserved)", x: 90, y: 450 },
+  { id: "fabricator", deck: "lower", label: "FABRICATOR\n(reserved)", x: 90, y: 325 },
 ];
 
 // Antfarm build economy, first slice, 27 Aug 2026 — the reserved markers
@@ -646,11 +675,21 @@ const RESERVED_BAYS: ReservedBayDef[] = [
 // existing points" over inventing a fifth resource). Generator priced a
 // little above the other three since Carrier Hub §11.2 already flags it
 // as the bay everything else plausibly needs built first.
+// weaponsBay/fabricator (28 Aug 2026) priced the same first-pass-placeholder
+// way as the original four: weaponsBay a shade above the 110 baseline,
+// alongside generator, since it's the one bay in this pass that moves a
+// real combat number (a bonus Fire Support charge) rather than a purely
+// economic one; fabricator stays at the 110 baseline, same footing as
+// restockRoom's own logistics role. Neither number has been through
+// combat_sim.py or any equivalent — needs real playtesting once these are
+// actually reachable in a run, same caveat as every other figure here.
 const BAY_BUILD_COST: Record<ReservedBayId, number> = {
   generator: 140,
   sensorArray: 110,
   beaconControl: 110,
   restockRoom: 110,
+  weaponsBay: 130,
+  fabricator: 110,
 };
 
 // Scaled down from Carrier Hub §12.1's own three-tier rank/space table
@@ -662,10 +701,17 @@ const BAY_BUILD_COST: Record<ReservedBayId, number> = {
 // §12's rank gating rather than design fresh numbers for a literal grid)
 // — the specific integers here are still a first-pass placeholder, same
 // "flagged, not locked" footing §12.1's own table carries.
+// Bumped 28 Aug 2026 when RESERVED_BAYS grew from 4 to 6 (weaponsBay/
+// fabricator). "maj = full" is the load-bearing invariant from the comment
+// above (Major unlocks the entire grid this pass actually has), so maj
+// tracks RESERVED_BAYS.length exactly rather than staying at the old
+// literal 4. capt keeps roughly its old 3-of-4 (75%) share, rounded down
+// against the new total of 6 rather than re-derived from scratch — still a
+// first-pass placeholder, not re-litigated here.
 const RANK_BAY_SLOTS: Record<Rank, number> = {
   "2nd_lt": 1,
-  capt: 3,
-  maj: 4,
+  capt: 4,
+  maj: 6,
 };
 
 const ROOM_ZONE_BOUNDS: Record<RoomId, { left: number; right: number; top: number; bottom: number }> = {
@@ -1811,10 +1857,11 @@ export class Hub extends Phaser.Scene {
 
   // Roadmap #17's curated-recall layer (data/crewBanterSlots.ts), 27 Aug
   // 2026 — assembles real per-speaker context so the resolver can fill
-  // {SQUADMATE}/{MISSION}/{CLASS}/{LOADOUT}. Every field is optional on
-  // purpose (SlotContext's own shape): resolveSlotText falls back to the
-  // flat line the instant a needed field is missing, so there's no failure
-  // mode here worth guarding against beyond "return undefined."
+  // {SQUADMATE}/{MISSION}/{CLASS}/{LOADOUT}, plus (28 Aug 2026, Recall Item
+  // 3 spec §3) {RIVAL}/{LOST}. Every field is optional on purpose
+  // (SlotContext's own shape): resolveSlotText falls back to the flat line
+  // the instant a needed field is missing, so there's no failure mode here
+  // worth guarding against beyond "return undefined."
   //
   // {SQUADMATE} is bond-biased, not uniform-random — reuses the exact same
   // findClosestBond(pilotId, otherIds, this.npcSocial.bonds) call
@@ -1855,7 +1902,52 @@ export class Hub extends Phaser.Scene {
     const speakerPath = archetype?.path;
     const speakerTier = pilotEntry?.tier;
 
-    return { squadmateName, missionName, speakerPath, speakerTier };
+    // {RIVAL}, 28 Aug 2026 (Recall Item 3 spec §3) — deliberately reuses
+    // npcRivalLabel's own logic rather than a looser "closest negative
+    // bond" read: only a bond that actually clears RIVAL_THRESHOLD counts
+    // as a real rivalry worth a pilot naming out loud, same standard the
+    // Hub's own rival-status UI already holds itself to. No fallback to
+    // "just pick somebody" the way SQUADMATE has one — a neutral or
+    // friendly bond isn't a rival, so the slot stays unresolved (caller
+    // falls back to the flat line) rather than naming the wrong person.
+    let rivalName: string | undefined;
+    if (others.length > 0) {
+      const otherIds = others.map((n) => n.pilotId);
+      const worst = findWorstRival(npc.pilotId, otherIds, this.npcSocial.bonds);
+      if (worst && worst.value <= RIVAL_THRESHOLD) {
+        const rival = others.find((n) => n.pilotId === worst.otherId);
+        rivalName = rival?.displayName.split("—")[0].trim();
+      }
+    }
+
+    // {LOST}, 28 Aug 2026 (Recall Item 3 spec §3) — "a fallen Munti's
+    // name, off the existing tally." Reads the same status +
+    // archetype-path check checkMuntiLoss() already uses to decide whether
+    // a Munti loss ever happened, rather than a new tracked list — the
+    // roster itself already IS the tally (a permanently_lost entry's
+    // record, including its displayName, is never deleted, only flagged).
+    // Picks uniform-random among however many qualify, same as ENEMY/SHIP/
+    // ROOM's own categorical-pick shape when there's more than one.
+    const lostMuntis = Object.values(this.campaignState.pilots).filter(
+      (entry) => entry.status === "permanently_lost" && UNIT_ARCHETYPES[entry.pilot.archetypeId]?.path === "munti"
+    );
+    const lostMuntiName =
+      lostMuntis.length > 0 ? lostMuntis[Math.floor(Math.random() * lostMuntis.length)].pilot.displayName.split("—")[0].trim() : undefined;
+
+    // {STAGE_MOMENT}, 28 Aug 2026 (Recall Item 3 follow-up — Maxime:
+    // "highlight reel should date itself with calandar. down to the
+    // sec."). Only resolves off a REAL recorded promotion
+    // (social.stagePromotedAt), never off the pilot's current stage alone
+    // — a pilot who started the campaign already at Blooded has nothing to
+    // recall here, since no live promotion event ever happened for them.
+    // Prefers "Command" over "Blooded" when both are on record, same
+    // "most significant/most recent" instinct stageBadge's own display
+    // already follows for a pilot's current Stage.
+    const speakerSocial = this.campaignState.pilots[npc.pilotId]?.social;
+    const promotedAt = speakerSocial?.stagePromotedAt;
+    const stageMomentText = promotedAt?.command !== undefined ? "Command" : promotedAt?.blooded !== undefined ? "Blooded" : undefined;
+
+    return { squadmateName, missionName, speakerPath, speakerTier, rivalName, lostMuntiName, stageMomentText };
   }
 
   // Layers curated recall on top of pickAmbientLineWithBleed (roadmap #2):
@@ -2033,11 +2125,13 @@ export class Hub extends Phaser.Scene {
   }
 
   // Recognized, but no space carved out yet — see chatIntent.ts's own
-  // KnownUnbuildableId header for why these four specifically get an
-  // honest "not yet" instead of either silence or a fabricated build.
+  // KnownUnbuildableId header for why these two specifically get an honest
+  // "not yet" instead of either silence or a fabricated build. weaponsBay/
+  // fabricator GRADUATED out of this bank 28 Aug 2026 once real deck space
+  // (RESERVED_BAYS above) and real effects existed for them — see
+  // chatIntent.ts's own BuildableBayId comment for the same graduation
+  // noted from that file's side.
   private readonly BUILD_UNAVAILABLE_LINES: Record<KnownUnbuildableId, string[]> = {
-    weaponsBay: ["Weapons Bay's on the books, but there's no deck space cleared for it yet."],
-    fabricator: ["Fabricator's a good call. We just don't have anywhere to put one yet."],
     recRoom: ["Rec Room's already up and running — you'll find it on the lower deck."],
     mekWorkshop: ["A proper workshop for the Meks — I like it. Nobody's drawn that one up yet, though."],
   };
@@ -2192,21 +2286,34 @@ export class Hub extends Phaser.Scene {
   }
 
   // Two sections, deliberately built and labeled differently — see
-  // highlights.ts's own header for why. "First <verb>" milestones are
-  // real, dated events (buildFirstMilestones reads npc.socialLog directly,
-  // same array reference every other verb-logging call site already
-  // writes into); the "Currently:" block below them is a live snapshot
-  // with NO claimed date, reusing exactly the same data
-  // updateProximity()'s favorability label already shows (npcPartnerLabel,
-  // stageBadge) rather than inventing a second source of truth for either.
+  // highlights.ts's own header for why. The dated reel itself is now two
+  // real sources merged into one chronological list, 28 Aug 2026 (Maxime:
+  // "highlight reel should date itself with calandar. down to the sec."):
+  // "First <verb>" milestones (buildFirstMilestones, reading
+  // npc.socialLog directly, same array reference every other verb-logging
+  // call site already writes into) and, new this pass, real Stage-
+  // promotion milestones (buildStagePromotionMilestones, reading the
+  // pilot's own campaign-persistent stagePromotedAt). Both render with
+  // calendarTimeLabel now — a real date/time, not the vague relative "Xd
+  // ago" historyTimeLabel still uses for the separate History panel. The
+  // "Currently:" block below them stays a live, deliberately undated
+  // snapshot — reusing exactly the same data updateProximity()'s
+  // favorability label already shows (npcPartnerLabel, stageBadge) rather
+  // than inventing a second source of truth for either; a pilot's CURRENT
+  // Stage is still worth showing even once their promotion INTO it has its
+  // own dated entry above.
   private renderHighlights(npc: HubNpc) {
     const name = npc.displayName.split("—")[0].trim();
-    const milestones = buildFirstMilestones(npc.socialLog);
+    const verbMilestones = buildFirstMilestones(npc.socialLog);
+    const stageMilestones = buildStagePromotionMilestones(this.campaignState.pilots[npc.pilotId]?.social?.stagePromotedAt);
+
+    const reelEntries: { at: number; text: string }[] = [
+      ...verbMilestones.map((m) => ({ at: m.at, text: `${m.label}: "${m.line}"` })),
+      ...stageMilestones.map((m) => ({ at: m.at, text: m.label })),
+    ].sort((a, b) => a.at - b.at);
 
     const milestoneLines =
-      milestones.length > 0
-        ? milestones.map((m) => `${historyTimeLabel(m.at)} — ${m.label}: "${m.line}"`)
-        : ["Nothing to look back on yet."];
+      reelEntries.length > 0 ? reelEntries.map((e) => `${calendarTimeLabel(e.at)} — ${e.text}`) : ["Nothing to look back on yet."];
 
     const partner = this.npcPartnerLabel(npc);
     const rival = this.npcRivalLabel(npc);

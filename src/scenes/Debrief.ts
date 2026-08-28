@@ -32,6 +32,7 @@ import {
   type CampaignState,
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
+import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatalyst";
 import { ShopPanel, makeShopButton } from "./shop/ShopPanel";
 
 const CARD_W = 900;
@@ -48,6 +49,10 @@ export class Debrief extends Phaser.Scene {
   private secondLancePilots?: PilotRecord[];
   private thirdLancePilots?: PilotRecord[];
   private rescuedPilot?: PilotRecord;
+  // Grief Catalyst, live port 28 Aug 2026 — one entry per this mission's
+  // permanentLosses (see the step 1b/1d comments below for why it's an
+  // array, not a single result). Empty on a mission with no true losses.
+  private griefResults: GriefCatalystResult[] = [];
   // Generalized bonus-objective pass (24 Aug 2026) — the company-pool
   // points from whichever bonusObjective kind this mission carried (0 for
   // a mission with none, or one that didn't resolve to "succeeded"). See
@@ -107,6 +112,18 @@ export class Debrief extends Phaser.Scene {
         entry.status = "permanently_lost";
         entry.personalPoints = 0;
       }
+    }
+
+    // ---- 1b-ii. Grief Catalyst (Grief Catalyst Port Spec v1, 28 Aug 2026) --
+    // Deliberately a second loop over permanentLosses, run only AFTER every
+    // status flip above has already happened: runGriefCatalyst filters
+    // mourners down to pilots still reading status === "active", so with
+    // more than one true loss this mission, the second loss's grief round
+    // correctly excludes the first loss's pilot from mourning too (they're
+    // already gone) rather than needing this function to know about losses
+    // that haven't been applied yet.
+    for (const loss of this.mission.permanentLosses) {
+      this.griefResults.push(runGriefCatalyst(this.state, this.mission.deployedPilotIds, loss.pilotId));
     }
 
     // ---- 1c. Debrief-side echo, 27 Aug 2026 (Social Sim Roadmap #9) ------
@@ -185,6 +202,7 @@ export class Debrief extends Phaser.Scene {
       .setOrigin(0.5);
 
     let cursorY = this.drawEarningsPanel(58);
+    cursorY = this.drawGriefCallout(cursorY + 8);
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
     cursorY = this.drawSecondLanceCallout(cursorY + 8);
@@ -278,6 +296,62 @@ export class Debrief extends Phaser.Scene {
     if (this.bonusObjectivePoints > 0) parts.push(`bonus objective +${this.bonusObjectivePoints}`);
     if (!parts.length) return "(no completion bonus — mission was not a win)";
     return `(${parts.join("; ")})`;
+  }
+
+  /**
+   * Grief Catalyst reveal (live port, 28 Aug 2026) — one block per true
+   * loss this mission (see the 1b-ii comment in create() for why
+   * griefResults is an array). No-op when nothing was lost this mission.
+   * Deliberately rendered as visible dialogue, not a silent bond-number
+   * shift — the spec's own call ("yes, it says something") — but kept
+   * understated: a muted panel and small print, not the green/amber
+   * fanfare color the bonus/Munti callouts get.
+   */
+  private drawGriefCallout(top: number): number {
+    if (!this.griefResults.length) return top;
+    const lineH = 14;
+    const headerH = 18;
+    let y = top;
+    for (const result of this.griefResults) {
+      if (!result.mourners.length) continue; // a true loss with nobody left on the deployed squad to mourn — nothing to draw
+      const lostName = this.state.pilots[result.lostPilotId]?.pilot.displayName ?? result.lostPilotId;
+      const height = headerH + result.mourners.length * lineH + result.bondShifts.length * lineH + 10;
+
+      this.add.rectangle(480, y + height / 2, CARD_W, height, 0x1b1922, 1).setStrokeStyle(1, 0x4a4258);
+      this.add.text(CARD_L + 16, y + 8, `GRIEF — HOW THEY'RE TAKING IT (${lostName})`, {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#a99bc4",
+      });
+
+      let rowY = y + 8 + headerH;
+      for (const mourner of result.mourners) {
+        this.add.text(CARD_L + 16, rowY, `${mourner.displayName}: ${mourner.line}`, {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#c8bfd6",
+        });
+        rowY += lineH;
+      }
+      for (const shift of result.bondShifts) {
+        const nameA = this.state.pilots[shift.pilotIdA]?.pilot.displayName ?? shift.pilotIdA;
+        const nameB = this.state.pilots[shift.pilotIdB]?.pilot.displayName ?? shift.pilotIdB;
+        const sign = shift.delta >= 0 ? "+" : "";
+        this.add.text(CARD_L + 16, rowY, `${nameA} and ${nameB}: Bond ${sign}${shift.delta}`, {
+          fontFamily: "monospace",
+          fontSize: "9px",
+          color: "#6b7a8a",
+        });
+        rowY += lineH;
+      }
+
+      y += height + 8;
+    }
+    // Matches every other draw* method's own "top + height, no trailing
+    // gap" contract — the cursorY chain in create() adds its own +8
+    // between calls, so the running +8 this loop uses between multiple
+    // loss-blocks needs stripping off the very last one before returning.
+    return y === top ? top : y - 8;
   }
 
   private drawMuntiCallout(top: number): number {

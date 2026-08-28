@@ -301,7 +301,7 @@ describe("detectBuildRequest — Antfarm build economy, first slice, 27 Aug 2026
   // yet built) rather than accepting arbitrary free text. Room/proximity
   // gating (talking to the CO specifically) lives in Hub.ts's submitChat,
   // same as every other verb here — this function only classifies the text.
-  it("recognizes each of the four buildable reserved bays", () => {
+  it("recognizes each of the four original buildable reserved bays", () => {
     expect(detectBuildRequest("build me a sensor array")).toEqual({ kind: "buildable", id: "sensorArray" });
     expect(detectBuildRequest("can you build the beacon control")).toEqual({ kind: "buildable", id: "beaconControl" });
     expect(detectBuildRequest("build a generator")).toEqual({ kind: "buildable", id: "generator" });
@@ -314,10 +314,22 @@ describe("detectBuildRequest — Antfarm build economy, first slice, 27 Aug 2026
     expect(detectBuildRequest("build restock")).toEqual({ kind: "buildable", id: "restockRoom" });
   });
 
+  // 28 Aug 2026: Weapons Bay and Fabricator GRADUATED out of the
+  // "named-but-unbuilt" bucket below into real buildable bays, once
+  // Hub.ts grew two more markers for them and engine/mission.ts +
+  // engine/campaignEconomy.ts wired in real effects. Mirrors this file's
+  // own established "graduation" pattern (drink/peg/poker/fletchers, all
+  // documented above in the VERB_REQUEST_KEYWORDS comment) — recognized
+  // but inert becomes recognized and real, same function, different bucket.
+  it("recognizes Weapons Bay and Fabricator as buildable now that they have real space + real effects", () => {
+    expect(detectBuildRequest("can we get a fabricator built")).toEqual({ kind: "buildable", id: "fabricator" });
+    expect(detectBuildRequest("build a weapons bay")).toEqual({ kind: "buildable", id: "weaponsBay" });
+    expect(detectBuildRequest("build a weapon bay")).toEqual({ kind: "buildable", id: "weaponsBay" });
+    expect(detectBuildRequest("build a fabrication bay")).toEqual({ kind: "buildable", id: "fabricator" });
+  });
+
   it("recognizes named-but-unbuilt systems as a distinct, honest 'not yet' outcome (Maxime's own example)", () => {
     expect(detectBuildRequest("build me this, mek workshop")).toEqual({ kind: "unbuildable", id: "mekWorkshop" });
-    expect(detectBuildRequest("can we get a fabricator built")).toEqual({ kind: "unbuildable", id: "fabricator" });
-    expect(detectBuildRequest("build a weapons bay")).toEqual({ kind: "unbuildable", id: "weaponsBay" });
   });
 
   it("recognizes a request for the rec room as unbuildable — it's already standing, not a bay to build", () => {
