@@ -196,6 +196,9 @@ import type { BattleUnit } from "../../engine/units";
 import { livingTargets, isVisibleTo } from "../../engine/ai";
 import {
   RETREAT_HP_FRACTION,
+  COMMANDER_RETREAT_HP_FRACTION,
+  needsFrontLineProtection,
+  commanderSafePathPrefix,
   lastStep,
   weakestTarget,
   findLethalTargetFrom,
@@ -231,6 +234,35 @@ export function decidePlayerAiAction(
   context: PlayerAiMissionContext
 ): PlayerAiDecision {
   const hpFraction = unit.maxHp > 0 ? unit.currentHp / unit.maxHp : 1;
+  // Commander/Munti protection (28 Aug 2026, test-only — see combat.ts's
+  // own "Commander protection" section, and its "Extended to the Munti"
+  // follow-up, for the root-cause trace this responds to).
+  //
+  // Switched off entirely on extract_unit missions — found via a real
+  // regression, not guessed. First cut exempted only the named extract
+  // target from the front-line cap; that wasn't enough, because the OTHER
+  // protected unit(s) (an escorting Rourke, say) still slowed down for
+  // their own caution, which in turn slowed the squad's ability to clear
+  // the way and reach the exit tile in time. Exempting the retreat
+  // threshold too still didn't fully recover it — the interaction runs
+  // through the whole squad's pacing, not just one unit's own decisions,
+  // and isn't worth chasing further tile-by-tile at this hour. Mission
+  // 11's own turn limit is razor-thin (a win completes on turn 18, a loss
+  // hits the limit on turn 19), and this mission's whole point is racing
+  // that clock, not fighting cautiously — extra caution from anyone is
+  // actively the wrong instinct here, so the simplest correct fix is to
+  // not apply any of it while the objective itself is a race. Every other
+  // objective type (including hold_zone, which has its own turn pressure
+  // but no single unit racing a personal deadline the way extract_unit's
+  // named target does) keeps the full protection below.
+  const isExtractMission = context.mission.objective === "extract_unit";
+  const frontLineProtected = needsFrontLineProtection(unit) && !isExtractMission;
+  // Every self-preservation gate below that reads RETREAT_HP_FRACTION
+  // against THIS unit's own hpFraction uses `retreatThreshold` instead, so
+  // Rourke and the field Munti specifically fall back sooner than an
+  // ordinary pilot would — for every other unit, and for everyone on an
+  // extract_unit mission, this is exactly RETREAT_HP_FRACTION, unchanged.
+  const retreatThreshold = frontLineProtected ? COMMANDER_RETREAT_HP_FRACTION : RETREAT_HP_FRACTION;
 
   // Already carrying the rescued NPC — combat is engine-refused while
   // carryingRescueId is set (mission.ts's attack() guard), so the only
@@ -428,7 +460,7 @@ export function decidePlayerAiAction(
     }
   }
 
-  if (hpFraction < RETREAT_HP_FRACTION && spotted) {
+  if (hpFraction < retreatThreshold && spotted) {
     const path = retreatPath(map, unit, enemies, allUnits);
     if (path && path.length > 1) {
       log({
@@ -479,7 +511,7 @@ export function decidePlayerAiAction(
   // "only take real progress" guard as before — a unit that can't get any
   // closer to its squad falls straight through to the normal combat chain
   // below, so this can't stall a lone survivor with nowhere left to go.
-  if (hpFraction < RETREAT_HP_FRACTION) {
+  if (hpFraction < retreatThreshold) {
     const ally = nearestLivingAlly(unit, allUnits);
     const pathToSquad = ally ? regroupPath(map, unit, ally, enemies, allUnits, turn) : null;
     if (pathToSquad && pathToSquad.length > 1) {
@@ -618,7 +650,22 @@ export function decidePlayerAiAction(
   // here.
   if (enemies.length > 0) {
     const goal = weakestTarget(enemies);
-    const pathIntoRange = reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits);
+    let pathIntoRange = reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits);
+    // Commander protection (28 Aug 2026, test-only — see combat.ts's own
+    // "Commander protection" section for the full trace, including a
+    // first attempt that didn't work). Truncate to the longest prefix that
+    // doesn't put her ahead of her own front line — she still advances,
+    // just never past whichever ally is already most exposed. Gated on
+    // frontLineProtected (commander + Munti, minus this mission's own
+    // extract target — see that flag's own comment above) so every other
+    // unit's already-tuned behaviour here is completely unchanged.
+    if (pathIntoRange && frontLineProtected) {
+      // A truncated-to-length-1 path (no move) still falls through to the
+      // atDest check below exactly like a normal "already here" case —
+      // deliberately not nulled out, since she may still have a real shot
+      // from wherever the front line currently caps her at.
+      pathIntoRange = commanderSafePathPrefix(pathIntoRange, unit, allUnits, enemies);
+    }
     if (pathIntoRange) {
       const dest = lastStep(pathIntoRange);
       const atDest = findLethalTargetFrom(map, unit, dest, enemies, allUnits) ?? focusFireTargetInRange(map, unit, dest, enemies, allUnits);
@@ -756,7 +803,16 @@ export function decidePlayerAiAction(
   // weakestTarget is a cheap reduce over however many enemies are left.
   if (enemies.length > 0) {
     const goal = weakestTarget(enemies);
-    const path = cohesiveMoveToward(map, unit, goal.pos, allUnits);
+    let path = cohesiveMoveToward(map, unit, goal.pos, allUnits);
+    // Commander protection (28 Aug 2026, test-only — same front-line cap
+    // as the advance_into_range branch above; see combat.ts's own
+    // "Commander protection" section). cohesiveMoveToward's own leash only
+    // ever checks distance-from-allies, not distance-to-the-enemy, so on
+    // its own it doesn't stop her ending up the most exposed unit in a
+    // formation that's advancing together — this closes that gap the same
+    // way, without touching any other unit's behaviour. Same
+    // frontLineProtected gate as advance_into_range above.
+    if (frontLineProtected) path = commanderSafePathPrefix(path, unit, allUnits, enemies);
     log({
       turn,
       unitId: unit.instanceId,

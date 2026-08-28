@@ -310,6 +310,34 @@ const ENCOUNTER_COOLDOWN_MAX_MS = 22000;
 // every other timing constant in this file.
 const NPC_REPLY_DELAY_MS = 1800;
 
+// Rec Room Help Panel, 28 Aug 2026 (Bloom_Wars_Rec_Room_Help_Panel_Plan_v1.md)
+// — persistent "?" rules text per minigame, always available (Maxime's own
+// call: not a first-time tooltip that dismisses itself, the pattern the
+// Mission 1 combat tutorial hints use — a control the player can reopen
+// any time, every session). Draft copy is the plan doc's own, lightly
+// reflowed to fit the panel's wordWrap width; still a draft per that
+// doc's own "worth a pass once it's actually readable at the modal's real
+// size" note, not re-litigated here.
+const PEG_BOARD_RULES_TEXT =
+  "THE PEG BOARD\n\n" +
+  "Nine dots in a 3x3 grid. You and your opponent each draw one line per turn, connecting two dots that don't already have a line between them.\n\n" +
+  "Your first line is fixed — you don't get to choose it. After that, every line you draw has to start from wherever your last line ended. Your lines have to form one continuous path.\n\n" +
+  "Lines can never cross an existing line — yours or your opponent's.\n\n" +
+  "REACH: if your last two lines form a bend through three dots, you're threatening to win. Your opponent gets exactly one move — closing the triangle — to stop it. If they can't (the closing line would cross something already down), you win on the spot.\n\n" +
+  "KNOT: land three of your own lines on a single dot and it locks — nobody can draw through it again, for either side, for the rest of the game.\n\n" +
+  "If the board fills up and nobody's completed a Reach, whoever has more Knots wins. Equal Knots, it's a draw.";
+
+const POKER_RULES_TEXT =
+  "POKER — TEXAS HOLD'EM\n\n" +
+  "You and your opponent are each dealt two hole cards face down; five community cards come out face up in stages (flop, turn, river), shared by both of you. Best five-card hand out of your two plus the five shared wins.\n\n" +
+  "Betting happens after each stage — fold, check, call, or raise. Folding ends the hand immediately and hands the pot to whoever didn't fold; your cards stay hidden either way.";
+
+const DARTS_RULES_TEXT =
+  "FLETCHERS — DARTS\n\n" +
+  "Three rounds, three darts each, you and your opponent alternating whole rounds. Highest total after all darts are thrown wins; a tie is a draw.\n\n" +
+  "Each throw: a marker sweeps back and forth across a bar. Time your click (or press E) to lock it — the closer to center, the better your aim. Landing dead center doesn't perfectly guarantee a bullseye (your hand isn't that steady), but it gets you close, and a bad lock reliably misses.\n\n" +
+  "SCORING: bullseye (50), inner ring (30), mid ring (20), outer ring (10), miss (0).";
+
 // The peg board — Rec Room minigame #3 of 3, 26 Aug 2026. See
 // src/engine/pegBoard.ts's own header for the ruleset/naming-lock
 // discipline; this is only the interactive click-based board on top of
@@ -1103,6 +1131,8 @@ export class Hub extends Phaser.Scene {
   private pegStatusText!: Phaser.GameObjects.Text;
   private pegFinalLine = ""; // set once, by finishPegBoard, so pegStatusLine() can keep showing it while the closing delay runs
   private pegFirstClick: number | null = null; // side b's free opening is the only two-click move — this holds the first click between the two
+  private pegHelpOpen = false; // the persistent "?" rules panel — see PEG_BOARD_RULES_TEXT's own header
+  private pegHelpOverlay!: Phaser.GameObjects.Container;
 
   // Poker — see the POKER_* constants' own header. pokerFinalLine mirrors
   // pegFinalLine's role but only ever gets set at SESSION end (someone
@@ -1123,6 +1153,8 @@ export class Hub extends Phaser.Scene {
   private pokerRaiseBtn!: Phaser.GameObjects.Text;
   private pokerAllInBtn!: Phaser.GameObjects.Text;
   private pokerFinalLine = "";
+  private pokerHelpOpen = false; // the persistent "?" rules panel — see POKER_RULES_TEXT's own header
+  private pokerHelpOverlay!: Phaser.GameObjects.Container;
 
   // Fletchers (darts) — see the DARTS_* constants' own header. dartsMeterLive
   // gates whether the meter is actually animating and lockable right now
@@ -1143,6 +1175,8 @@ export class Hub extends Phaser.Scene {
   private dartsMeterLive = false;
   private dartsMeterElapsed = 0;
   private dartsLastResultLine = "";
+  private dartsHelpOpen = false; // the persistent "?" rules panel — see DARTS_RULES_TEXT's own header
+  private dartsHelpOverlay!: Phaser.GameObjects.Container;
 
   // Social history view — Hub polish, 26 Aug 2026. Read-only: shows the
   // nearest NPC's own socialLog (verbs.ts's "Log entry" ask, §3), real and
@@ -2113,6 +2147,57 @@ export class Hub extends Phaser.Scene {
     this.highlightsText.setText(body);
   }
 
+  // --- Rec Room help panel, 28 Aug 2026 ---------------------------------
+  // Shared by all three minigames (Bloom_Wars_Rec_Room_Help_Panel_Plan_v1.md)
+  // rather than three near-duplicate panels — a fourth minigame later
+  // (Tetris/Asteroids, "one day," per the plan doc's own note) just needs
+  // its own rules string passed in here, nothing else new. Built as a
+  // child of the caller's own overlay container, so hiding the parent
+  // overlay (leaving the minigame) always hides an open help panel too —
+  // no separate cleanup needed, no stale "help was left open" state to
+  // carry into the next session at that table.
+  private buildRulesHelpPanel(bodyText: string, onDismiss: () => void): Phaser.GameObjects.Container {
+    const panel = this.add.container(0, 0).setVisible(false);
+
+    // Interactive on purpose, not just a backdrop: this panel is added
+    // last (on top) within its parent overlay, so without its own
+    // listener a click here would otherwise hit-test through to whatever
+    // sits underneath at that pixel (the leave/close button included,
+    // per §12.1's own topOnly hit-testing) and silently exit the whole
+    // minigame instead of just the help text. Click-anywhere-to-dismiss
+    // is also the friendlier interaction, and makes the hint text below
+    // literally true instead of just Esc-true.
+    const bg = this.add
+      .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left - 32, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top - 32, PANEL_BG, 0.98)
+      .setStrokeStyle(1, 0x4a7a9a) // == ACCENT — Graphics/shape strokes take a numeric color, not the CSS hex string, same distinction DARTS_INNER_RING_COLOR's own comment already makes
+      .setInteractive({ useHandCursor: true });
+    bg.on("pointerdown", onDismiss);
+    panel.add(bg);
+
+    // Smaller/tighter than the History and Highlights text panels
+    // (11px/8 lineSpacing) on purpose — the peg board's ruleset is the
+    // longest of the three (Reach + Knot both need real explaining) and
+    // was measured, in a live screenshot smoke test, to run right up
+    // against the hint line below at 11px/6. 10px/4 was re-checked the
+    // same way and clears it with real margin on all three panels.
+    const text = this.add
+      .text(480, ROOM_BOUNDS.top + 32, bodyText, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: TEXT_MAIN,
+        align: "left",
+        wordWrap: { width: 560 },
+        lineSpacing: 4,
+      })
+      .setOrigin(0.5, 0);
+    panel.add(text);
+
+    const hint = this.add.text(480, ROOM_BOUNDS.bottom - 24, "[ ? or Esc — back to the game ]", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM }).setOrigin(0.5);
+    panel.add(hint);
+
+    return panel;
+  }
+
   // --- The peg board — Rec Room minigame #3 of 3, 26 Aug 2026 ----------
   // Built once, up front (same convention as the door markers), then
   // shown/hidden and re-rendered as the game actually plays. All of the
@@ -2150,6 +2235,26 @@ export class Hub extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     closeBtn.on("pointerdown", () => this.closePegBoard());
     this.pegOverlay.add(closeBtn);
+
+    const helpBtn = this.add
+      .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ ? ]", { fontFamily: "monospace", fontSize: "11px", color: ACCENT })
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+    helpBtn.on("pointerdown", () => this.togglePegHelp());
+    this.pegOverlay.add(helpBtn);
+
+    this.pegHelpOverlay = this.buildRulesHelpPanel(PEG_BOARD_RULES_TEXT, () => this.closePegHelp());
+    this.pegOverlay.add(this.pegHelpOverlay);
+  }
+
+  private togglePegHelp() {
+    this.pegHelpOpen = !this.pegHelpOpen;
+    this.pegHelpOverlay.setVisible(this.pegHelpOpen);
+  }
+
+  private closePegHelp() {
+    this.pegHelpOpen = false;
+    this.pegHelpOverlay.setVisible(false);
   }
 
   private startPegBoard(npc: HubNpc) {
@@ -2168,9 +2273,11 @@ export class Hub extends Phaser.Scene {
     this.pegGame = null;
     this.pegOpponent = null;
     this.pegFirstClick = null;
+    this.closePegHelp(); // don't leave the panel open for next time this table's opened
   }
 
   private onPegDotClicked(dotId: number) {
+    if (this.pegHelpOpen) return; // help panel owns input while open — see togglePegHelp
     const game = this.pegGame;
     if (!game || game.status !== "playing" || game.turn !== PEG_HUMAN_SIDE) return;
 
@@ -2383,6 +2490,26 @@ export class Hub extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     closeBtn.on("pointerdown", () => this.closePoker());
     this.pokerOverlay.add(closeBtn);
+
+    const helpBtn = this.add
+      .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ ? ]", { fontFamily: "monospace", fontSize: "11px", color: ACCENT })
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+    helpBtn.on("pointerdown", () => this.togglePokerHelp());
+    this.pokerOverlay.add(helpBtn);
+
+    this.pokerHelpOverlay = this.buildRulesHelpPanel(POKER_RULES_TEXT, () => this.closePokerHelp());
+    this.pokerOverlay.add(this.pokerHelpOverlay);
+  }
+
+  private togglePokerHelp() {
+    this.pokerHelpOpen = !this.pokerHelpOpen;
+    this.pokerHelpOverlay.setVisible(this.pokerHelpOpen);
+  }
+
+  private closePokerHelp() {
+    this.pokerHelpOpen = false;
+    this.pokerHelpOverlay.setVisible(false);
   }
 
   private startPoker(npc: HubNpc) {
@@ -2400,9 +2527,11 @@ export class Hub extends Phaser.Scene {
     this.pokerOverlay.setVisible(false);
     this.pokerGame = null;
     this.pokerOpponent = null;
+    this.closePokerHelp(); // don't leave the panel open for next time this table's opened
   }
 
   private onPokerAction(action: BettingAction) {
+    if (this.pokerHelpOpen) return; // help panel owns input while open — see togglePokerHelp
     const game = this.pokerGame;
     if (!game || game.status !== "playing" || game.betting.actingIndex !== 0) return;
     applyHoldemAction(game, 0, action);
@@ -2622,6 +2751,26 @@ export class Hub extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     closeBtn.on("pointerdown", () => this.closeDarts());
     this.dartsOverlay.add(closeBtn);
+
+    const helpBtn = this.add
+      .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ ? ]", { fontFamily: "monospace", fontSize: "11px", color: ACCENT })
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+    helpBtn.on("pointerdown", () => this.toggleDartsHelp());
+    this.dartsOverlay.add(helpBtn);
+
+    this.dartsHelpOverlay = this.buildRulesHelpPanel(DARTS_RULES_TEXT, () => this.closeDartsHelp());
+    this.dartsOverlay.add(this.dartsHelpOverlay);
+  }
+
+  private toggleDartsHelp() {
+    this.dartsHelpOpen = !this.dartsHelpOpen;
+    this.dartsHelpOverlay.setVisible(this.dartsHelpOpen);
+  }
+
+  private closeDartsHelp() {
+    this.dartsHelpOpen = false;
+    this.dartsHelpOverlay.setVisible(false);
   }
 
   private drawDartsBoardRings() {
@@ -2686,9 +2835,11 @@ export class Hub extends Phaser.Scene {
     this.dartsOverlay.setVisible(false);
     this.dartsGame = null;
     this.dartsOpponent = null;
+    this.closeDartsHelp(); // don't leave the panel open for next time this table's opened
   }
 
   private onDartsThrow() {
+    if (this.dartsHelpOpen) return; // help panel owns input while open — see toggleDartsHelp
     const game = this.dartsGame;
     if (!game || game.status !== "playing" || game.turn !== "human" || !this.dartsMeterLive) return;
     const pos = dartsMeterPos(this.dartsMeterElapsed);
@@ -3491,6 +3642,14 @@ export class Hub extends Phaser.Scene {
     // let the player bail out mid-game.
     if (this.pegOpen) {
       this.updateBubbles();
+      // Help panel open: it owns Esc for itself (back to the game, not
+      // out of the game) — same "one level at a time" shape as any other
+      // nested modal. Falls through to nothing else while open, same as
+      // the outer gates below suspend normal play input.
+      if (this.pegHelpOpen) {
+        if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closePegHelp();
+        return;
+      }
       if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closePegBoard();
       return;
     }
@@ -3499,6 +3658,10 @@ export class Hub extends Phaser.Scene {
     // (clicks go to its own action buttons, set up in buildPokerOverlay).
     if (this.pokerOpen) {
       this.updateBubbles();
+      if (this.pokerHelpOpen) {
+        if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closePokerHelp();
+        return;
+      }
       if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closePoker();
       return;
     }
@@ -3510,6 +3673,13 @@ export class Hub extends Phaser.Scene {
     // happens here rather than only in response to a state change.
     if (this.dartsOpen) {
       this.updateBubbles();
+      // Help open: freeze the meter rather than let it keep sweeping
+      // unseen behind the panel — reopening the game shouldn't hand the
+      // player a lock they didn't choose the timing of.
+      if (this.dartsHelpOpen) {
+        if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closeDartsHelp();
+        return;
+      }
       if (this.dartsMeterLive) {
         this.dartsMeterElapsed += delta;
         this.renderDartsMeter();

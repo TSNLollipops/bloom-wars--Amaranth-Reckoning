@@ -15,9 +15,56 @@ import { chebyshevDistance, chassisToMovementKind, reachableTiles, reconstructPa
 import { estimateDamage, occupiedSet, moveToward, isVisibleTo } from "../../engine/ai";
 import { TILES } from "../../data/tiles";
 import { BLOOM_CLEAR_RADIUS } from "../../data/combatTables";
+import { findPilot } from "../../data/pilotRegistry";
 
 /** Below this HP fraction, prefer disengaging over pressing a fight that isn't a guaranteed kill. */
 export const RETREAT_HP_FRACTION = 0.3;
+
+// ---- Commander protection (28 Aug 2026, test-only) ----
+// Found via a 5-archetype batch validation of the Bloom on-hit-effects
+// engine: Missions 8 and 12 batch-tested at a flat 0% win rate, in EVERY
+// condition tried, on/off — not a regression from that pass, a
+// pre-existing gap in this file. Root cause, confirmed against verbose
+// single runs, not guessed: nothing in this decision tree ever treated
+// Rourke (the commander — engine/mission.ts's handleDowned() ends the
+// mission attempt outright the instant she's downed, no restock, no
+// permadeath roll, unlike literally every other unit on the field) as
+// needing more caution than an ordinary pilot. She got exposed two ways —
+// scouting ahead alone on her own higher Meeps move range (see
+// reachableIntoRangePreferringSafety's own cohesion gap, flagged where
+// it's used in index.ts's advance_into_range branch), and sitting in
+// melee absorbing repeated focus fire because her own retreat threshold
+// was identical to every other unit's, with nothing about her actually
+// being irreplaceable reflected in the number. Both fixes below are
+// test-only tuning — this file is never imported by mission.ts/Battle.ts,
+// so nothing here touches shipped game balance, per build_log/README.md's
+// "Player AI test harness has no Commander-protection logic" entry.
+/** True for the one unit whose downing ends the mission attempt outright rather than triggering an ordinary permadeath check. Same data-driven flag (data/types.ts's PilotRecord.exemptFromPermadeath) engine/mission.ts's handleDowned() itself reads — not a hardcoded pilot id — so this stays correct if that flag ever moves off pilot_rourke. */
+export function isCommanderUnit(unit: BattleUnit): boolean {
+  return Boolean(findPilot(unit.pilotId)?.exemptFromPermadeath);
+}
+
+/** The commander's own retreat/regroup threshold — well above RETREAT_HP_FRACTION on purpose. Every other unit can afford to press a fight down to 30% hp because losing them costs a restock (or, worst case, one permadeath roll); losing HER costs the whole mission attempt. Not sim-tuned to a precise number — a deliberately generous, safe-side guess, same spirit as this file's other placeholder constants (MAX_LEAD_FROM_ALLIES's own "tuned around" comment below), worth revisiting once there's a batch of missions to tune it against specifically. */
+export const COMMANDER_RETREAT_HP_FRACTION = 0.5;
+
+// ---- Extended to the Munti, same day, same investigation ----
+// Re-tracing Mission 8 with the commander protection above in place, she
+// survived meaningfully longer (turn 4 -> turn 8 in the traced run) but
+// still went down — the actual mission-ending event in that trace was
+// this squad's one Munti (its only source of repair) dying around turn 3,
+// after which nobody on the field could be healed again for the rest of
+// the mission and the whole squad, Rourke included, ground down to the
+// swarm's chip damage regardless of how carefully anyone was positioned.
+// Losing the field Munti isn't recoverable mid-mission either (it's what
+// turns every OTHER unit's own downing into a permanent loss —
+// engine/campaignState.ts's live permadeath rule), so the same "this unit
+// dying ends more than just itself" reasoning that justified protecting
+// the commander applies here too. Same fix, same two call sites, just a
+// wider gate.
+/** True for either irreplaceable-in-practice unit a mission can lose that costs far more than the unit itself: the commander (isCommanderUnit, above) or the squad's Munti — the one class the live permadeath rule keys off of entirely. */
+export function needsFrontLineProtection(unit: BattleUnit): boolean {
+  return isCommanderUnit(unit) || unit.path === "munti";
+}
 
 export function lastStep(path: Coord[]): Coord {
   return path[path.length - 1];
@@ -308,6 +355,52 @@ export function nearestLivingAlly(unit: BattleUnit, allUnits: BattleUnit[]): Bat
   const allies = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId);
   if (!allies.length) return undefined;
   return allies.reduce((best, a) => (chebyshevDistance(unit.pos, a.pos) < chebyshevDistance(unit.pos, best.pos) ? a : best));
+}
+
+/**
+ * Commander-protection helper (28 Aug 2026, test-only — see this file's own
+ * "Commander protection" section above).
+ *
+ * First attempt at this (kept only in this comment as a record of what
+ * didn't work, not in the code): a straight MAX_LEAD_FROM_ALLIES leash on
+ * reachableIntoRangePreferringSafety, on the theory that she was sprinting
+ * out ahead of her own escort. Traced against a live Mission 8 run and
+ * found that theory wrong — the whole squad advances together turn to
+ * turn (the leash was never actually violated), and the hostile AI's own
+ * targeting is a plain damage-maximizer (`bestAttackTargetInRange`,
+ * GDD §5.3, real shipped rule, not commander-specific): Rourke's Meeps
+ * chassis is simply the softest target in range for every attacker, so a
+ * swarm (bloom_choir's `swarmSize: [3, 4]`, `intelligence: "pack"`) that
+ * closes to *anyone's* range converges on her specifically regardless of
+ * exactly where she stands inside the formation. A same-distance-from-
+ * allies leash can't fix that; the actual lever a real player has is
+ * simpler — don't let her be the tip of the spear. Let tankier squadmates
+ * make first contact and soak the pack's attention; she catches up once
+ * the front line is already established.
+ *
+ * `commanderSafePathPrefix` enforces exactly that: given a candidate
+ * path, it walks it tile by tile and returns the longest prefix that
+ * never puts her closer to the nearest living enemy than her own
+ * most-forward living ally currently is. This is graceful, not all-or-
+ * nothing — she still advances as far as the front line allows, and the
+ * cap loosens naturally as allies themselves push forward each turn — so
+ * it can't permanently freeze her the way a hard leash violation would.
+ * A lone survivor (no living ally left) falls through unchanged, same
+ * "nothing left to stay behind" exception cohesiveMoveToward already
+ * makes for the ordinary cohesion cap.
+ */
+export function commanderSafePathPrefix(path: Coord[], unit: BattleUnit, allUnits: BattleUnit[], enemies: BattleUnit[]): Coord[] {
+  if (path.length <= 1 || !enemies.length) return path;
+  const allies = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId);
+  if (!allies.length) return path;
+  const nearestEnemyDist = (pos: Coord) => Math.min(...enemies.map((e) => chebyshevDistance(pos, e.pos)));
+  const frontLine = Math.min(...allies.map((a) => nearestEnemyDist(a.pos)));
+  let cut = 0;
+  for (let i = 1; i < path.length; i++) {
+    if (nearestEnemyDist(path[i]) < frontLine) break; // this step would put her ahead of the most-exposed ally — stop here
+    cut = i;
+  }
+  return path.slice(0, cut + 1);
 }
 
 /**
