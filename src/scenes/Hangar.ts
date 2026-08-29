@@ -27,7 +27,8 @@
 // not a claim that the Antfarm's actual Hangar Deck room fiction is live.
 import Phaser from "phaser";
 import { createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
-import { ShopPanel, makeShopButton } from "./shop/ShopPanel";
+import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
+import { addMenuOverlayButton } from "./MenuOverlay";
 
 const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
@@ -52,6 +53,9 @@ export class Hangar extends Phaser.Scene {
       .text(480, 40, "buy and upgrade between missions", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
 
+    // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1 §2).
+    addMenuOverlayButton(this, 890, 16, 100, 22, () => this.state);
+
     const viewportTop = 66;
     const viewportBottom = 566;
 
@@ -68,6 +72,15 @@ export class Hangar extends Phaser.Scene {
         .text(CARD_L + 16, 604, `Company Points: ${this.state.points}`, { fontFamily: "monospace", fontSize: "12px", color: "#facc15" })
         .setOrigin(0, 0.5)
     );
+    // SAVE AS... (Main Menu / Save / Ironman UI Plan v1 §6) — only shown for
+    // a non-Ironman campaign; an Ironman save has no manual slots to offer
+    // at all, per that doc's own "only reachable when the live campaign for
+    // that side is non-Ironman" rule.
+    if (this.state.ironman === false) {
+      makeShopButton(this, this.footerLayer, CARD_L + 280, 604, 140, 30, "SAVE AS...", true, () => {
+        showSaveAsOverlay(this, this.state, (slot) => this.flashSavedMessage(slot));
+      });
+    }
     makeShopButton(this, this.footerLayer, CARD_R - 130, 604, 260, 34, "BACK TO MISSION SELECT", true, () => {
       saveCampaignState(this.state);
       this.scene.start("MapSelect");
@@ -83,5 +96,10 @@ export class Hangar extends Phaser.Scene {
       saveCampaignState(this.state);
       this.scene.start("Hub");
     });
+  }
+
+  private flashSavedMessage(slot: number): void {
+    const msg = this.add.text(480, 630, `Saved to Slot ${slot + 1}.`, { fontFamily: "monospace", fontSize: "11px", color: "#4ade80" }).setOrigin(0.5);
+    this.time.delayedCall(2200, () => msg.destroy());
   }
 }

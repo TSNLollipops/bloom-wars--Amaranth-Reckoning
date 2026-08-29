@@ -28,6 +28,12 @@ import {
   integrateThirdLance,
   deriveRourkeRank,
   rankDisplayTitle,
+  MANUAL_SAVE_SLOT_COUNT,
+  manualSaveSlotKey,
+  saveManualSlot,
+  listManualSlots,
+  loadManualSlot,
+  clearManualSlot,
   type CampaignStorage,
 } from "../campaignState";
 import { testUnit } from "./testHelpers";
@@ -344,6 +350,39 @@ describe("save / load / clear — basic localStorage-shaped persistence", () => 
     expect(() => saveCampaignState(createWardenCampaignState())).not.toThrow();
     expect(loadCampaignState()).toBeNull();
     expect(() => clearCampaignState()).not.toThrow();
+  });
+
+  // Main Menu / Save / Ironman UI Plan v1 §6, 28 Aug 2026 — the key-override
+  // param that lets a manual save slot reuse this same save/load/clear
+  // machinery instead of needing its own.
+  it("save/load/clear all default to the live key, unaffected by the new optional key param", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState(99);
+    saveCampaignState(state, storage); // no key passed — same as every existing autosave call site
+    expect(loadCampaignState(storage)!.points).toBe(99);
+    clearCampaignState(storage);
+    expect(loadCampaignState(storage)).toBeNull();
+  });
+
+  it("a manual slot key is a fully independent save, alongside the live one", () => {
+    const storage = memoryStorage();
+    const live = createWardenCampaignState(10);
+    const slotState = createWardenCampaignState(500);
+    saveCampaignState(live, storage);
+    saveCampaignState(slotState, storage, manualSaveSlotKey(0));
+
+    expect(loadCampaignState(storage)!.points).toBe(10);
+    expect(loadCampaignState(storage, manualSaveSlotKey(0))!.points).toBe(500);
+
+    clearCampaignState(storage, manualSaveSlotKey(0));
+    expect(loadCampaignState(storage, manualSaveSlotKey(0))).toBeNull();
+    expect(loadCampaignState(storage)!.points).toBe(10); // clearing a slot never touches the live key
+  });
+
+  it("manualSaveSlotKey produces MANUAL_SAVE_SLOT_COUNT distinct keys", () => {
+    const keys = new Set<string>();
+    for (let i = 0; i < MANUAL_SAVE_SLOT_COUNT; i++) keys.add(manualSaveSlotKey(i));
+    expect(keys.size).toBe(MANUAL_SAVE_SLOT_COUNT);
   });
 });
 
@@ -795,6 +834,107 @@ describe("loadCampaignState backfills a stale rourkeRank, 27 Aug 2026", () => {
 
     const loaded = loadCampaignState(storage);
     expect(loaded!.rourkeRank).toBe("maj");
+  });
+});
+
+describe("loadCampaignState backfills a missing ironman field, 28 Aug 2026", () => {
+  function memoryStorage(): CampaignStorage {
+    const backing = new Map<string, string>();
+    return {
+      getItem: (k) => backing.get(k) ?? null,
+      setItem: (k, v) => void backing.set(k, v),
+      removeItem: (k) => void backing.delete(k),
+    };
+  }
+
+  it("createCampaignState/createWardenCampaignState default to ironman: true", () => {
+    expect(createWardenCampaignState().ironman).toBe(true);
+  });
+
+  it("a save from before the field existed (JSON with no ironman key at all) backfills to true, not false", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    // simulate a genuinely pre-this-pass save: strip the field entirely,
+    // the way JSON.stringify would if the field never existed on the
+    // object in the first place — deleting it, not setting it to undefined,
+    // since JSON.stringify drops undefined values too but this is the more
+    // honest simulation of "this key was never written."
+    const raw = JSON.parse(JSON.stringify(state));
+    delete raw.ironman;
+    storage.setItem("bloomwars_campaign_state_v1", JSON.stringify(raw));
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.ironman).toBe(true);
+  });
+
+  it("a save with ironman explicitly false (a real non-Ironman campaign) round-trips unchanged", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    state.ironman = false;
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.ironman).toBe(false);
+  });
+});
+
+describe("manual save slots — saveManualSlot / listManualSlots / loadManualSlot / clearManualSlot, 28 Aug 2026", () => {
+  function memoryStorage(): CampaignStorage {
+    const backing = new Map<string, string>();
+    return {
+      getItem: (k) => backing.get(k) ?? null,
+      setItem: (k, v) => void backing.set(k, v),
+      removeItem: (k) => void backing.delete(k),
+    };
+  }
+
+  it("listManualSlots starts as MANUAL_SAVE_SLOT_COUNT nulls on a fresh storage", () => {
+    const slots = listManualSlots(memoryStorage());
+    expect(slots.length).toBe(MANUAL_SAVE_SLOT_COUNT);
+    expect(slots.every((s) => s === null)).toBe(true);
+  });
+
+  it("saveManualSlot writes both the state and its own metadata, independent of the live key", () => {
+    const storage = memoryStorage();
+    const live = createWardenCampaignState(20);
+    saveCampaignState(live, storage);
+
+    const state = createWardenCampaignState(300);
+    state.rourkeRank = "capt";
+    saveManualSlot(1, state, storage);
+
+    const loadedSlot = loadManualSlot(1, storage);
+    expect(loadedSlot!.points).toBe(300);
+    expect(loadCampaignState(storage)!.points).toBe(20); // live key untouched
+
+    const meta = listManualSlots(storage);
+    expect(meta[1]).not.toBeNull();
+    expect(meta[1]!.rourkeRank).toBe("capt");
+    expect(meta[1]!.rosterSize).toBe(Object.keys(state.pilots).length); // all active on a fresh state
+    expect(meta[0]).toBeNull();
+    expect(meta[2]).toBeNull();
+  });
+
+  it("clearManualSlot removes both the state and its metadata for that slot only", () => {
+    const storage = memoryStorage();
+    saveManualSlot(0, createWardenCampaignState(100), storage);
+    saveManualSlot(2, createWardenCampaignState(200), storage);
+
+    clearManualSlot(0, storage);
+
+    expect(loadManualSlot(0, storage)).toBeNull();
+    expect(listManualSlots(storage)[0]).toBeNull();
+    expect(loadManualSlot(2, storage)!.points).toBe(200); // untouched
+    expect(listManualSlots(storage)[2]).not.toBeNull();
+  });
+
+  it("re-saving the same slot overwrites its state and metadata, not accumulates", () => {
+    const storage = memoryStorage();
+    saveManualSlot(0, createWardenCampaignState(1), storage);
+    saveManualSlot(0, createWardenCampaignState(2), storage);
+
+    expect(loadManualSlot(0, storage)!.points).toBe(2);
+    expect(listManualSlots(storage).filter((s) => s !== null).length).toBe(1);
   });
 });
 

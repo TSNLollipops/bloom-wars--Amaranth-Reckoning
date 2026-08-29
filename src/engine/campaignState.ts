@@ -119,6 +119,15 @@ export interface CampaignPilotEntry {
   // ensureHubSocialState() is the only thing that ever creates one, lazily,
   // the first time Hub.ts actually asks for a given pilot's social state.
   social?: HubPilotSocialState;
+  // Mek NPC Introduction Plan v1 §4, 29 Aug 2026 — "if their Matchset bond
+  // with their pilot produced a child, the kid leaves with them." Pure
+  // scaffolding: no "have a child" system exists anywhere in this game yet
+  // (no event, no verb, no UI touches this), so nothing can actually set
+  // this true today. It exists so scenes/Hub.ts's checkMekRetirement() has
+  // a real field to branch its departure flavor text on the moment such a
+  // system does exist, instead of that later system needing to invent a
+  // place to put the flag AND retrofit the retirement text to read it.
+  hasChildWithMek?: boolean;
 }
 
 export interface CampaignState {
@@ -206,6 +215,17 @@ export interface CampaignState {
     outcome: "win" | "loss";
     announced: boolean;
   };
+  // Main Menu / Save / Ironman UI Plan v1, §4/§6, 28 Aug 2026 — set once at
+  // CampaignSetup, read everywhere that decides whether to show Save/Load
+  // UI at all. createCampaignState below sets this true on every fresh
+  // state (Ironman is the default/base experience per the Spitball doc's
+  // own 25 Aug decision, not an opt-in extra); CampaignSetup.ts overwrites
+  // it directly from the checkbox before the first save. Optional so an old
+  // save from before this field existed still parses — loadCampaignState's
+  // backfillIronman below treats a missing field as true, since "one
+  // continuously-overwriting key, no manual saves" is the actual behavior
+  // every such save has always had, not a feature it should quietly gain.
+  ironman?: boolean;
 }
 
 /** One in-flight mission attempt's real-world start time. `startedAt` is a `Date.now()` epoch-ms snapshot — deliberately real, wall-clock time, not a game-turn count (house rule #5 already covers in-mission turn pressure; this is a different axis entirely, "how long has Command been waiting on you," not "how many turns did the fight take"). */
@@ -222,7 +242,7 @@ export interface ActiveMissionAttempt {
  * below is the real entry point for the one campaign this repo currently ships.
  */
 export function createCampaignState(pilots: PilotRecord[], meks: Record<string, MekArchetype>, startingPoints = 0): CampaignState {
-  const state: CampaignState = { points: startingPoints, pilots: {}, meks: {}, nextGeneratedId: 1, rourkeRank: "2nd_lt" };
+  const state: CampaignState = { points: startingPoints, pilots: {}, meks: {}, nextGeneratedId: 1, rourkeRank: "2nd_lt", ironman: true };
   for (const p of pilots) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(meks)) state.meks[id] = { ...m };
   return state;
@@ -257,11 +277,21 @@ function resolveStorage(storage?: CampaignStorage): CampaignStorage | null {
   return null;
 }
 
-/** Basic save. A no-op (not an error) when no storage is available, e.g. the headless sim harness. */
-export function saveCampaignState(state: CampaignState, storage?: CampaignStorage): void {
+/**
+ * Basic save. A no-op (not an error) when no storage is available, e.g. the
+ * headless sim harness. `key` defaults to the one live/continuing-state key
+ * (STORAGE_KEY) — Main Menu / Save / Ironman UI Plan v1 §6's manual save
+ * slots pass their own `bloomwars_manual_save_<n>_v1` key here instead, so
+ * "Save As..." is a straight call to this same function with a different
+ * key, not a second save mechanism. The three existing autosave call sites
+ * (TransporterPad's BEAM DOWN, Debrief, the Hangar shop) are unaffected —
+ * none of them pass a key, so they keep writing the live key exactly as
+ * before this param existed.
+ */
+export function saveCampaignState(state: CampaignState, storage?: CampaignStorage, key: string = STORAGE_KEY): void {
   const s = resolveStorage(storage);
   if (!s) return;
-  s.setItem(STORAGE_KEY, JSON.stringify(state));
+  s.setItem(key, JSON.stringify(state));
 }
 
 /**
@@ -270,26 +300,115 @@ export function saveCampaignState(state: CampaignState, storage?: CampaignStorag
  * save," not crash the game). 27 Aug 2026: also runs backfillRourkeRank
  * (section 8a below) on the way out — a pure in-memory correction, not an
  * extra write to storage — so every scene's normal load path self-heals a
- * save whose rourkeRank never got updated by an older build.
+ * save whose rourkeRank never got updated by an older build. 28 Aug 2026:
+ * same treatment for `ironman` (backfillIronman, immediately below) — a
+ * save from before that field existed self-heals to `ironman: true` the
+ * moment it's next loaded, matching the actual behavior it's always had.
+ * `key` — see saveCampaignState's own comment; LoadGame.ts reads a manual
+ * slot by passing that slot's key here instead of the default live one.
  */
-export function loadCampaignState(storage?: CampaignStorage): CampaignState | null {
+export function loadCampaignState(storage?: CampaignStorage, key: string = STORAGE_KEY): CampaignState | null {
   const s = resolveStorage(storage);
   if (!s) return null;
-  const raw = s.getItem(STORAGE_KEY);
+  const raw = s.getItem(key);
   if (!raw) return null;
   try {
     const state = JSON.parse(raw) as CampaignState;
     backfillRourkeRank(state);
+    backfillIronman(state);
     return state;
   } catch {
     return null;
   }
 }
 
-export function clearCampaignState(storage?: CampaignStorage): void {
+/** See saveCampaignState's own comment on `key`. */
+export function clearCampaignState(storage?: CampaignStorage, key: string = STORAGE_KEY): void {
   const s = resolveStorage(storage);
   if (!s) return;
-  s.removeItem(STORAGE_KEY);
+  s.removeItem(key);
+}
+
+/**
+ * Manual save-slot keys (Main Menu / Save / Ironman UI Plan v1 §6) —
+ * `bloomwars_manual_save_<n>_v1`, n from 0 to MANUAL_SAVE_SLOT_COUNT - 1.
+ * 3 slots to start, per that doc's own "3-5 is a reasonable start, easy to
+ * raise later" — raising this constant is the entire cost of adding a slot,
+ * nothing about the key-override plumbing above needs to change with it.
+ */
+export const MANUAL_SAVE_SLOT_COUNT = 3;
+export function manualSaveSlotKey(slot: number): string {
+  return `bloomwars_manual_save_${slot}_v1`;
+}
+
+/**
+ * A slot's own display metadata — captured at "Save As..." time, kept
+ * separately from the slot's actual CampaignState JSON (under its own key,
+ * `bloomwars_manual_save_meta_v1`) rather than wrapping the state itself.
+ * Keeping the slot's stored JSON a bare CampaignState (identical in shape
+ * to the live key) means loadManualSlot below is just loadCampaignState
+ * with a different key — no separate parse path, no risk of this UI-only
+ * metadata ever leaking into a real CampaignState a mission/sim harness
+ * reads. LoadGame.ts (§7) is this record's only real reader.
+ */
+export interface ManualSaveSlotMeta {
+  slot: number;
+  savedAt: number; // Date.now() epoch-ms, when "Save As..." was pressed
+  rosterSize: number; // active (non-permanently_lost) pilot count at save time
+  rourkeRank: Rank;
+}
+
+const MANUAL_SAVE_META_KEY = "bloomwars_manual_save_meta_v1";
+
+function loadManualSaveMeta(storage?: CampaignStorage): Record<number, ManualSaveSlotMeta> {
+  const s = resolveStorage(storage);
+  if (!s) return {};
+  const raw = s.getItem(MANUAL_SAVE_META_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<number, ManualSaveSlotMeta>;
+  } catch {
+    return {};
+  }
+}
+
+function saveManualSaveMeta(meta: Record<number, ManualSaveSlotMeta>, storage?: CampaignStorage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  s.setItem(MANUAL_SAVE_META_KEY, JSON.stringify(meta));
+}
+
+/** Writes a manual save slot: the state itself (same round-trip machinery the live key uses, just keyed to this slot) plus its metadata record. This is the entire implementation of "Save As..." (§6/§7) — Hangar.ts and Debrief.ts's own buttons call this directly. */
+export function saveManualSlot(slot: number, state: CampaignState, storage?: CampaignStorage): void {
+  saveCampaignState(state, storage, manualSaveSlotKey(slot));
+  const meta = loadManualSaveMeta(storage);
+  meta[slot] = {
+    slot,
+    savedAt: Date.now(),
+    rosterSize: Object.values(state.pilots).filter((p) => p.status === "active").length,
+    rourkeRank: state.rourkeRank,
+  };
+  saveManualSaveMeta(meta, storage);
+}
+
+/** One entry per slot, 0 to MANUAL_SAVE_SLOT_COUNT - 1, null for an empty slot — LoadGame.ts's own list, in slot order. */
+export function listManualSlots(storage?: CampaignStorage): (ManualSaveSlotMeta | null)[] {
+  const meta = loadManualSaveMeta(storage);
+  const out: (ManualSaveSlotMeta | null)[] = [];
+  for (let i = 0; i < MANUAL_SAVE_SLOT_COUNT; i++) out.push(meta[i] ?? null);
+  return out;
+}
+
+/** Loading a slot per §6's own "rewind" semantics — the caller is responsible for then writing the result back onto the live key (saveCampaignState(loaded, storage)) so it becomes the new continuing save; this function only reads the slot, it doesn't touch the live key itself. */
+export function loadManualSlot(slot: number, storage?: CampaignStorage): CampaignState | null {
+  return loadCampaignState(storage, manualSaveSlotKey(slot));
+}
+
+export function clearManualSlot(slot: number, storage?: CampaignStorage): void {
+  clearCampaignState(storage, manualSaveSlotKey(slot));
+  const meta = loadManualSaveMeta(storage);
+  delete meta[slot];
+  saveManualSaveMeta(meta, storage);
 }
 
 // ---- Mission 1 tutorial hints — a tiny flag OUTSIDE CampaignState -------
@@ -319,6 +438,19 @@ export function markTutorialSeen(storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
   s.setItem(TUTORIAL_SEEN_KEY, "1");
+}
+
+/**
+ * Reverses markTutorialSeen — Options screen's "reset tutorial hints"
+ * toggle (Main Menu / Save / Ironman UI Plan v1 §7), 28 Aug 2026. Same
+ * no-op-on-no-storage contract as its two siblings above; removeItem on an
+ * already-clear key is also a safe no-op (CampaignStorage's own contract),
+ * so this never needs to check hasSeenTutorial first.
+ */
+export function resetTutorialSeen(storage?: CampaignStorage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  s.removeItem(TUTORIAL_SEEN_KEY);
 }
 
 // ---- 1 & 3. Live Munti-gated restock/permadeath check ------------------
@@ -418,6 +550,20 @@ export function applyPermadeathCheck(state: CampaignState, downedUnit: BattleUni
       // personal points are their own growth, and that growth doesn't
       // outlive them any more than their gear tier does.
       entry.personalPoints = 0;
+      // Mek NPC Introduction Plan v1 §4, 29 Aug 2026 — a Mek is never lost
+      // to combat, they retire to civilian life the instant their own
+      // matched pilot (this pilot) goes permanently_lost, exactly what just
+      // happened above. Deliberately NOT a second mutation here on
+      // state.meks[entry.pilot.mekId] — "is this Mek still active" is
+      // fully derived from this same status flip wherever it's asked
+      // (scenes/Hub.ts's buildNpcs() Mek-seeding loop only builds a
+      // walkable Mek NPC for a pilot whose live status is still "active"),
+      // so a stored second flag would just be the same fact told twice —
+      // exactly the un-merged-registry drift this project has hit before
+      // (see pilotRegistry.ts's own header). checkMekRetirement() (Hub.ts)
+      // handles the one-shot gossip announcement, gated on
+      // HubPilotSocialState.mekRetirementAnnounced above, not on anything
+      // stored here.
     }
   }
   return result;
@@ -776,6 +922,19 @@ function backfillRourkeRank(state: CampaignState): void {
   if (state.rourkeRank !== derived) state.rourkeRank = derived;
 }
 
+/**
+ * 28 Aug 2026 (Main Menu / Save / Ironman UI Plan v1 §6) — a save written
+ * before `CampaignState.ironman` existed has no field at all, and its real
+ * behavior has always been "one continuously-overwriting key, no manual
+ * saves" — exactly what `ironman: true` means. Backfilling to `true` rather
+ * than `false` keeps that save's actual behavior unchanged on load, instead
+ * of quietly granting it a feature (manual saves) it was never built with.
+ * Same pure-in-memory-correction shape as backfillRourkeRank above.
+ */
+function backfillIronman(state: CampaignState): void {
+  if (state.ironman === undefined) state.ironman = true;
+}
+
 // ---- 9. Mission real-time clock (25 Aug 2026) ---------------------------
 //
 // Maxime: "add a clock timer to how long you take to do missions. add that
@@ -963,6 +1122,16 @@ export interface HubPilotSocialState {
   // pendingStagePromotion per-NPC-field shape (the pilot this is ABOUT is
   // no longer in the Hub to self-announce it).
   muntiLossAnnounced?: boolean;
+  // Mek retirement hot topic, 29 Aug 2026 (Mek NPC Introduction Plan v1
+  // §4) — same one-shot shape as muntiLossAnnounced just above, and the
+  // same reason it lives here rather than on the Mek: a Mek has no
+  // CampaignPilotEntry of its own (a mekId is not a pilotId — see
+  // CampaignState.meks), so there's nowhere else to hang "has this
+  // already been surfaced" off of. Lives on the pilot whose death actually
+  // triggered the retirement (their own Mek's match), set the instant
+  // scenes/Hub.ts's checkMekRetirement() registers the hot topic —
+  // mirrors checkMuntiLoss()'s own save-immediately discipline exactly.
+  mekRetirementAnnounced?: boolean;
   // Real Stage-promotion timestamps, 28 Aug 2026 (Maxime, closing the
   // STAGE_MOMENT gap flagged in the Recall Item 3 delivery: "highlight
   // reel should date itself with calandar. down to the sec."). Distinct

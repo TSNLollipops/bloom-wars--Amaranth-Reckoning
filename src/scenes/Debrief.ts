@@ -33,7 +33,8 @@ import {
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
 import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatalyst";
-import { ShopPanel, makeShopButton } from "./shop/ShopPanel";
+import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
+import { addMenuOverlayButton } from "./MenuOverlay";
 
 const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
@@ -193,6 +194,9 @@ export class Debrief extends Phaser.Scene {
     }
 
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
+
+    // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1 §2).
+    addMenuOverlayButton(this, 890, 16, 100, 22, () => this.state);
     this.add
       .text(480, 40, `${this.mission.mission.displayName} — ${win ? "MISSION COMPLETE" : "MISSION FAILED"}`, {
         fontFamily: "monospace",
@@ -233,10 +237,36 @@ export class Debrief extends Phaser.Scene {
         .text(CARD_L + 16, 604, `Company Points: ${this.state.points}`, { fontFamily: "monospace", fontSize: "12px", color: "#facc15" })
         .setOrigin(0, 0.5)
     );
+    if (this.state.ironman === false) {
+      makeShopButton(this, this.footerLayer, CARD_L + 280, 604, 140, 30, "SAVE AS...", true, () => {
+        showSaveAsOverlay(this, this.state, (slot) => this.flashSavedMessage(slot));
+      });
+    }
+    // Routing fix, 28 Aug 2026 (Maxime: "dont forget to debried at
+    // arrangement of content"). Used to land straight back on MapSelect's
+    // flat list — this.state.lastMissionEcho (set earlier in this scene's
+    // own economic pass, see its header) was already being written to disk
+    // right here, but nothing ever read it back: Hub.ts's checkMissionEcho()
+    // — built the same day as lastMissionEcho itself, one-shot, exactly for
+    // this — only fires from Hub's own create(), and the old routing meant
+    // a player could go an entire session without CONTINUE or RETURN TO
+    // BASE ever actually passing through Hub. Sending RETURN TO BASE to Hub
+    // instead is what makes that existing pipeline actually fire: next NPC
+    // talked to (Arrangement of Content included — he's an ordinary
+    // hot-topic-eligible NPC like any other, see checkMissionEcho's own
+    // comment) can surface a missionWin/missionLoss reaction. Not a new
+    // interaction pattern — Debrief's own earnings/roster/Grief Catalyst
+    // logic above is untouched, this only changes where the screen sends
+    // the player once that's done.
     makeShopButton(this, this.footerLayer, CARD_R - 110, 604, 220, 34, "RETURN TO BASE", true, () => {
       saveCampaignState(this.state);
-      this.scene.start("MapSelect");
+      this.scene.start("Hub");
     });
+  }
+
+  private flashSavedMessage(slot: number): void {
+    const msg = this.add.text(480, 630, `Saved to Slot ${slot + 1}.`, { fontFamily: "monospace", fontSize: "11px", color: "#4ade80" }).setOrigin(0.5);
+    this.time.delayedCall(2200, () => msg.destroy());
   }
 
   // ---- The one-time earnings readout, before any spending happens -------

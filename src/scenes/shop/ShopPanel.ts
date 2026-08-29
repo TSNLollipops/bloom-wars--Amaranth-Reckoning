@@ -25,6 +25,18 @@
 // MISSION SELECT" and has no mission behind it) and is cheap enough
 // that duplicating ~10 lines of footer-drawing per scene is safer than
 // forcing a shared abstraction onto a difference that's mostly copy.
+//
+// Mek NPC Introduction Plan v1 §1, 29 Aug 2026 — every player-facing "Mek"
+// string this panel used to show for the machine's loadout/support-track
+// system (fabricator/armorer/runemaster/fieldwright/quartermaster, spare
+// parts, secondary specialization) is now "Loadout" instead — "Mek" is
+// reserved for the person, full stop, everywhere the player can read it
+// (see Hub.ts's new walkable Mek NPCs). Internal identifiers below
+// (MekTrack, purchaseMekSecondary, MEK_SECONDARY_COST, the "mek"/"pilot"
+// ShopEntry type tags) are untouched on purpose — the plan's own call,
+// invisible to the player either way. mek.displayName itself (e.g.
+// "Rourke's Mek") is correct as-is and needed no change — that already was
+// the person's name.
 import Phaser from "phaser";
 import type { MekTrack, Path, Tier } from "../../data/types";
 import { UNIT_ARCHETYPES } from "../../data/units";
@@ -42,7 +54,14 @@ import {
   MEK_SECONDARY_COST,
   SPARE_PART_COST,
 } from "../../engine/campaignEconomy";
-import { recruitDiscretionary, DISCRETIONARY_RECRUIT_COST, type CampaignState } from "../../engine/campaignState";
+import {
+  recruitDiscretionary,
+  DISCRETIONARY_RECRUIT_COST,
+  saveManualSlot,
+  listManualSlots,
+  MANUAL_SAVE_SLOT_COUNT,
+  type CampaignState,
+} from "../../engine/campaignState";
 import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../../data/weaponBranches";
 
 function capitalize(s: string): string {
@@ -128,6 +147,39 @@ export function makeShopButton(
 }
 
 /**
+ * "Save As..." (Main Menu / Save / Ironman UI Plan v1 §6/§7/§8) — a small
+ * slot-picker overlay, exported standalone rather than duplicated per caller
+ * so Hangar.ts and Debrief.ts's own SAVE AS buttons share one implementation,
+ * per the plan doc's own "extract before duplicating" note (§8) — the same
+ * reasoning that made this whole file a shared class instead of copy-pasted
+ * shop code in the first place. Auto-named/timestamped slots for this first
+ * pass (§10's own "proposed auto-named for a first pass, nameable is a
+ * cheap follow-on" — no numeric-entry UI convention exists anywhere in this
+ * codebase yet to build a real "name this save" text field against).
+ */
+export function showSaveAsOverlay(scene: Phaser.Scene, state: CampaignState, onSaved?: (slot: number) => void): void {
+  const layer = scene.add.container(0, 0).setDepth(20);
+  const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.75).setInteractive();
+  const panel = scene.add.rectangle(480, 320, 460, 300, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
+  const title = scene.add.text(480, 210, "SAVE AS...", { fontFamily: "monospace", fontSize: "18px", color: "#e8e2d4" }).setOrigin(0.5);
+  layer.add([backdrop, panel, title]);
+
+  const slots = listManualSlots();
+  let y = 254;
+  for (let i = 0; i < MANUAL_SAVE_SLOT_COUNT; i++) {
+    const meta = slots[i];
+    const label = meta ? `SLOT ${i + 1} — overwrite (${new Date(meta.savedAt).toLocaleDateString()})` : `SLOT ${i + 1} — empty`;
+    makeShopButton(scene, layer, 480, y, 380, 34, label, true, () => {
+      saveManualSlot(i, state);
+      layer.destroy();
+      onSaved?.(i);
+    });
+    y += 44;
+  }
+  makeShopButton(scene, layer, 480, y + 10, 200, 32, "CANCEL", true, () => layer.destroy());
+}
+
+/**
  * The buy/upgrade/recruit panel itself. Owns its own page state and two
  * Phaser containers (shop rows + prev/next nav), both created against
  * whatever scene it's handed. Call render() once after construction and
@@ -178,7 +230,7 @@ export class ShopPanel {
       return mek && fabricatorMaxSpareParts(mek, this.state.builtBays ?? []) > 0;
     });
     if (fabricatorPilotIds.length === 0) {
-      entries.push({ type: "info", label: "No mek currently carries a Fabricator track — nowhere to put spare parts yet." });
+      entries.push({ type: "info", label: "No loadout currently carries a Fabricator track — nowhere to put spare parts yet." });
     } else {
       for (const pilotId of fabricatorPilotIds) entries.push({ type: "mek", pilotId });
     }
@@ -263,7 +315,7 @@ export class ShopPanel {
     this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552));
     this.shopLayer.add(this.scene.add.text(SHOP_CARD_L + 14, top + 8, pilot.displayName, { fontFamily: "monospace", fontSize: "13px", color: "#e8e2d4" }));
     this.shopLayer.add(
-      this.scene.add.text(SHOP_CARD_L + 14, top + 26, `${path ? capitalize(path) : "Unknown"} · Tier ${pilot.tier} · ${mek?.displayName ?? "no mek"}`, {
+      this.scene.add.text(SHOP_CARD_L + 14, top + 26, `${path ? capitalize(path) : "Unknown"} · Tier ${pilot.tier} · ${mek?.displayName ?? "no loadout"}`, {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#8a97a6",
@@ -287,7 +339,11 @@ export class ShopPanel {
       this.render();
     });
 
-    // Mek Secondary
+    // Loadout secondary specialization (renamed from "Mek Secondary" 29 Aug
+    // 2026 — Mek NPC Introduction Plan v1 §1: "Mek" is reserved for the
+    // person from here on, this UI is the machine's loadout/support-track
+    // system. Internal identifiers (MekTrack, purchaseMekSecondary,
+    // MEK_SECONDARY_COST) are untouched per that plan — copy-only change.
     const secX = SHOP_CARD_L + 250;
     if (mek) {
       if (mek.secondary) {

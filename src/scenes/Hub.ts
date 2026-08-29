@@ -133,6 +133,7 @@ import { resolveAskOut, isRomanceableSpecies, ALREADY_TOGETHER_LINES, CLOSE_FRIE
 import { UNIT_ARCHETYPES } from "../data/units";
 import { pairKey, findClosestBond, findWorstRival, pointNear, pointAwayFrom, CLIQUE_THRESHOLD, RIVAL_THRESHOLD } from "../data/npcBonds";
 import { makeShopButton } from "./shop/ShopPanel";
+import { addMenuOverlayButton } from "./MenuOverlay";
 import { createPegGame, applyMove as applyPegBoardMove, legalMovesForTurn as pegLegalMoves, pickAiMove as pickPegAiMove, type PegGameState, type PegMove } from "../engine/pegBoard";
 import { createHoldemGame, applyHoldemAction, startNextHand as startNextHoldemHand, legalActionsFor as pokerLegalActions, potTotal as pokerPotTotal, pickAiAction as pickPokerAiAction, type HoldemGameState } from "../engine/holdem";
 import type { BettingAction } from "../engine/cardTable/bettingEngine";
@@ -545,7 +546,7 @@ const ROOM_TITLES: Record<RoomId, string> = {
 // Playwright screenshot showing his name label overlapping this text.
 const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   hangarDeck: "Roster & deploy management still lives in the Campaign Shop for now.",
-  workshop: "Gear, mek upgrades, carrier modules — still in the Campaign Shop.",
+  workshop: "Gear, loadout upgrades, carrier modules — still in the Campaign Shop.", // "mek" -> "loadout" 29 Aug 2026, Mek NPC Introduction Plan v1 §1 — the Meks who now live here (below) are the people; this is naming the machine's gear system they'd otherwise be confused with.
   vault: "Heirloom dedications belong here eventually. Nothing built yet.",
   berths: "Recruitment, romance, one-on-one scenes — not wired in yet.",
   cic: "Fire-support config, Energy allocation — not wired in yet.",
@@ -698,6 +699,16 @@ const SPAR_ROOM_BOUNDS = { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top
 // "standing with the CO specifically" without either duplicating the
 // literal string or reaching into buildNpcs's own local scope.
 const CO_PILOT_ID = "npc_co";
+
+// Mek NPC Introduction Plan v1 §2, 29 Aug 2026 — the Matchset bond value a
+// Mek and their own pilot start seeded at (npcBonds.ts's pairwise bond
+// store, backfilled by buildNpcs()'s Mek-seeding loop below). Well above
+// CLIQUE_THRESHOLD (20) on purpose — this is meant to read as the closest
+// bond either of them has, not merely clique-eligible. Not derived from
+// anything (there's no "how close should a 1:1 committed pairing be"
+// formula anywhere else in this file to borrow), same placeholder caveat
+// npcBonds.ts's own NPC_BOND_SEED values already carry.
+const MEK_MATCHSET_BOND = 75;
 
 interface ReservedBayDef {
   id: ReservedBayId;
@@ -1543,6 +1554,11 @@ export class Hub extends Phaser.Scene {
     this.add
       .text(818, 20, "THREAT: DISTANT", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
       .setOrigin(1, 0.5);
+
+    // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1
+    // §2) — clear of THREAT's own right edge (818) with room to the canvas
+    // edge (960) either side.
+    addMenuOverlayButton(this, 900, 20, 100, 22, () => this.campaignState);
 
     // Rourke's own rank readout, 27 Aug 2026 (later pass) — Social Sim
     // Roadmap #5's own follow-on note: now that CampaignState.rourkeRank
@@ -3860,6 +3876,154 @@ export class Hub extends Phaser.Scene {
       sleep: 100,
     });
 
+    // Meks as walkable Hub NPCs — Mek NPC Introduction Plan v1, 29 Aug
+    // 2026. First slice: the 5 Act I Meks (WARDEN_PILOTS' own matched
+    // mekId records — Rourke/Bosk/Iyari/Anand/Lask), not the full eventual
+    // roster — the plan doc's own §2 flags "up to 20 named characters" as
+    // real content volume, so this ships the smallest real slice first
+    // rather than all of it at once, same order this project already used
+    // once for NPC_SEED itself (Canon Pass §H — bench pilots came later,
+    // not at once). Second/Third Lance Meks (10 more) are deliberately
+    // deferred, not forgotten.
+    //
+    // Deliberately NOT folded into NPC_SEED (data/npcSeed.ts) — same exact
+    // reasoning the Carrier CO just above already gives for why HE isn't
+    // in there either: NPC_SEED also feeds the headless social-sim
+    // harness's mission-pairing events, which don't apply to a Mek who
+    // never deploys, and a mekId would fail every WARDEN_PILOTS/
+    // UNIT_ARCHETYPES lookup that loop runs. Built as standalone HubNpc
+    // entries instead, same as the CO, pushed into this same this.npcs
+    // array so every generic room/visibility/proximity/dialogue/roaming
+    // system already keyed off that array picks them up for free.
+    //
+    // Placed in the workshop room (Upper deck, ROOM_ZONE_BOUNDS.workshop)
+    // — Section 3 of the plan doc: the room already exists, walkable,
+    // today; what's been missing is anyone actually staffing it.
+    // Positions sit well clear of the workshop-to-grotto door (480, 130 —
+    // see DOORS above).
+    //
+    // Unlike the CO, these DO roam (nextRoamAt/nextEncounterAt/etc. all
+    // set below, not left undefined) — plan doc §2: "Otherwise they can
+    // roam," the same ambient movement code as any deployable pilot, not
+    // confined to the Workshop.
+    //
+    // No bespoke dialogue content this pass, matching the CO's own launch
+    // precedent just above (he shipped with zero bespoke lines too, only a
+    // catalyst + Stage) — the generic catalyst/Stage ambient pool already
+    // covers them. Stage hardcoded "blooded" for all five, same "not on
+    // the WARDEN_PILOTS tier-promotion track, so tier-derivation doesn't
+    // apply" reasoning as the CO's own "command" pick — "blooded" reads as
+    // established crew who've been through Act I's fighting, without
+    // claiming a leadership register that isn't theirs.
+    //
+    // romanceable: false below is a deliberate override, not
+    // isRomanceableSpecies() — a Mek's species would normally read as
+    // romanceable (they usually share their own pilot's species), but the
+    // entire premise of a Mek is a 1:1 Matchset bond already committed to
+    // their own pilot (plan doc §2/§4), so player romance doesn't make
+    // sense regardless of species. Left false rather than modeled via
+    // alreadyInRelationship: romance.ts's ALREADY_TOGETHER_LINES read as
+    // "already together WITH THE PLAYER" ("You already have me"), which
+    // would misstate who they're actually committed to — the more neutral
+    // CLOSE_FRIEND_ONLY_LINES don't make that same false claim.
+    //
+    // Catalyst picks are placeholders, same "not a locked content
+    // decision" caveat npcSeed.ts's own NPC_SEED/NPC_BOND_SEED already
+    // carry — chosen for voice variety across the five, not tied to any
+    // MekTrack specialization.
+    const mekSeeds: { mekId: string; pilotId: string; catalyst: Catalyst; x: number; y: number }[] = [
+      { mekId: "mek_rourke", pilotId: "pilot_rourke", catalyst: "raven", x: 200, y: 250 },
+      { mekId: "mek_bosk", pilotId: "pilot_bosk", catalyst: "bear", x: 330, y: 250 },
+      { mekId: "mek_iyari", pilotId: "pilot_iyari", catalyst: "fox", x: 460, y: 250 },
+      { mekId: "mek_anand", pilotId: "pilot_anand", catalyst: "dog", x: 265, y: 420 },
+      { mekId: "mek_lask", pilotId: "pilot_lask", catalyst: "rabbit", x: 395, y: 420 },
+    ];
+    for (const seed of mekSeeds) {
+      const pilotEntry = this.campaignState.pilots[seed.pilotId];
+      // A Mek is never lost to combat, only retires the instant their own
+      // matched pilot does (plan doc §4) — so "matched pilot still active" is the
+      // one and only gate on whether this Mek still has a body standing
+      // here. See engine/campaignState.ts's applyPermadeathCheck for the
+      // status flip itself and why nothing on the Mek record needs to
+      // mirror it separately.
+      if (!pilotEntry || pilotEntry.status !== "active") continue;
+
+      const mek = this.campaignState.meks[seed.mekId];
+      const displayName = mek?.displayName ?? `${pilotEntry.pilot.displayName.split("—")[0].trim()}'s Mek`;
+      const initials = pilotInitials(displayName);
+      const color = 0x6a8f6a; // muted workshop green — distinct from PATH_COLORS (not a combat archetype) and the CO's brass, own placeholder pick
+
+      // Own player-facing favorability/social-log axis, same shape as the
+      // CO's coSocial just above — see this file's header on why this
+      // doesn't actually persist across a full reload yet (npc_co has the
+      // exact same gap today; not a new limitation this pass introduces).
+      const mekSocial = ensureHubSocialState(this.campaignState, seed.mekId, { favorability: 0, stress: 10, morale: 70 });
+
+      // Matchset bond with their own pilot (plan doc §2 — "a direct, cheap
+      // use of npcBonds.ts"). Backfilled here rather than seeded through
+      // NPC_BOND_SEED: an already-in-progress campaign's npcSocial state
+      // was created before this pair existed, and ensureNpcSocialState
+      // only ever applies ITS OWN seed argument the very first time
+      // state.npcSocial doesn't exist at all (see its own comment) — a
+      // save that already has an npcSocial object would never pick up a
+      // brand-new NPC_BOND_SEED entry. Writing it directly here, guarded
+      // on "not already set," is correct either way: a fresh campaign
+      // (fires once, first Hub visit) and an in-progress one (fires once,
+      // the first Hub visit after this patch) both land on the same
+      // value, and neither overwrites a value gameplay has since moved.
+      const matchKey = pairKey(seed.mekId, seed.pilotId);
+      if (this.npcSocial.bonds[matchKey] === undefined) {
+        this.npcSocial.bonds[matchKey] = MEK_MATCHSET_BOND;
+      }
+      // Registers the pairing as NPC-NPC "together," same array
+      // engine/socialSim.ts's isCommitted() already reads — the actual
+      // reason this exists: without it, the background social-sim pass
+      // has no way to know these two are spoken for and could otherwise
+      // try to pair a Mek (or their own bonded pilot) with someone else.
+      if (!this.npcSocial.relationships.includes(matchKey)) {
+        this.npcSocial.relationships.push(matchKey);
+      }
+
+      const pos = { x: seed.x, y: seed.y };
+      const circle = this.add.circle(0, 0, NPC_R, color, 1).setStrokeStyle(2, 0xffffff, 0.25);
+      const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+      const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
+      const root = this.add.container(pos.x, pos.y, [circle, label, nameTag]);
+      const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
+      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
+
+      this.npcs.push({
+        pilotId: seed.mekId,
+        displayName,
+        initials,
+        color,
+        room: "workshop",
+        x: pos.x,
+        y: pos.y,
+        ambient: { catalyst: seed.catalyst, stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
+        favorability: mekSocial.favorability,
+        circle,
+        root,
+        favLabel,
+        bubbleContainer,
+        bubbleUntil: 0,
+        romanceable: false,
+        // "With the player" axis — see this block's own header comment on
+        // why the Matchset pairing itself lives in npcSocial.relationships
+        // instead, not here.
+        inRelationship: false,
+        socialLog: mekSocial.socialLog,
+        nextRoamAt: Math.random() * 4000,
+        nextEncounterAt: Math.random() * 4000,
+        nextBlowupAt: Math.random() * 4000,
+        hunger: 100,
+        thirst: 100,
+        sleep: 100,
+        nextNeedsTickAt: Math.random() * 4000,
+        nextBreakdownCheckAt: Math.random() * 4000,
+      });
+    }
+
     // Click an NPC directly (as opposed to clicking empty room space, which
     // triggers the ordinary broadcast Talk verb) to provoke them — the
     // telephone-wave prototype's entry point. npcClickConsumed stops the
@@ -3877,6 +4041,7 @@ export class Hub extends Phaser.Scene {
 
     this.checkMuntiLoss();
     this.checkMissionEcho();
+    this.checkMekRetirement();
   }
 
   // Munti-loss hot topic, 27 Aug 2026 (roadmap #13). Deliberately NOT shaped
@@ -3953,6 +4118,55 @@ export class Hub extends Phaser.Scene {
       at: Date.now(),
       mentionedBy: [],
     });
+  }
+
+  // Mek retirement hot topic, 29 Aug 2026 (Mek NPC Introduction Plan v1
+  // §4). Same one-shot, full-roster-scan shape as checkMuntiLoss() just
+  // above — a retired Mek isn't in this.npcs any more than a permanently
+  // lost pilot is (the Mek-seeding loop in buildNpcs() above already
+  // excludes them the moment their matched pilot's status flips), so there's no
+  // one left to self-announce it. Scans every pilot CampaignState actually
+  // knows about for one whose death has already retired their Mek (see
+  // engine/campaignState.ts's applyPermadeathCheck) but hasn't had that
+  // surfaced as gossip yet.
+  //
+  // Deliberately NOT gated on "was this one of the 5 Act I Meks with an
+  // actual walkable body" — every one of the 15 static pilots already has
+  // a real, named mekId (data/campaignAmaranth.ts), so the retirement
+  // itself, and the gossip about it, are both true regardless of whether
+  // that particular Mek ever had a body standing in the Workshop this
+  // campaign. Decoupling those two on purpose: extending the walkable
+  // roster later (Second/Third Lance) should never be a prerequisite for
+  // this half already being correct.
+  private checkMekRetirement() {
+    for (const pilotId of Object.keys(this.campaignState.pilots)) {
+      const entry = this.campaignState.pilots[pilotId];
+      if (entry.status !== "permanently_lost") continue;
+      const mek = this.campaignState.meks[entry.pilot.mekId];
+      // No mekId on record at all — shouldn't happen for any of the 15
+      // static pilots (all pre-assigned, see data/campaignAmaranth.ts),
+      // but a discretionary recruit generated straight into the roster
+      // (recruitDiscretionary) could plausibly lack a real mek entry;
+      // fails open to "nothing to retire, nothing to announce" rather
+      // than assuming one exists.
+      if (!mek) continue;
+      const social = ensureHubSocialState(this.campaignState, pilotId, { favorability: 0, stress: 0, morale: 0 });
+      if (social.mekRetirementAnnounced) continue;
+      social.mekRetirementAnnounced = true;
+      // Saved immediately, same reasoning as checkMuntiLoss's own save
+      // call above — ambient gossip any nearby NPC can surface, not a
+      // direct one-on-one reveal, so there's no "don't mark it seen too
+      // early" risk to weigh.
+      saveCampaignState(this.campaignState);
+      this.hotTopics.push({
+        kind: "mekRetired",
+        aboutPilotId: pilotId,
+        aboutName: entry.pilot.displayName.split("—")[0].trim(),
+        childWithMek: !!entry.hasChildWithMek,
+        at: Date.now(),
+        mentionedBy: [],
+      });
+    }
   }
 
   private buildPlayer() {

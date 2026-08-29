@@ -121,7 +121,19 @@ import type { Catalyst } from "./ambientLines";
 // pass ships the more concrete half (catalyst-flavored win/loss reactions,
 // correctly gated to fire once per mission) and leaves that refinement
 // explicitly open rather than faking it.
-export type HotTopicKind = "promoted" | "gotTogether" | "muntiLost" | "missionWin" | "missionLoss";
+// Sixth kind, 29 Aug 2026 (Mek NPC Introduction Plan v1 §4) — a Mek's
+// retirement to civilian life, triggered strictly by their own matched
+// pilot's permanent loss (engine/campaignState.ts's applyPermadeathCheck) and
+// registered by scenes/Hub.ts's checkMekRetirement(), same one-shot/
+// full-roster-scan shape as muntiLost just above. Deliberately NOT the
+// same tone as muntiLost — a Mek doesn't die, they get out, so the bank
+// below reads as bittersweet/relieved rather than grief, same register
+// shift the plan doc's own §4 draws between "a Mek is lost" and "a Mek
+// retires." {ABOUT} is the dead pilot (their Mek's name is always "{ABOUT}'s
+// Mek," never spoken on its own), {KID_CLAUSE} is the one new
+// placeholder this kind needs — see HotTopic.childWithMek and
+// renderHotTopicLine below.
+export type HotTopicKind = "promoted" | "gotTogether" | "muntiLost" | "missionWin" | "missionLoss" | "mekRetired";
 
 export interface HotTopic {
   kind: HotTopicKind;
@@ -129,10 +141,20 @@ export interface HotTopic {
   // reflected back at them through this mechanic (see
   // pickHotTopicForSpeaker below). For missionWin/missionLoss this holds a
   // non-pilot sentinel (the mission id) instead — see this file's own
-  // header for why.
+  // header for why. For mekRetired this is the dead pilot (the Mek's match),
+  // not the Mek — the Mek's own pilotId (a mekId, e.g. "mek_rourke") would
+  // also work for the exclusion check, but the dead pilot's real pilotId
+  // is what aboutName is already built from everywhere else in this file,
+  // so reusing that convention here too avoids a second shape for one kind.
   aboutPilotId: string;
   aboutName: string; // display name, already split off the "— callsign" suffix — unused for missionWin/missionLoss
   withName?: string; // gotTogether only — the other half of the pair, or "you" for a player relationship
+  // mekRetired only — CampaignPilotEntry.hasChildWithMek at the moment the
+  // topic was registered. Always false today (nothing sets that field yet
+  // — see its own comment in campaignState.ts), but the branch is real,
+  // not a stub: renderHotTopicLine below substitutes a real {KID_CLAUSE}
+  // off this the instant something does set it.
+  childWithMek?: boolean;
   at: number; // Date.now() when it happened — same wall-clock convention SocialLogEntry.at already uses
   mentionedBy: string[]; // pilotIds who have already brought this topic up once
 }
@@ -164,6 +186,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "Rough one. We're closing ranks tighter until it stops feeling like this.",
       "Lost ground today. We hold the line tighter next time — together, not scattered.",
     ],
+    mekRetired: [
+      "{ABOUT}'s Mek mustered out — gone to build something that isn't a war{KID_CLAUSE}. Good. Someone should get to.",
+      "Heard {ABOUT}'s Mek is done, out for civilian life{KID_CLAUSE}. Pack's smaller today. Doesn't make it wrong.",
+    ],
   },
   dog: {
     promoted: [
@@ -185,6 +211,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     missionLoss: [
       "Tough one. I'm not leaving anyone's memory behind, whatever the report says.",
       "Lost people today. Doesn't change who I show up for tomorrow.",
+    ],
+    mekRetired: [
+      "{ABOUT}'s Mek is gone — civilian life, for good{KID_CLAUSE}. I'm glad. I mean that.",
+      "So {ABOUT}'s Mek mustered out{KID_CLAUSE}. Wish I'd said a proper goodbye. Glad they got the chance to leave at all.",
     ],
   },
   cat: {
@@ -208,6 +238,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "Rough one. Doesn't change my plans, but it's sitting heavier than I'd like to admit.",
       "Lost ground today. I priced this job knowing days like this existed. Still costs more than expected.",
     ],
+    mekRetired: [
+      "{ABOUT}'s Mek is out, civilian life{KID_CLAUSE}. Smart exit. Wish I had one that clean.",
+      "Heard {ABOUT}'s Mek left for good{KID_CLAUSE}. Doesn't change my plans. Still — good for them, getting out.",
+    ],
   },
   crow: {
     promoted: [
@@ -229,6 +263,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     missionLoss: [
       "Rough one. Don't really feel like a bit tonight, if I'm honest.",
       "Lost people today. I don't have the distraction for this one yet.",
+    ],
+    mekRetired: [
+      "{ABOUT}'s Mek MUSTERED OUT?! Civilian life{KID_CLAUSE}! Okay, that's actually good news for once, I'll take it.",
+      "So {ABOUT}'s Mek is really gone, out for civilian life{KID_CLAUSE}. I want the whole story eventually. Not today. Eventually.",
     ],
   },
   raven: {
@@ -252,6 +290,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "Hard one. There's a lesson in it somewhere — not ready to find it yet.",
       "Lost ground today. We'll debrief it properly once it doesn't still hurt to look at.",
     ],
+    mekRetired: [
+      "{ABOUT}'s Mek retired to civilian life{KID_CLAUSE}. That's the lesson worth teaching — not every ending here has to be a loss.",
+      "Heard {ABOUT}'s Mek is out for good{KID_CLAUSE}. Earned, same as anything else earned around here.",
+    ],
   },
   bear: {
     promoted: [
@@ -273,6 +315,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     missionLoss: [
       "Rough one. Give me the room for a while.",
       "Lost people today. I'll be functional tomorrow. Not tonight.",
+    ],
+    mekRetired: [
+      "{ABOUT}'s Mek mustered out{KID_CLAUSE}. Good. Didn't say much when I heard. Still glad for them.",
+      "So {ABOUT}'s Mek is gone, civilian life{KID_CLAUSE}. One less person I have to watch the flank for. Good.",
     ],
   },
   fox: {
@@ -296,6 +342,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "Rough one. No clever angle gets us out of a day like this.",
       "Lost ground today. Even I don't have a play for this one.",
     ],
+    mekRetired: [
+      "{ABOUT}'s Mek is out — civilian life{KID_CLAUSE}. Smartest angle anyone's played all week.",
+      "Heard {ABOUT}'s Mek mustered out for good{KID_CLAUSE}. Didn't see that coming. Wouldn't mind seeing it again.",
+    ],
   },
   rabbit: {
     promoted: [
@@ -318,6 +368,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "Rough one. Come find me if you need to talk, any of you.",
       "Lost people today. Let me know if you need anything — I mean that.",
     ],
+    mekRetired: [
+      "{ABOUT}'s Mek made it out — civilian life{KID_CLAUSE}. That's the ending I want for all of us, honestly.",
+      "So {ABOUT}'s Mek is safe now, out for good{KID_CLAUSE}. I needed a story to end like that today.",
+    ],
   },
   shark: {
     promoted: [
@@ -339,6 +393,10 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     missionLoss: [
       "Rough one. Doesn't change the target, just the cost of hitting it.",
       "Lost ground today. We earn it back. That's the only move.",
+    ],
+    mekRetired: [
+      "{ABOUT}'s Mek is out for good, civilian life{KID_CLAUSE}. Can't put a number on that one. Don't want to.",
+      "Heard {ABOUT}'s Mek mustered out{KID_CLAUSE}. Good exit. Better than most of us get.",
     ],
   },
 };
@@ -367,5 +425,11 @@ export function pickHotTopicForSpeaker(topics: HotTopic[], speakerPilotId: strin
 export function renderHotTopicLine(topic: HotTopic, speakerCatalyst: Catalyst): string {
   const bank = HOT_TOPIC_LINES[speakerCatalyst][topic.kind];
   const template = bank[Math.floor(Math.random() * bank.length)];
-  return template.replace("{ABOUT}", topic.aboutName).replace("{WITH}", topic.withName ?? "");
+  // {KID_CLAUSE} is mekRetired-only — a no-op .replace() on every other
+  // kind's templates, same "one plain .replace() per placeholder" shape
+  // this function's own header already commits to, not a general engine.
+  return template
+    .replace("{ABOUT}", topic.aboutName)
+    .replace("{WITH}", topic.withName ?? "")
+    .replace("{KID_CLAUSE}", topic.childWithMek ? ", kid in tow" : "");
 }

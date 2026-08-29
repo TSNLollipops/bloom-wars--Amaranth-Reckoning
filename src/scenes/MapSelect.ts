@@ -10,7 +10,9 @@
 // switcher comes back on its own if a second campaign is ever un-archived.
 import Phaser from "phaser";
 import { CAMPAIGNS } from "../data/allCampaigns";
+import { loadCampaignState } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
+import { addMenuOverlayButton } from "./MenuOverlay";
 
 const CARD_SPACING = 92;
 const CARD_HEIGHT = 74;
@@ -54,6 +56,10 @@ export class MapSelect extends Phaser.Scene {
     makeShopButton(this, hangarLayer, 880, 20, 150, 30, "CAMPAIGN SHOP", true, () => {
       this.scene.start("Hangar");
     });
+
+    // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1
+    // §2) — top-left, clear of the CAMPAIGN SHOP button and the tab row.
+    addMenuOverlayButton(this, 80, 20, 100, 28, () => loadCampaignState());
 
     // Same accumulation bug as Battle.ts's actionSlots (fixed 23 Aug 2026,
     // see that file's comment for the full mechanism): create() re-runs

@@ -12,7 +12,17 @@
 // applyMissionTimeout); scenes/TransporterPad.ts starts the clock on BEAM
 // DOWN, scenes/Debrief.ts clears it on a real finish. The overwhelmingly
 // common case — no active attempt, or one still inside its 12-hour window
-// — falls straight through to MapSelect exactly as before this pass.
+// — falls straight through to MainMenu (MapSelect directly, before the
+// Main Menu / Save / Ironman UI Plan v1 pass of 28 Aug 2026 added a real
+// title screen in front of it).
+//
+// The recall notice below is the one case that still skips MainMenu on
+// purpose: its own "RETURN TO BASE" button starts a scene directly, since
+// a timed-out recall is a mid-campaign continuation, not a fresh boot —
+// see that method's own comment. Routing fix, 28 Aug 2026: that button now
+// starts Hub rather than MapSelect, matching MainMenu.ts's own CONTINUE —
+// "return to base" reads as the Hub now that CONTINUE actually goes there,
+// not the flat mission list.
 import Phaser from "phaser";
 import { loadCampaignState, saveCampaignState, evaluateMissionTimeout, applyMissionTimeout } from "../engine/campaignState";
 import { ALL_MISSIONS_BY_ID } from "../data/allCampaigns";
@@ -36,7 +46,7 @@ export class Boot extends Phaser.Scene {
       this.drawRecallNotice(timeout.missionId);
       return;
     }
-    this.scene.start("MapSelect");
+    this.scene.start("MainMenu");
   }
 
   /**
@@ -91,6 +101,6 @@ export class Boot extends Phaser.Scene {
     this.add.text(480, 460, "RETURN TO BASE", { fontFamily: "monospace", fontSize: "14px", color: "#ffffff" }).setOrigin(0.5);
     btn.on("pointerover", () => btn.setFillStyle(0x3a6f92, 1));
     btn.on("pointerout", () => btn.setFillStyle(0x2e5c7a, 1));
-    btn.on("pointerdown", () => this.scene.start("MapSelect"));
+    btn.on("pointerdown", () => this.scene.start("Hub"));
   }
 }
