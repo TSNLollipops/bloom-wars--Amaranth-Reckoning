@@ -117,31 +117,58 @@ export const ABILITIES: Record<string, AbilityDef> = {
     id: "abil_ambush",
     displayName: "Ambush",
     kind: "active",
-    // MEEPS. Go to ground: hold fire the way Overwatch does AND drop out
-    // of the hostile side's sight entirely until this unit's next turn.
-    // A concealed unit is invisible to engine/ai.ts's targeting exactly
-    // the way a burrowed Bloom is invisible to the player's — reflexive
-    // and pack hostiles will not path to it, will not shoot it, and will
-    // walk straight past it. When one walks into melee range, the held
-    // shot fires through the identical reaction-fire trigger Overwatch
-    // uses, and firing gives the position away: concealment ends the
-    // instant this unit attacks.
+    // MEEPS. STEALTH CLOAK REDESIGN, 30 Aug 2026 — Maxime, asked directly
+    // what "real stealth" for Ambush meant: "stealth cloak 3 turn, can move
+    // whilestealth. can attack while stealth. does 2x dmg after exiting
+    // stealth. its to give sweep a pvp use too and make ambush something
+    // usefull in game." Replaces the original version below the line, which
+    // reused Overwatch's reactive held-shot trigger verbatim and gave a
+    // single shot out of one turn of concealment.
     //
-    // The Meeps is the fragile 6-move diver whose problem has always been
-    // that arriving means eating the entire hostile turn. This is the
-    // answer that fits the path instead of blurring it — it does not make
-    // the Meeps tougher, it makes it unfound.
+    // Activating drops this unit out of the hostile side's sight entirely —
+    // concealed exactly the way a burrowed Bloom is invisible to the
+    // player's targeting (engine/ai.ts's isVisibleTo), so reflexive and pack
+    // hostiles will not path to it, will not shoot it, and will walk
+    // straight past it — for AMBUSH_STEALTH_DURATION of this unit's own
+    // rounds (3, data/combatTables.ts), not one. Unlike the original
+    // version, those rounds are completely normal turns: full movement,
+    // full attacks, no held-shot restriction, all while unseen.
+    //
+    // The cloak ends early the instant this unit attacks (resolveAttack,
+    // same "firing gives your position away" line every concealment in this
+    // game already lives by) — and that specific attack, the one that
+    // breaks the cloak, deals AMBUSH_DECLOAK_DAMAGE_MULTIPLIER damage (2x):
+    // the payoff for playing the whole window patiently instead of just
+    // moving around safely and never pulling the trigger. Otherwise the
+    // cloak simply runs out at the end of its third round, concealment and
+    // all, no bonus.
+    //
+    // This is also what gives abil_sensor_sweep a real reason to exist
+    // against a player-shaped threat rather than only a burrowed Bloom:
+    // engine/ai.ts's isVisibleTo now lets a sweep's revealedUntilTurn punch
+    // through concealment (ambush's own cloak included), not just burrow —
+    // painting a cloaked unit is the only way to see and threaten it before
+    // its decloak strike lands. A one-turn held shot was never worth
+    // spending a sweep charge to counter; three full rounds of a hidden,
+    // rearming Meeps is.
     //
     // Cost: the unit's ENTIRE remaining action budget, ends its turn (the
     // Attack/Overwatch rule, not the 1-action Move/Repair rule) — a unit
     // that could shoot and then vanish would get both halves of the trade.
-    // No per-mission or cooldown limit: it is a posture, and paying a
-    // whole turn every time is already the price.
+    // No per-mission or cooldown limit: it is a posture, and paying a whole
+    // turn every time is already the price. REFUSED with a hostile already
+    // adjacent, unchanged — you cannot slip away from something standing on
+    // top of you.
     //
-    // REFUSED with a hostile already adjacent. You cannot slip away from
-    // something standing on top of you, and this is the line that keeps
-    // Ambush from being a strictly-better Overwatch for every Meeps in
-    // every situation: in contact, Overwatch is the one that still works.
+    // ---- Original version (kept for history, no longer accurate) ----
+    // Go to ground: hold fire the way Overwatch does AND drop out of the
+    // hostile side's sight entirely until this unit's next turn. When one
+    // walks into melee range, the held shot fires through the identical
+    // reaction-fire trigger Overwatch uses, and firing gives the position
+    // away: concealment ends the instant this unit attacks. The Meeps is
+    // the fragile 6-move diver whose problem has always been that arriving
+    // means eating the entire hostile turn — this made it unfound for
+    // exactly one turn instead of tougher.
   },
   abil_interdict: {
     id: "abil_interdict",
@@ -246,33 +273,78 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // second idea: the same fast diver choosing to become the loudest
     // thing on the field instead of the quietest one.
     //
-    // Effect: until this unit's own next turn, every hostile-side
-    // targeting rule that is currently deciding between multiple visible
-    // targets picks this unit first, full stop — ahead of the mech/boss
-    // "kill the Munti" priority check (Maxime, 25 Aug 2026), ahead of a
-    // Splitfang/Choir pack's shared "lowest HP x DEF" pick, ahead of plain
-    // reflexive's nearest-target rule. It does not make this unit visible
-    // to anything that couldn't already see it — no shouting across the
-    // map, no bypassing fog of war. It only wins the choice among
-    // whichever hostiles already have eyes on it. See engine/ai.ts's
-    // `taunting`-check at the top of each of the four targeting
-    // functions.
+    // NO-CHARGE REDESIGN, 30 Aug 2026 — Maxime, directly: "make taunt like
+    // ambush... no charge, just plain use." Same shape as Ambush's own 30
+    // Aug redesign just above: a posture, not a spendable resource. See
+    // "Reversing the original ONCE-PER-MISSION reasoning" below for why the
+    // limit existed and why it's gone now. NOTE, 30 Aug 2026: the sim AI
+    // retry this predicted was tried twice — visibility-only and an
+    // HP-gated variant — and both were reverted. See design/
+    // Bloom_Wars_Build_Log_Addendum_TauntNoCharge_GuardTauntRetried_30Aug2026.md;
+    // removing the charge fixed that specific failure mode but the
+    // heuristic itself still needs a smarter trigger than either attempt
+    // used, so this is not "worth re-trying blind" any more — it's been
+    // tried.
     //
-    // Deliberately carries NO defensive bonus — no brace, no damage
-    // reduction. The trade is already asymmetric in the right direction
-    // without one: a downed Meeps just restocks next mission at no real
-    // cost, but a downed Munti (no emergency-replacement system for a
-    // combat loss mid-campaign the way the permadeath/recruit-phase
-    // system covers a permanent loss) eats a real setback. Softening the
-    // risk on the Meeps side would blunt exactly the "real emergency,
-    // real cost" gamble this was built to be.
+    // Effect, unchanged from the original version: until this unit's own
+    // next turn, every hostile-side targeting rule that is currently
+    // deciding between multiple visible targets picks this unit first,
+    // full stop — ahead of the mech/boss "kill the Munti" priority check
+    // (Maxime, 25 Aug 2026), ahead of a Splitfang/Choir pack's shared
+    // "lowest HP x DEF" pick, ahead of plain reflexive's nearest-target
+    // rule. That already means "every hostile currently in range to
+    // engage this unit," not a hand-picked few — it does not make this
+    // unit visible to anything that couldn't already see it (no shouting
+    // across the map, no bypassing fog of war), it only wins the choice
+    // among whichever hostiles already have eyes on it. See
+    // engine/ai.ts's `taunting`-check at the top of each of the four
+    // targeting functions.
+    //
+    // ROOT/LOCK, added 30 Aug 2026 — Maxime, on the PvP use of this
+    // ability: "taunt should also lock the target in place so they dont
+    // run away." Every hostile the redirect above forces onto this unit is
+    // also fully rooted: it attacks from where it stands if it can, or
+    // does nothing that turn if it can't — no closing distance, no
+    // diverting to a different target, no falling back to Munti-priority
+    // or plain instinct. A no-op against everything in the live campaign
+    // today (no hostile here ever tries to disengage), but closes the real
+    // gap a human PvP opponent could otherwise use: walking a unit away
+    // from a taunt with zero cost. See engine/ai.ts's own "ROOT/LOCK
+    // addition" header comment for the per-tier implementation.
+    //
+    // Still deliberately carries NO defensive bonus — no brace, no damage
+    // reduction. That asymmetry (a downed Meeps just restocks next
+    // mission; a downed Munti has no emergency-replacement system) is
+    // exactly what keeps a REUSABLE Taunt from being a free lunch: pulling
+    // fire every single turn if you want to is now allowed, but every one
+    // of those turns is still a real Meeps standing fully exposed with no
+    // mitigation, spending its whole action budget on it (below) instead
+    // of attacking, repairing, or repositioning.
     //
     // Cost: the unit's ENTIRE remaining action budget, ends its turn —
     // same tier as Ambush/Interdict/Overwatch, not the 1-action Screen/
-    // Sweep tier. ONCE PER MISSION per Meeps (usedTauntThisMission),
-    // mirroring abil_cockpit_evac and abil_screen: an effect that can
-    // reliably pull a whole enemy phase off the Munti is spent, not
-    // rationed.
+    // Sweep tier. NO per-mission or cooldown limit — same "it is a
+    // posture, and paying a whole turn every time is already the price"
+    // reasoning Ambush's own redesign above already gives.
+    //
+    // ---- Reversing the original ONCE-PER-MISSION reasoning ----
+    // The original version below the line gated this at
+    // usedTauntThisMission per Meeps, reasoned as "an effect that can
+    // reliably pull a whole enemy phase off Rourke is spent, not
+    // rationed." Direct instruction reverses that call: the whole-turn
+    // cost above is judged sufficient rationing on its own now, the same
+    // way Ambush pays a full turn per activation with no separate charge
+    // limit on top. Real consequence, not hidden: the Player AI test
+    // harness's own 30 Aug hardening pass (design/Bloom_Wars_Build_Log_Addendum_PlayerAI_GuardTauntTriedReverted_And_BossPriority_30Aug2026.md)
+    // built and reverted a "taunt on first sight" heuristic specifically
+    // because burning the ONE charge too early left nothing for the real
+    // crisis later — that exact failure mode is gone once there's no
+    // charge to burn, so the same heuristic is worth re-trying against
+    // this version rather than staying reverted.
+    //
+    // ---- Original version (kept for history, no longer accurate) ----
+    // ONCE PER MISSION per Meeps (usedTauntThisMission), mirroring
+    // abil_cockpit_evac and abil_screen.
   },
   abil_severance: {
     id: "abil_severance",

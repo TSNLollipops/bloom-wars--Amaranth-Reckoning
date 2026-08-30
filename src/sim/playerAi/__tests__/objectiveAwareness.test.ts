@@ -221,14 +221,22 @@ describe("decidePlayerAiAction — Screen usage (25 Aug 2026, Maxime: \"add scre
 });
 
 describe("decidePlayerAiAction — rescue_pilot bonus awareness", () => {
+  // Switched from pilot_rourke to pilot_bosk, 30 Aug 2026 — see the new
+  // "commander skips the rescue-pickup bonus" describe block below for the
+  // full story. These two cases were never actually about the commander
+  // specifically; Rourke was just a convenient roster pick back on 25 Aug,
+  // before the 28 Aug commander-protection system or the extract_unit
+  // carve-out existed. An ordinary unit (Bosk, no protection either way)
+  // is the correct fixture for "does the basic rescue_pickup/seek_rescue
+  // decision fire at all" — Rourke now has her own dedicated test below.
   it("adjacent to the uncarried NPC — picks them up", () => {
     const mission = new Mission(AMARANTH_MISSION_5);
     for (const u of mission.units) if (u.side === "hostile") u.downed = true;
     const npc = mission.units.find((u) => u.npcIncapacitated)!;
-    const rourke = mission.units.find((u) => u.pilotId === "pilot_rourke")!;
-    rourke.pos = { x: npc.pos.x - 1, y: npc.pos.y };
+    const bosk = mission.units.find((u) => u.pilotId === "pilot_bosk")!;
+    bosk.pos = { x: npc.pos.x - 1, y: npc.pos.y };
 
-    const { decision, lastLog } = decide(mission, rourke);
+    const { decision, lastLog } = decide(mission, bosk);
     expect(lastLog?.reason).toBe("rescue_pickup");
     expect(decision.action).toBe("rescue");
   });
@@ -236,10 +244,10 @@ describe("decidePlayerAiAction — rescue_pilot bonus awareness", () => {
   it("not yet adjacent — heads toward the NPC instead of chasing a fight", () => {
     const mission = new Mission(AMARANTH_MISSION_5);
     for (const u of mission.units) if (u.side === "hostile") u.downed = true;
-    const rourke = mission.units.find((u) => u.pilotId === "pilot_rourke")!;
-    rourke.pos = { x: 0, y: 0 }; // far from the NPC, not adjacent
+    const bosk = mission.units.find((u) => u.pilotId === "pilot_bosk")!;
+    bosk.pos = { x: 0, y: 0 }; // far from the NPC, not adjacent
 
-    const { decision, lastLog } = decide(mission, rourke);
+    const { decision, lastLog } = decide(mission, bosk);
     expect(lastLog?.reason).toBe("seek_rescue");
     expect(decision.path).toBeDefined();
     expect(decision.path!.length).toBeGreaterThan(1);
@@ -271,5 +279,31 @@ describe("decidePlayerAiAction — rescue_pilot bonus awareness", () => {
     const { lastLog } = decide(mission, anand);
     expect(lastLog?.reason).toBe("extract_to_exit");
     expect(lastLog?.reason).not.toBe("seek_rescue");
+  });
+
+  // 30 Aug 2026 — Mission 5 "Foraging Party" traced at a near-0% win rate
+  // (n=60: 56/60 COMMANDER_DOWN). Root cause: Rourke, on this extract_unit
+  // mission, was exactly as free to grab the rescue bonus as anyone else —
+  // the two tests above used to assert exactly that, with Rourke as their
+  // fixture, before this describe block existed to say why that specific
+  // detail was never actually load-bearing (see their own updated comment).
+  // Once carrying, combat is engine-refused (mission.ts's attack() guard)
+  // and the carry logic has no retreat/caution of its own — a defenseless
+  // solo run to the exit, and Rourke's death alone ends the mission
+  // instantly. avoidsRescuePickup (index.ts) now covers this on every
+  // mission type, including extract_unit — decoupled from frontLineProtected
+  // /isExtractMission, which stays scoped to squad PACE (retreat threshold,
+  // path caution) per Mission 11's own real regression, not to this pickup.
+  it("commander skips the rescue-pickup bonus even on an extract_unit mission — never picks up, never walks toward it", () => {
+    const mission = new Mission(AMARANTH_MISSION_5);
+    for (const u of mission.units) if (u.side === "hostile") u.downed = true;
+    const npc = mission.units.find((u) => u.npcIncapacitated)!;
+    const rourke = mission.units.find((u) => u.pilotId === "pilot_rourke")!;
+    rourke.pos = { x: npc.pos.x - 1, y: npc.pos.y }; // adjacent — the cheapest possible pickup, still skipped
+
+    const { decision, lastLog } = decide(mission, rourke);
+    expect(lastLog?.reason).not.toBe("rescue_pickup");
+    expect(lastLog?.reason).not.toBe("seek_rescue");
+    expect(decision.action).not.toBe("rescue");
   });
 });

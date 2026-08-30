@@ -32,8 +32,14 @@ export interface PlayerAiDecision {
    * field here. The rest of the plan's original verb sketch
    * (ambush/interdict/sensor_sweep/taunt) is still Phase 3+, not built yet —
    * see that doc's own staging table.
+   *
+   * `taunt` added 30 Aug 2026 (Player AI hardening pass — see combat.ts's
+   * "Guard Taunt" section): a non-protected Meeps with an unspent
+   * abil_taunt charge draws hostile fire off an exposed commander/Munti.
+   * Same "run.ts/runBatch.ts call the matching real Mission verb" contract
+   * as the three above — dispatched to Mission.taunt(unitId).
    */
-  action?: "clear_bloom" | "rescue" | "screen";
+  action?: "clear_bloom" | "rescue" | "screen" | "taunt";
 }
 
 /**
@@ -82,6 +88,7 @@ export type PlayerAiReason =
   | "repair_ally" // an ally in repair range is hurt enough to be worth healing instead of chip-damaging a target that isn't dying this turn anyway
   | "clear_bloom" // Munti-only, objective-gated: cleared bloom_mat in place instead of attacking — see index.ts's clear_bloom branch
   | "use_screen" // Munti-only, objective-gated, spotted, charge unspent: put up abil_screen instead of attacking — see index.ts's use_screen branch
+  | "guard_taunt" // a non-protected Meeps with an unspent abil_taunt charge draws hostile fire off an exposed commander/Munti — see index.ts's guard_taunt branch and combat.ts's "Guard Taunt" section
   | "focus_weak" // attacked the weakest in-range target (no kill, no repair, available)
   | "advance_into_range" // moved to close distance, attacking on arrival if possible
   | "seek_rescue" // heading toward an uncarried rescuable NPC (bonus objective) — not yet adjacent

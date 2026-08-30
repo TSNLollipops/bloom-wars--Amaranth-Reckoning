@@ -9,12 +9,12 @@
 // (pilotRegistry.ts, ALL_HOSTILE_MECHS, scenes/shop/ShopPanel.ts): one
 // place computes "how much damage would this attack do," and both the real
 // hostile AI and this engine read it.
-import type { Coord, MapDefinition } from "../../data/types";
+import type { Coord, MapDefinition, Path } from "../../data/types";
 import type { BattleUnit } from "../../engine/units";
 import { chebyshevDistance, chassisToMovementKind, reachableTiles, reconstructPath, coordKey, distanceField, tileAt } from "../../engine/grid";
-import { estimateDamage, occupiedSet, moveToward, isVisibleTo } from "../../engine/ai";
+import { estimateDamage, occupiedSet, moveToward, isVisibleTo, intelligenceOf } from "../../engine/ai";
 import { TILES } from "../../data/tiles";
-import { BLOOM_CLEAR_RADIUS } from "../../data/combatTables";
+import { BLOOM_CLEAR_RADIUS, POWER } from "../../data/combatTables";
 import { findPilot } from "../../data/pilotRegistry";
 
 /** Below this HP fraction, prefer disengaging over pressing a fight that isn't a guaranteed kill. */
@@ -66,6 +66,83 @@ export function needsFrontLineProtection(unit: BattleUnit): boolean {
   return isCommanderUnit(unit) || unit.path === "munti";
 }
 
+// ---- Guard Taunt (30 Aug 2026, Player AI hardening pass) ----
+// The 28 Aug commander-protection work above (COMMANDER_RETREAT_HP_FRACTION,
+// commanderSafePathPrefix) only ever changed HOW the protected unit moves
+// and retreats HERSELF — nothing on the squad's side actively pulled fire
+// OFF her. Root cause, confirmed against a full 40-mission/1000-run
+// re-baseline (design/Bloom_Wars_PlayerAI_Hardening_And_Alicialisation_Roadmap_v1.md
+// Tier A): commander_down, not a plain squad-wipe loss, is the dominant
+// failure mode campaign-wide (e.g. mission_amaranth_8: 25/25 runs ended in
+// commander_down; mission_amaranth_3/5/12/21/28 all sit well below their
+// neighbors on the same signal) — a passive "she retreats a little sooner"
+// rule isn't enough against a pack/emergent target that can still corner
+// and burst her down over a couple of turns even while she's playing safe.
+// abil_taunt (data/abilities.ts) is the actual shipped answer: while
+// active, EVERY hostile targeting tier picks the taunting unit first —
+// ahead of the mech "kill the Munti" priority, ahead of a pack's own
+// lowest-HP*DEF pick (engine/ai.ts's own `taunting`-check) — but the
+// engine (player_ai_engine.md's own "Known, un-fixed limitations" list)
+// never once called it. This is that call, scoped as narrowly as Screen's
+// own first heuristic: only a non-protected Meeps with an action left,
+// only when a protected ally is actually exposed right now.
+//
+// NO-CHARGE REDESIGN, 30 Aug 2026 (Maxime: "make taunt like ambush... no
+// charge, just plain use") — the real abil_taunt (data/abilities.ts,
+// engine/mission.ts's canTaunt/taunt) is now a reusable posture, same
+// shape as Ambush: no per-mission gate, only the full-turn cost. That
+// removes the exact failure mode this heuristic hit the first time it was
+// tried (see index.ts's guard_taunt branch below): a visibility-only
+// trigger burning the mission's ONE charge too early. There's no charge
+// to burn anymore, so the same trigger is worth retrying — see index.ts
+// for the retested numbers.
+/** True when `unit` is a legal, sensible candidate to Taunt protecting a front-line ally: has the ability, has an action left, and isn't itself the ally that needs protecting — a taunting commander or Munti would be pulling every hostile eye onto exactly the unit this exists to keep safe. */
+export function canGuardTaunt(unit: BattleUnit): boolean {
+  return (
+    unit.side === "player" &&
+    !unit.downed &&
+    unit.actionsRemaining > 0 &&
+    unit.abilities.includes("abil_taunt") &&
+    !needsFrontLineProtection(unit)
+  );
+}
+
+/**
+ * HP-gate on top of visibility (30 Aug 2026, second Guard Taunt attempt —
+ * see this file's own "Guard Taunt" header above). The first version of
+ * this function was visibility-only ("worth the most BEFORE a hit
+ * lands"), reasoned the same way — but retested against the now-reusable
+ * Taunt, that turned out to be a different failure mode than the
+ * charge-scarcity one: taunting on FIRST sight, every single time an
+ * enemy is visible, means the taunting unit (no defensive bonus — see
+ * data/abilities.ts) can end up eating repeated free hits across many
+ * turns in a row against a mission with a lot of hostiles (confirmed
+ * against mission_amaranth_21, the one live emergent-tier boss mission,
+ * which spawns reinforcements over time — see the build log addendum for
+ * the actual numbers). Gating on the protected ally ALREADY being hurt,
+ * not merely seen, cuts how often this fires at all — reserved for a real
+ * emerging crisis, not spent on every routine sighting.
+ */
+export const GUARD_TAUNT_ALLY_HP_THRESHOLD = 0.6;
+
+/**
+ * Finds a living, front-line-protected ally (commander or Munti —
+ * needsFrontLineProtection) currently visible to at least one living
+ * enemy AND already below GUARD_TAUNT_ALLY_HP_THRESHOLD — the moment
+ * Taunt is worth its whole-turn cost. Returns the single most-exposed such
+ * ally (most enemies currently seeing her) so that with more than one
+ * candidate on the field, Taunt goes to whichever situation is actually
+ * worse.
+ */
+export function frontLineAllyToProtect(allUnits: BattleUnit[], enemies: BattleUnit[], turn: number): BattleUnit | undefined {
+  const exposed = allUnits
+    .filter((u) => !u.downed && needsFrontLineProtection(u) && u.maxHp > 0 && u.currentHp / u.maxHp < GUARD_TAUNT_ALLY_HP_THRESHOLD)
+    .map((u) => ({ u, seenBy: enemies.filter((e) => isVisibleTo(e, u, turn)).length }))
+    .filter((x) => x.seenBy > 0);
+  if (!exposed.length) return undefined;
+  return exposed.reduce((best, x) => (x.seenBy > best.seenBy ? x : best)).u;
+}
+
 export function lastStep(path: Coord[]): Coord {
   return path[path.length - 1];
 }
@@ -87,8 +164,120 @@ export function isLethalHit(target: BattleUnit, dmg: number): boolean {
   return dmg >= target.currentHp;
 }
 
-export function weakestTarget(targets: BattleUnit[]): BattleUnit {
-  return targets.reduce((best, t) => (t.currentHp * t.effectiveDefense < best.currentHp * best.effectiveDefense ? t : best));
+// ---- Class-triangle-aware target priority (30 Aug 2026, Consolidated
+// Build Plan Tier 0 — "the bot has no class-triangle awareness when
+// targeting... give the bot real class-triangle-aware target selection
+// (Tank beats Meeps, Meeps beats Reeps, Reeps beats Tank) at minimum") ----
+//
+// Root cause, confirmed against this file rather than guessed: weakestTarget
+// (below) ranked purely on currentHp * effectiveDefense, an intrinsic
+// property of the TARGET alone — zero notion of who's actually fighting it.
+// The real per-attack damage math (engine/combat.ts's resolveMechAttack)
+// already runs every hit through data/combatTables.ts's POWER[attacker.path]
+// [defender.path] matrix, which IS the class triangle (Tank beats Meeps 65,
+// Meeps beats Reeps 75, Reeps beats Tank 70 — the exact matchups this plan
+// item names), but nothing in target SELECTION ever read that matrix. A
+// squad would converge on whichever enemy looked toughest by raw stats even
+// when every unit in range did far more damage to a different target sitting
+// right next to it.
+//
+// livingSameSideMechs / squadAveragePowerAgainst below fix that by reusing
+// POWER directly (Reuse over rebuild — no new balance number, no fresh
+// sign-off needed) rather than inventing a parallel effectiveness table.
+/** Every living, mech-shaped (has a Path) unit on `unit`'s own side, `unit` itself included — the "squad" squadAveragePowerAgainst averages over. Exported so index.ts's direct weakestTarget(enemies) call sites (advance_into_range, seek_fight) can pass the same squad-shared allies list focusFireTargetInRange already does below, rather than only the in-range-attack path getting the triangle fix. */
+export function livingSameSideMechs(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
+  return allUnits.filter((u) => !u.downed && u.side === unit.side && u.path);
+}
+
+/**
+ * How hard `allies` collectively hit a target of `defenderPath`, averaged
+ * across every non-Munti fighter (Munti's own POWER row is flat and low —
+ * 20-35 against everything — support class, not part of the triangle;
+ * including it would mute the real signal for every squad that still has
+ * its medic alive). Falls back to 1 (neutral — every target then scores
+ * identically to the old unweighted formula) when nothing but Munti is
+ * left standing, so a medic-only remnant doesn't divide by a meaningless
+ * number.
+ */
+function squadAveragePowerAgainst(defenderPath: Path, allies: BattleUnit[]): number {
+  const fighters = allies.filter((a): a is BattleUnit & { path: Path } => Boolean(a.path) && a.path !== "munti");
+  if (!fighters.length) return 1;
+  return fighters.reduce((sum, a) => sum + POWER[a.path][defenderPath], 0) / fighters.length;
+}
+
+// ---- Boss/priority-target awareness (30 Aug 2026, Player AI hardening
+// pass) ---- player_ai_engine.md's own "Known, un-fixed limitations" list:
+// "focus_weak has no notion of 'this is the boss'... surfaced hard on
+// Mission 21 (Heartwood) — the bot always deprioritizes a tough,
+// low-priority-by-the-formula boss in favor of cheap reinforcement
+// kills," and explicitly "not touched by the 30 Aug class-triangle fix —
+// Bloom carry no path, so targetPriorityScore falls straight through to
+// the old unweighted formula for every Bloom target, Heartwood included."
+// A boss like Heartwood/the Wellroot (data/bloom.ts's own
+// `intelligence: "emergent"` — already the game's real, data-driven
+// boss-tier marker, reused rather than inventing a second one) spawns
+// more hostiles the longer it survives (bloom.ts's own comment on
+// Heartwood: "every 2 turns from turn 3, spawns 2..."), so the flat
+// rawToughness formula punishing it for having huge Endurance is exactly
+// backwards for a target like this — ignoring it doesn't just delay the
+// fight, it makes the fight worse. Scoped the same cautious way Tier 0
+// scoped class-triangle weighting: an opt-in flag, off by default, only
+// ever passed true at focusFireTargetInRange's in-range call site below —
+// NOT at index.ts's two distant chase-target weakestTarget(enemies) calls
+// (advance_into_range, seek_fight), for the identical reason Tier 0's own
+// addendum already gives for those two: no distance/exposure term exists
+// there yet, and Heartwood's own [1,4] attack range plus whatever's
+// screening it makes "beeline toward the boss from across the map" a real
+// risk this file isn't ready to weigh, the same class of mistake that
+// produced the 73.25%->67% regression the first time a chase-target
+// weighting change went untested at scale.
+/** Multiplies an emergent-tier boss's rawToughness score before ranking (lower score = higher priority for weakestTarget's min-reduce) — NOT tuned to a precise number, a deliberately moderate nudge (same spirit as this file's other placeholder constants) that stops a boss reading as effectively infinite-priority-last without making it always-first over a genuinely easier kill sitting right next to it. */
+export const EMERGENT_BOSS_PRIORITY_DISCOUNT = 0.5;
+
+/**
+ * weakestTarget's actual ranking score. Bloom targets (no `path` — GDD
+ * §8.2, Bloom aren't in the class triangle) and any call with no living
+ * non-Munti allies both fall straight through to the original, unweighted
+ * currentHp * effectiveDefense — POWER has no Bloom row, and there is no
+ * squad advantage to weigh when squadAveragePowerAgainst returns its
+ * neutral 1. Otherwise: raw toughness divided by (squad average power /
+ * 50, POWER's own rough neutral-matchup center) — a target the squad has a
+ * real type advantage on now ranks as effectively softer, an
+ * disadvantageous matchup ranks tougher, and an average one lands close to
+ * its old unweighted score. The /50 normalization doesn't change the
+ * ordering (every candidate in one call shares it) — it's there only so
+ * logged/debugged scores stay in a familiar ballpark, not a tuned constant.
+ * `prioritizeBosses` (default off — see this section's own header above
+ * for why it's opt-in) applies EMERGENT_BOSS_PRIORITY_DISCOUNT to an
+ * emergent-tier target's rawToughness before any of the above, so a boss
+ * doesn't get buried under its own huge Endurance the way a plain
+ * toughness formula otherwise would.
+ */
+function targetPriorityScore(t: BattleUnit, allies: BattleUnit[], prioritizeBosses = false): number {
+  let rawToughness = t.currentHp * t.effectiveDefense;
+  if (prioritizeBosses && intelligenceOf(t) === "emergent") rawToughness *= EMERGENT_BOSS_PRIORITY_DISCOUNT;
+  if (!t.path) return rawToughness;
+  const avgPower = squadAveragePowerAgainst(t.path, allies);
+  if (avgPower <= 0) return rawToughness;
+  return rawToughness / (avgPower / 50);
+}
+
+/**
+ * The squad's shared priority target. `allies` — pass livingSameSideMechs
+ * (or omit it) — is deliberately the SAME set regardless of which
+ * individual unit's turn is asking, not attacker-relative: that's what
+ * keeps this squad-shared rather than reintroducing the exact split-fire
+ * bug the 25 Aug focus-fire fix closed (see this file's own header on
+ * focusFireTargetInRange). Omitting `allies` (or calling with none living)
+ * reproduces the pre-Tier-0 unweighted behavior exactly. `prioritizeBosses`
+ * (default off) threads through to targetPriorityScore — see the
+ * "Boss/priority-target awareness" section above for why this stays
+ * opt-in and only ever true at focusFireTargetInRange's own call site.
+ */
+export function weakestTarget(targets: BattleUnit[], allies: BattleUnit[] = [], prioritizeBosses = false): BattleUnit {
+  return targets.reduce((best, t) =>
+    targetPriorityScore(t, allies, prioritizeBosses) < targetPriorityScore(best, allies, prioritizeBosses) ? t : best
+  );
 }
 
 // ---- Terrain / cover (25 Aug 2026, Maxime: "teach the ai to traverse
@@ -328,7 +517,20 @@ export function focusFireTargetInRange(map: MapDefinition, unit: BattleUnit, fro
   unit.pos = from; // estimate as if already standing at the candidate tile, same trick as findLethalTargetFrom above
   const damageable = inRange.filter((t) => estimateDamage(map, unit, t, allUnits) > 0);
   unit.pos = savedPos;
-  return damageable.length ? weakestTarget(damageable) : undefined;
+  // prioritizeBosses=true here only — see "Boss/priority-target awareness"
+  // above the targetPriorityScore/weakestTarget definitions for why this
+  // is the one call site it's safe to enable at. Honest result, not
+  // oversold: isolated at n=1000 (aggregate 71% vs. 72% baseline) and
+  // n=100 on mission_amaranth_21 specifically (26% vs. 28% baseline) —
+  // both flat, no measurable win yet. That mission's real failure mode is
+  // still overwhelmingly commander_down (72-74/100 either way), which
+  // swamps whatever this nudge contributes — kept on because it's a
+  // correct, zero-regression fix for a real documented gap
+  // (player_ai_engine.md's own "focus_weak has no notion of 'this is the
+  // boss'"), not because it's proven itself yet. Worth re-measuring once
+  // commander-exposure protection (see index.ts's reverted Guard Taunt
+  // section) actually gets solved and stops masking this signal.
+  return damageable.length ? weakestTarget(damageable, livingSameSideMechs(unit, allUnits), true) : undefined;
 }
 
 // ---- Squad cohesion (25 Aug 2026, Maxime: "wierd mission 1 is easy") ----

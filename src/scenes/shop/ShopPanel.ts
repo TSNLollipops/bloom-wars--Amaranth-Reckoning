@@ -241,6 +241,44 @@ export class ShopPanel {
     return entries;
   }
 
+  // Tier 4, 30 Aug 2026 (Consolidated Build Plan — Hangar Deck roster/
+  // stats panel, scenes/Hub.ts's own HANGAR_SHOP_POINT) — this panel's two
+  // existing callers (Debrief.ts, Hangar.ts) each dedicate their WHOLE
+  // scene to it, so neither has ever needed to hide it once built. Hub.ts
+  // is different: it's a persistent scene where this needs to be an
+  // occasional overlay, shown while the player's at the Hangar Deck
+  // terminal and hidden otherwise, alongside everything else the Hub
+  // already draws. Added as a small, additive method rather than a second
+  // panel implementation — shopLayer/navLayer stay private; this is the
+  // one new way to reach them from outside. A no-op for every existing
+  // caller, since neither calls it.
+  setVisible(visible: boolean): void {
+    this.shopLayer.setVisible(visible);
+    this.navLayer.setVisible(visible);
+  }
+
+  // Hangar Deck washed-out-panel hotfix (30 Aug 2026, Maxime's own
+  // screenshot: text barely legible, whole panel looking faded). Same
+  // reasoning as setVisible() just above — shopLayer/navLayer are created
+  // with no explicit depth (default 0), which is invisible to Debrief.ts
+  // and Hangar.ts (each dedicates its whole scene to this panel, so
+  // nothing else is competing for depth), but Hub.ts is not: its own
+  // hangarShopOverlay container (the title/border/close-button chrome
+  // built in Hub.ts's buildHangarShopOverlay) sits at depth 60 with a
+  // near-opaque (0.97 alpha) background rectangle. With shopLayer/navLayer
+  // left at depth 0, that background painted on top of them almost
+  // entirely — every actual roster row, stat, and button was rendering
+  // BEHIND a near-opaque veil, showing through only as a faint ghost. This
+  // is the actual mechanism behind the screenshot, and a separate bug from
+  // the earlier click-passthrough fix (that one was about which handler
+  // received a click; this one is about what actually painted on screen).
+  // A no-op for every existing caller, since neither calls it — same
+  // caveat as setVisible().
+  setDepth(depth: number): void {
+    this.shopLayer.setDepth(depth);
+    this.navLayer.setDepth(depth);
+  }
+
   render(): void {
     const entries = this.buildEntries();
     const budget = this.bottom - this.top;

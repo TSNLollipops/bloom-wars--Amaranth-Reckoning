@@ -147,6 +147,26 @@ export const INTERDICT_RADIUS = 1;
 // bunch up inside a Bloom swarm's best target shape to get covered at all.
 export const SCREEN_RADIUS = 1;
 
+// abil_ambush stealth cloak redesign (30 Aug 2026, Maxime: "stealth cloak 3
+// turn, can move whilestealth. can attack while stealth. does 2x dmg after
+// exiting stealth. its to give sweep a pvp use too and make ambush something
+// usefull in game"). Replaces the original one-shot "go to ground, hold a
+// shot" version of the ability — see abil_ambush's own comment in
+// data/abilities.ts for the full before/after and engine/mission.ts's
+// ambush()/resolveAttack() for where these are actually spent.
+//
+// How many of this unit's own rounds the cloak survives once activated,
+// counted the same way every other posture's "until your next turn" already
+// is (engine/units.ts's stealthTurnsRemaining, decremented in the
+// end-of-hostile-phase loop) — three full rounds of free movement and
+// attacks while hidden, not three activations.
+export const AMBUSH_STEALTH_DURATION = 3;
+// The specific attack that breaks an active ambush cloak — the first one
+// made while stealthTurnsRemaining is still > 0 — deals this multiple of its
+// normal damage. Screen's concealment is unaffected; this bonus is read off
+// stealthTurnsRemaining specifically, which only abil_ambush ever sets.
+export const AMBUSH_DECLOAK_DAMAGE_MULTIPLIER = 2;
+
 // House rule #7, NOT in the Data Pack: Mission 3's "clean the bloom patch"
 // pass (Maxime, 23 Aug 2026 — see data/types.ts's CampaignMission.objective
 // "clear_bloom" and abil_clear_bloom in data/abilities.ts). Two constants,

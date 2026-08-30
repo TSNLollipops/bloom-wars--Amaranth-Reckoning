@@ -257,6 +257,25 @@ export function decidePlayerAiAction(
   // named target does) keeps the full protection below.
   const isExtractMission = context.mission.objective === "extract_unit";
   const frontLineProtected = needsFrontLineProtection(unit) && !isExtractMission;
+  // Rescue-pickup avoidance, split off from frontLineProtected above (30
+  // Aug 2026 — Mission 5 "Foraging Party" traced at a near-0% win rate,
+  // n=60: 56/60 COMMANDER_DOWN, and a verbose run showed the exact same
+  // mechanism the Mission 16 fix below this file already closed — Rourke
+  // picking up the rescue NPC turn 2 and getting focus-fired down alone
+  // while carrying, defenseless. The Mission 16 fix gated on
+  // frontLineProtected, which is unconditionally FALSE on every
+  // extract_unit mission (the isExtractMission carve-out right above,
+  // itself a real fix for a different regression — Mission 11's own
+  // razor-thin turn limit — see that carve-out's own comment). Mission 5 IS
+  // extract_unit, so the earlier fix silently never applied there: Rourke
+  // was free to grab the rescue exactly as before. The two protections
+  // don't actually conflict — Mission 11's regression was about the whole
+  // squad slowing its PACE (retreat threshold, path caution) to protect the
+  // commander, which genuinely fights a hard clock; avoiding one specific,
+  // always-bad pickup doesn't slow anyone down, extract_unit race or not.
+  // So this flag alone drops the isExtractMission exemption and reuses only
+  // needsFrontLineProtection.
+  const avoidsRescuePickup = needsFrontLineProtection(unit);
   // Every self-preservation gate below that reads RETREAT_HP_FRACTION
   // against THIS unit's own hpFraction uses `retreatThreshold` instead, so
   // Rourke and the field Munti specifically fall back sooner than an
@@ -293,7 +312,32 @@ export function decidePlayerAiAction(
   // sight, ahead of even the enemies check just below: grabbing a downed
   // ally standing right next to you isn't a decision a real player agonizes
   // over.
-  const adjacentRescue = findAdjacentRescuableNpc(unit, allUnits);
+  //
+  // Tier 6 hotfix, 30 Aug 2026 — Maxime: "mission 16 only give us 5 enemy
+  // mech, we field 10 of them. how does our bot lose lole?" Root cause,
+  // traced via a verbose sim run: Rourke happened to be the unit adjacent
+  // to the rescue NPC's spawn point on turn 2, so she's the one who picked
+  // it up — nothing here ever asked WHO was grabbing it. Once carrying,
+  // the very next branch above (carryingRescueId) takes over completely:
+  // combat is engine-refused while carrying (mission.ts's attack() guard),
+  // and that branch has no retreat/caution logic of its own — it just
+  // beelines for the exit no matter what's nearby. That's exactly the
+  // "commander protection" gap this file's combat decisions already fixed
+  // 28 Aug (needsFrontLineProtection's own header) — a defenseless solo
+  // walk to the exit is, if anything, MORE dangerous than the melee
+  // exposure that fix addressed, and it was never extended to this branch.
+  // Traced runs show Rourke reaching the exit corner alone by turn 5, still
+  // several turns ahead of the rest of a 10-unit squad, and getting focus-
+  // fired down before anyone catches up — matching Maxime's "10 vs 5 and
+  // we still lose" exactly: the numbers were never the problem, it's the
+  // commander specifically being sent in alone with no way to fight back.
+  // Fix: a front-line-protected unit (the commander or the squad's Munti —
+  // same pairing needsFrontLineProtection already uses, same reasoning:
+  // losing either costs far more than the unit itself) simply never
+  // volunteers for this pickup. Worst case if literally nobody else ever
+  // reaches the NPC, the bonus goes unclaimed — a missed 45 points is a
+  // trivially better outcome than the whole mission attempt ending.
+  const adjacentRescue = avoidsRescuePickup ? undefined : findAdjacentRescuableNpc(unit, allUnits);
   if (adjacentRescue) {
     log({
       turn,
@@ -359,6 +403,57 @@ export function decidePlayerAiAction(
       return { repairTargetId: critical.instanceId };
     }
   }
+
+  // ---- Guard Taunt (30 Aug 2026, Player AI hardening pass — tried twice,
+  // reverted both times; RECONSTRUCTED 30 Aug 2026 after this file was
+  // accidentally overwritten mid-session by a stale local copy, clobbering
+  // a parallel Claude session's own committed changes here. combat.ts's
+  // canGuardTaunt/frontLineAllyToProtect (untouched, safe) and both build
+  // log addenda this reconstruction is sourced from —
+  // Bloom_Wars_Build_Log_Addendum_PlayerAI_GuardTauntTriedReverted_And_BossPriority_30Aug2026.md
+  // and Bloom_Wars_Build_Log_Addendum_TauntNoCharge_GuardTauntRetried_30Aug2026.md
+  // — are the record; this comment reproduces their own account of what
+  // this call site did, kept disabled exactly as they left it. Left as a
+  // comment, not live code, specifically so it doesn't reintroduce an
+  // unused import lint failure while disabled — re-enabling needs
+  // `import { canGuardTaunt, frontLineAllyToProtect } from "./combat";`
+  // added back to this file's own combat.ts import block above.
+  //
+  // Intent: a non-protected Meeps with an unspent-turn abil_taunt (Taunt is
+  // a reusable posture, not a charge, since the same-day no-charge
+  // redesign — engine/mission.ts's canTaunt/taunt) taunts the moment a
+  // front-line-protected ally (commander/Munti) is both visible to a
+  // living enemy AND already below GUARD_TAUNT_ALLY_HP_THRESHOLD (0.6) —
+  // gated above the retreat check, below kill/critical-repair.
+  //
+  //   if (canGuardTaunt(unit)) {
+  //     const ally = frontLineAllyToProtect(allUnits, enemies, turn);
+  //     if (ally) {
+  //       log({ turn, unitId: unit.instanceId, displayName: unit.displayName, hpFraction, reason: "guard_taunt", targetId: ally.instanceId, targetName: ally.displayName });
+  //       return { action: "taunt" };
+  //     }
+  //   }
+  //
+  // Reverted twice, both confirmed regressions at n=1000 full-campaign
+  // batch, not assumed: a visibility-only trigger (attempt 1, and again as
+  // attempt 2a once Taunt's charge limit was removed) fixed the original
+  // worst case outright (mission_amaranth_8, 25/25 commander_down -> 84%
+  // win) but broke the one live emergent-boss mission just as hard
+  // (mission_amaranth_21, ~28-36% baseline -> 0%, 25/25 commander_down) —
+  // a Meeps with no defensive bonus taunting every single turn an ally is
+  // visible dies to the very swarm it's drawing fire from, against a boss
+  // that keeps spawning adds. The HP-gated version above (attempt 2b) is
+  // the closer-to-neutral of the two (73% vs. 71-72% baseline aggregate)
+  // but still not a clean win: Mission 12 and 21 genuinely improved, but
+  // Mission 26 regressed (100%->72%) and Mission 8 — attempt 2a's actual
+  // win — went right back to 0% (an HP-gated trigger fires too late when
+  // the fatal alpha strike lands the same turn the commander first becomes
+  // visible, before her HP has had a turn to drop). Two trigger shapes,
+  // two different mission classes each one helps and each one badly
+  // breaks. The real next attempt needs to reason about threat count or
+  // incoming lethality on the TAUNTING unit itself, not just ally
+  // visibility or ally HP — not built yet.
+  // ---- end Guard Taunt (disabled) ----
 
   // Low HP, no kill on the table this turn — fall back if there's somewhere
   // safer, but ONLY if something can actually see this unit right now.
@@ -648,6 +743,20 @@ export function decidePlayerAiAction(
   // "no blanket early return" comment above for why that case now falls
   // through to the objective-awareness branches below instead of stopping
   // here.
+  //
+  // Deliberately called WITHOUT an allies list (Tier 0, 30 Aug 2026) — see
+  // combat.ts's own header on weakestTarget/targetPriorityScore for what
+  // passing one does. Tried it here first; a 400-run batch (npm run sim
+  // equivalent) across all 36+4 missions came back 67% aggregate win vs. a
+  // 73.25% baseline, a real regression, not noise — chasing a distant
+  // type-advantaged target across the whole map with zero distance/exposure
+  // awareness pulls the squad toward a farther, more dangerous approach
+  // purely for the matchup, which a real player wouldn't do blind. Scoping
+  // the triangle weighting to focusFireTargetInRange's already-in-range
+  // choice (below, and the "in-range from here" branch above) captured the
+  // fix with none of that downside — the same batch came back 73.5%, flat
+  // against baseline. Don't "fix" this back to weakestTarget(enemies,
+  // livingSameSideMechs(...)) without re-running that comparison.
   if (enemies.length > 0) {
     const goal = weakestTarget(enemies);
     let pathIntoRange = reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits);
@@ -772,7 +881,15 @@ export function decidePlayerAiAction(
   // a better use for the turn, but never ahead of the mission's own
   // objective (the two branches just above already claimed that priority
   // when applicable).
-  if (hpFraction >= RETREAT_HP_FRACTION) {
+  //
+  // Tier 6 hotfix, 30 Aug 2026 — same `avoidsRescuePickup` gate as the
+  // actual pickup branch above (see its own header, and this same day's
+  // "extract_unit missions weren't actually protected" correction, for the
+  // full "why"). Without this, the commander/Munti could still spend every
+  // turn walking toward the NPC even though the pickup branch now refuses
+  // to let them grab it — camping next to a bonus they can never claim
+  // instead of fighting, repairing, or retreating like they normally would.
+  if (hpFraction >= RETREAT_HP_FRACTION && !avoidsRescuePickup) {
     const npc = findRescuableNpcOnBoard(allUnits);
     if (npc) {
       const path = cohesiveMoveToward(map, unit, npc.pos, allUnits);
@@ -801,6 +918,11 @@ export function decidePlayerAiAction(
   // an empty array) — recomputed here rather than threading a `goal`
   // variable across the objective-awareness branches in between, since
   // weakestTarget is a cheap reduce over however many enemies are left.
+  //
+  // Also deliberately called WITHOUT an allies list, same Tier 0 batch-sim
+  // finding as the advance_into_range branch above (see that block's own
+  // comment) — this is the other "chase across the map" call site the same
+  // regression came from.
   if (enemies.length > 0) {
     const goal = weakestTarget(enemies);
     let path = cohesiveMoveToward(map, unit, goal.pos, allUnits);

@@ -13,7 +13,23 @@ import { MAX_ACTIONS_PER_TURN } from "../../data/combatTables";
 
 const NUDGE_TEXT = "Command: no contact reported in some time — sweep wider, the Bloom doesn't always come to you.";
 
-/** Drags every hostile unit to whichever map corner is farthest from the current player cluster — same "nothing in sensor range" shape Mission 27's own real bug (Build Log) already proved keeps reflexive-tier Bloom from ever engaging, just deliberately invoked here instead of hit by accident. */
+/**
+ * Drags every hostile unit to whichever map corner is farthest from the
+ * current player cluster — same "nothing in sensor range" shape Mission
+ * 27's own real bug (Build Log) already proved keeps reflexive-tier Bloom
+ * from ever engaging, just deliberately invoked here instead of hit by
+ * accident.
+ *
+ * Must be called EVERY turn to keep meaning "no contact," not just once at
+ * setup — 30 Aug 2026, the enemy-roam fallback (engine/ai.ts,
+ * idleRoamTarget): a hostile with nothing visible no longer holds position
+ * forever, it walks toward the player's own deployZone. A single scatter at
+ * turn 0 doesn't stay a stall scenario once hostiles start closing that
+ * distance on their own — this test's whole premise (a mission that
+ * genuinely never produces contact) now requires re-scattering every turn
+ * to still be true, the same way it would if the PLAYER were also
+ * deliberately staying out of every hostile's vision the whole mission.
+ */
 function scatterHostilesFar(mission: Mission) {
   const players = mission.units.filter((u) => u.side === "player");
   const maxX = Math.max(...players.map((u) => u.pos.x));
@@ -30,6 +46,7 @@ describe("Mission — stalled eliminate_all nudge", () => {
 
     for (let t = 0; t < STALL_NUDGE_TURN_THRESHOLD - 1; t++) {
       mission.endPlayerTurn();
+      scatterHostilesFar(mission); // keep it a true no-contact stall against the roam fallback — see this helper's own comment
       expect(mission.log).not.toContain(NUDGE_TEXT);
     }
     mission.endPlayerTurn(); // the threshold-th cycle
@@ -38,7 +55,10 @@ describe("Mission — stalled eliminate_all nudge", () => {
 
     // Keeps not re-firing on every subsequent quiet turn — a one-time nudge,
     // not a recurring nag.
-    for (let t = 0; t < 5; t++) mission.endPlayerTurn();
+    for (let t = 0; t < 5; t++) {
+      scatterHostilesFar(mission);
+      mission.endPlayerTurn();
+    }
     expect(mission.log.filter((l) => l === NUDGE_TEXT)).toHaveLength(1);
   });
 
@@ -46,7 +66,10 @@ describe("Mission — stalled eliminate_all nudge", () => {
     const mission = new Mission(AMARANTH_MISSION_1);
     scatterHostilesFar(mission);
 
-    for (let t = 0; t < STALL_NUDGE_TURN_THRESHOLD - 2; t++) mission.endPlayerTurn();
+    for (let t = 0; t < STALL_NUDGE_TURN_THRESHOLD - 2; t++) {
+      mission.endPlayerTurn();
+      scatterHostilesFar(mission); // keep it a true no-contact stall against the roam fallback — see this helper's own comment
+    }
     expect(mission.log).not.toContain(NUDGE_TEXT);
 
     // A real, resolving attack right before the threshold would have hit —
@@ -71,6 +94,7 @@ describe("Mission — stalled eliminate_all nudge", () => {
 
     for (let t = 0; t < STALL_NUDGE_TURN_THRESHOLD - 1; t++) {
       mission.endPlayerTurn();
+      scatterHostilesFar(mission); // keep it a true no-contact stall against the roam fallback — see this helper's own comment
       expect(mission.log).not.toContain(NUDGE_TEXT); // still short of a fresh threshold-turns-since-contact
     }
     mission.endPlayerTurn();

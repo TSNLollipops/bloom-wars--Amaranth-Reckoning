@@ -40,6 +40,8 @@ import {
   SENSOR_SWEEP_CHARGES_PER_MISSION,
   INTERDICT_RADIUS,
   SCREEN_RADIUS,
+  AMBUSH_STEALTH_DURATION,
+  AMBUSH_DECLOAK_DAMAGE_MULTIPLIER,
   BLOOM_CLEAR_RADIUS,
   BLOOM_REGROWTH_FIRST_TURN,
   BLOOM_REGROWTH_INTERVAL_TURNS,
@@ -383,6 +385,7 @@ export class Mission {
     this.deployRoster = deployRoster;
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
+    this.tagExtractionTarget();
     this.armBonusObjective();
     this.spawnConvoyCivilians();
     // Turn 1 goes through the exact same path every later turn does
@@ -617,6 +620,16 @@ export class Mission {
 
   unitById(id: string): BattleUnit | undefined {
     return this.units.find((u) => u.instanceId === id);
+  }
+
+  // Battle.ts's own extract_unit HUD line (30 Aug 2026, Maxime: "I couldnt
+  // find out which unit need extraction so I failed the mission") needs a
+  // live "how many of the convoy are actually banked so far" number for the
+  // Last Convoy shape, same as extractedUnitId already gets read straight
+  // off checkWinLoss's own logic for the single-target shape — this is just
+  // that same count made public instead of re-deriving it from the board.
+  get extractedCivilianCount(): number {
+    return this.extractedCivilianIds.size;
   }
 
   private movementKindFor(unit: BattleUnit): "bipedal" | "centauroid" | "flying" {
@@ -962,6 +975,19 @@ export class Mission {
     const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
     const sameSideAsDefender = this.units.filter((u) => u.side === defender.side);
 
+    // Ambush stealth cloak redesign (30 Aug 2026) — read BEFORE any damage
+    // resolves: this is the specific attack that breaks an active cloak
+    // (attacker.concealed still true, attacker.stealthTurnsRemaining still
+    // counting down), which is the decloak strike the redesign's 2x bonus
+    // is for. Gated on stealthTurnsRemaining specifically, not just
+    // `concealed`, so an abil_screen-concealed unit's attack — same
+    // `concealed` flag, no stealthTurnsRemaining — never gets it; only
+    // ambush's own cloak does. Computed once, applied in whichever of the
+    // two player-attacker branches below actually fires (the third, Bloom
+    // attacking a mech, can never have an ambush-cloaked attacker).
+    const ambushDecloakStrike =
+      !!attacker.concealed && attacker.stealthTurnsRemaining !== undefined && attacker.stealthTurnsRemaining > 0;
+
     let outcome: AttackOutcome;
     if (attacker.kind !== "bloom" && defender.kind !== "bloom") {
       const defenderDodged = rollMeepsDodge(defender, attacker);
@@ -976,13 +1002,14 @@ export class Mission {
         defenderDodged,
         attackerDodgedCounter
       );
-      applyMechDamage(defender, r.damage);
+      const dealt = ambushDecloakStrike ? r.damage * AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : r.damage;
+      applyMechDamage(defender, dealt);
       if (r.countered && r.counterDamage !== undefined) applyMechDamage(attacker, r.counterDamage);
-      this.applyGrinderClawHeal(attacker, r.damage);
+      this.applyGrinderClawHeal(attacker, dealt);
       outcome = {
         attackerId,
         defenderId,
-        damage: r.damage,
+        damage: dealt,
         countered: r.countered,
         counterDamage: r.counterDamage,
         defenderDowned: defender.downed,
@@ -992,9 +1019,10 @@ export class Mission {
       };
     } else if (attacker.kind !== "bloom" && defender.kind === "bloom") {
       const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove);
-      applyBloomDamage(defender, r.damage);
-      this.applyGrinderClawHeal(attacker, r.damage);
-      outcome = { attackerId, defenderId, damage: r.damage, countered: false, defenderDowned: defender.downed };
+      const dealt = ambushDecloakStrike ? r.damage * AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : r.damage;
+      applyBloomDamage(defender, dealt);
+      this.applyGrinderClawHeal(attacker, dealt);
+      outcome = { attackerId, defenderId, damage: dealt, countered: false, defenderDowned: defender.downed };
     } else {
       // Bloom attacking a mech-shape defender.
       const surfaced = !!attacker.burrowed; // a burrowed unit that is attacking has just surfaced this turn
@@ -1039,13 +1067,23 @@ export class Mission {
     // Firing gives your position away (ability-depth pass, 23 Aug 2026):
     // any concealment from abil_ambush or abil_screen ends the instant this
     // unit attacks, and it ends HERE rather than in attack() so a Meeps'
-    // own ambush shot — a reaction, resolved through this same body —
-    // breaks it too. That is the intended shape of the ability: you get one
-    // shot out of concealment, not a permanent invisible turret.
+    // own ambush shot resolved through this same body breaks it too. Stealth
+    // cloak redesign (30 Aug 2026): stealthTurnsRemaining is cleared in the
+    // same breath — the decloak bonus above already read it for THIS
+    // attack, so there is nothing left for it to track once concealed is
+    // gone. A screen-concealed unit never had it set, so this is a no-op
+    // for that case, same as it always was.
     attacker.concealed = false;
+    attacker.stealthTurnsRemaining = undefined;
     let msg = opts?.reaction
       ? `${attacker.displayName} fires overwatch on ${defender.displayName}`
       : `${attacker.displayName} attacks ${defender.displayName}`;
+    // Stealth cloak redesign (30 Aug 2026) — call out the decloak strike by
+    // name in the log, same spirit as the DODGED/countered tags below: this
+    // is the one attack in the game that just quietly hit twice as hard, and
+    // the log should say why rather than leave a player to infer it from an
+    // oddly large number.
+    if (ambushDecloakStrike) msg += " — DECLOAK STRIKE";
     msg += outcome.defenderDodged ? " — DODGED (Meeps)" : ` for ${outcome.damage}`;
     if (outcome.countered) {
       msg += outcome.counterDodged ? ", counter DODGED (Meeps)" : ` (countered for ${outcome.counterDamage})`;
@@ -1464,23 +1502,32 @@ export class Mission {
   }
 
   /**
-   * Go to ground: concealment plus a held shot. Sets `overwatch` as well as
-   * `concealed`, so the reaction fire runs through triggerOverwatch above
-   * with no second code path at all — an ambush shot IS an overwatch shot,
-   * fired by someone the mover never saw. Firing breaks the concealment
-   * (resolveAttack), which is the whole trade.
+   * Vanish into a real, multi-turn stealth cloak (redesign, 30 Aug 2026 —
+   * see data/abilities.ts's abil_ambush entry and combatTables.ts's
+   * AMBUSH_STEALTH_DURATION/AMBUSH_DECLOAK_DAMAGE_MULTIPLIER for the full
+   * design). Sets `concealed` the same as the original version did, but NOT
+   * `overwatch` — this is no longer a held shot waiting for
+   * triggerOverwatch to fire it, it's a posture this unit stays under for
+   * AMBUSH_STEALTH_DURATION of its own rounds (stealthTurnsRemaining, ticked
+   * down in the end-of-hostile-phase loop instead of being cleared by it).
+   * While that clock is running, this unit's own future turns are entirely
+   * normal — move(), attack(), whatever else it could always do — just
+   * unseen. Attacking ends the cloak early and doubles that one attack's
+   * damage (resolveAttack); running out the clock untouched ends it with no
+   * bonus.
    *
-   * Costs the unit's entire remaining action budget and ends its turn, the
-   * Attack/Overwatch way rather than the Move/Repair way, for exactly the
-   * reason enterOverwatch does it: shoot-then-vanish would be both halves.
+   * Activating still costs the unit's entire remaining action budget and
+   * ends its turn, unchanged from the original version and the same
+   * Attack/Overwatch cost every other posture in this file pays — the cloak
+   * itself doesn't start paying off until the unit's next turn.
    */
   ambush(unitId: string): boolean {
     if (!this.canAmbush(unitId)) return false;
     const unit = this.unitById(unitId)!;
     unit.concealed = true;
-    unit.overwatch = true;
+    unit.stealthTurnsRemaining = AMBUSH_STEALTH_DURATION;
     unit.actionsRemaining = 0;
-    this.log.push(`${unit.displayName} goes to ground — concealed, holding a shot.`);
+    this.log.push(`${unit.displayName} vanishes — cloaked for ${AMBUSH_STEALTH_DURATION} turns.`);
     return true;
   }
 
@@ -1489,15 +1536,18 @@ export class Mission {
     if (!unit || unit.downed) return false;
     if (unit.side !== "player") return false;
     if (!unit.abilities.includes("abil_taunt")) return false;
-    if (unit.usedTauntThisMission) return false;
     return unit.actionsRemaining > 0;
   }
 
   /**
    * Draw every eye. The redirect itself lives in engine/ai.ts — each of
    * the four targeting functions checks `taunting` before its own normal
-   * pick — this method only sets the posture and spends the mission's one
-   * use of it.
+   * pick — this method only sets the posture.
+   *
+   * NO-CHARGE REDESIGN, 30 Aug 2026 (Maxime: "make taunt like ambush... no
+   * charge, just plain use") — same as `ambush` just above, this is a
+   * reusable posture, not a spendable resource. No per-mission gate, no
+   * cooldown; the only rationing is the full-turn cost below.
    *
    * Costs the unit's entire remaining action budget and ends its turn,
    * same tier as Ambush/Interdict/Overwatch: this is a full commitment,
@@ -1509,7 +1559,6 @@ export class Mission {
     if (!this.canTaunt(unitId)) return false;
     const unit = this.unitById(unitId)!;
     unit.taunting = true;
-    unit.usedTauntThisMission = true;
     unit.actionsRemaining = 0;
     this.log.push(`${unit.displayName} draws every eye — taunting.`);
     return true;
@@ -2096,6 +2145,25 @@ export class Mission {
     for (const ev of fired) this.applyEventAction(ev.action);
   }
 
+  /**
+   * "Enemy ignore rescue" (30 Aug 2026 — see BattleUnit.isExtractionTarget's
+   * own comment in units.ts for the full request/design). Called once from
+   * the constructor, right after deployPlayerUnits, so it's set before a
+   * single hostile turn ever runs. Single-named-pilot extract_unit missions
+   * only (objectiveParams.extractUnitId) — Mission 31's civilianSpawns
+   * shape deliberately does NOT get this, per Maxime's own earlier "real
+   * stakes, the hostile AI targets them like anyone else" call on that
+   * mission, so this bails out early exactly where checkExtraction's own
+   * civilianSpawns branch does.
+   */
+  private tagExtractionTarget(): void {
+    if (this.mission.objective !== "extract_unit" || this.mission.civilianSpawns?.length) return;
+    const id = this.mission.objectiveParams.extractUnitId;
+    if (!id) return;
+    const unit = this.unitById(id);
+    if (unit) unit.isExtractionTarget = true;
+  }
+
   /** Extraction objective: call when the extract-unit reaches an exit tile. */
   private checkExtraction(): void {
     if (this.mission.objective !== "extract_unit") return;
@@ -2230,7 +2298,24 @@ export class Mission {
       // here: it's a deadline compared against Mission.turn, not a flag, so
       // a stale value is already inert everywhere it's read and zeroing it
       // would just be a second place the expiry rule lives.
-      unit.concealed = false;
+      //
+      // Stealth cloak redesign (30 Aug 2026) — abil_screen's concealment is
+      // still exactly one hostile phase and still falls straight into the
+      // unconditional clear below, untouched. abil_ambush's is now a
+      // multi-round cloak (stealthTurnsRemaining, engine/units.ts): while it
+      // is still counting down, `concealed` survives this loop instead of
+      // being blanket-cleared — that survival IS the redesign. A unit with
+      // no stealthTurnsRemaining set (screen-only, or no concealment at all)
+      // takes the original path with no behavior change.
+      if (unit.stealthTurnsRemaining !== undefined && unit.stealthTurnsRemaining > 0) {
+        unit.stealthTurnsRemaining -= 1;
+        if (unit.stealthTurnsRemaining <= 0) {
+          unit.concealed = false;
+          unit.stealthTurnsRemaining = undefined;
+        }
+      } else {
+        unit.concealed = false;
+      }
       unit.braced = false;
       // abil_taunt (25 Aug 2026) — same fact, same reason, same loop: the
       // redirect lasts exactly one hostile phase and expires when this
@@ -2432,7 +2517,27 @@ export class Mission {
       const playerOnHold = playerAlive.some((u) => holdKeys.has(coordKey(u.pos)));
       const hostileOnHold = hostileAlive.some((u) => holdKeys.has(coordKey(u.pos)));
       const holdUntil = this.mission.objectiveParams.holdUntilTurn ?? turnLimit;
-      if (this.turn > 2 && hostileOnHold && !playerOnHold) {
+      // Fix, 30 Aug 2026 (Maxime: "still failing mission 12 for no aparent
+      // reason. it say hold zone I stick ther eand kill only what come
+      // close. still mission failed"). Root cause, confirmed via sim log
+      // ("Loss: hostiles hold the zone." firing as early as turn 3-11 on
+      // Mission 12, which doesn't require anyone to actually hold the zone
+      // until turn 10): this branch used to fire from turn 3 on
+      // (`this.turn > 2`), completely independent of holdUntilTurn — a
+      // number every hold_zone mission's own objectiveParams (and its own
+      // build-log comments) already treats as when "hold the line" actually
+      // starts. Before that turn, this is a staging fight, not a defense —
+      // a single hostile passing through the zone chokepoint while nobody's
+      // squad has reached it yet, or has to briefly disengage from the tile
+      // to kill something bearing down on it, ended the mission instantly,
+      // with the "you needed to already be holding this 7 turns before the
+      // brief says so" nowhere communicated to the player. Gated to
+      // `this.turn >= holdUntil` instead — same turn holding first starts
+      // counting toward a win (see the win check right below) — so a hostile
+      // merely passing through before the hold window opens no longer ends
+      // the mission; once the window opens, the original "hostiles control
+      // it uncontested = you lost the line" rule is unchanged.
+      if (this.turn >= holdUntil && hostileOnHold && !playerOnHold) {
         this.outcome = "loss";
         this.log.push("Loss: hostiles hold the zone.");
         return true;

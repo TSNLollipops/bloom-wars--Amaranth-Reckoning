@@ -15,7 +15,26 @@ import { Hub } from "./scenes/Hub";
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: "app",
-  width: 960,
+  // Tier 6 hotfix, 30 Aug 2026 — Maxime: "increase the size of the chat
+  // window... double it for now." Hub.ts's own "OVERHEARD" chat sidebar was
+  // already using every pixel of free space around the game board (full
+  // room height, out to the old canvas edge) — there was nowhere left to
+  // grow it without widening the game window itself. +114 here exactly
+  // doubles that sidebar's width (see CHAT_LOG_WIDTH's own header in
+  // Hub.ts) and CHAT_LOG_VISIBLE_LINES was doubled alongside it.
+  //
+  // Widening this canvas has a real blast radius: every OTHER scene's full-
+  // screen darkening/backdrop rectangles (pause menu, mission-result
+  // overlays, the new-campaign confirm) used to be hardcoded to the old
+  // 960x640, which would have left a gap on the right showing whatever's
+  // underneath instead of dimming it. Those were all switched to read the
+  // live camera width/height instead of a hardcoded number, in Battle.ts,
+  // MenuOverlay.ts (the shared MENU button used by Hub/MapSelect/Hangar/
+  // Debrief), and MainMenu.ts — see each file's own Tier 6 hotfix comment.
+  // Everything else (room boards, panels, buttons) stays at its existing
+  // position — only full-screen coverage elements were touched, not a
+  // whole-game recenter.
+  width: 1074,
   height: 640,
   backgroundColor: "#0c0f12",
   // Main Menu / Save / Ironman UI Plan v1, 28 Aug 2026 — MainMenu,

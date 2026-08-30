@@ -152,7 +152,33 @@ import {
   type Rank,
   type ReservedBayId,
 } from "../engine/campaignState";
-import { NPC_SEED, NPC_BOND_SEED } from "../data/npcSeed";
+import { NPC_SEED, NPC_BOND_SEED, catalystForPilot } from "../data/npcSeed";
+// Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven by
+// the real roster) — buildNpcs()'s pilot lookup used to go straight
+// through WARDEN_PILOTS.find(), which only ever covers that one five-pilot
+// source list. Fine while every walkable NPC came from NPC_SEED (all three
+// entries happen to be Warden pilots), silently wrong the moment the cast
+// grows to the real roster: a Second/Third Lance or bench pilot would
+// still resolve to `pilot?.displayName ?? pilotId` and show their bare id
+// instead of a name. Tier 3 fixed that with data/pilotRegistry.ts's
+// findPilot(), which indexes every hand-authored source list
+// (WARDEN/SECOND_LANCE/THIRD_LANCE/ROSTER_DEPTH/PILOTS) — wider than
+// WARDEN_PILOTS.find() alone, but STILL a static index, and it does not
+// and cannot cover a runtime-generated recruit (engine/campaignState.ts's
+// generatePilot), which is in none of those five lists. That gap
+// resurfaced the exact same bare-id symptom findPilot() was built to fix
+// (Maxime, screenshot, 30 Aug 2026: "2cd npic is the recruit name not
+// showing well" — "pilot_recruit_3" rendered as a name tag). The real
+// fix: buildNpcs() already has `this.campaignState.pilots[pilotId].pilot`
+// on hand for every id it loops over — the LIVE, per-campaign copy,
+// always present and always complete, generated or hand-authored alike —
+// so it now reads straight off that instead of any static index, and
+// findPilot() is no longer called from this file at all.
+// Tier 4, 30 Aug 2026 (Consolidated Build Plan — Hangar Deck roster/stats
+// panel) — see HANGAR_SHOP_POINT's own header. ShopPanel is already scene-
+// agnostic (Debrief.ts, Hangar.ts) — reused directly rather than building
+// a third copy of the same roster/gear/recruit UI.
+import { ShopPanel, SHOP_CARD_W, SHOP_CARD_R } from "./shop/ShopPanel";
 // 26 Aug 2026 — the "visible interaction" piece §17.3's own roaming never
 // had: two roaming NPCs closing distance meant nothing on arrival before
 // this. Reuses today's background social-sim harness verbatim rather than
@@ -351,6 +377,41 @@ const ENCOUNTER_RADIUS = 90;
 const ENCOUNTER_COOLDOWN_MIN_MS = 12000;
 const ENCOUNTER_COOLDOWN_MAX_MS = 22000;
 
+// Tier 6 hotfix, 30 Aug 2026 — Maxime's "got stuck ... been there a while"
+// report. Root cause: this whole encounter system (see updateNpcEncounters'
+// own header a bit further down) was built and tuned for the ORIGINAL fixed
+// 3-pilot Hub cast. Tier 3 (earlier this session) switched Hub population to
+// the full active campaign roster — 15-20+ pilots by midgame. Nothing about
+// the encounter loop itself broke: cooldowns/eligibility still work exactly
+// as designed, per-pair. What breaks is the PLAYER-FACING result once the
+// roster is that much bigger: (a) the clique-approach/mingle roaming logic
+// (updateNpcRoaming, same-room branch) actively walks bonded/idle pairs
+// toward each other, so a much bigger cast produces real physical clusters,
+// not just more scattered pairs; (b) once several NPCs are clustered inside
+// ENCOUNTER_RADIUS of each other, this O(n^2) scan can find and fire several
+// DIFFERENT eligible pairs within the same few-second window, each popping
+// its own bubble — and since each individual bubble already fades on its
+// own timer (showBubble/updateBubbles — no single bubble is stuck), what the
+// player actually sees isn't one frozen thing, it's a spot where something
+// new keeps overlapping before the last thing finished fading. That reads
+// as "stuck" even though every piece of it is, individually, working
+// exactly as designed. Maxime's screenshot (dense overlapping NPC-vs-NPC
+// result lines) matches this exactly, not a hang or a click-trap — there's
+// no player/NPC collision in this scene (WASD movement only), so walking
+// away from a crowded spot has always been the immediate way out; this
+// throttle is the actual fix so a crowd can't recreate the pileup.
+//
+// Fix: cap how many bubbles can be visible AT ONCE on the deck the player
+// is actually looking at, and simply skip firing new encounters for that
+// deck once it's at the cap — cheap, and non-disruptive to the underlying
+// social sim, since a skipped pair's own nextEncounterAt was never
+// consumed, so it just tries again next tick and fires the moment a slot
+// frees up (no double-counting, no lost encounters, just staggered ones).
+// Decks the player isn't currently looking at are untouched — their
+// bubbles aren't visible anyway, so there's nothing to throttle there, and
+// their bond/stress mechanics keep running normally in the background.
+const MAX_CONCURRENT_BUBBLES_PER_DECK = 3;
+
 // Anger Blowup, 28 Aug 2026 (Groups 3-5 batch rebuild) — its own, longer,
 // RANDOMIZED cooldown range, deliberately separate from
 // ENCOUNTER_COOLDOWN_MIN/MAX_MS above. A blowup is the heavier of the two
@@ -545,7 +606,10 @@ const ROOM_TITLES: Record<RoomId, string> = {
 // (Arangement of Content), so "no CO exists yet" is stale; caught by a
 // Playwright screenshot showing his name label overlapping this text.
 const ROOM_NOTES: Partial<Record<RoomId, string>> = {
-  hangarDeck: "Roster & deploy management still lives in the Campaign Shop for now.",
+  // Tier 4, 30 Aug 2026 (Consolidated Build Plan — Hangar Deck roster/
+  // stats panel) — this used to say "still lives in the Campaign Shop for
+  // now"; it doesn't anymore, see HANGAR_SHOP_POINT/openHangarShop below.
+  hangarDeck: "Walk to the terminal and press E to manage roster, gear, and recruiting.",
   workshop: "Gear, loadout upgrades, carrier modules — still in the Campaign Shop.", // "mek" -> "loadout" 29 Aug 2026, Mek NPC Introduction Plan v1 §1 — the Meks who now live here (below) are the people; this is naming the machine's gear system they'd otherwise be confused with.
   vault: "Heirloom dedications belong here eventually. Nothing built yet.",
   berths: "Recruitment, romance, one-on-one scenes — not wired in yet.",
@@ -906,6 +970,16 @@ const PROPAGATION_HOP_DELAY_MS = 700;
 // only, same as every NPC in this pass — see the file header's own note on
 // not moving/reassigning named pilots as part of the map growth below.
 const MUSTER_POINT = { x: 480, y: ROOM_BOUNDS.bottom - 50 };
+// Tier 1, 30 Aug 2026 (Consolidated Build Plan — "muster call fails to
+// route cross-deck") — single source of truth for which room MUSTER_POINT
+// actually sits in, read by sendToMuster below and by isNearBay's own
+// currentRoomId check, which used to hardcode the same "recroom" literal
+// separately. MUSTER_POINT predates the Antfarm Grid's multiple decks
+// entirely (this comment block's own header, 26 Aug 2026, back when every
+// NPC was Rec-Room-only) — nothing about it was ever revisited when decks
+// were added 27 Aug, which is exactly the bug this constant's new use
+// fixes.
+const MUSTER_ROOM: RoomId = "recroom";
 const NPC_WALK_SPEED = 90; // px/sec — slower than the player's 190; this is "heading to muster," not urgent
 const NPC_ARRIVE_THRESHOLD = 5;
 // 26 Aug 2026 — found verifying the new live encounters (updateNpcEncounters
@@ -923,6 +997,23 @@ const NPC_ARRIVE_THRESHOLD = 5;
 // open.
 const STUCK_TIMEOUT_MS = 500;
 
+// Tier 6 hotfix, 30 Aug 2026 — the player-side counterpart to the NPC
+// stuckMs give-up above, for the same root cause reported live: Maxime,
+// "still cant move. from the cluster, I spawned on top of them when I
+// changed room." handleMovement's real per-axis NPC collision (tryMove)
+// means a player genuinely encircled by several NPCs can find every
+// direction blocked at once — pickPointNearDoor/pickClearPoint's own
+// escalating search (see its header) is the actual fix for HOW that spawn
+// happens, but this is the belt-and-suspenders catch-all for any other way
+// a crowd could box the player in (NPCs roaming into a ring around someone
+// standing still, say). PLAYER_STUCK_MIN_NEARBY_NPCS is deliberately >1 —
+// a player leaning into a single NPC or a plain wall, alone, never trips
+// this; it only fires when there's a real crowd around them, matching what
+// "stuck by a cluster" actually looks like rather than ordinary wall-sliding.
+const PLAYER_STUCK_TIMEOUT_MS = 700;
+const PLAYER_STUCK_MIN_NEARBY_NPCS = 2;
+const PLAYER_STUCK_NPC_CHECK_RADIUS = PLAYER_R + NPC_R + 40;
+
 // Build Plan §9, piece #4, 26 Aug 2026 — "transporter pad is its own room"
 // / "something player dont need to build" (Maxime). Resolves the doc's own
 // open question about whether launching a mission from the Hub replaces or
@@ -938,6 +1029,23 @@ const STUCK_TIMEOUT_MS = 500;
 // are now two different, independent uses of the same point on the map.
 // Rec-Room-only, same as everything else that's Rec-Room-specific below.
 const BAY_RADIUS = 60; // how close the player has to be to trigger the E-to-deploy prompt
+
+// Tier 4, 30 Aug 2026 (Consolidated Build Plan — Hangar Deck roster/stats
+// panel). hangarDeck has been walkable since the Antfarm Grid shipped (27
+// Aug) but purely decorative — ROOM_NOTES' own old text said as much
+// ("still lives in the Campaign Shop for now"). The actual roster/gear/
+// recruit UI already exists as ShopPanel (scenes/shop/ShopPanel.ts) and is
+// already scene-agnostic by design (Debrief.ts and Hangar.ts both drive it
+// against the same live CampaignState — see that file's own header on why
+// it was extracted in the first place) — Maxime's call, asked directly:
+// reuse it here too rather than build a second, thinner roster view, so a
+// player never has to leave the Hub to manage their squad. Point sits
+// centered in hangarDeck's own zone (ROOM_ZONE_BOUNDS.hangarDeck =
+// [550,830]x[108,330]) with real clearance on every side — hangarDeck has
+// no door of its own (DOORS only connects recroom/grotto/workshop/
+// sparRoom), so there's nothing else in this zone to collide with.
+const HANGAR_SHOP_POINT = { x: 690, y: 200 };
+const HANGAR_SHOP_RADIUS = 60; // same magnitude as BAY_RADIUS — same "a real console you walk up to" interaction shape
 
 // Antfarm Grid v0, 27 Aug 2026 — DOORS used to hold twelve entries, a door
 // between Rec Room and each of the other six rooms. Every one of those is
@@ -990,7 +1098,24 @@ type DoorDef = {
 const DOORS: DoorDef[] = [
   { id: "recroom-to-grotto", room: "recroom", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 470, label: "THE GROTTO" },
   { id: "grotto-to-recroom", room: "grotto", x: 480, y: ROOM_BOUNDS.bottom - 22, toRoom: "recroom", toX: 480, toY: 170, label: "LOWER DECK" },
-  { id: "grotto-to-workshop", room: "grotto", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "workshop", toX: 480, toY: 470, label: "UPPER DECK" },
+  // Hotfix, 30 Aug 2026 (Maxime: "at the top deck they spawn on the botton
+  // while the door at the top, thats pretty wier") — toY was 470 (the
+  // bottom of workshop's own zone, y:[108,552]), landing the player at the
+  // opposite end of the room from workshop's own return door
+  // (workshop-to-grotto, below, hosted at y: ROOM_BOUNDS.top + 22 = 130).
+  // Every other same-shape pair in this table lands you near the door
+  // you'd use to go back (see recroom-to-grotto/grotto-to-recroom just
+  // above: arriving from below lands near grotto's OWN down-stair) — this
+  // one just never followed that rule. 470 was very likely copy-pasted
+  // from recroom-to-grotto's own toY, one line up, without re-deriving it
+  // for workshop's door actually sitting at the opposite (top) edge of its
+  // zone. Fixed to the same "~100px offset from the destination's own
+  // stair marker" convention this file's own header above already
+  // documents — pickPointNearDoor (switchRoom) still jitters off this
+  // anchor and rejects overlap with whichever NPCs/Meks are actually
+  // standing in workshop at the time, so this only has to be a sane point
+  // near the right door, not a hand-cleared exact spot.
+  { id: "grotto-to-workshop", room: "grotto", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "workshop", toX: 480, toY: 230, label: "UPPER DECK" },
   { id: "workshop-to-grotto", room: "workshop", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 300, label: "THE GROTTO" },
   { id: "recroom-to-sparRoom", room: "recroom", x: 160, y: 150, toRoom: "sparRoom", toX: 480, toY: 208, label: "THE SPAR ROOM" },
   { id: "sparRoom-to-recroom", room: "sparRoom", x: 480, y: 300, toRoom: "recroom", toX: 260, toY: 150, label: "LOWER DECK" },
@@ -1040,22 +1165,127 @@ function nextHopDoor(fromRoom: RoomId, toRoom: RoomId): DoorDef | undefined {
 
 // Hub polish, 26 Aug 2026 — see DOOR_LANDING_MAX_ATTEMPTS's own header for
 // the measured collision odds this replaces a single draw with. Rejection
-// sampling against every NPC already standing in the destination room —
+// sampling against every body already standing near the point in question —
 // occupants is deliberately whoever's already there at the moment of the
 // call, not a snapshot taken earlier, so a same-frame double-arrival (two
 // NPCs completing a door hop on the identical update tick) still resolves
 // correctly: whichever one's completeDoorHop runs second in that frame's
 // loop sees the first one's real, just-placed position via this.npcs,
 // since setNpcRoom updates it synchronously.
-function pickDoorLanding(door: DoorDef, occupants: HubNpc[]): { x: number; y: number } {
-  const center = { x: door.toX, y: door.toY };
-  let point = pointNear(center, DOOR_LANDING_JITTER_DIST);
-  for (let attempt = 0; attempt < DOOR_LANDING_MAX_ATTEMPTS; attempt++) {
-    const collides = occupants.some((o) => Phaser.Math.Distance.Between(point.x, point.y, o.x, o.y) < NPC_R + NPC_R);
-    if (!collides) break;
-    point = pointNear(center, DOOR_LANDING_JITTER_DIST);
+//
+// Tier 1, 30 Aug 2026 — generalized from "pick a landing point on the far
+// side of a door" (the original 26 Aug find, still exactly what
+// pickDoorLanding below does) to "pick any point near a door," so the same
+// proven jitter-and-reject logic can also place a body on the NEAR side —
+// see pickDoorApproach below, and switchRoom's own use of this directly for
+// the player. selfRadius is whichever body is about to stand at the result
+// (NPC_R for an NPC, PLAYER_R for the player) so the collision check always
+// matches the real radiusA+radiusB math this file uses everywhere else
+// (tryMoveNpc, handleMovement) instead of assuming both sides are NPC_R.
+// Tier 6 hotfix, 30 Aug 2026 — Maxime: "still cant move. from the cluster, I
+// spawned on top of them when I changed room." pickPointNearDoor's original
+// random-jitter-and-reject scheme (DOOR_LANDING_MAX_ATTEMPTS's own header)
+// was measured and tuned against exactly ONE other nearby body — ~35.7%
+// collide odds per try, "whenever two NPCs land at the same door close
+// together" — which made 5 tries in a row all failing a sub-0.1% non-event
+// by that math. Tier 3's roster growth (3 -> 15-20+ NPCs) plus the door-
+// clustering roaming pulls means a door can now have several NPCs genuinely
+// packed near it at once, not just one — collide odds against ANY of
+// several nearby bodies climbs well past that original per-pair number, so
+// "all 5 tries collide" stopped being a near-impossible fluke. When that
+// happened, this used to just return the last (still-colliding) draw —
+// landing the player, or an NPC, directly on top of someone, exactly what
+// Maxime hit.
+//
+// pickClearPoint is the fix: same cheap random tries first (unchanged
+// behavior for the common, uncrowded case this was always fine for), but
+// escalates to a DETERMINISTIC outward ring search — fixed radii, evenly
+// spaced angles at each — before giving up, so a crowded spot can't fail
+// just because a handful of random draws happened to get unlucky. Every
+// candidate is clamped to the deck floor before its collision check (not
+// after, the way the old scheme's callers did it) so a point that reads as
+// clear can't un-clear itself the moment it gets clamped back onto a wall.
+// Only in a genuinely pathological case — occupants packed solid at every
+// angle, at every radius tried — does it fall back to the least-bad point
+// actually found, rather than a truly clear one; ordinary play, even at
+// today's much bigger roster, should never reach that branch.
+const CLEAR_POINT_RING_RADII = [
+  DOOR_LANDING_JITTER_DIST * 2,
+  DOOR_LANDING_JITTER_DIST * 3,
+  DOOR_LANDING_JITTER_DIST * 4.5,
+  DOOR_LANDING_JITTER_DIST * 7,
+];
+const CLEAR_POINT_RING_ANGLES = 10;
+
+function pickClearPoint(
+  deck: DeckId,
+  center: { x: number; y: number },
+  occupants: HubNpc[],
+  selfRadius: number,
+  jitterDist: number,
+  maxRandomAttempts: number,
+): { x: number; y: number } {
+  const evaluate = (raw: { x: number; y: number }) => {
+    const point = clampToDeckFloor(deck, raw.x, raw.y, selfRadius);
+    const blocked = occupants.some((o) => Phaser.Math.Distance.Between(point.x, point.y, o.x, o.y) < selfRadius + NPC_R);
+    return { point, blocked };
+  };
+
+  for (let attempt = 0; attempt < maxRandomAttempts; attempt++) {
+    const { point, blocked } = evaluate(pointNear(center, jitterDist));
+    if (!blocked) return point;
   }
-  return point;
+
+  let fallback = clampToDeckFloor(deck, center.x, center.y, selfRadius);
+  let fallbackClearance = -Infinity;
+  for (const ringDist of CLEAR_POINT_RING_RADII) {
+    for (let i = 0; i < CLEAR_POINT_RING_ANGLES; i++) {
+      const angle = (i / CLEAR_POINT_RING_ANGLES) * Math.PI * 2;
+      const { point, blocked } = evaluate({ x: center.x + Math.cos(angle) * ringDist, y: center.y + Math.sin(angle) * ringDist });
+      if (!blocked) return point;
+      const nearestOccupant = occupants.reduce(
+        (min, o) => Math.min(min, Phaser.Math.Distance.Between(point.x, point.y, o.x, o.y)),
+        Infinity,
+      );
+      if (nearestOccupant > fallbackClearance) {
+        fallbackClearance = nearestOccupant;
+        fallback = point;
+      }
+    }
+  }
+  return fallback; // least-bad point actually tried, never the untried original draw
+}
+
+function pickPointNearDoor(deck: DeckId, center: { x: number; y: number }, occupants: HubNpc[], selfRadius: number): { x: number; y: number } {
+  return pickClearPoint(deck, center, occupants, selfRadius, DOOR_LANDING_JITTER_DIST, DOOR_LANDING_MAX_ATTEMPTS);
+}
+
+function pickDoorLanding(door: DoorDef, occupants: HubNpc[]): { x: number; y: number } {
+  return pickPointNearDoor(ROOM_DECK[door.toRoom], { x: door.toX, y: door.toY }, occupants, NPC_R);
+}
+
+// Tier 1, 30 Aug 2026 (Consolidated Build Plan, Tier 1 item #1 — "NPC
+// door-clustering blocking the player"). The NEAR side of a door hop —
+// where an NPC walks to before disappearing to the other room — used to be
+// every walker's literal, identical (door.x, door.y) with no jitter at all,
+// the same single-fixed-point shape the ORIGINAL landing bug (this
+// function's own 26 Aug header, right above) already diagnosed and fixed
+// once on the far side. Several NPCs converging on a shared door (muster,
+// explore, a stuck-journey resume) would all beeline for that same exact
+// pixel; tryMoveNpc's own per-step collision (any two bodies within
+// selfRadius+NPC_R get blocked, full stop, no sidestep-around) then packs
+// them into a tight ring right around that single point — which is also
+// exactly the point the player's own isAtDoor() has to get within
+// DOOR_RADIUS of to interact with the door at all. A doorway a few NPCs
+// deep in that ring reads as "blocked," to both the player's movement and
+// the door's own trigger, even though nothing was ever truly deadlocked
+// the way the pre-fix landing bug was (DOOR_RADIUS's own 45px arrival
+// tolerance is generous enough that a blocked NPC still eventually gets
+// close enough to hop) — it just looks, and plays, like a jam at the door.
+// Spreading approaches out the same way landings already are removes the
+// single shared point entirely, so there's nothing left to pack around.
+function pickDoorApproach(door: DoorDef, occupants: HubNpc[]): { x: number; y: number } {
+  return pickPointNearDoor(ROOM_DECK[door.room], { x: door.x, y: door.y }, occupants, NPC_R);
 }
 
 // Mission Worry, Hub polish, 26 Aug 2026 — Spitball Ideas, locked 25-26 Aug:
@@ -1156,25 +1386,47 @@ const CHAT_BOX_Y = ROOM_BOUNDS.bottom + 44; // clear of both the interact prompt
 // Comms log panel — Hub polish, 26 Aug 2026. Maxime: "put a chat window to
 // the side so player can read what they hear if they haven't caught it yet
 // in game." Docked in the right-hand gutter — the strip between
-// ROOM_BOUNDS.right (830) and the 960px canvas edge (main.ts's game
-// config) is unused by anything else in this scene: every modal overlay
+// ROOM_BOUNDS.right (830) and the canvas edge (main.ts's game config) is
+// unused by anything else in this scene: every modal overlay
 // (peg/poker/darts/history) draws its own background exactly
 // ROOM_BOUNDS-wide, centered at x=480, never the full canvas — confirmed
 // by reading each one before picking this spot, not assumed. That also
 // means the log stays visible even while a minigame overlay is open,
 // which is correct, not incidental: bystander chatter is still something
 // you'd have heard.
+//
+// Tier 6 hotfix, 30 Aug 2026 — Maxime: "increase the size of the chat
+// window. so player can read more of them. double it for now." This panel
+// was already using every pixel of free space it had (full room height,
+// out to the old canvas edge) — there was nowhere left to grow it without
+// widening the game window itself, so main.ts's own width grew by exactly
+// this panel's old width (114px), doubling CHAT_LOG_WIDTH to 228. See
+// main.ts's own header for the other scenes that needed a matching fix so
+// nothing shows a gap on the new strip of canvas.
 const CHAT_LOG_X = ROOM_BOUNDS.right + 8;
-const CHAT_LOG_WIDTH = 960 - 8 - CHAT_LOG_X;
+const CHAT_LOG_WIDTH = 1074 - 8 - CHAT_LOG_X;
 const CHAT_LOG_CENTER_X = CHAT_LOG_X + CHAT_LOG_WIDTH / 2;
 // Memory bound only, not a display cap — see chatLog's own field comment.
 const CHAT_LOG_MAX_STORED = 40;
 // Display cap — how many of the most recent entries actually get rendered.
-// A real, hand-tuned placeholder: picked by rendering real LINE_BANK-length
-// lines into the actual panel and checking the result fit inside
-// ROOM_BOUNDS's own height without overflowing (see Build Log Addendum for
-// the specific check), not a guessed number.
-const CHAT_LOG_VISIBLE_LINES = 6;
+// Originally a real, hand-tuned placeholder picked by rendering real
+// LINE_BANK-length lines into the actual panel and checking the result fit
+// inside ROOM_BOUNDS's own height without overflowing (see Build Log
+// Addendum for the specific check).
+//
+// Tier 6 hotfix, 30 Aug 2026 — doubled alongside CHAT_LOG_WIDTH above, per
+// Maxime's own "double it for now." The doubled width roughly halves how
+// much a typical line wraps (measured directly against a sample of real
+// LINE_BANK-length lines via Playwright + canvas measureText, not
+// eyeballed: the same 6 messages that used ~34 wrapped rows at the OLD
+// 98px content width used only ~20 at the NEW 212px width), which is what
+// actually makes room for more entries, not just a bigger box. Still an
+// estimate, not a guarantee for every possible message-length combination
+// — renderChatLog's own geometry mask (see buildChatLogPanel) is the real
+// backstop: if a particular run of long lines ever would have overflowed
+// this guess, it now clips cleanly at the panel's own edge instead of
+// spilling text onto the game board.
+const CHAT_LOG_VISIBLE_LINES = 12;
 
 const PANEL_BG = 0x1a2028;
 const PANEL_BORDER = 0x3a4552;
@@ -1350,6 +1602,11 @@ export class Hub extends Phaser.Scene {
   private player!: Phaser.GameObjects.Container;
   private playerX = 480;
   private playerY = 330;
+  // Tier 6 hotfix, 30 Aug 2026 — see forceUnstickPlayer's own header. Zero-
+  // net-movement time while genuinely boxed by a crowd, tracked the same
+  // way NPC roaming already tracks stuckMs per-NPC (STUCK_TIMEOUT_MS's own
+  // header), just scene-level since there's only ever one player.
+  private playerStuckMs = 0;
   private npcs: HubNpc[] = [];
   // Hot topics, first slice, 27 Aug 2026 — in-memory only, never persisted
   // (see data/hotTopics.ts's own header for why). Registered at the real
@@ -1456,6 +1713,23 @@ export class Hub extends Phaser.Scene {
   private highlightsOpen = false;
   private highlightsOverlay!: Phaser.GameObjects.Container;
   private highlightsText!: Phaser.GameObjects.Text;
+
+  // Hangar Deck roster/stats panel — Tier 4, 30 Aug 2026. Same
+  // open/close-flag shape as historyOpen/highlightsOpen above (owns input
+  // entirely while open, escKey closes it — see the main update() switch)
+  // but the content itself is a live ShopPanel instance, not a static text
+  // block: hangarShop.render() is called fresh every time this opens so it
+  // always reflects the current CampaignState, not a snapshot from scene
+  // start. hangarShopOverlay is only the title/close-button chrome around
+  // it — ShopPanel owns and clears its own two internal containers on
+  // every render(), so it doesn't need to live inside this scene's overlay
+  // container to be shown/hidden correctly, only to be title/close-button-
+  // framed the same way the other overlays are.
+  private hangarShopOpen = false;
+  private hangarShopOverlay!: Phaser.GameObjects.Container;
+  private hangarShop!: ShopPanel;
+  private hangarShopOutline!: Phaser.GameObjects.Graphics;
+  private hangarShopLabel!: Phaser.GameObjects.Text;
 
   // Comms log — see CHAT_LOG_* constants' own header for the full design
   // reasoning. Always-visible (not a toggled overlay like the four above).
@@ -1606,6 +1880,7 @@ export class Hub extends Phaser.Scene {
     this.sparRoomFloor = this.drawDeckFloor(SPAR_ROOM_BOUNDS);
     this.drawGrottoFloor();
     this.drawMusterPoint();
+    this.drawHangarShopPoint();
     this.buildDoors();
     this.buildZoneDecor();
     this.buildReservedBays();
@@ -1646,12 +1921,57 @@ export class Hub extends Phaser.Scene {
     this.buildDartsOverlay();
     this.buildHistoryOverlay();
     this.buildHighlightsOverlay();
+    this.buildHangarShopOverlay();
 
-    this.input.on("pointerdown", () => {
+    this.input.on("pointerdown", (_pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+      // Hangar-shop hotfix (30 Aug 2026, Maxime: "still cant interact with
+      // the hangar window"). This scene-wide listener fires on EVERY
+      // pointerdown, including clicks landing on ShopPanel's own buttons —
+      // Phaser's own InputPlugin.processDownEvents fires each interactive
+      // GameObject's own pointerdown listener first, then still emits this
+      // plugin-level POINTER_DOWN afterward for the same click (see
+      // node_modules/phaser/src/input/InputPlugin.js's own numbered
+      // comments, "1) GAMEOBJECT_POINTER_DOWN" before "3) POINTER_DOWN") —
+      // nothing here was stopping that second pass. History/Highlights/
+      // Poker/Darts never hit this because they only ever open from an NPC
+      // click, which already sets npcClickConsumed and returns below before
+      // reaching the fallback dispatch. The Hangar Shop is the one overlay
+      // opened by *proximity* (isAtHangarShop()), so the player is still
+      // standing in range for every later click while it's open — each one
+      // fell through to isAtHangarShop() → true → openHangarShop() → an
+      // unconditional hangarShop.render() (see that function's own
+      // comment: "fresh render on every open, not just the first"),
+      // tearing down and rebuilding the panel's own interactive elements
+      // right after whatever button the player had just actually clicked
+      // already fired. That's the "can't interact with it" — a click on
+      // Buy/Upgrade/Recruit worked, then got its visible result immediately
+      // wiped by a same-click re-render, so nothing looked like it
+      // happened until the NEXT click, one step behind.
+      //
+      // Fixed using `currentlyOver` (the plugin's own pre-computed hit-test
+      // list, passed into this event) rather than checking hangarShopOpen —
+      // ShopPanel's own full-screen interactive backdrop (ShopPanel.ts) is
+      // in that list for any click anywhere inside the open panel,
+      // including the overlay's own [close] button, so this check is
+      // correct regardless of event order. Checking hangarShopOpen itself
+      // was tried first and rejected: closeHangarShop() (fired by the
+      // close button's own listener, which — per the ordering above — runs
+      // BEFORE this one) already flips that flag to false by the time this
+      // code runs, so that version would have let a close-button click fall
+      // through to isAtHangarShop() and immediately reopen the panel it had
+      // just closed.
+      //
+      // Placed AFTER the npcClickConsumed block below, not before — NPC
+      // circles are also setInteractive() (see the npcClickConsumed-setting
+      // loop further down this file), so they show up in currentlyOver too.
+      // Checking currentlyOver first would return before npcClickConsumed
+      // ever got reset back to false, leaving it stuck true and silently
+      // eating the player's next ordinary floor click.
       if (this.npcClickConsumed) {
         this.npcClickConsumed = false; // this click already provoked a specific NPC — don't also broadcast
         return;
       }
+      if (currentlyOver.length > 0) return;
       // Same context-sensitivity as the E key (see updateProximity) —
       // clicking the room while standing at a door or the bay does that
       // instead of talking, so click and E never disagree about what
@@ -1659,6 +1979,7 @@ export class Hub extends Phaser.Scene {
       const door = this.isAtDoor();
       if (door) this.switchRoom(door);
       else if (this.isAtBay()) this.deploy();
+      else if (this.isAtHangarShop()) this.openHangarShop();
       else this.speak();
     });
   }
@@ -1716,6 +2037,17 @@ export class Hub extends Phaser.Scene {
         lineSpacing: 4,
       })
       .setOrigin(0, 0);
+
+    // Tier 6 hotfix, 30 Aug 2026 — see CHAT_LOG_VISIBLE_LINES's own header.
+    // CHAT_LOG_VISIBLE_LINES was doubled based on a real (if approximate)
+    // measurement, not certainty — this geometry mask (same idiom
+    // MapSelect.ts's own scrollable list already uses) is the actual
+    // guarantee: whatever renderChatLog puts in chatLogText, anything past
+    // the panel's own bottom edge clips there instead of spilling out onto
+    // the game board underneath it.
+    const maskShape = this.make.graphics({});
+    maskShape.fillRect(CHAT_LOG_X, ROOM_BOUNDS.top + 30, CHAT_LOG_WIDTH, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top - 34);
+    this.chatLogText.setMask(maskShape.createGeometryMask());
   }
 
   // The one funnel every real line in this scene passes through — see
@@ -1815,7 +2147,11 @@ export class Hub extends Phaser.Scene {
         this.showFallback("Nothing to pour outside the rec room.");
         return;
       }
-      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      // Tier 2, 30 Aug 2026 — requireRoom, not just the radius check: see
+      // nearestNpcInRange's own header. Without it this could hand back an
+      // NPC actually standing in hangarDeck/berths, on the far side of the
+      // open floor's zone seam but still within APPROACH_RADIUS.
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, "recroom");
       if (!target) {
         this.showFallback("Nobody's close enough to share one with.");
         return;
@@ -1829,7 +2165,10 @@ export class Hub extends Phaser.Scene {
         return;
       }
       if (this.pegOpen || this.pokerOpen || this.dartsOpen) return; // already mid-game
-      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      // Tier 2, 30 Aug 2026 — see nearestNpcInRange's own header (Tier 2,
+      // minigame room gating): the peg table only exists in the rec room,
+      // so the opponent has to actually be standing in it too.
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, "recroom");
       if (!target) {
         this.showFallback("Nobody's close enough for a game.");
         return;
@@ -1843,7 +2182,9 @@ export class Hub extends Phaser.Scene {
         return;
       }
       if (this.pokerOpen || this.pegOpen || this.dartsOpen) return; // already mid-game
-      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      // Tier 2, 30 Aug 2026 — see nearestNpcInRange's own header (Tier 2,
+      // minigame room gating): the card table only exists in the rec room.
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, "recroom");
       if (!target) {
         this.showFallback("Nobody's close enough for a hand.");
         return;
@@ -1857,7 +2198,9 @@ export class Hub extends Phaser.Scene {
         return;
       }
       if (this.dartsOpen || this.pegOpen || this.pokerOpen) return; // already mid-game
-      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      // Tier 2, 30 Aug 2026 — see nearestNpcInRange's own header (Tier 2,
+      // minigame room gating): the dart board only exists in the rec room.
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, "recroom");
       if (!target) {
         this.showFallback("Nobody's close enough for a round.");
         return;
@@ -1870,7 +2213,11 @@ export class Hub extends Phaser.Scene {
         this.showFallback("Not the place to ask that. Try the berths.");
         return;
       }
-      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      // Tier 2, 30 Aug 2026 — same fix, same reasoning, see
+      // nearestNpcInRange's own header — berths shares its deck with
+      // recroom/hangarDeck too, so this needed the identical requireRoom
+      // narrowing the three minigames and Share a Drink got.
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, "berths");
       if (!target) {
         this.showFallback("Nobody's close enough to ask.");
         return;
@@ -1956,11 +2303,39 @@ export class Hub extends Phaser.Scene {
   // already makes Favorability visible) as "close enough to be who the
   // player obviously means," rather than inventing a second radius
   // constant for the same rough idea.
-  private nearestNpcInRange(radius: number): HubNpc | null {
+  //
+  // Tier 2, 30 Aug 2026 (Consolidated Build Plan, Tier 2 — minigame room
+  // gating). This originally scoped candidates to sameDeck(npc.room,
+  // this.currentRoomId) only — correct, deliberately, for the callers that
+  // want it: Talk/history/highlights/build-request are all meant to reach
+  // anyone visible across a shared open-floor deck, not just the player's
+  // exact room (ROOM_ZONE_BOUNDS's own split of one deck into several
+  // RoomIds is a labeling/UI convenience — recroom/hangarDeck/berths share
+  // one continuous floor with no wall between them, see its own header).
+  // But three verbs — the minigames (peg board/poker/fletchers) and Share
+  // a Drink/Ask Out — gate on a SPECIFIC room at their own call site
+  // (`if (this.currentRoomId !== "recroom") ...`) precisely because their
+  // furniture (the peg table, the card table, the dart board, the pour) is
+  // physically only in that one room. That per-call-site check only ever
+  // verified the PLAYER's own room, never the actual NPC nearestNpcInRange
+  // was about to hand back — and since recroom/hangarDeck/berths share one
+  // coordinate space with no gap at their shared boundary
+  // (ROOM_ZONE_BOUNDS again), a player standing in the rec room within
+  // APPROACH_RADIUS (78px) of that boundary line can trivially have an NPC
+  // who is actually standing in hangarDeck or berths come back as the
+  // "nearest" target — not a rare edge case, an ordinary distance at a
+  // zone seam. The result: starting a poker hand, or Ask Out, with someone
+  // the room-gate was supposed to have already ruled out. New optional
+  // requireRoom param, passed only by the five call sites that already do
+  // their own room check (shareADrink/pegBoard/poker/fletchers pass
+  // "recroom", askOut passes "berths") — every other caller is unchanged,
+  // deck-scoped exactly as before, since that breadth is correct for them.
+  private nearestNpcInRange(radius: number, requireRoom?: RoomId): HubNpc | null {
     let best: HubNpc | null = null;
     let bestDist = radius;
     for (const npc of this.npcs) {
       if (!sameDeck(npc.room, this.currentRoomId)) continue;
+      if (requireRoom !== undefined && npc.room !== requireRoom) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist <= bestDist) {
         best = npc;
@@ -2457,6 +2832,79 @@ export class Hub extends Phaser.Scene {
   private closeHighlights() {
     this.highlightsOpen = false;
     this.highlightsOverlay.setVisible(false);
+  }
+
+  // --- Hangar Deck roster/stats panel — Tier 4, 30 Aug 2026 -------------
+  // Same construction as buildHistoryOverlay/buildHighlightsOverlay above
+  // (a container, a background card, a title, a close button) framing a
+  // live ShopPanel instead of a static text block. Built once here, in
+  // create(), same as every other overlay — ShopPanel's own constructor
+  // already does its real work eagerly (creates its two containers), so
+  // there's no lazy-construction step to defer; setVisible(false)
+  // immediately after construction is what keeps it off-screen until
+  // openHangarShop() actually opens it, since ShopPanel itself defaults
+  // to visible (Debrief.ts/Hangar.ts each dedicate their whole scene to
+  // it, so neither has ever needed it to start hidden).
+  private buildHangarShopOverlay() {
+    this.hangarShopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+
+    const bg = this.add.rectangle(480, 320, SHOP_CARD_W, 600, PANEL_BG, 0.97).setStrokeStyle(1, PANEL_BORDER);
+    this.hangarShopOverlay.add(bg);
+
+    this.hangarShopOverlay.add(this.add.text(480, 26, "HANGAR DECK — ROSTER & GEAR", { fontFamily: "monospace", fontSize: "16px", color: TEXT_MAIN }).setOrigin(0.5));
+
+    const closeBtn = this.add
+      .text(SHOP_CARD_R - 10, 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerdown", () => this.closeHangarShop());
+    this.hangarShopOverlay.add(closeBtn);
+
+    // Not added into hangarShopOverlay — ShopPanel owns and clears its own
+    // two containers on every render() (see that class's own header on
+    // why it was extracted scene-agnostic in the first place); nesting
+    // them inside another container would work too, but keeping them as
+    // ShopPanel's own top-level display objects, toggled via the new
+    // setVisible() method this pass added to that class, is the smaller
+    // change against a shared file two other scenes also depend on.
+    this.hangarShop = new ShopPanel(this, this.campaignState, 56, 590, () => {
+      // Tier 4, 30 Aug 2026 — ShopPanel's existing callers (Debrief.ts,
+      // Hangar.ts) only ever save on their own footer's "leave" button,
+      // not after every purchase. This Hub already saves immediately
+      // after every state-mutating interaction elsewhere in this file
+      // (persistNpcSocial's own header covers the "why") — matched here
+      // rather than adopting the more lax convention, so a purchase made
+      // from the Hub survives a crash/reload the same way everything
+      // else the Hub touches already does.
+      saveCampaignState(this.campaignState);
+    });
+    this.hangarShop.setVisible(false);
+    // Washed-out-panel hotfix (30 Aug 2026, Maxime's own screenshot).
+    // ShopPanel's own two containers default to depth 0 (fine for
+    // Debrief.ts/Hangar.ts, which have nothing else competing for depth)
+    // but hangarShopOverlay's own background above sits at depth 60 —
+    // without this, that near-opaque rectangle painted over ShopPanel's
+    // actual content instead of framing it. See ShopPanel.setDepth's own
+    // comment for the full mechanism. 61 (one above the overlay's own
+    // depth) is enough to clear it.
+    this.hangarShop.setDepth(61);
+  }
+
+  private openHangarShop() {
+    this.hangarShopOpen = true;
+    this.hangarShopOverlay.setVisible(true);
+    this.hangarShop.setVisible(true);
+    // Fresh render on every open, not just the first — reflects whatever's
+    // changed in campaignState since this was last opened (a mission run,
+    // a recruit added elsewhere), same "always current, never a stale
+    // snapshot" reasoning ShopPanel's own callers already rely on.
+    this.hangarShop.render();
+  }
+
+  private closeHangarShop() {
+    this.hangarShopOpen = false;
+    this.hangarShopOverlay.setVisible(false);
+    this.hangarShop.setVisible(false);
   }
 
   // Two sections, deliberately built and labeled differently — see
@@ -3508,6 +3956,30 @@ export class Hub extends Phaser.Scene {
     this.bayLabel = this.add.text(MUSTER_POINT.x, MUSTER_POINT.y, "BAY", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" }).setOrigin(0.5);
   }
 
+  // Tier 4, 30 Aug 2026 — same dash-drawing shape as drawMusterPoint just
+  // above, one more time, at HANGAR_SHOP_POINT instead of MUSTER_POINT.
+  private drawHangarShopPoint() {
+    const w = 90;
+    const h = 46;
+    const x = HANGAR_SHOP_POINT.x - w / 2;
+    const y = HANGAR_SHOP_POINT.y - h / 2;
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x6b7d8a, 0.7);
+    const dash = 6;
+    for (let dx = 0; dx < w; dx += dash * 2) {
+      g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+      g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+    }
+    for (let dy = 0; dy < h; dy += dash * 2) {
+      g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+      g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+    }
+    this.hangarShopOutline = g;
+    this.hangarShopLabel = this.add
+      .text(HANGAR_SHOP_POINT.x, HANGAR_SHOP_POINT.y, "ROSTER\n& GEAR", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a", align: "center" })
+      .setOrigin(0.5);
+  }
+
   // Phase 2 map growth — one marker per DOORS entry, built once up front
   // (not rebuilt per room-switch) and toggled visible/hidden by
   // refreshRoomVisibility() depending on whether its own `room` matches
@@ -3634,13 +4106,48 @@ export class Hub extends Phaser.Scene {
     marker.label.setText(marker.def.label.replace("\n(reserved)", ""));
   }
 
+  // Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven
+  // by the real roster). buildNpcs() below used to only ever place exactly
+  // three pilots (NPC_SEED) and five Meks (mekSeeds), both hand-authored
+  // fixed-position lists — fine when the cast was fixed, no help once it's
+  // "however many pilots are actually active." This is the same
+  // zone-random-point idea updateNpcRoaming's own explore branch already
+  // uses to send a roaming NPC to a fresh destination inside a target room
+  // (ROOM_ZONE_BOUNDS + a random draw + clampToDeckFloor, so the grotto's
+  // own off-center elliptical floor — see GROTTO_BOUNDS's header — is
+  // respected the same way it already is everywhere else), reused here for
+  // an NPC's very first placement instead of a mid-roam destination — same
+  // math, different caller, same "reuse over rebuild" instinct as
+  // pickDoorApproach just generalizing pickDoorLanding a page up. Rejection
+  // -sampled against occupants (this.npcs so far, or a mek pass's own
+  // running list) the same way pickPointNearDoor already rejection-samples
+  // door placements, so a large roster doesn't spawn stacked on itself.
+  private pickInitialNpcSpot(room: RoomId, occupants: HubNpc[]): { x: number; y: number } {
+    const zone = ROOM_ZONE_BOUNDS[room];
+    let point = { x: zone.left, y: zone.top };
+    for (let attempt = 0; attempt < DOOR_LANDING_MAX_ATTEMPTS; attempt++) {
+      point = clampToDeckFloor(
+        ROOM_DECK[room],
+        zone.left + Math.random() * (zone.right - zone.left),
+        zone.top + Math.random() * (zone.bottom - zone.top),
+        NPC_R,
+      );
+      const collides = occupants.some((o) => o.room === room && Phaser.Math.Distance.Between(point.x, point.y, o.x, o.y) < NPC_R + NPC_R);
+      if (!collides) break;
+    }
+    return point;
+  }
+
   private buildNpcs() {
-    // Fixed starting layout inside the room — seats at the Rec Room table.
-    // Stationary by default (Phase 1 scope; general autonomous roaming is
-    // still Phase 3, per the Build Plan doc's 25 Aug addendum) — the one
-    // exception is a muster call, which walks an NPC to MUSTER_POINT
-    // (see updateNpcMovement/sendToMuster). All three stay in Rec Room —
-    // see the file header's own note on why the Phase 2 map growth doesn't
+    // Fixed starting layout inside the room — seats at the Rec Room table,
+    // for the three hand-authored NPC_SEED pilots specifically (Bosk,
+    // Anand, Iyari — a real, deliberate content choice, kept as-is by
+    // Tier 3 below, not a limitation to design away). Stationary by
+    // default (Phase 1 scope; general autonomous roaming is still Phase 3,
+    // per the Build Plan doc's 25 Aug addendum) — the one exception is a
+    // muster call, which walks an NPC to MUSTER_POINT (see
+    // updateNpcMovement/sendToMuster). All three stay in Rec Room — see
+    // the file header's own note on why the Phase 2 map growth doesn't
     // move or reassign them.
     const positions = [
       // Antfarm Grid v0, 27 Aug 2026 — these three used to be spread across
@@ -3653,19 +4160,67 @@ export class Hub extends Phaser.Scene {
       { x: ROOM_ZONE_BOUNDS.recroom.right - 90, y: ROOM_BOUNDS.top + 160 },
       { x: (ROOM_ZONE_BOUNDS.recroom.left + ROOM_ZONE_BOUNDS.recroom.right) / 2, y: ROOM_BOUNDS.bottom - 90 },
     ];
-    this.npcs = NPC_SEED.map((seed, i) => {
-      const pilot = WARDEN_PILOTS.find((p) => p.id === seed.pilotId);
-      const displayName = pilot?.displayName ?? seed.pilotId;
+
+    // Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven
+    // by the real roster). This used to be `NPC_SEED.map(...)` — the
+    // walkable pilot cast WAS the three-name NPC_SEED list, full stop.
+    // That predates every roster addition since 26 Aug (Second Lance,
+    // Third Lance, the ROSTER_DEPTH bench, every generated recruit —
+    // engine/campaignState.ts's own integrateSecondLance/
+    // integrateThirdLance/generateRecruit-shaped code all add real entries
+    // to campaignState.pilots that this scene simply never looked at). A
+    // mid-campaign roster is routinely 15-20+ active pilots; all but three
+    // of them were alive, recruited, and sitting in state the whole time,
+    // just never rendered. Fixed at the source: the walkable cast is now
+    // every ACTIVE pilot actually in campaignState.pilots, minus
+    // pilot_rourke — the player's own avatar (this.player, built further
+    // down from the same WARDEN_PILOTS row), never a walkable NPC and
+    // never in NPC_SEED for that same reason. NPC_SEED's three pilots keep
+    // their own hand-authored seats and starting favorability/stress/
+    // morale exactly as before (checked below via `namedSeed`); everyone
+    // else gets a spot in a real room instead of not existing.
+    const activePilotIds = Object.keys(this.campaignState.pilots).filter(
+      (id) => id !== "pilot_rourke" && this.campaignState.pilots[id].status === "active",
+    );
+    // Every room pickExploreTarget already treats as a real destination
+    // (Object.keys(ROOM_TITLES) — see its own header) is fair game for a
+    // newly-populated pilot's starting spot too, not just Rec Room —
+    // reads as an actual crew going about the ship rather than everyone
+    // freshly spawned in one place and slowly filtering out over time.
+    const roomChoices = Object.keys(ROOM_TITLES) as RoomId[];
+    this.npcs = [];
+    for (const pilotId of activePilotIds) {
+      const namedSeed = NPC_SEED.find((s) => s.pilotId === pilotId);
+      // Hotfix, 30 Aug 2026 (Maxime, screenshot: "2cd npic is the recruit
+      // name not showing well" — a raw id like "pilot_recruit_3" rendered
+      // straight onto the Hub floor as a name tag). This used to be
+      // findPilot(pilotId), the STATIC roster index (data/pilotRegistry.ts's
+      // PILOT_INDEX, built only from PILOTS/ROSTER_DEPTH_PILOTS/
+      // WARDEN_PILOTS/SECOND_LANCE_PILOTS/THIRD_LANCE_PILOTS) — a
+      // runtime-generated recruit (engine/campaignState.ts's generatePilot)
+      // is never in any of those five lists, so findPilot() returned
+      // undefined for one and displayName fell back to the raw id. The Mek
+      // loop below already had this right: pilotEntry.pilot is the LIVE
+      // per-campaign copy activePilotIds itself is built from, always
+      // present and always complete for every id in that list, generated or
+      // hand-authored — it replaces the static lookup outright here rather
+      // than falling back to it.
+      const pilotEntry = this.campaignState.pilots[pilotId];
+      const pilot = pilotEntry.pilot;
+      const displayName = pilot.displayName;
       const initials = pilotInitials(displayName);
-      const color = PATH_COLORS[(pilot?.archetypeId.includes("tank") ? "tank" : pilot?.archetypeId.includes("reeps") ? "reeps" : "meeps") as keyof typeof PATH_COLORS];
-      const pos = positions[i];
+      const color = PATH_COLORS[(pilot.archetypeId.includes("tank") ? "tank" : pilot.archetypeId.includes("reeps") ? "reeps" : "meeps") as keyof typeof PATH_COLORS];
+      // pickInitialNpcSpot's own header covers the collision-rejection —
+      // reads this.npcs live, so it correctly avoids whoever this same
+      // loop has already placed, not just the three seated pilots.
+      const room: RoomId = namedSeed ? "recroom" : roomChoices[Math.floor(Math.random() * roomChoices.length)];
+      const pos = namedSeed ? positions[NPC_SEED.indexOf(namedSeed)] : this.pickInitialNpcSpot(room, this.npcs);
       // Real, data-driven romanceable — see HubNpc's own comment for why
-      // this used to be a hand-set boolean and isn't anymore. Falls back to
-      // true (open) only if the pilot or archetype lookup somehow misses —
-      // matches every other WARDEN_PILOTS fallback in this file (e.g.
-      // displayName above), which all fail open to something harmless
-      // rather than throwing.
-      const archetype = pilot ? UNIT_ARCHETYPES[pilot.archetypeId] : undefined;
+      // this used to be a hand-set boolean and isn't anymore. `pilot` is
+      // always defined now (30 Aug 2026 hotfix above), so the only miss
+      // left is archetypeId not resolving in UNIT_ARCHETYPES — falls back
+      // to true (open) rather than throwing if that ever happens.
+      const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
       const romanceable = archetype ? isRomanceableSpecies(archetype.species) : true;
 
       // 26 Aug 2026 — Favorability/Stress/Morale/socialLog/inRelationship
@@ -3677,11 +4232,17 @@ export class Hub extends Phaser.Scene {
       // persisted instead. See the file header's "Correction" note and
       // campaignState.ts section 11 for the full design, including why
       // catalyst alone is deliberately NOT part of this.
-      const social = ensureHubSocialState(this.campaignState, seed.pilotId, {
-        favorability: seed.favorability,
-        stress: seed.stress,
-        morale: seed.morale,
-      });
+      const social = ensureHubSocialState(
+        this.campaignState,
+        pilotId,
+        namedSeed
+          ? { favorability: namedSeed.favorability, stress: namedSeed.stress, morale: namedSeed.morale }
+          // Tier 3, 30 Aug 2026 — the exact same generic "no hand-authored
+          // row yet" starting point the Mek loop below already uses for
+          // the identical situation, reused rather than inventing a
+          // second placeholder triple for the same idea.
+          : { favorability: 0, stress: 10, morale: 70 },
+      );
       // drunk is derived from social.drunkUntil, not carried as its own
       // seeded boolean — a stale `true` sitting in an old save with no
       // expiry check yet run against it would otherwise read as drunk
@@ -3689,17 +4250,14 @@ export class Hub extends Phaser.Scene {
       const stillDrunk = !!social.drunkUntil && social.drunkUntil > Date.now();
 
       // Stage, wired 27 Aug 2026 (Maxime: "do the ranking path") — reads the
-      // pilot's LIVE campaign tier (CampaignState.pilots[id].pilot.tier),
-      // not the static WARDEN_PILOTS starting value the `pilot` lookup
-      // above already uses for archetype/species — tier is a real,
-      // mid-campaign-mutable stat (engine/campaignEconomy.ts's
-      // purchaseTierUpgrade), so a promoted pilot needs to actually speak
-      // in their new Stage's voice, not the one they started the campaign
-      // with. Falls back to the static row's own tier if this pilot has no
-      // live campaign entry yet (mirrors ensureHubSocialState's own
-      // fail-open shape just above), then to "green" if neither exists.
-      const liveTier = this.campaignState.pilots[seed.pilotId]?.pilot.tier ?? pilot?.tier;
-      const stage = liveTier ? stageFromTier(liveTier) : "green";
+      // pilot's LIVE campaign tier so a promoted pilot actually speaks in
+      // their new Stage's voice, not the one they started the campaign
+      // with (engine/campaignEconomy.ts's purchaseTierUpgrade mutates it
+      // mid-campaign). `pilot` IS that live copy as of the 30 Aug 2026
+      // hotfix above, so this no longer needs its own separate static/live
+      // fallback — `pilot.tier` directly, "green" only if that's somehow
+      // falsy.
+      const stage = pilot.tier ? stageFromTier(pilot.tier) : "green";
 
       // Stage-promotion "graduation" reveal, 27 Aug 2026 — direct answer to
       // Maxime asking whether a player would ever actually notice the
@@ -3740,19 +4298,25 @@ export class Hub extends Phaser.Scene {
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
       const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
 
-      return {
-        pilotId: seed.pilotId,
+      this.npcs.push({
+        pilotId,
         displayName,
         initials,
         color,
-        room: "recroom" as RoomId,
+        room,
         x: pos.x,
         y: pos.y,
         // worried computed fresh here too, same as stillDrunk just above,
         // so an NPC reads correctly from the very first frame rather than
         // waiting on update()'s own updateMissionWorry() to catch up one
         // tick later — see isMissionWorrySignal's own header.
-        ambient: { catalyst: seed.catalyst, stage, stress: social.stress, morale: social.morale, drunk: stillDrunk, worried: isMissionWorrySignal(this.campaignState) },
+        //
+        // catalystForPilot (Tier 3, 30 Aug 2026 — see this file's own
+        // import comment) returns namedSeed's exact catalyst for the three
+        // hand-authored pilots and a stable, deterministic pick for
+        // everyone else, so this is behavior-identical to the old
+        // `catalyst: seed.catalyst` for Bosk/Anand/Iyari specifically.
+        ambient: { catalyst: catalystForPilot(pilotId), stage, stress: social.stress, morale: social.morale, drunk: stillDrunk, worried: isMissionWorrySignal(this.campaignState) },
         favorability: social.favorability,
         circle,
         root,
@@ -3787,8 +4351,8 @@ export class Hub extends Phaser.Scene {
         // breakdown/breakdownSince stay unset — nobody starts the scene
         // mid-crisis.
         nextBreakdownCheckAt: Math.random() * 4000,
-      };
-    });
+      });
+    }
 
     // The Carrier CO — Antfarm Grid v0 stress-test follow-up, 27 Aug 2026.
     // Maxime: "the groto suposed to be a room on the [middle] floor... free
@@ -4011,6 +4575,85 @@ export class Hub extends Phaser.Scene {
         // "With the player" axis — see this block's own header comment on
         // why the Matchset pairing itself lives in npcSocial.relationships
         // instead, not here.
+        inRelationship: false,
+        socialLog: mekSocial.socialLog,
+        nextRoamAt: Math.random() * 4000,
+        nextEncounterAt: Math.random() * 4000,
+        nextBlowupAt: Math.random() * 4000,
+        hunger: 100,
+        thirst: 100,
+        sleep: 100,
+        nextNeedsTickAt: Math.random() * 4000,
+        nextBreakdownCheckAt: Math.random() * 4000,
+      });
+    }
+
+    // Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven
+    // by the real roster). mekSeeds above is the same kind of fixed,
+    // five-name list the old pilot loop's NPC_SEED was — kept exactly as
+    // it was, on purpose, for its own hand-picked catalyst/position per
+    // Mek — but every OTHER active pilot's own Mek was simply never given
+    // a body in the Workshop at all, the identical gap one level down.
+    // Reuses activePilotIds (computed once, near the top of this method)
+    // rather than re-deriving "who's active" a second way — it already
+    // excludes pilot_rourke and anyone not status "active"; the Mek for
+    // pilot_rourke himself is still mekSeeds' own job, placed by the loop
+    // just above, unaffected by activePilotIds not including him.
+    const namedMekPilotIds = new Set(mekSeeds.map((s) => s.pilotId));
+    for (const pilotId of activePilotIds) {
+      if (namedMekPilotIds.has(pilotId)) continue; // already placed above, with its own hand-picked catalyst/spot
+      const pilotEntry = this.campaignState.pilots[pilotId];
+      const mekId = pilotEntry.pilot.mekId;
+      const mek = this.campaignState.meks[mekId];
+      const displayName = mek?.displayName ?? `${pilotEntry.pilot.displayName.split("—")[0].trim()}'s Mek`;
+      const initials = pilotInitials(displayName);
+      const color = 0x6a8f6a; // same muted workshop green as every other Mek — not a combat archetype, no PATH_COLORS entry applies
+
+      const mekSocial = ensureHubSocialState(this.campaignState, mekId, { favorability: 0, stress: 10, morale: 70 });
+
+      // Matchset bond with their own pilot — identical shape to the
+      // mekSeeds loop's own bond-backfill just above, see its comment for
+      // the full "why write it here, guarded on not-already-set" reasoning.
+      const matchKey = pairKey(mekId, pilotId);
+      if (this.npcSocial.bonds[matchKey] === undefined) {
+        this.npcSocial.bonds[matchKey] = MEK_MATCHSET_BOND;
+      }
+      if (!this.npcSocial.relationships.includes(matchKey)) {
+        this.npcSocial.relationships.push(matchKey);
+      }
+
+      // Workshop, same as every named Mek — thematically Meks stay tied to
+      // their maintenance bay even though (unlike pilots, scattered
+      // ship-wide by the loop above) they don't otherwise roam the whole
+      // ship on their own errands.
+      const pos = this.pickInitialNpcSpot("workshop", this.npcs);
+      const circle = this.add.circle(0, 0, NPC_R, color, 1).setStrokeStyle(2, 0xffffff, 0.25);
+      const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+      const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
+      const root = this.add.container(pos.x, pos.y, [circle, label, nameTag]);
+      const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
+      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
+
+      this.npcs.push({
+        pilotId: mekId,
+        displayName,
+        initials,
+        color,
+        room: "workshop",
+        x: pos.x,
+        y: pos.y,
+        // catalystForPilot works off any string id via its deterministic
+        // hash fallback (see npcSeed.ts's own header) — feeding it mekId
+        // rather than pilotId gives this Mek its own independent-but-
+        // stable catalyst, not a copy of their pilot's.
+        ambient: { catalyst: catalystForPilot(mekId), stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
+        favorability: mekSocial.favorability,
+        circle,
+        root,
+        favLabel,
+        bubbleContainer,
+        bubbleUntil: 0,
+        romanceable: false,
         inRelationship: false,
         socialLog: mekSocial.socialLog,
         nextRoamAt: Math.random() * 4000,
@@ -4286,6 +4929,16 @@ export class Hub extends Phaser.Scene {
       return;
     }
 
+    // Same shape again — Tier 4, 30 Aug 2026. ShopPanel owns its own
+    // clicks/buttons internally (same as every other overlay's content
+    // owning itself); this only needs to watch for the one key that isn't
+    // part of ShopPanel's own UI.
+    if (this.hangarShopOpen) {
+      this.updateBubbles();
+      if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closeHangarShop();
+      return;
+    }
+
     this.handleMovement(delta);
     this.updateNpcMovement(delta);
     this.updateNpcRoaming(this.time.now);
@@ -4297,6 +4950,7 @@ export class Hub extends Phaser.Scene {
       const door = this.isAtDoor();
       if (door) this.switchRoom(door);
       else if (this.isAtBay()) this.deploy();
+      else if (this.isAtHangarShop()) this.openHangarShop();
       else this.speak();
     }
     if (this.mKey && Phaser.Input.Keyboard.JustDown(this.mKey)) {
@@ -4323,11 +4977,17 @@ export class Hub extends Phaser.Scene {
     if (this.keys.d.isDown || this.cursors?.right?.isDown) dx += 1;
     if (this.keys.w.isDown || this.cursors?.up?.isDown) dy -= 1;
     if (this.keys.s.isDown || this.cursors?.down?.isDown) dy += 1;
-    if (dx === 0 && dy === 0) return;
+    if (dx === 0 && dy === 0) {
+      this.playerStuckMs = 0; // no input held — standing still on purpose, not stuck
+      return;
+    }
 
     const len = Math.hypot(dx, dy) || 1;
     const stepX = (dx / len) * PLAYER_SPEED * dt;
     const stepY = (dy / len) * PLAYER_SPEED * dt;
+
+    const beforeX = this.playerX;
+    const beforeY = this.playerY;
 
     // Axis-separated movement so the player slides along a wall or an NPC
     // instead of sticking dead the instant one axis would collide.
@@ -4335,6 +4995,28 @@ export class Hub extends Phaser.Scene {
     this.tryMove(0, stepY);
 
     this.player.setPosition(this.playerX, this.playerY);
+
+    // Tier 6 hotfix, 30 Aug 2026 — see PLAYER_STUCK_TIMEOUT_MS's own header
+    // and forceUnstickPlayer's below. Zero net movement despite held input
+    // AND a real crowd nearby, sustained past the timeout, triggers a
+    // guaranteed relocation to a genuinely clear spot instead of leaving the
+    // player boxed in until the crowd happens to wander apart on its own.
+    if (this.playerX === beforeX && this.playerY === beforeY) {
+      const nearbyNpcCount = this.npcs.filter(
+        (n) => sameDeck(n.room, this.currentRoomId) && Phaser.Math.Distance.Between(this.playerX, this.playerY, n.x, n.y) < PLAYER_STUCK_NPC_CHECK_RADIUS,
+      ).length;
+      if (nearbyNpcCount >= PLAYER_STUCK_MIN_NEARBY_NPCS) {
+        this.playerStuckMs += delta;
+        if (this.playerStuckMs >= PLAYER_STUCK_TIMEOUT_MS) {
+          this.forceUnstickPlayer();
+          this.playerStuckMs = 0;
+        }
+      } else {
+        this.playerStuckMs = 0;
+      }
+    } else {
+      this.playerStuckMs = 0;
+    }
 
     // Antfarm Grid v0, 27 Aug 2026 — §3f's "open floor, no door-per-room":
     // within a deck, currentRoomId is now a LIVE label (which zone the
@@ -4363,6 +5045,32 @@ export class Hub extends Phaser.Scene {
     }
     this.playerX = nx;
     this.playerY = ny;
+  }
+
+  // Tier 6 hotfix, 30 Aug 2026 — Maxime: "still cant move. from the
+  // cluster, I spawned on top of them when I changed room." See
+  // PLAYER_STUCK_TIMEOUT_MS's own header for when this fires. The real
+  // fix for the specific "spawned on top of them" report is
+  // pickClearPoint's own escalating search (see its header, up near
+  // pickPointNearDoor) — that's what stops a bad landing from happening at
+  // all. This is the catch-all for any other way the player ends up boxed
+  // in by a real crowd: reuses that exact same search, just centered on
+  // the player's own current (stuck) position instead of a door, so it
+  // gets the identical "never silently settle for an occupied point"
+  // guarantee.
+  private forceUnstickPlayer() {
+    const occupants = this.npcs.filter((n) => sameDeck(n.room, this.currentRoomId));
+    const clear = pickClearPoint(
+      ROOM_DECK[this.currentRoomId],
+      { x: this.playerX, y: this.playerY },
+      occupants,
+      PLAYER_R,
+      DOOR_LANDING_JITTER_DIST,
+      DOOR_LANDING_MAX_ATTEMPTS,
+    );
+    this.playerX = clear.x;
+    this.playerY = clear.y;
+    this.player.setPosition(this.playerX, this.playerY);
   }
 
   // 26 Aug 2026 — the sober-up half of DRUNK_DURATION_MS. Cheap linear
@@ -4650,15 +5358,59 @@ export class Hub extends Phaser.Scene {
     this.setNpcRoom(npc, door.toRoom, land.x, land.y);
     if (npc.room === npc.travelTargetRoom) {
       npc.travelTargetRoom = undefined;
+      // Tier 1, 30 Aug 2026 — the last stretch of a cross-deck muster.
+      // Ordinarily arriving in the target ROOM is the whole point (plain
+      // explore roaming has no more specific destination than that), but a
+      // muster's real destination is MUSTER_POINT, a precise spot inside
+      // MUSTER_ROOM, not just anywhere in it — and the door landing spot
+      // (pickDoorLanding, just above) is never that exact point. Without
+      // this, a mustered NPC arriving via a door hop would stop dead at
+      // whichever door they came in through, targetX/targetY both left
+      // undefined by this function's caller, and never actually reach the
+      // bay — the same "arrived at the wrong place, sat there" shape as the
+      // original cross-deck bug this Tier 1 pass fixed, just moved one
+      // step later. Same-deck musters (sendToMuster's other branch) never
+      // hit this path at all — they walk straight to MUSTER_POINT with no
+      // door involved — so this only ever fires for the case that's new.
+      if (npc.mustered && npc.room === MUSTER_ROOM) {
+        npc.targetX = MUSTER_POINT.x;
+        npc.targetY = MUSTER_POINT.y;
+      }
       return;
     }
     const nextDoor = nextHopDoor(npc.room, npc.travelTargetRoom);
     if (nextDoor) {
-      npc.targetX = nextDoor.x;
-      npc.targetY = nextDoor.y;
+      const approach = this.approachDoorTarget(npc, nextDoor);
+      npc.targetX = approach.x;
+      npc.targetY = approach.y;
     } else {
       npc.travelTargetRoom = undefined;
     }
+  }
+
+  // Tier 1, 30 Aug 2026 — the single place every "walk toward this door to
+  // hop through it" call site gets its walk target from (there are four:
+  // completeDoorHop's own multi-hop continuation just above,
+  // updateNpcRoaming's journey-resume and explore branches below, and
+  // sendToMuster's cross-deck branch) — one function so they can't drift
+  // apart later the way four hand-copied jitter calls risk. See
+  // pickDoorApproach's own header, right after nextHopDoor near the top of
+  // this file, for why a jittered approach point exists at all (Tier 1
+  // item #1 — NPCs stacking on a door's literal coordinate blocked the
+  // player from reaching it). The clampToDeckFloor call mirrors
+  // completeDoorHop's own landing-side clamp (same reason: a raw jittered
+  // point can land fractionally outside the deck's real floor, and
+  // clamping the TARGET itself — not just each step toward it — keeps it
+  // genuinely reachable, so the arrival check in updateNpcMovement can
+  // actually satisfy instead of repeating the exact "unreachable target,
+  // retries forever" failure that function's own arriveThreshold comment
+  // already found and fixed once, for a different cause).
+  private approachDoorTarget(npc: HubNpc, door: DoorDef): { x: number; y: number } {
+    const approach = pickDoorApproach(
+      door,
+      this.npcs.filter((n) => n !== npc && n.room === npc.room),
+    );
+    return clampToDeckFloor(ROOM_DECK[npc.room], approach.x, approach.y, NPC_R);
   }
 
   // Phase 3 piece three, 26 Aug 2026 — autonomous roaming, the spatial half
@@ -4682,13 +5434,6 @@ export class Hub extends Phaser.Scene {
   // relationship actually stands right now.
   private updateNpcRoaming(now: number) {
     for (const npc of this.npcs) {
-      // 27 Aug 2026 — see HubNpc.mustered's own header. Checked before the
-      // targetX check on purpose: a mustered NPC that has already arrived
-      // at MUSTER_POINT has targetX cleared by ordinary arrival logic
-      // (updateNpcMovement), and without this guard the very next
-      // nextRoamAt tick would hand them a brand-new explore/mingle target
-      // as if they were any other idle NPC — exactly the gap Maxime flagged.
-      if (npc.mustered) continue;
       if (npc.targetX !== undefined) continue;
       if (npc.nextRoamAt === undefined || now < npc.nextRoamAt) continue;
 
@@ -4699,16 +5444,42 @@ export class Hub extends Phaser.Scene {
       // fires after a stuckMs give-up mid-journey (a genuine door arrival
       // is handled immediately in updateNpcMovement/completeDoorHop and
       // never leaves travelTargetRoom dangling with no active target).
+      //
+      // Tier 1, 30 Aug 2026 — deliberately checked BEFORE the `mustered`
+      // guard below, not after (it used to run first, unconditionally,
+      // blocking this). sendToMuster's own cross-deck fix can leave a
+      // mustered NPC's travelTargetRoom set with targetX/targetY cleared
+      // (the exact same stuck-give-up shape this branch already exists to
+      // recover from) — gating this behind "not mustered" would strand
+      // them mid-transit forever, since a mustered NPC never reaches
+      // sendToMuster again to re-set a target. Resuming a journey already
+      // in progress isn't "handing them a new roam target," so it doesn't
+      // conflict with the mustered guard's own reason for existing —
+      // that's still checked right below, before the explore/mingle logic
+      // this journey-resume is not.
       if (npc.travelTargetRoom !== undefined) {
         const door = nextHopDoor(npc.room, npc.travelTargetRoom);
         if (door) {
-          npc.targetX = door.x;
-          npc.targetY = door.y;
+          const approach = this.approachDoorTarget(npc, door);
+          npc.targetX = approach.x;
+          npc.targetY = approach.y;
         } else {
           npc.travelTargetRoom = undefined; // shouldn't happen on this map — fail safe, not stuck forever
         }
         continue;
       }
+
+      // 27 Aug 2026 — see HubNpc.mustered's own header. Checked here, after
+      // the journey-resume branch above but before any of the "pick a new
+      // destination" logic below: a mustered NPC that has already arrived
+      // at MUSTER_POINT has targetX cleared by ordinary arrival logic
+      // (updateNpcMovement), and without this guard the very next
+      // nextRoamAt tick would hand them a brand-new explore/mingle target
+      // as if they were any other idle NPC — exactly the gap Maxime
+      // flagged. Moved down from this function's very first line, Tier 1,
+      // 30 Aug 2026 — see the journey-resume branch's own comment above for
+      // why it has to run before this now.
+      if (npc.mustered) continue;
 
       // Explore — Build Plan §24. Leave the current room outright,
       // occasionally, rather than only ever mingling with whoever's
@@ -4754,8 +5525,9 @@ export class Hub extends Phaser.Scene {
         const door = nextHopDoor(npc.room, target);
         if (door) {
           npc.travelTargetRoom = target;
-          npc.targetX = door.x;
-          npc.targetY = door.y;
+          const approach = this.approachDoorTarget(npc, door);
+          npc.targetX = approach.x;
+          npc.targetY = approach.y;
           continue;
         }
         // No door found (shouldn't happen) — fall through to same-room logic below instead of doing nothing this tick.
@@ -4814,10 +5586,31 @@ export class Hub extends Phaser.Scene {
   // a match, it moves on to the next i rather than also checking npcA
   // against every remaining npcB.
   private updateNpcEncounters(now: number) {
+    // Tier 6 hotfix, 30 Aug 2026 — see MAX_CONCURRENT_BUBBLES_PER_DECK's own
+    // comment for the full "why" (Tier 3's roster expansion straining a
+    // system tuned for 3 NPCs). One O(n) pass, computed once per tick rather
+    // than re-counted per candidate pair below — a live bubble can only
+    // clear between ticks (updateBubbles), never mid-tick, so a single count
+    // up front is exact, not just an approximation.
+    let currentDeckBubbleCount = 0;
+    for (const n of this.npcs) {
+      if (now < n.bubbleUntil && sameDeck(n.room, this.currentRoomId)) {
+        currentDeckBubbleCount++;
+      }
+    }
+    const currentDeckAtCap = currentDeckBubbleCount >= MAX_CONCURRENT_BUBBLES_PER_DECK;
+
     for (let i = 0; i < this.npcs.length; i++) {
       const npcA = this.npcs[i];
       if (npcA.targetX !== undefined) continue; // mid-walk somewhere else — not settled enough to strike up anything
       if (npcA.nextEncounterAt === undefined || now < npcA.nextEncounterAt) continue;
+      // Every candidate npcB below is sameDeck(npcB.room, npcA.room) by
+      // construction, so if npcA is on the saturated deck, no pair this
+      // outer iteration could find would be allowed to show a bubble either
+      // — skip the whole inner scan rather than doing the work and then
+      // discarding the result. Both npcA's and npcB's own nextEncounterAt
+      // stay untouched, so this pair just re-tries next tick.
+      if (currentDeckAtCap && sameDeck(npcA.room, this.currentRoomId)) continue;
 
       for (let j = i + 1; j < this.npcs.length; j++) {
         const npcB = this.npcs[j];
@@ -5015,13 +5808,81 @@ export class Hub extends Phaser.Scene {
   // NPC never moves them, only a muster message does. Matches Maxime's own
   // words exactly ("the troop will assemble") rather than generalizing
   // movement to every message kind.
+  //
+  // Tier 1, 30 Aug 2026 (Consolidated Build Plan) — two fixes to a function
+  // that was correct back when it was written (26 Aug, Rec-Room-only Hub,
+  // every walkable NPC was a deployable pilot) and silently stopped being
+  // correct as later passes changed both of those things without ever
+  // touching this method:
+  //
+  // 1. Pilot-only gate ("muster incorrectly includes Mek NPCs"). "Shipping
+  //    out to a mission" only means anything for a unit that can actually
+  //    deploy — a Mek (or the CO) has no mission slot to head toward. Meks
+  //    were deliberately given the exact same roaming/movement code as
+  //    pilots (Mek NPC Introduction Plan v1, 29 Aug — this.npcs.push's own
+  //    "Unlike the CO, these DO roam" comment above), which is what lets
+  //    them get caught by a targetX/targetY assignment meant for pilots in
+  //    the first place; nothing in this function had ever needed to ask
+  //    "but is this unit actually deployable" before Meks existed to answer
+  //    that "no." campaignState.pilots is the same deployable-roster lookup
+  //    the Mek-seeding loop itself already gates on (that loop's own
+  //    "pilotEntry.status !== 'active'" check) — a Mek's HubNpc.pilotId
+  //    holds its MEK id ("mek_rourke", not "pilot_rourke", see that push
+  //    call's own `pilotId: seed.mekId`), so it's never a key in
+  //    campaignState.pilots and this lookup excludes it for free, no
+  //    "mek_" prefix check needed. Same free exclusion catches the CO
+  //    (CO_PILOT_ID = "npc_co") — not the reported bug, but the identical
+  //    latent gap: he's stationary by design (no nextRoamAt at all — see
+  //    his own buildNpcs push comment) and had no more business answering a
+  //    muster call than a Mek does.
+  // 2. Cross-deck routing ("muster call fails to route cross-deck"). This
+  //    used to just set targetX/targetY straight to MUSTER_POINT — correct
+  //    only when the NPC is already on MUSTER_ROOM's own deck, since plain
+  //    free-roam movement never crosses a deck on its own (tryMoveNpc's own
+  //    comment) and MUSTER_POINT is a single fixed pixel coordinate with no
+  //    idea which deck it was even reachable from once the Grid grew past
+  //    one. An NPC mustering from a different deck (Upper's workshop, say)
+  //    would walk toward whatever that raw (x, y) happens to land on
+  //    within ITS OWN current deck's floor — nowhere near the real bay —
+  //    and then just sit there, arrived-but-wrong. Same
+  //    sameDeck/nextHopDoor/travelTargetRoom machinery updateNpcRoaming's
+  //    own cross-deck explore branch already uses (see that function's own
+  //    comment): same-deck musters are unaffected (nextHopDoor returns
+  //    undefined, direct walk to MUSTER_POINT exactly as before); a
+  //    cross-deck muster now walks the first door instead, and
+  //    updateNpcMovement's own completeDoorHop (which already knows how to
+  //    keep chaining travelTargetRoom across multiple hops — see
+  //    updateNpcRoaming's "mid cross-room journey" branch) carries it the
+  //    rest of the way once it lands on each intermediate deck.
   private sendToMuster(npc: HubNpc) {
-    npc.targetX = MUSTER_POINT.x;
-    npc.targetY = MUSTER_POINT.y;
+    if (!this.campaignState.pilots[npc.pilotId]) return; // Mek, CO, or anyone else with no mission slot to head toward
+    if (sameDeck(npc.room, MUSTER_ROOM)) {
+      npc.targetX = MUSTER_POINT.x;
+      npc.targetY = MUSTER_POINT.y;
+    } else {
+      const door = nextHopDoor(npc.room, MUSTER_ROOM);
+      if (door) {
+        npc.travelTargetRoom = MUSTER_ROOM;
+        const approach = this.approachDoorTarget(npc, door);
+        npc.targetX = approach.x;
+        npc.targetY = approach.y;
+      }
+      // No door found — shouldn't happen on this map's star/line topology
+      // (nextHopDoor's own fail-safe comment elsewhere makes the same call)
+      // — falls through without a target rather than guessing one; the next
+      // muster call (or this NPC's own stuck-give-up retry, same as any
+      // other travelTargetRoom journey) tries again instead of this
+      // silently mis-sending them somewhere.
+    }
     // 27 Aug 2026 — see HubNpc.mustered's own header. Marks this NPC as
     // "holding for muster" from the moment the message reaches them, not
     // just "currently walking somewhere" — updateNpcRoaming reads this to
     // keep them parked at the bay once they arrive, until endMuster() runs.
+    // Set even on the cross-deck branch (mid-journey, not yet at
+    // MUSTER_POINT) so updateNpcRoaming's own mustered guard stops them
+    // from getting handed a fresh explore/mingle target partway through
+    // the door hops, the exact gap that guard exists to close for the
+    // same-deck case.
     npc.mustered = true;
   }
 
@@ -5250,11 +6111,21 @@ export class Hub extends Phaser.Scene {
     const door = this.isAtDoor();
     if (door) this.interactPrompt.setText(`E — enter ${door.label}`);
     else if (this.isAtBay()) this.interactPrompt.setText("E — deploy");
+    else if (this.isAtHangarShop()) this.interactPrompt.setText("E — roster & gear");
     else this.interactPrompt.setText(anyoneInRange ? "E — talk" : "");
   }
 
+  // Tier 4, 30 Aug 2026 — same shape as isAtBay() just below: exact room
+  // (not just deck) plus a real proximity radius, not just "visible from
+  // anywhere on this deck" (HANGAR_SHOP_POINT's own marker IS visible from
+  // the whole lower deck, same as the bay's — see refreshRoomVisibility —
+  // but actually USING it needs the player standing at it specifically).
+  private isAtHangarShop(): boolean {
+    return this.currentRoomId === "hangarDeck" && Phaser.Math.Distance.Between(this.playerX, this.playerY, HANGAR_SHOP_POINT.x, HANGAR_SHOP_POINT.y) <= HANGAR_SHOP_RADIUS;
+  }
+
   private isAtBay(): boolean {
-    return this.currentRoomId === "recroom" && Phaser.Math.Distance.Between(this.playerX, this.playerY, MUSTER_POINT.x, MUSTER_POINT.y) <= BAY_RADIUS;
+    return this.currentRoomId === MUSTER_ROOM && Phaser.Math.Distance.Between(this.playerX, this.playerY, MUSTER_POINT.x, MUSTER_POINT.y) <= BAY_RADIUS;
   }
 
   // Phase 2 map growth — the nearest door in the CURRENT room within
@@ -5273,10 +6144,36 @@ export class Hub extends Phaser.Scene {
   // the door's own entry point (chosen with clearance from that point's
   // own DOOR_RADIUS, see the DOORS table) and refreshes which room's
   // doors/NPCs/bay are visible and interactive.
+  //
+  // Tier 1, 30 Aug 2026 (Consolidated Build Plan, Tier 1 item #2 — "player
+  // spawns on top of an NPC"). This used to place the player at the door's
+  // literal (toX, toY) unconditionally — the exact same single-fixed-point
+  // bug pickDoorLanding's own 26 Aug header already found and fixed for
+  // NPCs landing on EACH OTHER; the player's own landing was simply never
+  // brought in line with that fix at the time, since switchRoom predates
+  // it and nothing revisited this spot afterward. An NPC can perfectly
+  // well be standing at or near a door's landing point when the player
+  // walks through it — same door, same coordinate, no reason it couldn't
+  // — so the player needs the same jitter-and-reject treatment NPCs
+  // already get, not a separate system: pickPointNearDoor with PLAYER_R
+  // (not NPC_R — the player's own collision radius, so the rejection
+  // check matches the real PLAYER_R+NPC_R math handleMovement's own NPC-
+  // blocking check uses, not the NPC-on-NPC NPC_R+NPC_R distance), then
+  // clamped the same way completeDoorHop already clamps an NPC's landing —
+  // see that function's own comment for why clamping the point ITSELF,
+  // not just each step toward it, is what keeps a jittered target from
+  // ever being unreachable.
   private switchRoom(door: DoorDef) {
     this.currentRoomId = door.toRoom;
-    this.playerX = door.toX;
-    this.playerY = door.toY;
+    const landing = pickPointNearDoor(
+      ROOM_DECK[door.toRoom],
+      { x: door.toX, y: door.toY },
+      this.npcs.filter((n) => n.room === door.toRoom),
+      PLAYER_R,
+    );
+    const land = clampToDeckFloor(ROOM_DECK[door.toRoom], landing.x, landing.y, PLAYER_R);
+    this.playerX = land.x;
+    this.playerY = land.y;
     this.player.setPosition(this.playerX, this.playerY);
     this.refreshRoomVisibility();
   }
@@ -5331,6 +6228,11 @@ export class Hub extends Phaser.Scene {
     const onLowerDeck = sameDeck("recroom", this.currentRoomId);
     this.bayOutline.setVisible(onLowerDeck);
     this.bayLabel.setVisible(onLowerDeck);
+    // Tier 4, 30 Aug 2026 — same "visible across the whole deck, usable
+    // only in the exact room" split as the bay marker just above (see
+    // isAtHangarShop's own comment).
+    this.hangarShopOutline.setVisible(onLowerDeck);
+    this.hangarShopLabel.setVisible(onLowerDeck);
 
     const note = ROOM_NOTES[this.currentRoomId];
     const zone = ROOM_ZONE_BOUNDS[this.currentRoomId];

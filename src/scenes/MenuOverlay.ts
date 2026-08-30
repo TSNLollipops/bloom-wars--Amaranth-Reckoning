@@ -41,7 +41,15 @@ export function addMenuOverlayButton(
 function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | null): void {
   const state = getState();
   const layer = scene.add.container(0, 0).setDepth(15);
-  const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.75).setInteractive();
+  // Tier 6 hotfix, 30 Aug 2026 — main.ts's canvas grew (Hub.ts's chat
+  // window). This backdrop is shared across 4 scenes (Hub, MapSelect,
+  // Hangar, Debrief), so it reads the live camera size/center instead of a
+  // hardcoded 960x640/480,320 — a hardcoded width here would either leave
+  // the new strip of canvas undimmed on the right or, if just resized
+  // without recentering, cover the wrong half of the screen entirely.
+  const backdrop = scene.add
+    .rectangle(scene.cameras.main.centerX, scene.cameras.main.centerY, scene.cameras.main.width, scene.cameras.main.height, 0x000000, 0.75)
+    .setInteractive();
   const panel = scene.add.rectangle(480, 300, 380, 320, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
   const title = scene.add.text(480, 180, "MENU", { fontFamily: "monospace", fontSize: "20px", color: "#e8e2d4" }).setOrigin(0.5);
   layer.add([backdrop, panel, title]);

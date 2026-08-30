@@ -102,10 +102,33 @@ export interface BattleUnit {
    * in exactly the same one-line way it already does for a burrowed Bloom,
    * so the hostile AI's reflexive and pack tiers cannot target it, path to
    * it, or count it as a threat. Broken the instant this unit attacks
-   * (resolveAttack), and otherwise cleared at the start of its own next
-   * turn, in the same loop `overwatch` clears in.
+   * (resolveAttack). abil_screen's concealment is still cleared unconditionally
+   * at the start of the covered unit's own next turn, same loop `overwatch`
+   * clears in. abil_ambush's concealment is the one exception to that clear —
+   * see stealthTurnsRemaining directly below.
    */
   concealed?: boolean;
+  /**
+   * Meeps abil_ambush's cloak clock (stealth cloak redesign, 30 Aug 2026 —
+   * Maxime: "stealth cloak 3 turn, can move whilestealth. can attack while
+   * stealth. does 2x dmg after exiting stealth. its to give sweep a pvp use
+   * too and make ambush something usefull in game"). Set to
+   * AMBUSH_STEALTH_DURATION (data/combatTables.ts) by Mission.ambush() and
+   * decremented once per round in the same end-of-hostile-phase loop that
+   * used to unconditionally clear `concealed` for every posture — while this
+   * is > 0, `concealed` survives that loop instead of being blanket-cleared,
+   * which is what turns Ambush from a single reactive held-shot into a real
+   * multi-turn cloak: the unit moves and attacks completely normally on its
+   * own turns, fully hidden, until the clock runs out or it attacks (either
+   * one clears both this and `concealed` together — see resolveAttack).
+   * Undefined for every unit that has never ambushed, and for abil_screen's
+   * concealment, which is NOT this field and keeps its original one-round
+   * shape untouched. Read by resolveAttack to award the decloak damage
+   * bonus (AMBUSH_DECLOAK_DAMAGE_MULTIPLIER) on the specific attack that
+   * breaks an active cloak, and NOT for a screen-concealed unit's attack,
+   * which has no such bonus.
+   */
+  stealthTurnsRemaining?: number;
   /**
    * Tank abil_interdict. This unit is holding ground: any hostile that
    * FINISHES a move within INTERDICT_RADIUS of it, and that it can see,
@@ -118,8 +141,13 @@ export interface BattleUnit {
    * first — see engine/ai.ts's taunting-check at the top of
    * reflexiveDecision/sharedPackTarget/mechReflexiveDecision/
    * emergentDecision. Does not grant visibility on its own; a hostile that
-   * cannot see this unit is unaffected. Cleared at the start of this
-   * unit's own next turn, same loop as concealed/braced.
+   * cannot see this unit is unaffected. Also roots every hostile it
+   * redirects (30 Aug 2026 addition — see ai.ts's own "ROOT/LOCK addition"
+   * header): a redirected hostile attacks in place or does nothing, never
+   * moves. Cleared at the start of this unit's own next turn, same loop as
+   * concealed/braced. No-charge/reusable as of 30 Aug 2026 (data/abilities.ts,
+   * engine/mission.ts's canTaunt/taunt) — this flag's own shape and reset
+   * loop are unchanged by that redesign, only what gates setting it.
    */
   taunting?: boolean;
   /**
@@ -134,8 +162,6 @@ export interface BattleUnit {
   abilityCooldowns?: Record<string, number>;
   /** Munti abil_screen, once per mission — deliberately mirrors usedEvacThisMission's shape rather than folding into abilityCooldowns, because "spent for good" is a different fact from "not ready yet." */
   usedScreenThisMission?: boolean;
-  /** Meeps abil_taunt, once per mission — same shape and same reason as usedScreenThisMission. */
-  usedTauntThisMission?: boolean;
   /**
    * Reeps abil_sensor_sweep, SENSOR_SWEEP_CHARGES_PER_MISSION uses per
    * mission (data/combatTables.ts) — a spendable budget, not a cooldown,
@@ -215,6 +241,30 @@ export interface BattleUnit {
    * never needs to be anything but 0.
    */
   isCivilian?: boolean;
+
+  /**
+   * Single-named-pilot extract_unit missions only (5, 10, 11, 17, 23, 26 —
+   * objectiveParams.extractUnitId, NOT Mission 31's civilianSpawns, which
+   * uses isCivilian above and deliberately stays "real stakes, the hostile
+   * AI targets them like anyone else" per Maxime's own call on that
+   * mission). Set once, in Mission's constructor (tagExtractionTarget), on
+   * whichever player unit's instanceId matches extractUnitId.
+   *
+   * 30 Aug 2026 — Maxime, after the enemy-roam fallback's campaign sweep
+   * found mission_amaranth_26's stranded extraction target (Okafor,
+   * deliberately immobile by mission design) dying to a roaming Undertow
+   * before the player could reach her: "for the rescue, make it so enemy
+   * ignore rescue. like the save the civilian mission in XCOM." This flag
+   * is that ignore switch — engine/ai.ts's visibleEnemiesOf and
+   * sharedPackTarget both filter it out before a reflexive or pack-tier
+   * hostile ever considers a target, so she can never be selected to
+   * attack or chase, full stop, the same way XCOM's own civilians simply
+   * aren't valid enemy targets. Not a vision/concealment trick (she's
+   * still visible to the player, still on the fog map, still exactly as
+   * fragile to anything the PLAYER does) — this only ever changes what a
+   * hostile is willing to shoot at.
+   */
+  isExtractionTarget?: boolean;
 
   chargedThisMove: boolean;
   statusEffects: StatusEffect[];
@@ -345,7 +395,6 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
-    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
@@ -394,7 +443,6 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
-    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
@@ -482,7 +530,6 @@ export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleU
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
-    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: "shape_npc_downed",
@@ -554,7 +601,6 @@ export function createCivilianUnit(pos: Coord, displayName: string): BattleUnit 
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
-    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: "shape_civilian",
@@ -594,7 +640,6 @@ export function createBloomUnit(bloomArchetypeId: string, pos: Coord, opts?: { b
     abilityCooldowns: {},
     usedEvacThisMission: false,
     usedScreenThisMission: false,
-    usedTauntThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: arch.spriteKey,

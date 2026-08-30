@@ -1,0 +1,41 @@
+## Addendum, 30 Aug 2026: Taunt no-charge redesign, root/lock for PvP, Guard Taunt retried twice (both reverted)
+
+Maxime, same day as the Guard Taunt/boss-priority pass this addendum follows on from (`Bloom_Wars_Build_Log_Addendum_PlayerAI_GuardTauntTriedReverted_And_BossPriority_30Aug2026.md`): "make taunt like ambush. allow taunt to taunt everything in range. no charge, just plain use." Then, mid-session, a follow-up: "pvp use of taunt, for those in range to target the meeps only for the next turn, taunt should also lock the target in place so they dont run away."
+
+### Part 1 — Taunt no-charge redesign (real ability, shipped)
+
+Same shape as Ambush's own 30 Aug redesign: Taunt is now a reusable posture, not a once-per-mission charge. Removed `usedTauntThisMission` entirely — the `BattleUnit` field, its five initialization sites (`engine/units.ts`), `engine/mission.ts`'s `canTaunt`/`taunt` gate and assignment, and `scenes/Battle.ts`'s "Taunt: spent" UI line (which had no Ambush equivalent to begin with — removed, not replaced). The redirect effect itself (every hostile targeting tier picks a visible taunting unit first) is unchanged — confirmed already covered "everything in range" (vision range, not a hand-picked few) before touching anything. Cost stays the unit's entire action budget, same tier as Ambush/Interdict/Overwatch — that whole-turn cost is now the only rationing, matching Ambush's own "it is a posture, and paying a whole turn every time is already the price" reasoning.
+
+Rewrote `engine/__tests__/abilities.test.ts`'s Taunt suite: the old "is ONCE PER MISSION — refused on the second use" test became "is REUSABLE" (asserts a second `taunt()` succeeds on the next turn); the old "one use still gone after expiry" assertion flipped to "immediately usable again."
+
+### Part 2 — Root/lock (PvP-facing, real ability, shipped)
+
+Maxime, directly: "taunt should also lock the target in place so they dont run away." Clarified via a follow-up question — the recommended, chosen shape: any hostile Taunt's redirect forces onto the taunting unit is fully rooted for that decision — attacks in place if already able to, does nothing that turn otherwise (no closing distance, no falling back to a different target or to Munti-priority/plain instinct).
+
+Implemented in `engine/ai.ts`, one check added to each of the four targeting tiers (`reflexiveDecision`, `packDecision`/`sharedPackTarget`, `emergentDecision`, `mechReflexiveDecision`), keyed on the same signal each tier already uses to know its pick came from taunt (`.taunting === true` on the chosen target) rather than a new parameter. No unit-state mutation (no literal `moveRange = 0` write) — purely a decision-time branch that skips the move-then-attack and chase fallbacks.
+
+**Honest scope note, not hidden**: no hostile in the live campaign has any flee/retreat/kite behavior today (confirmed by reading the whole of `engine/ai.ts` — nothing here disengages), so this is a no-op against everything currently shipped. It exists for the PvP case Maxime named directly — an opposing human pilot's unit could otherwise just walk away from a taunt at zero cost — opening the same kind of seam the 30 Aug Ambush redesign opened for Sensor Sweep's "pvp use" ("the seam opened, not a finished PvP mode").
+
+Added 5 new tests to `engine/__tests__/ai.test.ts` covering the root/lock behavior on all four tiers (rewriting one existing mech-reflexive test whose old "falls back to Munti priority" expectation the redesign directly contradicts), plus in-place-attack coverage confirming root never blocks a legitimate already-in-range hit. `bloom_wellroot`'s own `moveRange: 0` (every emergent-tier boss is sessile) meant the emergent-tier root test needed a manual `moveRange` override to actually isolate "rooted by taunt" from "can't move anyway."
+
+### Part 3 — Guard Taunt (test-only sim AI), retried twice, reverted both times
+
+Since the original revert's root cause (`Bloom_Wars_Build_Log_Addendum_PlayerAI_GuardTauntTriedReverted_And_BossPriority_30Aug2026.md`) was specifically "the mission's ONE charge burned too early," removing the charge looked like it should unblock a retry. It didn't, on either shape tried:
+
+**Attempt 2a — visibility-only trigger (same shape as the original), against the now-reusable ability.** Full 40-mission/1000-run batch: aggregate 71% — flat against the 72% baseline, but the flat aggregate hides real opposite swings. `mission_amaranth_8` (the original worst case, 25/25 commander_down at true baseline) jumped 0%→84% — a genuine fix. But `mission_amaranth_21` (the one live emergent-boss mission) went from a ~28-36% baseline to 0%, 25/25 commander_down — worse than doing nothing. Traced cause: a Meeps with no defensive bonus taunting every single turn an ally is visible, standing fully exposed to a spawn-growing boss's swarm turn after turn, dies to the very thing it's drawing fire from — trading its own survival and the squad's DPS for a redirect the squad can't capitalize on before the next wave of adds arrives.
+
+**Attempt 2b — HP-gated trigger** (`GUARD_TAUNT_ALLY_HP_THRESHOLD = 0.6`, `combat.ts`, kept in the file): only guard an ally already below 60% HP, not merely visible, to fire less often. Full batch: aggregate 73%, nominally the best of the three numbers seen this pass. But per-mission, still not a clean win: `mission_amaranth_12` (12%→40%) and `mission_amaranth_21` (28%→44%) genuinely improved, `mission_amaranth_26` regressed (100%→72%), and `mission_amaranth_8` — attempt 2a's actual win — went right back to 0%: an HP-gated trigger fires too LATE for a mission where the fatal alpha strike lands the same turn the commander first becomes visible, before her HP has had a turn to drop.
+
+**Reverted both times**, same call as the first attempt, now with two real data points instead of one: `index.ts`'s `guard_taunt` call site is commented out again, with the numbers above in place. `canGuardTaunt`/`frontLineAllyToProtect` (`combat.ts`) stay defined — `frontLineAllyToProtect` now carries the HP gate from attempt 2b as its default shape, since that was the closer-to-neutral of the two, but neither trigger shape is wired up. Two different trigger shapes, two different mission classes each one helps and each one badly breaks — this is the "falsify the test" problem Maxime originally flagged, just pointed the other direction on the missions each attempt hurts. A trigger that actually reasons about threat count or incoming lethality on the taunting unit itself (not just ally visibility or ally HP) is the real next attempt, not built this pass.
+
+### Verification
+
+Typecheck (`tsc --noEmit`), lint (`eslint .`, `BW_RESERVED_TERM` set), and the full test suite (1145/1145, up from 1140 — 5 new root/lock tests, zero regressions) all clean on the final, shipped state (no-charge Taunt + root/lock; Guard Taunt reverted). Final full-campaign confirmation: `npm run sim:batch -- 50` (2000 runs) — **70% aggregate (1403/2000)**, flat against the prior 70% (1400/2000) confirmation from the previous pass, as expected — root/lock is a confirmed no-op against every hostile shipped today, and Guard Taunt is not wired up.
+
+### Delivered files
+
+`src/data/abilities.ts`, `src/engine/mission.ts`, `src/engine/units.ts`, `src/engine/ai.ts`, `src/scenes/Battle.ts`, `src/engine/__tests__/abilities.test.ts`, `src/engine/__tests__/ai.test.ts`, `src/sim/playerAi/combat.ts`, `src/sim/playerAi/index.ts` (all via the device bridge — staged, edited/tested in this session's cloud sandbox, committed back). `design/Bloom_Wars_Build_Log_Addendum_TauntNoCharge_GuardTauntRetried_30Aug2026.md` (new, this file).
+
+### Still open
+
+Guard Taunt's real fix is a smarter trigger than either attempt used — something that weighs whether the taunting unit itself can survive the turn it's drawing fire for (a threat-count / incoming-lethality check), not just ally visibility or ally HP. The commander_down problem Tier A originally surfaced is still the single biggest lever in the campaign and is still mostly unsolved by anything built so far. Root/lock has no live PvE case to prove itself against yet — it's confirmed correct and zero-regression, not confirmed useful, same honest status as the boss-priority discount from the previous pass.

@@ -392,6 +392,14 @@ export const AMARANTH_MISSION_2: CampaignMission = {
   enemyWaves: [
     { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 6, atTurn: 3, spawnAt: "enemy_deploy" },
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
+    // mission are absolute cakewalk"): 100% at n=150, real margin, single
+    // archetype (Splitfang only) for the whole mission. Sporethrower added
+    // at the same "enemy_deploy" pool the Splitfang waves already use
+    // safely (this mission's own vision/pathing bugs were fixed at launch,
+    // 22 Aug — enemy_deploy sits close to the hold room by construction,
+    // same reasoning Mission 27's own comment later re-derived).
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 3, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 130,
@@ -427,6 +435,17 @@ export const AMARANTH_MISSION_3: CampaignMission = {
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
+    // mission are absolute cakewalk" / earlier own note "we will really
+    // have to lean on it as a swarm entity with various variety"). This
+    // mission's own build log already flags the bot at a flat 0/8 here —
+    // NOT from this pass's own count, from ordinary attrition the bot's
+    // tactical ceiling can't clear regardless — so this addition can't be
+    // sim-verified against a win-rate baseline the normal way; shipped for
+    // real live-play variety (Maxime's own explicit ask, twice now), not a
+    // measured difficulty change. Sporethrower fills the missing ranged
+    // threat this mission never had.
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 3, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -473,6 +492,14 @@ export const AMARANTH_MISSION_4: CampaignMission = {
       burrowed: true,
     },
     { archetypeId: "bloom_crawlmass", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
+    // mission are absolute cakewalk"): 100% at n=150, and this mission's
+    // own build log already flags the same read from real play ("my team
+    // eat the bloom... not acted on"). Splitfang added at "enemy_deploy" —
+    // this mission has no fixed-vs-pooled spawn conflict the way the
+    // burrowed Undertow above does, since "enemy_deploy" was already safe
+    // for the Crawlmass wave.
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 160,
@@ -572,6 +599,18 @@ export const AMARANTH_MISSION_6: CampaignMission = {
     { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime directly:
+    // "the amaranth one need more enemy" — this is the one Bloom-free
+    // House Amaranth mission in the whole act). 84% at n=150, real margin.
+    // This mission's small fixed headcount (4 named 1-for-1 mechs, not a
+    // scalable swarm pool) turned out to make it far more sensitive than
+    // its own margin suggested: +2 troopers at turn 4 overshot to 11%,
+    // +1 at turn 4 was still 51% — a 25% force increase costing 33 points.
+    // Landed on +1 trooper delayed to turn 7 instead (closer to this
+    // mission's own turnLimit 10): 69% at n=150, a 15-point drop, in line
+    // with the biggest single-mission drop this whole pass has otherwise
+    // accepted (Mission 14's own 85%->70% in batch 2).
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 7, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -598,6 +637,19 @@ export const AMARANTH_MISSION_7: CampaignMission = {
     { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_crawlmass", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_sporethrower", count: 1, atTurn: 3, spawnAt: "enemy_deploy" },
+    // Tier 6 variety pass (30 Aug 2026) — same "mission 4-9" Undertow window
+    // as Mission 5's own note above. A small burrowed pair on the hold at
+    // turn 3, alongside the second Sporethrower wave, so the ridge itself
+    // starts feeling contested from underneath as well as from range.
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 3, spawnAt: "enemy_deploy", burrowed: true },
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
+    // mission are absolute cakewalk"): still 100% at n=150 even after
+    // batch 1's own Undertow addition — real margin left. Splitfang is
+    // the one archetype this mission never had; landed at turn 6 (the
+    // hold window itself opens then) rather than turn 1, so the mission's
+    // own early pacing is untouched and this reads as reinforcements
+    // arriving once the squad has to actually start holding.
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 6, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 180,
@@ -658,6 +710,14 @@ export const AMARANTH_MISSION_9: CampaignMission = {
     // squad sees a stationary acid threat as well as everything else new
     // that mission brings.
     { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 8, y: 4 }, { x: 13, y: 9 }] },
+    // Tier 6 variety pass (30 Aug 2026) — closes out the "mission 4-9"
+    // Undertow window Maxime named (Missions 5 and 7 above pick up the
+    // other two). Landed at turn 5, not turn 1, so the mission's own
+    // deliberately-modest opening (this file's comment above, "cheapest
+    // ask" for survive_n_turns' first outing) stays intact — this reads as
+    // a second, rising wave of pressure partway through the hold, matching
+    // "Cut Off"'s own premise of an unknown threat closing in blind.
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 5, spawnAt: "enemy_deploy", burrowed: true },
   ],
   events: [
     {
@@ -745,6 +805,21 @@ export const AMARANTH_MISSION_11: CampaignMission = {
     // chases the squad mechanically; a wave arriving a few turns later at
     // the tile they started on reads as pursuit without needing to be one.
     { archetypeId: "bloom_crawlmass", count: 3, atTurn: 3, spawnAt: [{ x: 28, y: 3 }, { x: 28, y: 9 }] },
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026): tried and reverted.
+    // 99% at n=150 (148/150) pre-edit looked like real margin, but two
+    // separate attempts to add even a single Sporethrower both introduced
+    // a brand-new LOSS failure mode that hadn't existed before (+2 at
+    // turn 1: 99%->56%, LOSS 0->66/150; +1 at turn 3, off the Splitfang
+    // wave's own turn: still 99%->72%, LOSS 0->42/150). Left at its
+    // original composition — this is the THIRD extract_unit mission this
+    // pass has found to be far more fragile than its surface win rate
+    // suggests (Mission 17 needed a full multi-round tuning pass to add
+    // anything at all; Mission 26 stayed thinned rather than restored
+    // after its own isolation-kill bug). Real pattern, not a one-off:
+    // extract_unit's single-named-target loss condition seems to punish
+    // any added damage-per-turn far harder than eliminate_all's margin
+    // implies, campaign-wide, not mission-specific. Worth a note for
+    // whoever picks up extract_unit balance generally.
   ],
   events: [
     {
@@ -854,6 +929,16 @@ export const AMARANTH_MISSION_13: CampaignMission = {
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Tier 6 variety pass, second batch (30 Aug 2026, Maxime: "mission 13-16
+    // are pretty cool.. easy still. giving them more variety would be
+    // cool"). Re-sim confirmed real headroom here — 97% (58/60) unedited,
+    // despite this mission's own comment above flagging a nonlinear squad-
+    // size response; archetype-count changes are a different lever and were
+    // tested separately rather than assumed safe by that history. Sporethrower
+    // is still thin outside Missions 7/9/14/15; a live-fire shakedown with a
+    // ranged threat mixed into the melee fits "prove everyone can fight
+    // together" at least as well as more Crawlmass/Splitfang would.
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -896,6 +981,19 @@ export const AMARANTH_MISSION_14: CampaignMission = {
     // "enemy_deploy" happens to scatter it. Coordinates match
     // STEEL_RAIN_TILES' own central ridge gap in data/mapsAmaranth.ts.
     { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 7 }, { x: 15, y: 8 }] },
+    // Tier 6 variety pass (30 Aug 2026) — Sporethrower's still thin outside
+    // its own Mission 7/17 window; a small pair here gives Providence's
+    // fire-support call-in (this mission's own centerpiece) a ranged target
+    // worth calling in on, not just more melee to walk through.
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Tier 6 variety pass, second batch (30 Aug 2026, Maxime named 13-16
+    // directly as "easy still... giving them more variety would be cool").
+    // Re-sim with the Sporethrower pair above already in found this mission
+    // still at 85% (51/60) — real headroom left even after the first pass.
+    // A small burrowed Undertow wave, arriving turn 4 once the fixed
+    // Gallcyst turrets and Sporethrower are already occupying attention,
+    // rounds this mission out to 3 archetypes instead of 2.
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 4, spawnAt: "enemy_deploy", burrowed: true },
   ],
   events: [
     {
@@ -938,6 +1036,15 @@ export const AMARANTH_MISSION_15: CampaignMission = {
     // squad's own beachhead rather than a scripted "pursuit," same device
     // The Long Walk Back used for its own turn-3 wave (Mission 11).
     { archetypeId: "bloom_crawlmass", count: 5, atTurn: 3, spawnAt: "enemy_deploy" },
+    // Tier 6 variety pass (30 Aug 2026) — Sporethrower's still thin outside
+    // its own Mission 7/17 window. Re-sim against the live Player AI found
+    // this mission actually sitting at 65% (not the 100% the comment above
+    // records — that number predates a later Player AI change and was never
+    // refreshed). A first-draft pair (count 2) dropped it to 20%; a single
+    // Sporethrower, still landing with the turn-3 reinforcement wave rather
+    // than the "no grace period" turn-1 opening, re-tested at 90% (18/20) —
+    // a small, real bump in difficulty rather than a broken mission.
+    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 3, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1040,6 +1147,23 @@ export const AMARANTH_MISSION_17: CampaignMission = {
     // HP, and ranged chip damage from a second mouth was compounding on
     // top of the Splitfang burst that was already doing the real work of
     // downing her.
+    //
+    // Tier 6 hotfix, 30 Aug 2026 — Maxime: "mission 17 can def have the
+    // double number of bloom it spawned with." Tried and reverted, not
+    // shipped: sim-tested each of the three counts above doubled, both
+    // together and in isolation (n=60 each). Every single one, EVEN ALONE,
+    // collapsed this mission's real baseline (88-92%) hard: Crawlmass
+    // alone 6->12 dropped it to 73% (COMMANDER_DOWN 3->16); Splitfang
+    // alone 1->2 dropped it to 73% (LOSS — Solheim herself — 3->10);
+    // Sporethrower alone 1->2 dropped it to 67% (COMMANDER_DOWN 3->19).
+    // The high baseline percentage was hiding very little real margin —
+    // see the Tier 6 Mission 16/17 addendum for the fuller finding this
+    // connects to: the sim bot's own commander-protection logic (Rourke's
+    // death alone ends the mission) doesn't scale cleanly as enemy density
+    // goes up, on this mission specifically. Left at the original counts
+    // rather than shipping a mission that plays meaningfully worse than
+    // before — a real design/AI-reliability question, not a data gap, so
+    // flagged rather than unilaterally resolved.
     { archetypeId: "bloom_sporethrower", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
   ],
   events: [
@@ -1095,6 +1219,13 @@ export const AMARANTH_MISSION_18: CampaignMission = {
     { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 2, y: 5 }, { x: 2, y: 6 }, { x: 2, y: 7 }, { x: 2, y: 8 }] },
     { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
     { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
+    // Tier 6 spawn-variety pass, batch 3 (30 Aug 2026): "no tuning needed
+    // past the first guess" per this mission's own build log, 90% at n=60
+    // pre-edit (6 commander_down losses, no straight losses/timeouts) — real
+    // headroom on the east/Bloom front specifically. Sporethrower added to
+    // the same east-mouth pool only; the west (House Amaranth) front is a
+    // fixed named-mech pincer arm, not a scalable pool, and stays untouched.
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
   ],
   events: [
     {
@@ -1141,6 +1272,14 @@ export const AMARANTH_MISSION_19: CampaignMission = {
     // Crawlmass holding the central junction chamber everything else
     // funnels through.
     { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
+    // Tier 6 spawn-variety pass, batch 3 (30 Aug 2026): only two archetypes
+    // on this whole mission (Undertow + Crawlmass) despite a documented
+    // 100%-clean, avgDowned-0 baseline at the current Crawlmass count — the
+    // exact "comfortable margin, thin roster" shape this pass targets.
+    // Sporethrower added at the same junction chamber as the Crawlmass
+    // block it's meant to support, not the Undertow ambush chambers, so it
+    // doesn't touch that archetype's own separately-tuned burrow trigger.
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
   ],
   events: [
     {
@@ -2060,6 +2199,27 @@ export const AMARANTH_MISSION_30: CampaignMission = {
     { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 26, y: 2 }, { x: 25, y: 6 }, { x: 26, y: 6 }, { x: 25, y: 8 }, { x: 26, y: 8 }, { x: 26, y: 12 }] },
     { archetypeId: "bloom_splitfang", count: 5, atTurn: 4, spawnAt: [{ x: 25, y: 6 }, { x: 25, y: 8 }] },
     { archetypeId: "bloom_sporethrower", count: 4, atTurn: 7, spawnAt: [{ x: 26, y: 2 }, { x: 26, y: 12 }] },
+    // Tier 6 spawn-variety pass, batch 4 (30 Aug 2026): 81% at n=150
+    // pre-edit, the widest real margin of any Act III mission checked this
+    // batch that wasn't already flagged fragile in its own build log (see
+    // this batch's addendum for the full per-mission audit). Undertow —
+    // the archetype the Tier 6 audit named as thin — added burrowed/fixed,
+    // same template as every other Undertow use in this file, at (7,6) and
+    // (7,8): open "plain" tiles (confirmed against ASHES_OF_THE_SECOND_
+    // RING_TILES directly, not guessed) just east of the squad's own deploy
+    // zone (x=1-4, y=6-9), on the path toward the Gallcyst strongpoints —
+    // narratively an ambush left in the rubble the squad has to clear
+    // "one street at a time," per this mission's own briefing. Burrowed
+    // placement sidesteps the vision-gated reflexive-movement bug this
+    // exact act's hold_zone missions (27, 29, 33) had to work around —
+    // an ambusher doesn't need to path anywhere to be a threat.
+    {
+      archetypeId: "bloom_undertow",
+      count: 2,
+      atTurn: 1,
+      spawnAt: [{ x: 7, y: 6 }, { x: 7, y: 8 }],
+      burrowed: true,
+    },
   ],
   events: [
     {

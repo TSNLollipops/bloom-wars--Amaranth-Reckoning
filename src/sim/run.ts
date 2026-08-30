@@ -98,6 +98,12 @@ while (m.outcome === "ongoing" && guard < 500) {
       // screenAllies() re-validates canScreen itself, same belt-and-braces
       // pattern as clearBloom/rescueUnit above.
       if (decision.action === "screen") m.screenAllies(unit.instanceId);
+      // Guard Taunt (30 Aug 2026, Player AI hardening pass) — taunt()
+      // re-validates canTaunt itself, same belt-and-braces pattern as the
+      // three verbs above; ends the unit's turn (actionsRemaining -> 0)
+      // same as Ambush/Interdict, so the sub-decision loop's own
+      // actionsRemaining check below naturally stops re-asking after this.
+      if (decision.action === "taunt") m.taunt(unit.instanceId);
       if (m.outcome !== "ongoing" || unit.downed) break;
       if (!repeatable) break; // see the header comment above for why only these earn another sub-decision
     }
@@ -132,6 +138,7 @@ const counts: Record<PlayerAiReason, number> = {
   repair_ally: 0,
   clear_bloom: 0,
   use_screen: 0,
+  guard_taunt: 0,
   focus_weak: 0,
   advance_into_range: 0,
   seek_rescue: 0,

@@ -10,6 +10,23 @@
 // every tier's own pick, including Munti priority. One check at the top
 // of each of reflexiveDecision / sharedPackTarget / mechReflexiveDecision
 // / emergentDecision — not a fifth tier, and not a new targeting system.
+//
+// ROOT/LOCK addition, 30 Aug 2026 — Maxime, on Taunt's no-charge/PvP-ready
+// redesign: "taunt should also lock the target in place so they dont run
+// away." Every hostile a targeting tier redirects onto the taunting unit
+// (identified the same way each tier already identifies its own redirect
+// — the chosen target/priority carrying `.taunting === true`) is fully
+// rooted for that decision: if it can already attack the taunting unit
+// from where it stands, it does; if not, it does NOTHING this turn rather
+// than moving to close distance, chase a different target, or fall back
+// to Munti-priority/reflexive behaviour. No existing hostile in the live
+// campaign ever tries to disengage or kite (there is no flee/retreat
+// behaviour anywhere in this file), so this is a no-op against everything
+// shipped today — it exists for the PvP case Maxime named directly, where
+// an opposing human pilot's unit otherwise could simply walk away from a
+// taunt with no cost. Lasts exactly as long as `taunting` itself (cleared
+// at the taunter's own next turn — engine/mission.ts), since every
+// targeting tier recomputes its pick fresh each hostile decision.
 import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
 import { BLOOM, SPLITFANG_PACK_RADIUS } from "../data/bloom";
@@ -97,14 +114,31 @@ function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
  * field nothing reads.
  */
 export function isVisibleTo(observer: BattleUnit, target: BattleUnit, currentTurn?: number): boolean {
-  if (target.concealed) return false;
+  // Ambush stealth cloak redesign (30 Aug 2026) — a sweep's paint now beats
+  // BOTH invisibility flags, not just burrow. Before this pass a concealed
+  // unit was unconditionally invisible regardless of revealedUntilTurn, so
+  // abil_sensor_sweep had no way to touch abil_ambush or abil_screen at all
+  // — dead against the one threat Maxime asked it to counter ("give sweep a
+  // pvp use"). Checked first, same as it already was relative to burrowed
+  // below, for the identical reason: revealing is what a sweep is for.
   if (currentTurn !== undefined && target.revealedUntilTurn !== undefined && target.revealedUntilTurn >= currentTurn) return true;
+  if (target.concealed) return false;
   if (target.burrowed) return false;
   return chebyshevDistance(observer.pos, target.pos) <= observer.vision;
 }
 
+// "Enemy ignore rescue" (30 Aug 2026 — full request/design in
+// BattleUnit.isExtractionTarget's own comment, units.ts). A hostile never
+// considers the single-named extraction target a valid target at all —
+// not a vision trick, an outright exclusion, same as XCOM's own civilians.
+// Checked in both places a reflexive/pack-tier hostile ever builds a
+// target list: visibleEnemiesOf below and sharedPackTarget further down.
+function isTargetableBy(_unit: BattleUnit, target: BattleUnit): boolean {
+  return !target.isExtractionTarget;
+}
+
 function visibleEnemiesOf(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
-  return livingTargets(allUnits, enemySideOf(unit)).filter((t) => isVisibleTo(unit, t));
+  return livingTargets(allUnits, enemySideOf(unit)).filter((t) => isTargetableBy(unit, t) && isVisibleTo(unit, t));
 }
 
 /**
@@ -261,17 +295,104 @@ export function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, t
  * no defendZone at all, so nothing changes there — this is a new fallback
  * for the "nothing visible" case, not a replacement for "chase what's in
  * front of you," which both tiers still do first.
+ *
+ * GENERALIZED, 30 Aug 2026 — Maxime, live playtest: "still mission are too
+ * easy... I could split my team 8-2 and clean it all easy... we also need
+ * to make our enemy roam so they have more chance of attacking the
+ * player." Same root mechanism as the defendZone fix above, confirmed by
+ * reading this file, not guessed: everything except a protect_asset map
+ * had no fallback at all, so a squad routed outside every hostile's
+ * vision left those hostiles frozen at spawn for the whole mission —
+ * planned as a paper-only doc (Bloom_Wars_Enemy_Roaming_And_Mission_
+ * Difficulty_Plan_v1.md) before Maxime gave the direct go-ahead to build
+ * it ("lets work on the ai. so that mission amaranth arent crappy").
+ * That plan's own §2 picked its recommended option (A: generalize the
+ * existing fallback using something already on every map) over a bounded
+ * random wander (B) or authored per-mission patrol waypoints (C) — cheap,
+ * reuses the proven Mission 32 mechanism, no new per-map authoring. Every
+ * MapDefinition already carries `deployZones.player` unconditionally
+ * (data/types.ts), unlike the optional defendZone, so it's the one target
+ * that exists on all 40 missions with zero new data.
+ *
+ * DEFAULT FLIPPED OFF, same day, after the campaign-wide sim sweep this
+ * plan itself said was mandatory before shipping: full 40-mission batch at
+ * n=25 went 71%→54% aggregate (706→541/1000), with several missions
+ * collapsing to near-0% that weren't before (mission_amaranth_4, _6, _13,
+ * _18, _24 all COMMANDER_DOWN; _26 a brand-new pure-LOSS mode). Read the
+ * verbose logs for two of them (run.ts, mission_amaranth_4 and _26) rather
+ * than guessing from the aggregate: this isn't generic "harder," it's
+ * concentrated. On the eliminate_all missions, several hostiles that used
+ * to sit frozen off-map now converge on the squad's own start position
+ * from turn 1 and stack attacks on whoever's most exposed — which lands
+ * disproportionately on the commander, the campaign's known soft spot
+ * (Tier 6.5, commander focus-fire, still unsolved, three prior reverts —
+ * this change compounds directly into that same unfixed weak point rather
+ * than being independent of it). On mission_amaranth_26 (extract_unit) a
+ * burrowed Undertow that used to stay put until spotted now beelines
+ * toward the player's deploy zone unconditionally and reaches the
+ * stranded extraction target — Okafor, deliberately immobile by mission
+ * design — before the player can reach her, which is a different and
+ * worse failure than "harder": it breaks the mission's own premise.
+ * mission_amaranth_4 was also one of today's earlier Tier 6 spawn-variety
+ * additions (batch 5), so some of its drop is two same-day changes
+ * stacking on one mission without a re-check between them — a process
+ * note for next time, not an excuse.
+ *
+ * The mechanism (Option A itself) is sound and the plan doc's own
+ * risk section called this outcome by name — this isn't a bug in
+ * idleRoamTarget, it's confirmation that shipping it needs the
+ * mission-by-mission re-tuning pass the plan doc predicted, which hasn't
+ * happened yet.
+ *
+ * FLIPPED BACK ON, same day, after reporting the findings above to
+ * Maxime directly and getting his actual call rather than guessing:
+ * "for the commadner death, thats fine. for the rescue, make it so enemy
+ * ignore rescue. like the save the civilian mission in xcom." So: the
+ * commander-focus-fire concentration on the eliminate_all missions is
+ * accepted as intended extra pressure, not something to re-tune away —
+ * and the extract_unit failure (the actual design break, not just a
+ * harder fight) got its own real fix instead: BattleUnit.isExtractionTarget
+ * (units.ts), set on the extraction target in Mission's constructor,
+ * makes a hostile never consider that one unit a valid target at all
+ * (engine/ai.ts's visibleEnemiesOf/sharedPackTarget, both filtered via
+ * isTargetableBy just below) — she can still be walked past, roamed near,
+ * whatever, but never attacked or chased. Re-verified with the full
+ * campaign sweep after both changes landed together — see this file's own
+ * build log addendum for the actual before/after numbers. `let`, not
+ * `const`, stays regardless — the killswitch shape is still worth keeping
+ * even on by default, and ai.test.ts's own describe block still uses the
+ * test-only setter below to exercise the mechanism in isolation.
  */
+export let ENABLE_ENEMY_ROAM_FALLBACK = true;
+
+/** Test-only setter — TS treats a `let` export as read-only through a
+ * namespace import from another module, so ai.test.ts's own describe
+ * block (which exercises this mechanism regardless of the live default —
+ * see the doc comment above) needs this to flip it and flip it back
+ * rather than reaching into the binding directly. Not meant for anything
+ * outside a test file. */
+export function __setEnableEnemyRoamFallbackForTests(value: boolean): void {
+  ENABLE_ENEMY_ROAM_FALLBACK = value;
+}
+
 function nearestZoneTile(unit: BattleUnit, zone: Coord[]): Coord {
   return zone.reduce((best, c) => (chebyshevDistance(unit.pos, c) < chebyshevDistance(unit.pos, best) ? c : best));
+}
+
+/** Where a mindless (reflexive/pack) unit with nothing visible should walk, if anywhere — defendZone first (the original, most literal "overrun this" case), then the player's own deploy zone as the generalized fallback, gated by ENABLE_ENEMY_ROAM_FALLBACK. Returns undefined only when neither applies (or the flag is off), meaning "hold position." */
+function idleRoamTarget(map: MapDefinition): Coord[] | undefined {
+  if (map.defendZone?.length) return map.defendZone;
+  if (ENABLE_ENEMY_ROAM_FALLBACK && map.deployZones.player.length) return map.deployZones.player;
+  return undefined;
 }
 
 function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const targets = visibleEnemiesOf(unit, allUnits);
   if (!targets.length) {
     // See nearestZoneTile's own comment above.
-    if (map.defendZone?.length) return { path: moveToward(map, unit, nearestZoneTile(unit, map.defendZone), allUnits) };
-    return {}; // nothing in sensor range and nothing to overrun — hold position rather than beeline the whole board
+    const roamZone = idleRoamTarget(map);
+    if (roamZone) return { path: moveToward(map, unit, nearestZoneTile(unit, roamZone), allUnits) };
+    return {}; // nothing in sensor range and nothing to overrun/roam toward — hold position
   }
 
   // abil_taunt (25 Aug 2026): a visible taunting unit wins the "who do I
@@ -286,6 +407,11 @@ function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battl
 
   const inPlaceTarget = bestAttackTargetInRange(map, unit, unit.pos, pool, allUnits);
   if (inPlaceTarget) return { attackTargetId: inPlaceTarget.instanceId };
+
+  // Rooted by Taunt (see this file's own header, "ROOT/LOCK addition") —
+  // can't close distance on the taunting unit, and with pool=[taunter] it
+  // has nothing else to consider attacking either. Stands still.
+  if (taunter) return {};
 
   const pathIntoRange = reachableWithinRangeTile(map, unit, nearest.pos, allUnits);
   if (pathIntoRange) {
@@ -303,7 +429,7 @@ function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: Battl
   // to this unit OR to any packmate within SPLITFANG_PACK_RADIUS (called in
   // over the pack's shared awareness, not this unit's own eyes only).
   const spotters = [unit, ...packAllies(unit, allUnits)];
-  const enemies = livingTargets(allUnits, enemySideOf(unit));
+  const enemies = livingTargets(allUnits, enemySideOf(unit)).filter((t) => isTargetableBy(unit, t));
   const targets = enemies.filter((t) => spotters.some((s) => isVisibleTo(s, t)));
   if (!targets.length) return undefined;
   // abil_taunt (25 Aug 2026): overrides the pack's own "lowest HP x DEF"
@@ -317,16 +443,23 @@ function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: Battl
 function packDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const target = sharedPackTarget(map, unit, allUnits);
   if (!target) {
-    // Same defendZone fallback as reflexiveDecision above, for the same
+    // Same idleRoamTarget fallback as reflexiveDecision above, for the same
     // reason — a pack with nothing spotted (by itself or any packmate)
-    // shouldn't freeze in place on a protect_asset map either.
-    if (map.defendZone?.length) return { path: moveToward(map, unit, nearestZoneTile(unit, map.defendZone), allUnits) };
+    // shouldn't freeze in place either.
+    const roamZone = idleRoamTarget(map);
+    if (roamZone) return { path: moveToward(map, unit, nearestZoneTile(unit, roamZone), allUnits) };
     return {};
   }
 
   const targets = [target];
   const inPlaceTarget = bestAttackTargetInRange(map, unit, unit.pos, targets, allUnits);
   if (inPlaceTarget) return { attackTargetId: inPlaceTarget.instanceId };
+
+  // Rooted by Taunt (see this file's own header) — sharedPackTarget only
+  // ever returns a taunting unit when one exists (it wins outright, see
+  // that function's own comment), so target.taunting === true here means
+  // exactly "this pick came from taunt, not the pack's normal pick."
+  if (target.taunting) return {};
 
   const pathIntoRange = reachableWithinRangeTile(map, unit, target.pos, allUnits);
   if (pathIntoRange) {
@@ -364,6 +497,12 @@ function emergentDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battle
   }
   const inRange = bestAttackTargetInRange(map, unit, unit.pos, targets, allUnits);
   if (inRange) return { attackTargetId: inRange.instanceId };
+  // Rooted by Taunt (see this file's own header) — priority is only ever
+  // the taunter when one exists (taunter ?? munti, taunter wins), so
+  // priority?.taunting means the boss's whole priority pick this decision
+  // came from taunt. Nothing in range and can't chase it (or anything
+  // else) — stands still, same as the moveRange===0 case just below.
+  if (priority?.taunting) return {};
   // The Heartwood (the only emergent unit in the slice) has moveRange 0 —
   // it never repositions. If nothing valid is in range, it passes.
   if (unit.moveRange === 0) return {};
@@ -408,8 +547,11 @@ function mechReflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: B
   if (taunter) {
     const inPlace = bestAttackTargetInRange(map, unit, unit.pos, [taunter], allUnits);
     if (inPlace) return { attackTargetId: inPlace.instanceId };
-    const pathToTaunter = reachableWithinRangeTile(map, unit, taunter.pos, allUnits);
-    if (pathToTaunter) return { path: pathToTaunter, attackTargetId: taunter.instanceId };
+    // Rooted by Taunt (see this file's own header) — unlike the old
+    // behaviour, does NOT fall through to closing distance on the
+    // taunter, Munti-priority, or plain reflexive targeting. Full lock:
+    // stands still.
+    return {};
   }
 
   const munti = targets.find((t) => t.path === "munti");

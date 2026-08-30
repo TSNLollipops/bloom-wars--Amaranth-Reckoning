@@ -937,6 +937,41 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(FIRE_SUPPORT_COLOR, 0.3);
       g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
+    // Hold Zone marker (30 Aug 2026, Maxime: "i reach turn 16 and it give me
+    // mission failed, no unit died, i cleared lot of bloom"). Root cause,
+    // traced through engine/mission.ts's checkWinLoss: hold_zone's actual
+    // win condition is a live snapshot check — a player unit standing ON
+    // this map's holdZone tile(s) with no hostile also on them, checked
+    // every turn from holdUntilTurn on — and until now NOTHING on this
+    // screen ever showed the player where that tile is, or whether they
+    // currently satisfy it. A player who spent the mission chasing Bloom
+    // instead of standing on an unmarked tile could do everything else
+    // right and still lose on the turn-limit branch, exactly as reported,
+    // with no way to have seen it coming. Always drawn (not gated behind a
+    // unit being selected, same as Protect Asset's HP line in drawHud below
+    // — this is core objective state, not an action preview), independent
+    // of the existing action-preview highlights above so it never disappears
+    // just because nothing is selected. Teal is unused by every other
+    // highlight on this board (see the _COLOR constants above); the fill
+    // color itself then reports live status so the player doesn't have to
+    // cross-reference the HUD text to read it off the map: green once the
+    // win condition is currently true, red while a hostile occupies the
+    // zone, dim teal otherwise (nobody there yet, or too early to count).
+    if (this.mission.mission.objective === "hold_zone") {
+      const hold = map.holdZone ?? [];
+      const holdUntil = this.mission.mission.objectiveParams.holdUntilTurn ?? this.mission.mission.objectiveParams.turnLimit;
+      const livingNow = this.mission.livingUnits();
+      const playerOnHold = livingNow.some((u) => u.side === "player" && !u.downed && hold.some((c) => coordKey(c) === coordKey(u.pos)));
+      const hostileOnHold = livingNow.some((u) => u.side === "hostile" && !u.downed && hold.some((c) => coordKey(c) === coordKey(u.pos)));
+      const fillColor = hostileOnHold ? 0xef4444 : this.mission.turn >= holdUntil && playerOnHold ? 0x22c55e : 0x2dd4bf;
+      const fillAlpha = hostileOnHold || (this.mission.turn >= holdUntil && playerOnHold) ? 0.4 : 0.18;
+      for (const c of hold) {
+        g.fillStyle(fillColor, fillAlpha);
+        g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+        g.lineStyle(2, 0x2dd4bf, 0.9);
+        g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
+      }
+    }
     if (this.selectedUnitId) {
       const u = this.mission.unitById(this.selectedUnitId);
       if (u) {
@@ -1458,6 +1493,20 @@ export class Battle extends Phaser.Scene {
       g.lineStyle(2, SWEEP_COLOR, 0.9);
       g.strokeCircle(cx, cy, r + 5);
     }
+    // Extraction target tell (30 Aug 2026 — see drawHud's own "Extract:"
+    // line comment for the full report and root cause). Points straight at
+    // the one unit that has to reach an exit tile, on the board itself, not
+    // just in the side panel text — a green ring, same hue family as
+    // TILE_COLORS.exit and Hold Zone's own "objective satisfied" green, so
+    // green already reads as "this is the extraction thing" everywhere else
+    // on this board. Only ever the single-target shape (Mission 31's
+    // civilian convoy doesn't set extractUnitId, so this simply never
+    // matches there — see engine/mission.ts's checkExtraction for why the
+    // two shapes are mutually exclusive per mission).
+    if (this.mission.mission.objective === "extract_unit" && unit.instanceId === this.mission.mission.objectiveParams.extractUnitId) {
+      g.lineStyle(3, 0x22c55e, 0.95);
+      g.strokeCircle(cx, cy, r + 6);
+    }
 
     // HP bar(s) above the unit.
     const barW = ts * 0.8;
@@ -1549,6 +1598,58 @@ export class Battle extends Phaser.Scene {
     // see it. Always shown, not just while a unit is selected, same as the
     // Objective line right above it.
     if (m.mission.objective === "protect_asset") lines.push(`Providence: ${m.assetHp}/${m.assetMaxHp} HP`);
+    // Hold Zone status line (30 Aug 2026) — see drawBoard's own teal-marker
+    // comment for the full "reached the turn limit, nobody died, mission
+    // failed anyway" bug this closes. Same always-shown treatment as
+    // Providence's HP line right above: this is the actual win condition,
+    // not an action preview, so it stays visible whether or not a unit is
+    // selected. Text status mirrors the board's own fill color exactly
+    // (green/red/teal) so a player who only reads the HUD panel — or is
+    // colorblind to the on-map wash — gets the same information either way.
+    if (m.mission.objective === "hold_zone") {
+      const hold = m.map.holdZone ?? [];
+      const holdUntil = m.mission.objectiveParams.holdUntilTurn ?? m.mission.objectiveParams.turnLimit;
+      const livingNow = m.livingUnits();
+      const playerOnHold = livingNow.some((u) => u.side === "player" && !u.downed && hold.some((c) => coordKey(c) === coordKey(u.pos)));
+      const hostileOnHold = livingNow.some((u) => u.side === "hostile" && !u.downed && hold.some((c) => coordKey(c) === coordKey(u.pos)));
+      let zoneStatus: string;
+      if (hostileOnHold) zoneStatus = "CONTESTED — a hostile is on the zone";
+      else if (m.turn >= holdUntil && playerOnHold) zoneStatus = "HELD — objective clear";
+      else if (playerOnHold) zoneStatus = `standing by (holds from turn ${holdUntil})`;
+      else zoneStatus = "EMPTY — no one is standing on it";
+      lines.push(`Hold Zone (teal tile${hold.length > 1 ? "s" : ""}): ${zoneStatus}`);
+    }
+    // Extraction objective status line (30 Aug 2026, Maxime, Mission 17: "I
+    // couldnt find out which unit need extraction so I failed the mission.
+    // need more extraction square maybe to fit the number of fielded
+    // unit"). Same bug shape as Hold Zone just above, same fix: the raw
+    // "Objective: extract_unit" enum on its own never said WHICH unit has
+    // to reach a (green) exit tile, or that it's only one — a squad of 5-10
+    // deployed had no way to tell "everyone" from "just this one" apart.
+    // It isn't that this mission type needs more exit tiles (every extract
+    // map already has a small exit cluster; Mission 17's own map has four
+    // exit cells at its far corner) — the player just had no way to know
+    // only Solheim mattered. drawUnit's own
+    // green ring (below) marks the same unit on the board itself, so a
+    // player doesn't have to keep re-reading this panel mid-fight. Single-
+    // target missions win the instant the target reaches an exit (see
+    // checkWinLoss), so there's no "already extracted, still fighting"
+    // state to show here — only "still out there" or "downed, lost."
+    // Multi-civilian missions (Mission 31, The Last Convoy) are a genuinely
+    // different shape — several NPCs, a threshold, not everyone has to make
+    // it — so they get a running tally instead of a single name.
+    if (m.mission.objective === "extract_unit") {
+      if (m.mission.civilianSpawns?.length) {
+        const total = m.mission.civilianSpawns.length;
+        const threshold = m.mission.objectiveParams.extractThreshold ?? total;
+        lines.push(`Extraction (green exit tiles): ${m.extractedCivilianCount}/${threshold} needed out (of ${total} total)`);
+      } else {
+        const targetId = m.mission.objectiveParams.extractUnitId;
+        const target = targetId ? m.unitById(targetId) : undefined;
+        const status = !target ? "extracted — clear" : target.downed ? "DOWNED — mission lost" : "still in the field — get them to a green exit tile";
+        lines.push(`Extract: ${target?.displayName ?? "target"} (${status})`);
+      }
+    }
     // Index 4 (not 3), since sortieLine above pushed everything down one —
     // splices the briefing+blank in ahead of the "Objective:" line exactly
     // as before, just accounting for the new sortieLine entry at index 2.
@@ -1562,9 +1663,10 @@ export class Battle extends Phaser.Scene {
         else if (selected.concealed) lines.push("CONCEALED — the Bloom cannot see this unit");
         if (selected.braced) lines.push("BRACED — pins hostiles that step alongside");
         if (selected.taunting) lines.push("TAUNTING — every hostile that can see this unit targets it first");
-        if (selected.abilities.includes("abil_taunt") && selected.usedTauntThisMission) {
-          lines.push("Taunt: spent (once per mission)");
-        }
+        // No "spent" status line here, deliberately — Taunt is a reusable
+        // posture now (30 Aug 2026 no-charge redesign, same as Ambush just
+        // above), not a once-per-mission charge, so there's nothing to
+        // report as spent. Mirrors Ambush's own UI, which never had one.
         if (selected.abilities.includes("abil_sensor_sweep")) {
           const charges = m.sensorSweepChargesRemaining(selected.instanceId);
           lines.push(charges > 0 ? `Sensor Sweep: ${charges} charge(s) left this mission` : "Sensor Sweep: spent for this mission");
@@ -1584,6 +1686,13 @@ export class Battle extends Phaser.Scene {
     if (this.rescuableNpc.length) lines.push("", "Gold tile = Rescue (adjacent, downed pilot)");
     if (this.clearableBloom.length) lines.push("", `Gold tiles = ${this.clearableBloom.length} bloom mat tile(s) Clear would flip`);
     if (this.fireSupportTargeting) lines.push("", `Blue tiles = Fire Support strike center (shared, ${m.fireSupportChargesRemaining} charge(s) left) — click to call it in, or click elsewhere to cancel`);
+    // Same legend treatment as every highlight above, for the terrain
+    // itself rather than an action preview — green exit tiles are drawn as
+    // base terrain (TILE_COLORS.exit) on every extract_unit map already, so
+    // there was never a missing highlight here, just no line anywhere
+    // saying what that green terrain meant. See drawHud's "Extract:" line
+    // and drawUnit's green ring, just above, for the rest of this same fix.
+    if (m.mission.objective === "extract_unit") lines.push("", "Green tiles = Exit — green ring on the board marks who has to reach one");
     // Standing tallies, so the player can see their firing line is set
     // without having to re-select each unit. Amber brackets on the board
     // mark overwatchers, violet frames mark the concealed, an orange ring
@@ -1639,7 +1748,13 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
-    const bg = this.add.rectangle(480, 320, 960, 640, 0x000000, 0.72);
+    // Tier 6 hotfix, 30 Aug 2026 — main.ts's own canvas grew (Hub.ts's chat
+    // window, see that file's own header) so this backdrop now reads the
+    // live camera size instead of the old hardcoded 960x640 — otherwise the
+    // new strip of canvas on the right would show live gameplay peeking
+    // out from under this "everything is dimmed" result screen instead of
+    // actually being dimmed.
+    const bg = this.add.rectangle(this.cameras.main.centerX, this.cameras.main.centerY, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.72);
     const win = this.mission.outcome === "win";
     const title = this.add
       .text(480, 280, win ? "MISSION COMPLETE" : "MISSION FAILED", {
@@ -1722,7 +1837,9 @@ export class Battle extends Phaser.Scene {
     const commander = this.mission.commanderDownPilotId ? findPilot(this.mission.commanderDownPilotId) : undefined;
     const commanderName = commander?.displayName ?? "Command";
 
-    const bg = this.add.rectangle(480, 320, 960, 640, 0x000000, 0.72);
+    // Tier 6 hotfix, 30 Aug 2026 — same camera-size fix as this file's other
+    // full-screen dimming backdrop, right above (see its own comment).
+    const bg = this.add.rectangle(this.cameras.main.centerX, this.cameras.main.centerY, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.72);
     const title = this.add.text(480, 260, "COMMAND DOWN", { fontFamily: "monospace", fontSize: "36px", color: "#ef4444" }).setOrigin(0.5);
     const sub = this.add
       .text(480, 310, `${commanderName} is down — the attempt ends here.`, { fontFamily: "monospace", fontSize: "13px", color: "#e8e2d4" })

@@ -21,18 +21,32 @@
 // House test style (see overwatch.test.ts / repair.test.ts / twoAction.test.ts):
 // real Mission objects built from a real mission def, with direct unit
 // mutation to isolate one scenario on an otherwise quiet board.
+//
+// STEALTH CLOAK REDESIGN (30 Aug 2026) — abil_ambush's own describe block
+// below was rewritten for this pass. Maxime, asked directly what "real
+// stealth" meant for the ability: "stealth cloak 3 turn, can move whilestealth.
+// can attack while stealth. does 2x dmg after exiting stealth. its to give
+// sweep a pvp use too and make ambush something usefull in game." The
+// original version below — built on Overwatch's reactive held-shot trigger,
+// one shot out of one turn of concealment — is gone; see engine/mission.ts's
+// ambush()/resolveAttack() and data/abilities.ts's abil_ambush entry for the
+// full new mechanic. The sensor-sweep block right above also gained one new
+// test for the isVisibleTo change this redesign required (revealedUntilTurn
+// now beats concealed, not just burrowed) — that is the literal "give sweep
+// a pvp use" half of the request.
 import { describe, it, expect } from "vitest";
 import { Mission } from "../mission";
 import { AMARANTH_MISSION_1, AMARANTH_MISSION_8 } from "../../data/campaignAmaranth";
 import { createHostileMechUnit, createBloomUnit, type BattleUnit } from "../units";
 import { chebyshevDistance } from "../grid";
-import { unitsVisibleToSide, decideHostileAction } from "../ai";
+import { unitsVisibleToSide, decideHostileAction, isVisibleTo } from "../ai";
 import {
   MAX_ACTIONS_PER_TURN,
   SENSOR_SWEEP_RANGE_BONUS,
   SENSOR_SWEEP_CHARGES_PER_MISSION,
   INTERDICT_RADIUS,
   SCREEN_RADIUS,
+  AMBUSH_STEALTH_DURATION,
 } from "../../data/combatTables";
 
 // The Amaranth roster is used rather than Team One's because it carries
@@ -272,6 +286,33 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     expect(bloom.endurance).toBeLessThan(enduranceBefore!);
     expect(logsMatching(mission, "fires overwatch").length).toBe(1);
   });
+
+  it("PVP-READINESS: a swept unit is visible through concealment, not just through burrow (stealth cloak redesign, 30 Aug 2026)", () => {
+    // Before this pass, isVisibleTo checked `concealed` BEFORE
+    // revealedUntilTurn, so a painted abil_ambush/abil_screen unit stayed
+    // invisible no matter what — sensorSweep()'s own revealedUntilTurn write
+    // only ever mattered against burrow. That is the literal gap Maxime's
+    // "give sweep a pvp use" line was about: with Ambush now a 3-round
+    // cloak worth actually hunting, Sweep needs to be able to find it.
+    // canSensorSweep is player-only today (no hostile-side use exists yet —
+    // see its own comment in engine/mission.ts), so this drives isVisibleTo
+    // directly rather than through mission.sensorSweep(), which is the same
+    // primitive both a real sweep and a future PvP mode would ultimately
+    // read.
+    const mission = quietMission();
+    const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
+    const observer = mover(mission, { x: 9, y: 4 });
+
+    mission.ambush(rourke.instanceId);
+    expect(isVisibleTo(observer, rourke, mission.turn)).toBe(false); // cloaked, unpainted: still hidden
+
+    rourke.revealedUntilTurn = mission.turn;
+    expect(isVisibleTo(observer, rourke, mission.turn)).toBe(true); // painted: found despite the cloak
+    expect(rourke.concealed).toBe(true); // revealing is not surfacing — same rule burrow already had
+
+    rourke.revealedUntilTurn = undefined;
+    expect(isVisibleTo(observer, rourke, mission.turn)).toBe(false); // unpainted again: the cloak holds
+  });
 });
 
 // =====================================================================
@@ -279,7 +320,7 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
 // =====================================================================
 
 describe("Mission.ambush (abil_ambush — Meeps)", () => {
-  it("conceals, arms the held shot, spends the whole budget, and logs it", () => {
+  it("conceals, arms the multi-turn cloak, spends the whole budget, and logs it", () => {
     const mission = quietMission();
     const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
     expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN);
@@ -288,9 +329,11 @@ describe("Mission.ambush (abil_ambush — Meeps)", () => {
     expect(mission.ambush(rourke.instanceId)).toBe(true);
 
     expect(rourke.concealed).toBe(true);
-    expect(rourke.overwatch).toBe(true); // reuses the overwatch trigger verbatim — no second code path
+    expect(rourke.stealthTurnsRemaining).toBe(AMBUSH_STEALTH_DURATION);
+    // No longer a held shot — see the redesign's own comment in mission.ts.
+    expect(rourke.overwatch).toBeFalsy();
     expect(rourke.actionsRemaining).toBe(0);
-    expect(logsMatching(mission, "goes to ground — concealed, holding a shot.").length).toBe(1);
+    expect(logsMatching(mission, `vanishes — cloaked for ${AMBUSH_STEALTH_DURATION} turns.`).length).toBe(1);
   });
 
   it("costs the whole budget even with one action already spent — no move-shoot-vanish", () => {
@@ -349,7 +392,7 @@ describe("Mission.ambush (abil_ambush — Meeps)", () => {
     expect(mission.canAmbush(iyari.instanceId)).toBe(false);
   });
 
-  it("FOG: the hostile AI cannot see a concealed unit — it walks alongside instead of attacking it", () => {
+  it("FOG: the hostile AI cannot see a cloaked unit — it walks alongside, and the cloak stays silent", () => {
     const mission = quietMission();
     const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
     const bait = pilot(mission, "pilot_iyari", { x: 7, y: 2 });
@@ -366,8 +409,14 @@ describe("Mission.ambush (abil_ambush — Meeps)", () => {
     expect(rourke.currentHp).toBe(rourke.maxHp); // it never chose him as a target at all
     expect(logsMatching(mission, `attacks ${rourke.displayName}`).length).toBe(0);
     expect(bait.currentHp).toBe(bait.maxHp); // never got in range of the bait either
-    // ...and it walked into the held shot on the way, which is the payoff.
-    expect(logsMatching(mission, `${rourke.displayName} fires overwatch`).length).toBe(1);
+    // Redesign, 30 Aug 2026: the cloak is no longer a held shot. Walking
+    // alongside it draws nothing at all — the original version of this test
+    // pinned an overwatch shot firing right here; that code path is gone.
+    expect(logsMatching(mission, "fires overwatch").length).toBe(0);
+    // Still cloaked with two of its three rounds left — this is round 1 of
+    // AMBUSH_STEALTH_DURATION, not an expiry.
+    expect(rourke.concealed).toBe(true);
+    expect(rourke.stealthTurnsRemaining).toBe(AMBUSH_STEALTH_DURATION - 1);
   });
 
   it("CONTROL for the test above: unconcealed, the same hostile ends on the same tile and attacks", () => {
@@ -385,34 +434,64 @@ describe("Mission.ambush (abil_ambush — Meeps)", () => {
     expect(logsMatching(mission, `attacks ${rourke.displayName}`).length).toBe(1);
   });
 
-  it("OVERWATCH: the held shot fires on the hostile that walks alongside, and firing breaks concealment", () => {
+  it("STEALTH CLOAK: moves and attacks freely on a later turn while still concealed, and the decloak strike deals AMBUSH_DECLOAK_DAMAGE_MULTIPLIER damage", () => {
     const mission = quietMission();
     const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
-    pilot(mission, "pilot_iyari", { x: 7, y: 2 });
-    const hostile = mover(mission, { x: 11, y: 2 }, { moveRange: 1, vision: 6 });
+    // Blind and immobile — it does nothing on its own hostile-phase turn
+    // either way, so the test isolates "does a cloaked unit's OWN next turn
+    // work normally" from "can the hostile AI see through the cloak,"
+    // already covered by the FOG test above.
+    const hostile = mover(mission, { x: 9, y: 4 }, { moveRange: 0, vision: 0, canCounter: false });
 
     mission.ambush(rourke.instanceId);
-    mission.endPlayerTurn();
+    mission.endPlayerTurn(); // hostile phase of round 1 — cloak survives it either way
 
-    expect(hostile.currentHp).toBeLessThan(hostile.maxHp);
-    expect(logsMatching(mission, `${rourke.displayName} fires overwatch`).length).toBe(1);
-    expect(rourke.concealed).toBe(false); // gave the position away by shooting
-    expect(rourke.overwatch).toBe(false); // one shot per held shot, same as Overwatch
+    expect(mission.turn).toBe(2);
+    expect(rourke.concealed).toBe(true);
+    expect(rourke.stealthTurnsRemaining).toBe(AMBUSH_STEALTH_DURATION - 1);
+    expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN); // a completely normal turn, just hidden
+
+    // Move into range while still cloaked — nothing about movement touches
+    // concealment at all; only attacking does.
+    expect(mission.moveUnit(rourke.instanceId, { x: 9, y: 3 })).toBe(true);
+    expect(rourke.concealed).toBe(true);
+    expect(chebyshevDistance(rourke.pos, hostile.pos)).toBe(1);
+
+    const before = hostile.currentHp;
+    expect(mission.attack(rourke.instanceId, hostile.instanceId)).not.toBeNull();
+    const dealt = before - hostile.currentHp;
+
+    expect(dealt).toBeGreaterThan(0);
+    expect(logsMatching(mission, "DECLOAK STRIKE").length).toBe(1);
+    // Attacking is the trade: broke the cloak for good, this mission — no
+    // re-ambushing off the same activation.
+    expect(rourke.concealed).toBe(false);
+    expect(rourke.stealthTurnsRemaining).toBeUndefined();
+    expect(mission.canAmbush(rourke.instanceId)).toBe(false); // out of actions, not concealed-blocked
   });
 
-  it("both flags expire at the ambusher's next turn start, in the same place actions refresh", () => {
+  it("the cloak survives AMBUSH_STEALTH_DURATION full rounds untouched, then expires quietly with no bonus", () => {
     const mission = quietMission();
     const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
     mission.ambush(rourke.instanceId);
     expect(rourke.concealed).toBe(true);
+    expect(rourke.stealthTurnsRemaining).toBe(AMBUSH_STEALTH_DURATION);
 
-    mission.endPlayerTurn(); // nothing on the board can trigger it — the keeper is blind
-
-    expect(mission.turn).toBe(2);
-    expect(rourke.concealed).toBe(false);
-    expect(rourke.overwatch).toBe(false);
-    expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN);
+    for (let round = 1; round <= AMBUSH_STEALTH_DURATION; round++) {
+      mission.endPlayerTurn(); // nothing on the board can trigger it — the keeper is blind
+      expect(mission.turn).toBe(round + 1);
+      expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN); // refreshes every round regardless
+      if (round < AMBUSH_STEALTH_DURATION) {
+        expect(rourke.concealed).toBe(true);
+        expect(rourke.stealthTurnsRemaining).toBe(AMBUSH_STEALTH_DURATION - round);
+      } else {
+        expect(rourke.concealed).toBe(false);
+        expect(rourke.stealthTurnsRemaining).toBeUndefined();
+      }
+    }
+    expect(rourke.overwatch).toBeFalsy(); // never set by this ability anymore
     expect(logsMatching(mission, "fires overwatch").length).toBe(0);
+    expect(logsMatching(mission, "DECLOAK STRIKE").length).toBe(0); // expired quietly — no attack ever happened
   });
 });
 
@@ -476,21 +555,24 @@ describe("Mission.taunt (abil_taunt — Meeps, mission 8 onward)", () => {
     expect(logsMatching(mission, "draws every eye — taunting.").length).toBe(1);
   });
 
-  it("is ONCE PER MISSION — refused on the second use even with turns to spare", () => {
+  it("is REUSABLE — no per-mission charge, no cooldown, same shape as Ambush's own 30 Aug redesign (Maxime: \"make taunt like ambush... no charge, just plain use\")", () => {
     const mission = quietMission8();
     const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
 
     expect(mission.taunt(rourke.instanceId)).toBe(true);
-    expect(rourke.usedTauntThisMission).toBe(true);
+    // Out of actions, not blocked by any charge — the SAME turn's second
+    // call fails only because taunt() already zeroed actionsRemaining.
     expect(mission.canTaunt(rourke.instanceId)).toBe(false);
     expect(mission.taunt(rourke.instanceId)).toBe(false);
 
     mission.endPlayerTurn();
 
     expect(mission.turn).toBe(2);
-    expect(mission.canTaunt(rourke.instanceId)).toBe(false); // spent, not cooling
-    expect(mission.taunt(rourke.instanceId)).toBe(false);
-    expect(logsMatching(mission, "draws every eye").length).toBe(1);
+    // A fresh turn's action budget is back, and so is Taunt — nothing
+    // rations it beyond the whole-turn cost each use already pays.
+    expect(mission.canTaunt(rourke.instanceId)).toBe(true);
+    expect(mission.taunt(rourke.instanceId)).toBe(true);
+    expect(logsMatching(mission, "draws every eye").length).toBe(2);
   });
 
   it("refuses a unit without the ability, a unit out of actions, a downed unit, an unknown id, and any hostile", () => {
@@ -516,7 +598,7 @@ describe("Mission.taunt (abil_taunt — Meeps, mission 8 onward)", () => {
     expect(mission.canTaunt(rourke.instanceId)).toBe(false);
   });
 
-  it("expires at the taunter's next turn start, same loop as concealed/braced", () => {
+  it("expires at the taunter's next turn start, same loop as concealed/braced — and is immediately usable again, no charge to restock", () => {
     const mission = quietMission8();
     const rourke = pilot(mission, "pilot_rourke", { x: 9, y: 1 });
     mission.taunt(rourke.instanceId);
@@ -527,8 +609,8 @@ describe("Mission.taunt (abil_taunt — Meeps, mission 8 onward)", () => {
     expect(mission.turn).toBe(2);
     expect(rourke.taunting).toBe(false);
     expect(rourke.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN);
-    // But the one use is still gone for the rest of the mission:
-    expect(mission.canTaunt(rourke.instanceId)).toBe(false);
+    // Reusable posture, not a spent charge — ready again this same turn.
+    expect(mission.canTaunt(rourke.instanceId)).toBe(true);
   });
 });
 
@@ -818,12 +900,19 @@ describe("Mission.screenAllies (abil_screen — Munti)", () => {
 
     mission.screenAllies(lask.instanceId);
 
-    // The AI's own decision, asked directly: nothing visible, so nothing to do.
-    expect(decideHostileAction(mission.map, hostile, mission.units)).toEqual({});
+    // The AI's own decision, asked directly: nothing visible, so it can't
+    // attack — but per the 30 Aug enemy-roam fallback (engine/ai.ts,
+    // idleRoamTarget, ENABLE_ENEMY_ROAM_FALLBACK = true live as of the
+    // same day, once Maxime's own call on the campaign sweep's findings
+    // came back), a reflexive unit with nothing in sensor range now walks
+    // toward the player's own deployZone rather than holding position
+    // outright. Concealment still blocks targeting/attacking entirely
+    // (isVisibleTo), just not this generalized movement fallback.
+    expect(decideHostileAction(mission.map, hostile, mission.units)).toEqual({ path: [{ x: 11, y: 2 }, { x: 11, y: 3 }] });
 
     mission.endPlayerTurn();
 
-    expect(hostile.pos).toEqual({ x: 11, y: 2 }); // held position — reflexive tier, no target in sensor range
+    expect(hostile.pos).toEqual({ x: 11, y: 3 }); // roamed one tile toward the deploy zone — concealment still means no attacker
     expect(covered.currentHp).toBe(covered.maxHp);
     expect(lask.currentHp).toBe(lask.maxHp);
     expect(logsMatching(mission, "attacks").length).toBe(0);

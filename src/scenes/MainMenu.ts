@@ -56,7 +56,11 @@ export class MainMenu extends Phaser.Scene {
   private drawBackdrop() {
     const dots = this.add.graphics();
     dots.fillStyle(0x1a2028, 0.6);
-    for (let x = 20; x < 960; x += 42) {
+    // Tier 6 hotfix, 30 Aug 2026 — main.ts's canvas grew wider (Hub.ts's
+    // chat window); reading the live camera width here instead of the old
+    // hardcoded 960 keeps this dot grid covering the whole screen instead
+    // of stopping short and leaving a bare strip on the right.
+    for (let x = 20; x < this.cameras.main.width; x += 42) {
       for (let y = 20; y < 640; y += 42) {
         dots.fillCircle(x, y, 1.1);
       }
@@ -141,7 +145,12 @@ export class MainMenu extends Phaser.Scene {
     this.confirmLayer.removeAll(true);
     this.confirmLayer.setVisible(true);
 
-    const backdrop = this.add.rectangle(480, 320, 960, 640, 0x000000, 0.7).setInteractive();
+    // Tier 6 hotfix, 30 Aug 2026 — same camera-size fix as drawBackdrop's
+    // dot grid above (see its own comment) and MenuOverlay.ts's own shared
+    // backdrop.
+    const backdrop = this.add
+      .rectangle(this.cameras.main.centerX, this.cameras.main.centerY, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.7)
+      .setInteractive();
     const panel = this.add.rectangle(480, 320, 560, 240, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
     const msg = this.add
       .text(
