@@ -29,6 +29,8 @@ import {
   generateRandomRescuedPilot,
   integrateSecondLance,
   integrateThirdLance,
+  integrateHouseAmaranthSecondLance,
+  baseSceneKeyFor,
   type CampaignState,
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
@@ -182,6 +184,15 @@ export class Debrief extends Phaser.Scene {
       const result = integrateSecondLance(this.state);
       this.secondLancePilots = result.integrated ? result.pilots : undefined;
     }
+    // House Amaranth's own Second Lance (1 Sep 2026) — same beat, one
+    // mission id over. Mutually exclusive with the Warden gate above (a
+    // save is only ever one side's mission ids), so sharing
+    // this.secondLancePilots/drawSecondLanceCallout is safe — at most one
+    // of these two blocks ever fires for a given Debrief screen.
+    if (this.mission.mission.id === "mission_house_amaranth_12" && win) {
+      const result = integrateHouseAmaranthSecondLance(this.state);
+      this.secondLancePilots = result.integrated ? result.pilots : undefined;
+    }
 
     // ---- 3c. Third Lance integration (Act III opening, 25 Aug 2026 —
     // same-day correction) — mirrors 3b exactly, one mission later: see
@@ -260,7 +271,9 @@ export class Debrief extends Phaser.Scene {
     // the player once that's done.
     makeShopButton(this, this.footerLayer, CARD_R - 110, 604, 220, 34, "RETURN TO BASE", true, () => {
       saveCampaignState(this.state);
-      this.scene.start("Hub");
+      // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
+      // campaignState.ts): a House Amaranth save has no Hub to send it to.
+      this.scene.start(baseSceneKeyFor(this.state));
     });
   }
 

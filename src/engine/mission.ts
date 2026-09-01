@@ -2270,6 +2270,28 @@ export class Mission {
     if (unit) {
       unit.isExtractionTarget = true;
       this.resolvedExtractUnitId = unit.instanceId;
+      // Readiness Plan §3.6, 1 Sep 2026 — the HUD's own "Extract: <name>"
+      // line (Battle.ts drawHud) already reads resolvedExtractUnitId, so it
+      // was never wrong. What WAS still wrong: every affected mission's
+      // hand-authored briefing/dialogue text names the originally-configured
+      // pilot regardless of who the role actually fell to, so a player who
+      // left that pilot home (or lost them earlier to permadeath) got a
+      // visible, unexplained mismatch between the briefing's name and the
+      // HUD's. Rather than rewrite briefing prose across every affected
+      // mission (House Amaranth 3/5/7/11/14/17, Warden's own
+      // Anand/Iyari/Lask/Solheim/Okafor missions) — real authorial voice
+      // work, not an engineering fix — this logs one plain, factual
+      // acknowledgment the moment the fallback actually fires, so the
+      // mismatch reads as an intentional in-fiction reassignment instead of
+      // a bug. findPilot() is safe here specifically because every
+      // extractUnitId target is a hand-authored named pilot, never a
+      // runtime-generated recruit (see pilotRegistry.ts's own header on
+      // that distinction) — the lookup can't silently miss the way a
+      // recruit's would.
+      if (unit.instanceId !== id) {
+        const originalName = findPilot(id)?.displayName ?? id;
+        this.log.push(`${originalName} wasn't in the field this run — the extraction falls to ${unit.displayName} instead.`);
+      }
     }
   }
 

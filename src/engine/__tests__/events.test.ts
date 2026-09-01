@@ -56,15 +56,24 @@ describe("Turn-1 wave spawning — regression: waves used to spawn twice", () =>
   }
 
   it("a later-turn wave still spawns exactly once when its turn arrives", () => {
-    // Amaranth I.2 staggers Splitfang across turns 1 and 3 — guards against
-    // "fixing" the duplicate by removing the wrong call and killing later
-    // waves entirely.
+    // Amaranth I.1's own 1 Sep 2026 retune (whole-campaign =<15% pass, see
+    // that mission's comment in campaignAmaranth.ts) staggers Crawlmass
+    // across turns 1, 2 and 4 — this used to be a negative-only check
+    // ("I.1 has no turn-2 wave, so the count must not grow"), which is now
+    // stale since I.1 has real later waves. Switched to the actual positive
+    // case the test's own name always promised: guards against "fixing"
+    // the duplicate by removing the wrong call and killing later waves
+    // entirely, by asserting a later wave's units land exactly once, not
+    // zero and not double.
     const mission = new Mission(AMARANTH_MISSION_1);
+    const turn1Count = AMARANTH_MISSION_1.enemyWaves.filter((w) => w.atTurn === 1).reduce((sum, w) => sum + w.count, 0);
+    const turn2Count = AMARANTH_MISSION_1.enemyWaves.filter((w) => w.atTurn === 2).reduce((sum, w) => sum + w.count, 0);
+    expect(turn2Count).toBeGreaterThan(0); // guards against this test going quietly stale again
     const before = mission.units.filter((u) => u.side === "hostile").length;
+    expect(before).toBe(turn1Count);
     mission.endPlayerTurn();
     const after = mission.units.filter((u) => u.side === "hostile").length;
-    // I.1 has no turn-2 wave, so the count must not grow on its own.
-    expect(after).toBeLessThanOrEqual(before);
+    expect(after).toBe(turn1Count + turn2Count);
   });
 });
 

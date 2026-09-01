@@ -348,7 +348,30 @@ export const AMARANTH_MISSION_1: CampaignMission = {
   // his own Mission 6 playtest note that a doubled spawn "really felt like
   // I was fighting a good enemy"). turnLimit and map untouched — Muster
   // stays the open tutorial ground it was, just with more to clear in it.
-  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: "enemy_deploy" }],
+  //
+  // Retuned to a 3-wave escalation, 1 Sep 2026 (Maxime: "we havr to redo
+  // all the warden mission to get them to a ceiling of 15%, victory over
+  // bot" — extending House Amaranth's 31 Aug ≤15% rule to the whole Warden
+  // campaign, not just missions built after that date). A single flat wave
+  // was NOT a viable lever here: this map's "enemy_deploy" zone
+  // (map_amaranth_muster) is only 3 tiles wide, and spawnWavesForTurn()
+  // cycles i % spots.length — 12 in one wave splits evenly 4/4/4 (95% win,
+  // n=150), but 13 in one wave gives one spot a 5th unit and sends it
+  // through findFreeAdjacent's BFS overflow into a placement that flips the
+  // mission to 100% COMMANDER_DOWN (n=100) — a real cliff at the spawn-tile
+  // seam, not a gradient. Spreading the same escalation across three
+  // waves (12 at turn 1, 11 at turn 2, 7 at turn 4) sidesteps that single-
+  // turn overflow trap while still building sustained pressure — pooled
+  // 12.9% win (168/1300 across two batches; single-batch reads ranged
+  // 11-17%, this mission's own noise band, so pooled sample is the number
+  // that counts). All losses are COMMANDER_DOWN, not squad wipes — same
+  // already-accepted commander-focus-fire pattern as several eliminate_all
+  // missions before this one, not a new failure mode.
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 2, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 7, atTurn: 4, spawnAt: "enemy_deploy" },
+  ],
   events: [],
   rewardPoints: 100,
   heirloomCharge: "locked",
@@ -393,13 +416,41 @@ export const AMARANTH_MISSION_2: CampaignMission = {
     { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 6, atTurn: 3, spawnAt: "enemy_deploy" },
     // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
-    // mission are absolute cakewalk"): 100% at n=150, real margin, single
-    // archetype (Splitfang only) for the whole mission. Sporethrower added
-    // at the same "enemy_deploy" pool the Splitfang waves already use
-    // safely (this mission's own vision/pathing bugs were fixed at launch,
-    // 22 Aug — enemy_deploy sits close to the hold room by construction,
-    // same reasoning Mission 27's own comment later re-derived).
-    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 3, spawnAt: "enemy_deploy" },
+    // mission are absolute cakewalk"): added a Sporethrower pair at
+    // "enemy_deploy" alongside the Splitfang — still landed 100% (n=150).
+    //
+    // Retuned again 1 Sep 2026 under the new whole-campaign =<15% rule
+    // (Maxime: "we havr to redo all the warden mission to get them to a
+    // ceiling of 15%"). Root cause of the 100%, confirmed with
+    // src/sim/run.ts's single-run log, not guessed: WIRE_AND_MUD_TILES
+    // (mapsAmaranth.ts) has exactly ONE non-wall tile bordering the hold
+    // room — (6,5) — with the room's east wall fully sealed and
+    // "enemy_deploy" sitting outside THAT sealed wall. Every enemy,
+    // Splitfang included, has to path the long way around the whole room
+    // to reach the one doorway, and only one of them can ever be adjacent
+    // to it at a time — so raw headcount at "enemy_deploy" is capped at
+    // "1 melee attacker per turn" no matter how many are spawned (tested
+    // up to 20 Splitfang + 8 Sporethrower at enemy_deploy: still 100%,
+    // confirmed by re-running the log). The real lever was position, not
+    // count: Sporethrower is a minimum-range weapon (attackRange [2,3],
+    // can't hit anything adjacent) that doesn't need to enter the room at
+    // all, so this pass gives it an explicit spawnAt on the WEST side of
+    // the wall instead — already dug into the wire outside the post, in
+    // range of the doorway from turn 1, no detour required. 3 at
+    // (3,4)/(3,5)/(3,6) turn 1 + 1 more at (3,5) turn 2 lands 10%
+    // (52/500), all COMMANDER_DOWN (1 stray squad wipe in 500) — this
+    // mission's own version of the campaign's already-accepted
+    // commander-focus-fire pattern, not a new failure mode. Splitfang
+    // counts/timing untouched (6+6, same as the door-plug regression
+    // above validates) — they were never the actual lever once the
+    // doorway math was understood. Sharp cliffs either side of this: 4
+    // Sporethrower at turn 1 alone (no staggered 2nd wave) fell to 3%; a
+    // 2nd wave of 2 instead of 1 fell to 1% and introduced real squad-wipe
+    // LOSSes, not just COMMANDER_DOWN. This mission is genuinely more
+    // sensitive to small Sporethrower-count changes than anything tuned
+    // so far this pass — re-verify at n=400+ before nudging it again.
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 1, spawnAt: [{ x: 3, y: 4 }, { x: 3, y: 5 }, { x: 3, y: 6 }] },
+    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 2, spawnAt: [{ x: 3, y: 5 }] },
   ],
   events: [],
   rewardPoints: 130,
@@ -445,7 +496,8 @@ export const AMARANTH_MISSION_3: CampaignMission = {
     // real live-play variety (Maxime's own explicit ask, twice now), not a
     // measured difficulty change. Sporethrower fills the missing ranged
     // threat this mission never had.
-    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 1, spawnAt: [{ x: 3, y: 4 }, { x: 3, y: 5 }, { x: 3, y: 6 }] },
+    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 2, spawnAt: [{ x: 3, y: 5 }] },
   ],
   events: [
     {
@@ -491,7 +543,7 @@ export const AMARANTH_MISSION_4: CampaignMission = {
       ],
       burrowed: true,
     },
-    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
     // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
     // mission are absolute cakewalk"): 100% at n=150, and this mission's
     // own build log already flags the same read from real play ("my team
@@ -641,15 +693,56 @@ export const AMARANTH_MISSION_7: CampaignMission = {
     // as Mission 5's own note above. A small burrowed pair on the hold at
     // turn 3, alongside the second Sporethrower wave, so the ridge itself
     // starts feeling contested from underneath as well as from range.
-    { archetypeId: "bloom_undertow", count: 2, atTurn: 3, spawnAt: "enemy_deploy", burrowed: true },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 3, spawnAt: "enemy_deploy", burrowed: true },
     // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026, per Maxime: "act 1
     // mission are absolute cakewalk"): still 100% at n=150 even after
-    // batch 1's own Undertow addition — real margin left. Splitfang is
-    // the one archetype this mission never had; landed at turn 6 (the
-    // hold window itself opens then) rather than turn 1, so the mission's
-    // own early pacing is untouched and this reads as reinforcements
-    // arriving once the squad has to actually start holding.
-    { archetypeId: "bloom_splitfang", count: 2, atTurn: 6, spawnAt: "enemy_deploy" },
+    // batch 1's own Undertow addition — real margin left.
+    //
+    // Retuned 1 Sep 2026 under the whole-campaign =<15% rule (Maxime: "we
+    // havr to redo all the warden mission to get them to a ceiling of
+    // 15%"). FLAGGED, NOT FULLY COMPLIANT — landed at 30% (148/500), the
+    // practical ceiling found for this mission, not the target. Worth
+    // Maxime's own call rather than more brute-forcing:
+    //   - Undertow 2->4 (turn 3) was the one clean lever: each point cost
+    //     ~7-8 points of win rate with NO real squad-wipe LOSS, all
+    //     COMMANDER_DOWN (same already-accepted focus-fire pattern as
+    //     elsewhere) — but it plateaus hard past 4 (5 introduced real
+    //     LOSS; 6 only cost 1 more point of win rate for that risk).
+    //   - Splitfang, this mission's one never-used archetype, was moved
+    //     off its original dead-weight turn 6 slot (the hold_zone win
+    //     check resolves at the START of holdUntilTurn's player phase,
+    //     before that turn's hostile phase ever runs — same as Mission
+    //     2's own turn-6 finish — so anything spawned AT turn 6 here
+    //     never got to act, at any count, the whole time this mission's
+    //     been live) to turn 4. Count 3-7 all landed in a flat 26-38%
+    //     band; count 8 fell off a cliff to 0% with heavy real LOSS
+    //     (82/200), not just COMMANDER_DOWN.
+    //   - Every attempt to push past that 26-38% floor made the FAILURE
+    //     MODE worse, not just the number: stacking a second archetype
+    //     onto the same turn (Sporethrower 1->2 at turn 3, alongside
+    //     Splitfang's turn 4) or adding even 1 Crawlmass at turn 5
+    //     collapsed straight to 0% with 40-60% real squad-wipe LOSS, not
+    //     COMMANDER_DOWN. Splitting Splitfang across two explicit flanks
+    //     (west + east of the hold room, this map has no walls around it,
+    //     just "ridge" — passable, unlike Wire and Mud's sealed room) DID
+    //     reach 12-13% — technically inside the new ceiling — but at a
+    //     32-39% real LOSS rate, worse than the mission's own 95%-baseline
+    //     ever was. A rout with real squad deaths is not a better outcome
+    //     than "too easy," and this project's own precedent (House
+    //     Amaranth Mission 20: "comfortably under the ceiling without
+    //     tipping into a rout the other way") argues against shipping
+    //     that trade.
+    //   - Read together: this map (SPOREWATCH_RIDGE_TILES, an open
+    //     ridge-terrain hold, not a single-doorway room like Mission 2's)
+    //     seems to have a real, structural ~30% floor against this squad
+    //     and this Player AI at safe/clean settings — closing the last 15
+    //     points looks like it needs a map or mechanic change (the
+    //     briefing's own "hold the high ground, not the approach"
+    //     instruction implies ridge-tile positioning is supposed to
+    //     matter more than headcount ever will), not another wave-data
+    //     tweak. Left at 30% rather than forced under 15% at the cost of
+    //     a worse mission.
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 4, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 180,
@@ -672,7 +765,7 @@ export const AMARANTH_MISSION_8: CampaignMission = {
   playerPilotIds: WARDEN_ROSTER_IDS,
   enemyWaves: [
     { archetypeId: "bloom_choir", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 210,
@@ -701,7 +794,13 @@ export const AMARANTH_MISSION_9: CampaignMission = {
   objectiveParams: { turnLimit: 10 },
   playerPilotIds: WARDEN_ROSTER_IDS,
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: "enemy_deploy" },
+    // Crawlmass 10 -> 13, Undertow 2 -> 4 (1 Sep 2026, whole-campaign =<15%
+    // retune — Maxime: "we havr to redo all the warden mission to get them
+    // to a ceiling of 15%"). Landed at 25% (75/300) clean, no real LOSS,
+    // before the single Crawlmass reinforcement below closed the rest of
+    // the gap — see that unit's own comment for why it's the one that
+    // actually mattered.
+    { archetypeId: "bloom_crawlmass", count: 13, atTurn: 1, spawnAt: "enemy_deploy" },
     // Gallcyst (data/bloom.ts: move 0) — the map's own two fixed seams
     // ((8,4) and (13,9) in CUT_OFF_TILES) so the sessile turrets land
     // exactly where they're dug in, not wherever "enemy_deploy" happens to
@@ -710,6 +809,21 @@ export const AMARANTH_MISSION_9: CampaignMission = {
     // squad sees a stationary acid threat as well as everything else new
     // that mission brings.
     { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 8, y: 4 }, { x: 13, y: 9 }] },
+    // 1 Sep 2026 retune — a single Crawlmass, own wave, turn 3. Genuinely
+    // surprising lever: this map has 7 "enemy_deploy" spawn tiles, so
+    // neither the turn-1 wave (13) nor this one comes anywhere near a
+    // spawn-tile-overflow cliff (the kind that broke Missions 1 and 2's
+    // single-wave counts) — this is a real difficulty swing, not an
+    // engine artifact. 1 unit here was the difference between 25%
+    // (undertow alone, above) and 5% (26/500) — a much sharper lever than
+    // its size suggests, on a par with the Undertow's own effect. Stayed
+    // at count 1 on purpose: count 2 already overshot to 3% at n=300, and
+    // count 4 at turn 1 instead (tested, not kept) crashed clean-COMMANDER_
+    // DOWN behavior into a real squad-wipe LOSS pattern. All landings
+    // stayed COMMANDER_DOWN-only, zero real LOSS across every n tested —
+    // this mission's own version of the already-accepted focus-fire
+    // pattern, same as every other survive/hold mission this pass.
+    { archetypeId: "bloom_crawlmass", count: 1, atTurn: 3, spawnAt: "enemy_deploy" },
     // Tier 6 variety pass (30 Aug 2026) — closes out the "mission 4-9"
     // Undertow window Maxime named (Missions 5 and 7 above pick up the
     // other two). Landed at turn 5, not turn 1, so the mission's own
@@ -717,7 +831,7 @@ export const AMARANTH_MISSION_9: CampaignMission = {
     // ask" for survive_n_turns' first outing) stays intact — this reads as
     // a second, rising wave of pressure partway through the hold, matching
     // "Cut Off"'s own premise of an unknown threat closing in blind.
-    { archetypeId: "bloom_undertow", count: 2, atTurn: 5, spawnAt: "enemy_deploy", burrowed: true },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 5, spawnAt: "enemy_deploy", burrowed: true },
   ],
   events: [
     {
@@ -800,26 +914,51 @@ export const AMARANTH_MISSION_11: CampaignMission = {
     // Guarding the one bridge — Crawlmass planted right at its approaches,
     // not "enemy_deploy" (which would just as happily strand them in the
     // surrounding sump they can't cross either).
-    { archetypeId: "bloom_crawlmass", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 5 }, { x: 15, y: 7 }] },
+    //
+    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026): tried and reverted
+    // at 2. 99% at n=150 (148/150) pre-edit looked like real margin, but
+    // two separate attempts to add even a single Sporethrower both
+    // introduced a brand-new LOSS failure mode that hadn't existed before
+    // (+2 at turn 1: 99%->56%, LOSS 0->66/150; +1 at turn 3, off the
+    // Splitfang wave's own turn: still 99%->72%, LOSS 0->42/150). This is
+    // the THIRD extract_unit mission that pass found far more fragile
+    // than its surface win rate suggested (Mission 17 needed a full
+    // multi-round tuning pass to add anything at all; Mission 26 stayed
+    // thinned rather than restored after its own isolation-kill bug).
+    //
+    // Retuned again 1 Sep 2026 under the whole-campaign =<15% rule
+    // (Maxime: "we havr to redo all the warden mission to get them to a
+    // ceiling of 15%"), with that fragility taken as a warning, not a
+    // reason to skip this mission. Avoided Sporethrower entirely, on
+    // purpose — a ranged, minimum-range unit can snipe Patch (or anyone)
+    // from outside the melee escort's reach, which is almost certainly
+    // why both prior attempts blew straight through to a real-LOSS spiral
+    // instead of a gradient. This bridge Crawlmass count is melee, at a
+    // choke the squad has to physically cross, where the escort can
+    // actually screen it. Count went 2 -> 3 (80%, clean, n=200) -> 4 (36%,
+    // n=400, LOSS 87/400) -> 5, landed here: pooled 13% (105/800) across
+    // two batches. NOT as clean as this pass's other retunes — real LOSS
+    // is 65/500 (13%) at this count, on top of COMMANDER_DOWN — but every
+    // count tested stayed on a real gradient (80% -> 36% -> 13%, no cliff
+    // to 0%), unlike either of the two Sporethrower attempts that came
+    // before it. Left at 5 rather than pushed further for exactly the
+    // reason those two prior attempts got reverted: this mission
+    // overcorrects hard once it tips, and 13% with an understood, gradual
+    // lever beats chasing single digits and finding the next cliff.
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 11, y: 5 }, { x: 15, y: 7 }] },
     // The pursuit — lands turn 3, exactly where deploy just was. Nothing
     // chases the squad mechanically; a wave arriving a few turns later at
     // the tile they started on reads as pursuit without needing to be one.
+    // Left at its original count 3 this pass — tested up to 8 (0%, 65%
+    // real LOSS) and found this specific wave's own cliff sits between 4
+    // (no effect) and 6 (33% but 59% real LOSS), narrower and dirtier than
+    // the bridge Crawlmass above, so the bridge wave carried this retune
+    // instead. extract_unit's single-named-target loss condition still
+    // seems to punish added damage-per-turn far harder than eliminate_
+    // all's margin implies, campaign-wide, not mission-specific — worth a
+    // note for whoever picks up extract_unit balance generally, same as
+    // the previous pass already flagged.
     { archetypeId: "bloom_crawlmass", count: 3, atTurn: 3, spawnAt: [{ x: 28, y: 3 }, { x: 28, y: 9 }] },
-    // Tier 6 spawn-variety pass, batch 5 (30 Aug 2026): tried and reverted.
-    // 99% at n=150 (148/150) pre-edit looked like real margin, but two
-    // separate attempts to add even a single Sporethrower both introduced
-    // a brand-new LOSS failure mode that hadn't existed before (+2 at
-    // turn 1: 99%->56%, LOSS 0->66/150; +1 at turn 3, off the Splitfang
-    // wave's own turn: still 99%->72%, LOSS 0->42/150). Left at its
-    // original composition — this is the THIRD extract_unit mission this
-    // pass has found to be far more fragile than its surface win rate
-    // suggests (Mission 17 needed a full multi-round tuning pass to add
-    // anything at all; Mission 26 stayed thinned rather than restored
-    // after its own isolation-kill bug). Real pattern, not a one-off:
-    // extract_unit's single-named-target loss condition seems to punish
-    // any added damage-per-turn far harder than eliminate_all's margin
-    // implies, campaign-wide, not mission-specific. Worth a note for
-    // whoever picks up extract_unit balance generally.
   ],
   events: [
     {
@@ -985,7 +1124,7 @@ export const AMARANTH_MISSION_14: CampaignMission = {
     // its own Mission 7/17 window; a small pair here gives Providence's
     // fire-support call-in (this mission's own centerpiece) a ranged target
     // worth calling in on, not just more melee to walk through.
-    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
     // Tier 6 variety pass, second batch (30 Aug 2026, Maxime named 13-16
     // directly as "easy still... giving them more variety would be cool").
     // Re-sim with the Sporethrower pair above already in found this mission
@@ -1029,21 +1168,27 @@ export const AMARANTH_MISSION_15: CampaignMission = {
   playerPilotIds: ACT2_DEFAULT_SQUAD,
   // Bumped 26 Aug 2026 (same-day 8->10 default-squad correction): 75%->100%
   // at the new squad size. 10/6/4 -> 12/7/5, re-verified below.
+  // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass, Maxime: "we havr
+  // to redo all the warden mission to get them to a ceiling of 15%"). Fresh
+  // baseline at the old counts (documented immediately below as 65%/90%
+  // after Tier 6) actually re-sim'd at 35% by this point — later Player AI
+  // hardening (defensive focus fire, commander-protection) had moved it
+  // since those numbers were written, another stale-comment case this
+  // project's own "verify against the current file" rule exists for.
+  // contested_landing is eliminate_all-shaped, no timeout-loss branch.
+  // Bumping the turn-1 Splitfang or turn-3 Sporethrower even by 1 each
+  // (8/2) cratered this straight to 0% — a real cliff, not a gradient, same
+  // shape as this file's other class-triangle-sensitive missions. The lever
+  // that actually worked was the turn-3 Crawlmass reinforcement (5->8,
+  // Splitfang/Sporethrower left untouched): 10% (15/150), COMMANDER_DOWN-
+  // dominant, no new LOSS mode.
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 7, atTurn: 1, spawnAt: "enemy_deploy" },
     // A second landing wave, turn 3 — reinforcements arriving behind the
     // squad's own beachhead rather than a scripted "pursuit," same device
     // The Long Walk Back used for its own turn-3 wave (Mission 11).
-    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 3, spawnAt: "enemy_deploy" },
-    // Tier 6 variety pass (30 Aug 2026) — Sporethrower's still thin outside
-    // its own Mission 7/17 window. Re-sim against the live Player AI found
-    // this mission actually sitting at 65% (not the 100% the comment above
-    // records — that number predates a later Player AI change and was never
-    // refreshed). A first-draft pair (count 2) dropped it to 20%; a single
-    // Sporethrower, still landing with the turn-3 reinforcement wave rather
-    // than the "no grace period" turn-1 opening, re-tested at 90% (18/20) —
-    // a small, real bump in difficulty rather than a broken mission.
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 3, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_sporethrower", count: 1, atTurn: 3, spawnAt: "enemy_deploy" },
   ],
   events: [
@@ -1082,11 +1227,22 @@ export const AMARANTH_MISSION_16: CampaignMission = {
   // prompt, a dialogue choice), which this pass does not build.
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass). Was a fixed
+  // 5-conscript force at 100% win. Doubling the opener to 10 total only got
+  // to 53%; pushing the SAME burst to 15 cratered to 0% (a cliff, not a
+  // gradient — same class-triangle-sensitive shape this file keeps
+  // rediscovering). Splitting instead — 10 at turn 1, +4 more (2x conscript
+  // 02/04) at turn 5 — landed at 2% (3/150), COMMANDER_DOWN-dominant, no new
+  // LOSS mode. Confirms the "split a fixed total across waves" lesson
+  // (House Amaranth Mission 28's own finding) generalizes to a small,
+  // named-composition force too, not just large Bloom swarms.
   enemyWaves: [
-    { archetypeId: "hostile_mech_amaranth_conscript_01", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_amaranth_conscript_02", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_amaranth_conscript_03", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_amaranth_conscript_04", count: 1, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_01", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_02", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_03", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_04", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_02", count: 2, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_amaranth_conscript_04", count: 2, atTurn: 5, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1134,9 +1290,21 @@ export const AMARANTH_MISSION_17: CampaignMission = {
   objectiveParams: { turnLimit: 16, extractUnitId: "pilot_solheim" },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
   enemyWaves: [
+    // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass). Baseline had
+    // drifted to 100% by this point (later Player AI hardening since the
+    // "88-92%" figure below was written). The previously-tried "double one
+    // archetype alone" levers reproduced their own documented shape
+    // (Crawlmass alone spiked real LOSS — Solheim herself dying — to 50+%,
+    // an unacceptably lossy mission, not just a hard one); Splitfang alone
+    // to 3 gave a much cleaner COMMANDER_DOWN-dominant curve with real but
+    // reasonable LOSS (~11%). Landed on Crawlmass 10 (up from 6) + Splitfang
+    // 3 (up from 1) + Sporethrower 4 (up from 1, see below): 13% (19/150),
+    // LOSS 17/150 — a real but not unacceptable extraction-fragility risk,
+    // nothing like the 50%+ LOSS share some tested compositions produced.
+    //
     // Ground-floor pair at the near terrace mouth.
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 20, y: 2 }] },
-    { archetypeId: "bloom_splitfang", count: 1, atTurn: 1, spawnAt: [{ x: 20, y: 12 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 20, y: 2 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: [{ x: 20, y: 12 }] },
     // Sporethrower back in rotation, held to the ridge perches
     // WELLROOT_TILES actually gives it (data/mapsAmaranth.ts) rather than
     // "enemy_deploy" scattering a ranged unit onto open floor it has no
@@ -1164,7 +1332,7 @@ export const AMARANTH_MISSION_17: CampaignMission = {
     // rather than shipping a mission that plays meaningfully worse than
     // before — a real design/AI-reliability question, not a data gap, so
     // flagged rather than unilaterally resolved.
-    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
   ],
   events: [
     {
@@ -1225,7 +1393,12 @@ export const AMARANTH_MISSION_18: CampaignMission = {
     // headroom on the east/Bloom front specifically. Sporethrower added to
     // the same east-mouth pool only; the west (House Amaranth) front is a
     // fixed named-mech pincer arm, not a scalable pool, and stays untouched.
-    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
+    //
+    // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass). Baseline had
+    // drifted to 18% by this point. 2->4 (doubling) cratered to 0% — another
+    // one-unit-over cliff on the east front's own class-triangle mix. 2->3
+    // landed at 3% (4/150), LOSS=0, clean COMMANDER_DOWN profile.
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 1, spawnAt: [{ x: 29, y: 5 }, { x: 29, y: 6 }, { x: 29, y: 7 }, { x: 29, y: 8 }] },
   ],
   events: [
     {
@@ -1279,7 +1452,13 @@ export const AMARANTH_MISSION_19: CampaignMission = {
     // Sporethrower added at the same junction chamber as the Crawlmass
     // block it's meant to support, not the Undertow ambush chambers, so it
     // doesn't touch that archetype's own separately-tuned burrow trigger.
-    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
+    //
+    // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass). Baseline had
+    // drifted to 87% by this point. A genuinely steep, non-monotonic curve:
+    // 4->60%, 7->38%, 9->44% (a real bump back UP, not noise — reproduced at
+    // n=150), 10->3% (5/150, LOSS=0, 2 TIMEOUT), 11->1%. Landed on 10 rather
+    // than 11 for a slightly less punishing margin at the same compliance.
+    { archetypeId: "bloom_sporethrower", count: 10, atTurn: 1, spawnAt: [{ x: 12, y: 7 }] },
   ],
   events: [
     {
@@ -1367,6 +1546,16 @@ export const AMARANTH_MISSION_20: CampaignMission = {
   // squad size the way Maxime actually asked for (a smaller deploy still
   // gets a proportionally smaller, not fixed, escort) even though the
   // multiplier means it's no longer an exact headcount match.
+  // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass). Baseline had
+  // drifted to 62% by this point. mirrorScale alone (0.6->0.8->0.9->1.0)
+  // reproduced the exact cliff this mission's own comment already
+  // documents at 1.0 (0% again), and 0.9 alone landed at 23%, not enough.
+  // Layered a small fixed turn-5 reinforcement (3 more House Amaranth
+  // troopers, same reused archetype ids) on top of a slightly LOWER
+  // mirrorScale (0.83, ~8 escorts) instead of chasing the mirror multiplier
+  // to its own cliff: 12% (18/150), COMMANDER_DOWN-only, no new LOSS mode —
+  // same "split a fixed total, don't just inflate one burst" lesson this
+  // whole pass keeps confirming.
   enemyWaves: [
     // hostile_mech_marrow's own spawnAt ({x:23,y:7}) already matches this
     // coordinate — listed explicitly anyway so this wave reads the same
@@ -1376,10 +1565,13 @@ export const AMARANTH_MISSION_20: CampaignMission = {
     // and Mission 18 rather than a fresh set — this is the same force,
     // not a new faction. Equal-weight mirrorPlayerSquad waves — see this
     // mission's own enemyWaves header comment above.
-    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }], mirrorPlayerSquad: true, mirrorScale: 0.6 },
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }], mirrorPlayerSquad: true, mirrorScale: 0.83 },
     { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }], mirrorPlayerSquad: true },
     { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }], mirrorPlayerSquad: true },
     { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }], mirrorPlayerSquad: true },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 5, spawnAt: [{ x: 21, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 5, spawnAt: [{ x: 21, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 5, spawnAt: [{ x: 24, y: 4 }] },
   ],
   events: [
     {
@@ -1510,13 +1702,22 @@ export const AMARANTH_MISSION_21: CampaignMission = {
     // flanking the root chamber (CUT_THE_ROOT_TILES' own (20,5)/(24,9)
     // spawn tiles) are exactly that — never touched by enemy_deploy
     // resolution, only ever by this event.
+    // RETUNED 1 Sep 2026 (whole-campaign =<15% ceiling pass). Baseline had
+    // drifted to 43% by this point. Tightening the cadence to every turn
+    // (repeatEvery: 1, count unchanged) cratered straight to 0% — this
+    // mission's own no-opening-escort design leaves almost no slack once
+    // reinforcements arrive faster than the squad can clear them between
+    // waves. Kept the every-2-turns cadence and added a third Undertow per
+    // cycle instead (a new spawn coordinate, (22,3), BFS/wall-checked live
+    // by a verbose run before trusting the aggregate): 1% (2/150), LOSS=0,
+    // clean COMMANDER_DOWN profile.
     {
       id: "ev_wellroot_reinforcements",
       trigger: { type: "turn_start", turn: 3, repeatEvery: 2 },
       action: {
         type: "spawn",
-        archetypeIds: ["bloom_undertow", "bloom_undertow"],
-        at: [{ x: 20, y: 5 }, { x: 24, y: 9 }],
+        archetypeIds: ["bloom_undertow", "bloom_undertow", "bloom_undertow"],
+        at: [{ x: 20, y: 5 }, { x: 24, y: 9 }, { x: 22, y: 3 }],
         burrowed: true,
       },
       once: false,
@@ -1540,7 +1741,7 @@ export const AMARANTH_MISSION_22: CampaignMission = {
   // bespoke number once the causeway chokepoints did their job in
   // playtesting (see build-log tuning note).
   objective: "protect_asset",
-  objectiveParams: { turnLimit: 14 },
+  objectiveParams: { turnLimit: 20 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
   // Far-shore spawns only — ASH_ON_THE_WATER_TILES' own two causeways
   // (rows 3-4 and 9-10) are the only passable route from there to the
@@ -1618,12 +1819,37 @@ export const AMARANTH_MISSION_22: CampaignMission = {
   // mission's enemyWaves at ground waves + the Sirenmaw addition only;
   // flagging for Maxime rather than shipping something that loses every
   // run, or quietly dropping the ask.
+  //
+  // 15% CEILING RETUNE (1 Sep 2026) — FLAGGED NOT FULLY COMPLIANT, same
+  // judgment call as Mission 7. This mission is a genuine knife-edge, not
+  // a gradient: at the current composition it sits at 84% win (LOSS
+  // 24/150, no COMMANDER_DOWN) — every lever tried to push it down further
+  // either did nothing (turnLimit 14->20 alone moved it only 1-2 points;
+  // adding a single extra unit anywhere from turn 12-16, ground or air,
+  // moved it at most a few points either direction, within noise) or
+  // cliffed straight past the target into a 77-95% LOSS regime with one
+  // more unit of the same lever (e.g. a second late crawlmass at turn 13
+  // flipped 84% win / 16% loss into 23% win / 77% loss; three units flipped
+  // it to 5% win / 95% loss). Splitting the same total across more turns
+  // did not rescue it here the way it did on Mission 22's own earlier
+  // ground-wave tuning or on Mission 18/19's staggered levers — this map's
+  // dock chokepoint and PROTECT_ASSET_TICK_DAMAGE mechanic apparently
+  // leave almost no middle ground between "absorbed harmlessly" and "the
+  // ship dies." Left at the pre-existing ground+Sirenmaw composition
+  // (turnLimit raised to 20, which cost nothing and is at worst neutral).
+  // If revisited, the next lever worth trying is probably map/spawn-side
+  // (a second landing tile to split player attention) rather than more
+  // headcount — this file's own tools can't fix a single-chokepoint
+  // problem by adding more bodies to the same chokepoint.
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_crawlmass", count: 2, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 1, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 1, atTurn: 8, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 3, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 6, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 9, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
   ],
   events: [
     {
@@ -1692,12 +1918,29 @@ export const AMARANTH_MISSION_23: CampaignMission = {
   // per-playthrough random composition (a different lineup each attempt)
   // isn't something the engine does anywhere yet — would be new work, not
   // a data change, if that's actually wanted later.
+  //
+  // 15% CEILING RETUNE (1 Sep 2026). The 73% baseline above needed real
+  // work, not another headcount bump at turn 1 — re-confirmed the mission's
+  // own note that more Munti at turn 1 makes it EASIER, not harder (doubling
+  // to 4 Munti alone: 73%->83%, reverted). The lever that actually worked
+  // was staggered reinforcement waves of the existing named archetypes at
+  // turns 5 and 9, i.e. more pressure spread across Anand's whole walk to
+  // the exit rather than one bigger turn-1 mob the squad can just
+  // stand-and-fight before escorting. Added 2x amaranth_01 + 2x amaranth_03
+  // at turn 5, then 3x amaranth_02 + 2x amaranth_04 at turn 9 (turn-1 wave
+  // unchanged). Result: 8% (16/200), LOSS 13/200 (6.5%), rest
+  // COMMANDER_DOWN — a clean profile, not a real-squad-wipe regime, same as
+  // Mission 11/17's staggered-melee-pressure pattern.
   enemyWaves: [
     { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 2 }] },
     { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 2 }] },
     { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
     { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
     { archetypeId: "hostile_mech_amaranth_05", count: 2, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 2, atTurn: 5, spawnAt: [{ x: 18, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 2, atTurn: 5, spawnAt: [{ x: 18, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 3, atTurn: 9, spawnAt: [{ x: 18, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 2, atTurn: 9, spawnAt: [{ x: 18, y: 10 }] },
   ],
   events: [
     {
@@ -1882,6 +2125,17 @@ export const AMARANTH_MISSION_25: CampaignMission = {
   // something worth chasing to a single enemy's precision. 100% clean but
   // long reads fine for an Act III opener meant to establish scale, not
   // be the hardest fight in the act.
+  //
+  // 15% CEILING RETUNE (1 Sep 2026). The 13/6/4 turn-1 comp above sat at
+  // 52-62% at the 12-pilot squad size. Confirmed this mission's own note
+  // about map-frontage crowding: bumping the turn-1 burst itself (16/8/5)
+  // made it slightly EASIER (62%), not harder — more bodies fighting for
+  // the same 5 spawn points crowd each other out rather than adding real
+  // pressure. The lever that worked was a second, separately-timed wave:
+  // added a turn-4 reinforcement (9 crawlmass + 6 splitfang, same 5 spawn
+  // points) so the squad faces two full pushes instead of one big one, plus
+  // a small turn-7 sporethrower trickle (3) for late chip damage. Turn-1
+  // wave unchanged. Result: 9% (13/150), LOSS 0, all COMMANDER_DOWN — clean.
   objectiveParams: { turnLimit: 18 },
   // NOT ACT3_DEFAULT_SQUAD (26 Aug 2026, same-day cap correction) — the
   // 13/6/4 count directly above was locked against a real, deliberately
@@ -1902,6 +2156,9 @@ export const AMARANTH_MISSION_25: CampaignMission = {
     { archetypeId: "bloom_crawlmass", count: 13, atTurn: 1, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }, { x: 28, y: 2 }, { x: 28, y: 13 }] },
     { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }] },
     { archetypeId: "bloom_sporethrower", count: 4, atTurn: 1, spawnAt: [{ x: 28, y: 2 }, { x: 28, y: 13 }] },
+    { archetypeId: "bloom_crawlmass", count: 9, atTurn: 4, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }, { x: 28, y: 2 }, { x: 28, y: 13 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 4, spawnAt: [{ x: 30, y: 4 }, { x: 30, y: 7 }, { x: 30, y: 10 }] },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 7, spawnAt: [{ x: 28, y: 2 }, { x: 28, y: 13 }] },
   ],
   events: [
     {
@@ -1999,8 +2256,30 @@ export const AMARANTH_MISSION_26: CampaignMission = {
   // overarching AI (Maxime's own build, per this batch's "ill build the
   // overarching ai after this") actually keeps the escort together, bring
   // this back up to 4 and re-sim rather than leaving it at 2 by default.
+  //
+  // 15% CEILING RETUNE (1 Sep 2026) — COMPLIANT ON THE NUMBER, QUALITY
+  // FLAGGED. Baseline (Undertow 2) sat at 92% win. Crawlmass headcount is
+  // a hard cliff here, same as elsewhere this batch (8/5 -> 92% win, 8/6
+  // -> 12% win but 88% real LOSS; nothing in between) — not usable.
+  // Staggering a 3rd Undertow to a later turn (2/3/7 all tried) either
+  // barely mattered (turn 7: 58% win, squad had time to bunch up first) or
+  // was worse than useless (turn 2: 0% win, 97% real LOSS — an isolated
+  // early hit before the squad forms up around Okafor). The number that
+  // actually lands under the ceiling is 3 Undertow together at turn 1
+  // (crawlmass waves unchanged at 8/4): 14% (41/300) — but LOSS is 149/300
+  // (50%), roughly half of all failures, not the clean COMMANDER_DOWN
+  // profile this batch got everywhere else. That's the TODO above made
+  // concrete: this mission's whole Undertow lever is riding the documented
+  // escort-AI gap (Okafor's extract-to-exit pathing outpaces her own
+  // escort), and pushing it further to hit a win-rate target just pushes
+  // more of the failures into "Okafor gets caught alone and dies" rather
+  // than "the squad loses a fair fight." Shipping this because it clears
+  // the number Maxime asked for, but flagging it honestly rather than
+  // calling it clean — the real fix is the escort-AI fix already on file
+  // above, at which point this composition should be re-sim'd and probably
+  // can afford to come back down toward 2 Undertow.
   enemyWaves: [
-    { archetypeId: "bloom_undertow", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 3 }, { x: 9, y: 11 }], burrowed: true },
+    { archetypeId: "bloom_undertow", count: 3, atTurn: 1, spawnAt: [{ x: 9, y: 3 }, { x: 9, y: 11 }], burrowed: true },
     { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: [{ x: 9, y: 3 }, { x: 19, y: 3 }, { x: 9, y: 11 }, { x: 19, y: 11 }] },
     { archetypeId: "bloom_crawlmass", count: 4, atTurn: 6, spawnAt: [{ x: 9, y: 3 }, { x: 19, y: 3 }, { x: 9, y: 11 }, { x: 19, y: 11 }] },
   ],
@@ -2052,13 +2331,27 @@ export const AMARANTH_MISSION_27: CampaignMission = {
   // left as-is — they still read fine as "where Command's sensors first
   // picked up the contact," not literally where a unit's instanceId is
   // created; only the mission-data coordinates below needed to move.
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (10/4/4/6) sat at 93%. A flat
+  // proportional scale-up landed at 15/7/7/10 (turn-1 crawlmass/splitfang,
+  // turn-5 sporethrower, turn-7 crawlmass reinforcement): 12% (36/300),
+  // LOSS 129/300 (43%) vs COMMANDER_DOWN 135/300 (45%) — a real, roughly
+  // even mix rather than a clean commander-focus profile, but not a rout
+  // either. Tried leaning the mix toward more crawlmass and less
+  // splitfang/sporethrower on the theory that ranged/armor-piercing
+  // pressure was driving the real-loss share (the pattern seen on
+  // extract_unit missions this batch) — backwards here: it made the
+  // mission EASIER (37% win) and tipped the split further toward real LOSS,
+  // not less. This open trench-line map apparently wants the ranged mix to
+  // stay proportional to hit the ceiling without getting worse in quality,
+  // so left it there rather than chasing a cleaner split that isn't on
+  // offer at this win rate.
   objectiveParams: { turnLimit: 16, holdUntilTurn: 10 },
   playerPilotIds: ACT3_DEFAULT_SQUAD, // moved from ACT2_DEFAULT_SQUAD, same-day Third Lance correction — see Mission 25's own comment
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 13, y: 2 }, { x: 13, y: 6 }, { x: 13, y: 9 }, { x: 13, y: 11 }] },
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 13, y: 2 }, { x: 13, y: 6 }, { x: 13, y: 9 }, { x: 13, y: 11 }] },
-    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 5, spawnAt: [{ x: 17, y: 2 }, { x: 17, y: 6 }, { x: 17, y: 9 }, { x: 17, y: 11 }] },
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 7, spawnAt: [{ x: 17, y: 2 }, { x: 17, y: 6 }, { x: 17, y: 9 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_crawlmass", count: 15, atTurn: 1, spawnAt: [{ x: 13, y: 2 }, { x: 13, y: 6 }, { x: 13, y: 9 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 1, spawnAt: [{ x: 13, y: 2 }, { x: 13, y: 6 }, { x: 13, y: 9 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_sporethrower", count: 7, atTurn: 5, spawnAt: [{ x: 17, y: 2 }, { x: 17, y: 6 }, { x: 17, y: 9 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 7, spawnAt: [{ x: 17, y: 2 }, { x: 17, y: 6 }, { x: 17, y: 9 }, { x: 17, y: 11 }] },
   ],
   events: [
     {
@@ -2102,6 +2395,13 @@ export const AMARANTH_MISSION_28: CampaignMission = {
   // the opening wave. No Bloom on this map on purpose, matching Mission
   // 20's own precedent: this is a pure House Amaranth engagement, not a
   // three-way fight that dilutes the rival-closure beat.
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (1 each of the four escort
+  // archetypes per wave, 10 hostiles total incl. Marrow) sat at 92%.
+  // Marrow herself left at count 1 (the named rival, not a scalable pool,
+  // same discipline as every other rival-mech mission this batch) — tripled
+  // every escort wave count instead (1->3 across all three timed waves):
+  // doubling first (76%) wasn't enough, tripling landed clean: 5% (8/150),
+  // LOSS 0, all COMMANDER_DOWN.
   objectiveParams: { turnLimit: 14 },
   // Retuned same day: playerPilotIds moved to ACT3_DEFAULT_SQUAD (12, up
   // from 8) went 15/15 in 11-14 turns — too easy at the original 7-hostile
@@ -2112,15 +2412,15 @@ export const AMARANTH_MISSION_28: CampaignMission = {
   playerPilotIds: ACT3_DEFAULT_SQUAD, // moved from ACT2_DEFAULT_SQUAD, same-day Third Lance correction — see Mission 25's own comment
   enemyWaves: [
     { archetypeId: "hostile_mech_marrow", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 7 }] },
-    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 4 }] },
-    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 4 }] },
-    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 10 }] },
-    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 24, y: 10 }] },
-    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 5, spawnAt: [{ x: 21, y: 2 }] },
-    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 5, spawnAt: [{ x: 21, y: 12 }] },
-    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 8, spawnAt: [{ x: 21, y: 2 }] },
-    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 8, spawnAt: [{ x: 21, y: 12 }] },
-    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 8, spawnAt: [{ x: 24, y: 7 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 3, atTurn: 1, spawnAt: [{ x: 24, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 3, atTurn: 1, spawnAt: [{ x: 24, y: 4 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 3, atTurn: 1, spawnAt: [{ x: 24, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 3, atTurn: 1, spawnAt: [{ x: 24, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 3, atTurn: 5, spawnAt: [{ x: 21, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_04", count: 3, atTurn: 5, spawnAt: [{ x: 21, y: 12 }] },
+    { archetypeId: "hostile_mech_amaranth_01", count: 3, atTurn: 8, spawnAt: [{ x: 21, y: 2 }] },
+    { archetypeId: "hostile_mech_amaranth_03", count: 3, atTurn: 8, spawnAt: [{ x: 21, y: 12 }] },
+    { archetypeId: "hostile_mech_amaranth_02", count: 3, atTurn: 8, spawnAt: [{ x: 24, y: 7 }] },
   ],
   events: [
     {
@@ -2240,11 +2540,41 @@ export const AMARANTH_MISSION_29: CampaignMission = {
   // down. The map's own x=27-28 spawn tiles are left as-is, same "where
   // Command's sensors first picked up the contact" reading Mission 27's
   // own comment already established.
+  // 15% CEILING RETUNE (1 Sep 2026) — COMPLIANT ON THE NUMBER, QUALITY
+  // FLAGGED, and a genuinely new failure mode worth recording. Baseline
+  // (10 crawlmass/5 splitfang at the 4 corridor spawnAt tiles above) sat at
+  // 64-68%. This map's single-doorway-from-a-walled-room shape (same
+  // family as Mission 2, isVisibleTo/attack range checks in engine/ai.ts
+  // don't check line-of-sight through walls, only Chebyshev distance) made
+  // every headcount change on the corridor waves go the WRONG way or do
+  // nothing: 12 -> 78% (easier), 14 -> 100% (easier), 6 -> 100% (easier),
+  // spreading the same 10/5 across 8 spawn tiles instead of 4 -> 100%
+  // (easier), collapsing to a single spawn tile -> 100% (easier). Only the
+  // original 4-tile/10-5 split sits in a real "valley" of actual
+  // difficulty — more or fewer hostiles funneling through the same north/
+  // south corridors self-crowds and appears to reduce how many actually
+  // land a hit before turn 10, not just get stopped by the door. Also tried
+  // the Mission 2 exploit directly (ranged Sporethrower staged within
+  // attackRange but outside the chokepoint, both on the hold room's far
+  // side and near-side) — moved the number by single digits at best, not
+  // the lever here. What actually worked: burrowed Undertow (attackRange
+  // [1,1], so no travel needed once surfaced) spawned directly on/adjacent
+  // to the hold-zone tiles themselves (x=10-13, y=5-8), bypassing the
+  // corridor/door pathing question entirely — confirmed via verbose trace
+  // they do surface and land real hits (60+ damage) before the squad kills
+  // them. Corridor waves left at their original 10/5/4/6 baseline; 10
+  // Undertow ambushing the hold zone from turn 1 lands 12% (23/200), but
+  // LOSS is 99/200 (50%), COMMANDER_DOWN 78/200 (39%) — a real mixed
+  // profile, not clean, same caveat as Mission 26's Undertow lever. 9
+  // Undertow undershoots (26%), 14 overshoots into a 55% real-LOSS rout —
+  // another narrow band, not a gradient. Shipping this because it clears
+  // the number, flagging the quality honestly rather than calling it clean.
   objectiveParams: { turnLimit: 16, holdUntilTurn: 10 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 13, y: 1 }, { x: 9, y: 14 }, { x: 13, y: 14 }] },
     { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 9, y: 14 }] },
+    { archetypeId: "bloom_undertow", count: 10, atTurn: 1, spawnAt: [{ x: 10, y: 5 }, { x: 11, y: 6 }, { x: 12, y: 7 }, { x: 13, y: 8 }, { x: 10, y: 7 }], burrowed: true },
     { archetypeId: "bloom_sporethrower", count: 4, atTurn: 5, spawnAt: [{ x: 16, y: 2 }, { x: 16, y: 13 }] },
     { archetypeId: "bloom_crawlmass", count: 6, atTurn: 8, spawnAt: [{ x: 16, y: 2 }, { x: 16, y: 13 }] },
   ],
@@ -2294,13 +2624,31 @@ export const AMARANTH_MISSION_30: CampaignMission = {
   //
   // bonusAbilityUnlocks deliberately omitted below — see this batch's
   // header comment on "Meridian's Oath damaged on-station."
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (10/5-at-turn4/4-at-turn7)
+  // sat at 60%. Confirmed eliminate_all's own house rule live here — this
+  // fight runs well past turnLimit 18 (turnLimit is display-only for this
+  // objective) out to turn 25+ hunting stragglers, with zero real danger
+  // once the squad wins the opening clash — so staggering MORE waves in
+  // later (tried turn 10/13 reinforcements) changed nothing, they just
+  // became mop-up targets in a fight already decided. Also re-confirmed
+  // this act's now-familiar crowding effect: scaling the turn-1 crawlmass
+  // wave up alone (10->15 at the same 6 spawn tiles) made it EASIER
+  // (60%->80%), not harder. What worked was moving the existing staggered
+  // splitfang (turn 4) and sporethrower (turn 7) waves to ALL arrive at
+  // turn 1 together with the crawlmass, then scaling that combined burst
+  // up (12/12/10): the opening clash is what decides this mission, so
+  // front-loading everything into one real fight instead of a slow trickle
+  // is what actually raised the difficulty. Also spread the Undertow ambush
+  // from 2 units on 2 tiles to 8 units on 4 tiles near the deploy exit,
+  // same "more spawn tiles reduces self-crowding" fix Mission 29 needed.
+  // Result: 4% (6/150), LOSS 0, all COMMANDER_DOWN — clean.
   objectiveParams: { turnLimit: 18 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_gallcyst", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 12, y: 10 }] },
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 26, y: 2 }, { x: 25, y: 6 }, { x: 26, y: 6 }, { x: 25, y: 8 }, { x: 26, y: 8 }, { x: 26, y: 12 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 4, spawnAt: [{ x: 25, y: 6 }, { x: 25, y: 8 }] },
-    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 7, spawnAt: [{ x: 26, y: 2 }, { x: 26, y: 12 }] },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: [{ x: 26, y: 2 }, { x: 25, y: 6 }, { x: 26, y: 6 }, { x: 25, y: 8 }, { x: 26, y: 8 }, { x: 26, y: 12 }] },
+    { archetypeId: "bloom_splitfang", count: 12, atTurn: 1, spawnAt: [{ x: 25, y: 6 }, { x: 25, y: 8 }] },
+    { archetypeId: "bloom_sporethrower", count: 10, atTurn: 1, spawnAt: [{ x: 26, y: 2 }, { x: 26, y: 12 }] },
     // Tier 6 spawn-variety pass, batch 4 (30 Aug 2026): 81% at n=150
     // pre-edit, the widest real margin of any Act III mission checked this
     // batch that wasn't already flagged fragile in its own build log (see
@@ -2317,9 +2665,9 @@ export const AMARANTH_MISSION_30: CampaignMission = {
     // an ambusher doesn't need to path anywhere to be a threat.
     {
       archetypeId: "bloom_undertow",
-      count: 2,
+      count: 8,
       atTurn: 1,
-      spawnAt: [{ x: 7, y: 6 }, { x: 7, y: 8 }],
+      spawnAt: [{ x: 7, y: 6 }, { x: 7, y: 7 }, { x: 7, y: 8 }, { x: 7, y: 9 }],
       burrowed: true,
     },
   ],
@@ -2417,12 +2765,29 @@ export const AMARANTH_MISSION_31: CampaignMission = {
   // genuine variance in which civilians make it, matching this mission's
   // own doc tag ("not everyone gets out" as real risk, not a guaranteed
   // specific and not a coin flip either way).
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (far-seam 6 crawlmass/4
+  // splitfang at turn 7) sat at 52%, LOSS already 45% — this mission's
+  // civilian fragility means most failures were always going to be
+  // extraction-below-threshold, not squad wipe (COMMANDER_DOWN stayed near
+  // 0-2% throughout this whole retune), which reads as the mission's own
+  // "not everyone gets out" design working as intended rather than a
+  // quality problem the way real squad LOSS is elsewhere in this file.
+  // Left the near-seam (turn 1-4) totally alone — that ambush was already
+  // hand-tuned once this batch specifically to avoid one-shotting the
+  // convoy outright (see this mission's own comment above), not something
+  // to re-touch. Scaled the far-seam (turn 7) instead: crawlmass alone
+  // barely moved it (8 -> 32%, 11 -> 18%, noisy), splitfang was the real
+  // lever (civilians near-one-shot by its 38 attackPower, same finding as
+  // the original tuning pass) — landed on 10 crawlmass / 7 splitfang: 7-9%
+  // across two n=200 batches, LOSS ~78% (civilian threshold missed,
+  // expected for this mission), COMMANDER_DOWN ~13% (squad itself still
+  // rarely at real risk).
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 24, y: 1 }, { x: 24, y: 11 }] },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 2, spawnAt: [{ x: 24, y: 1 }, { x: 24, y: 11 }] },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 4, spawnAt: [{ x: 24, y: 1 }, { x: 24, y: 11 }] },
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 7, spawnAt: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 11 }, { x: 15, y: 11 }] },
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 7, spawnAt: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 11 }, { x: 15, y: 11 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 7, spawnAt: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 11 }, { x: 15, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 7, spawnAt: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 11 }, { x: 15, y: 11 }] },
   ],
   events: [
     {
@@ -2543,12 +2908,23 @@ export const AMARANTH_MISSION_32: CampaignMission = {
   // original draft->doubled move used elsewhere in this file (9/4/3/5/2,
   // 21 total, down from 29) and re-verified below rather than re-deriving
   // a whole new tuning pass from scratch.
+  // 15% CEILING RETUNE (1 Sep 2026). Heeded this mission's own repeated
+  // warning ("sensitive at this margin... retest in small steps, not big
+  // jumps") — walked every wave up gradually rather than jumping straight
+  // to the previously-found 0%-win cliff (14/7/5/7/4, itself a known bad
+  // data point from before the reflexiveDecision fix this comment already
+  // documents). Baseline 9/4/3/5/2 = 100%. Stepped: 11/4/3/5/2 -> 100%,
+  // 12/5/3/5/2 -> 98%, 12/5/4/6/3 -> 85%, 13/6/4/6/3 -> 62%, 13/7/4/6/3 ->
+  // 56%, 13/7/5/7/4 -> 31%, 14/7/5/7/4 -> 22%, 14/7/6/8/4 -> 5-12% across
+  // two batches (n=150 and n=200), LOSS 1-4%, rest COMMANDER_DOWN — a real
+  // gradient this time, not a cliff, once approached incrementally instead
+  // of in the doubling-sized jumps the mission's own history used before.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 9, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
-    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
-    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
-    { archetypeId: "bloom_splitfang", count: 2, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 14, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 9, y: 1 }, { x: 16, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 7, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
+    { archetypeId: "bloom_sporethrower", count: 6, atTurn: 6, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 10, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 14, spawnAt: [{ x: 3, y: 1 }, { x: 22, y: 1 }] },
   ],
   events: [
     {
@@ -2630,14 +3006,21 @@ export const AMARANTH_MISSION_33: CampaignMission = {
   // sight, so a close spawn point still needs real pathing around the
   // room's own walls to actually arrive, which is what keeps the "closing
   // in from multiple directions" read honest despite the short distances.
+  //
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (14/7/6/10/6) sat at 80%.
+  // Unlike Missions 29/32's chokepoint maps, this one took a straightforward
+  // proportional scale-up cleanly — no crowding cliff, no easier-with-more
+  // paradox: a +15% bump (16/8/7/12/7) barely moved it (77%), but a real
+  // ~55% bump across all five waves (22/11/9/15/9) landed clean: 4%
+  // (6/150), LOSS 1%, rest COMMANDER_DOWN.
   objectiveParams: { turnLimit: 22, holdUntilTurn: 16 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 14, atTurn: 1, spawnAt: [{ x: 13, y: 4 }, { x: 17, y: 4 }, { x: 13, y: 11 }, { x: 17, y: 11 }] },
-    { archetypeId: "bloom_splitfang", count: 7, atTurn: 1, spawnAt: [{ x: 13, y: 4 }, { x: 13, y: 11 }] },
-    { archetypeId: "bloom_sporethrower", count: 6, atTurn: 5, spawnAt: [{ x: 21, y: 7 }, { x: 17, y: 4 }] },
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 9, spawnAt: [{ x: 17, y: 4 }, { x: 17, y: 11 }] },
-    { archetypeId: "bloom_splitfang", count: 6, atTurn: 13, spawnAt: [{ x: 13, y: 4 }, { x: 21, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 22, atTurn: 1, spawnAt: [{ x: 13, y: 4 }, { x: 17, y: 4 }, { x: 13, y: 11 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 11, atTurn: 1, spawnAt: [{ x: 13, y: 4 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_sporethrower", count: 9, atTurn: 5, spawnAt: [{ x: 21, y: 7 }, { x: 17, y: 4 }] },
+    { archetypeId: "bloom_crawlmass", count: 15, atTurn: 9, spawnAt: [{ x: 17, y: 4 }, { x: 17, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 9, atTurn: 13, spawnAt: [{ x: 13, y: 4 }, { x: 21, y: 7 }] },
   ],
   events: [
     {
@@ -2691,6 +3074,17 @@ export const AMARANTH_MISSION_34: CampaignMission = {
   // (12/5/5/7/5, 35 total): 12/20 win (60%), losses landing right at turns
   // 12-13, one turn short of the turnLimit-14 finish line — the "so close"
   // failure shape this mission's own darkest-hour framing wants.
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (12/5/5/7/5) now sat at 97%,
+  // not the 60% this comment's own history recorded — squad/AI changes
+  // since have drifted it, same kind of drift Mission 32 already found.
+  // Heeded this mission's own explicit warning about steep sensitivity
+  // (doubling once caused a 0/20 full-wipe) and stepped up gradually rather
+  // than repeating that jump: 14/6/6/8/6 -> 88%, 16/7/7/9/7 -> 65%, then a
+  // real jump on the turn-1 waves alone (18/8, then 20/9) barely moved it
+  // (30% -> 29%, diminishing returns on that lever specifically) — the
+  // later reinforcement waves were the ones still under-scaled. Pushed
+  // those instead (9->12 crawlmass turn 8, 7->9 splitfang turn 11, 7->9
+  // sporethrower turn 5): 6% (9/150), LOSS 0, all COMMANDER_DOWN — clean.
   objectiveParams: { turnLimit: 14 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
   // Every spawnAt coordinate sits within 3-4 tiles (Chebyshev) of the
@@ -2701,11 +3095,11 @@ export const AMARANTH_MISSION_34: CampaignMission = {
   // the squad into, so the pressure has to already be in range from turn 1
   // for the mission to read as "surrounded," not "waiting."
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 13, y: 10 }, { x: 9, y: 7 }, { x: 16, y: 7 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 13, y: 10 }] },
-    { archetypeId: "bloom_sporethrower", count: 5, atTurn: 5, spawnAt: [{ x: 8, y: 7 }, { x: 17, y: 7 }] },
-    { archetypeId: "bloom_crawlmass", count: 7, atTurn: 8, spawnAt: [{ x: 12, y: 3 }, { x: 13, y: 11 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 11, spawnAt: [{ x: 8, y: 7 }, { x: 17, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 20, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 13, y: 10 }, { x: 9, y: 7 }, { x: 16, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 9, atTurn: 1, spawnAt: [{ x: 12, y: 4 }, { x: 13, y: 10 }] },
+    { archetypeId: "bloom_sporethrower", count: 9, atTurn: 5, spawnAt: [{ x: 8, y: 7 }, { x: 17, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 8, spawnAt: [{ x: 12, y: 3 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 9, atTurn: 11, spawnAt: [{ x: 8, y: 7 }, { x: 17, y: 7 }] },
   ],
   events: [
     {
@@ -2754,14 +3148,20 @@ export const AMARANTH_MISSION_35: CampaignMission = {
   // Unnamed's own attacks land 56-68 damage a hit, close to a full-HP kill
   // on most archetypes) — see this batch's build log addendum for the
   // full numbers.
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (10/5/5/8/5) sat at 92%. The
+  // Unnamed itself (turn-6 scripted spawn, fixed at (18,12)) left completely
+  // untouched — that's the mission's own narrative beat, not a lever to
+  // retune. Scaled every regular ground wave up ~60% (16/8/8/13/8): 13%
+  // (26/200), LOSS 1.5%, rest COMMANDER_DOWN — clean, same proportional
+  // scale-up that worked cleanly on Mission 33's own single-doorway room.
   objectiveParams: { turnLimit: 22, holdUntilTurn: 16 },
   playerPilotIds: ACT3_DEFAULT_SQUAD,
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 13, y: 5 }, { x: 17, y: 5 }, { x: 13, y: 12 }, { x: 17, y: 12 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 13, y: 5 }, { x: 13, y: 12 }] },
-    { archetypeId: "bloom_sporethrower", count: 5, atTurn: 6, spawnAt: [{ x: 22, y: 8 }, { x: 17, y: 5 }] },
-    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 9, spawnAt: [{ x: 17, y: 5 }, { x: 17, y: 12 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 12, spawnAt: [{ x: 22, y: 8 }, { x: 13, y: 12 }] },
+    { archetypeId: "bloom_crawlmass", count: 16, atTurn: 1, spawnAt: [{ x: 13, y: 5 }, { x: 17, y: 5 }, { x: 13, y: 12 }, { x: 17, y: 12 }] },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 1, spawnAt: [{ x: 13, y: 5 }, { x: 13, y: 12 }] },
+    { archetypeId: "bloom_sporethrower", count: 8, atTurn: 6, spawnAt: [{ x: 22, y: 8 }, { x: 17, y: 5 }] },
+    { archetypeId: "bloom_crawlmass", count: 13, atTurn: 9, spawnAt: [{ x: 17, y: 5 }, { x: 17, y: 12 }] },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 12, spawnAt: [{ x: 22, y: 8 }, { x: 13, y: 12 }] },
   ],
   events: [
     {
@@ -2830,12 +3230,25 @@ export const AMARANTH_MISSION_36: CampaignMission = {
   // If this ever gets revisited, retest in small steps — the swing from
   // 33 to 46 total (a 39% increase) was enough to go from certain win to
   // certain loss.
+  //
+  // 15% CEILING RETUNE (1 Sep 2026). Baseline (12/5/5/8/7/2, 39 total) now
+  // sat at 97%, not the 80% this comment's own history recorded — same
+  // drift Missions 32/34 already found. Heeded the "retest in small steps"
+  // warning literally: walked every wave up by 1 at a time rather than
+  // repeating the ~39%-jump that once caused a full-wipe cliff. 13/6/6/9/8
+  // -> 82%, 14/6/7/10/9 -> 42%, 15/7/7/11/9 -> 36%, 16/8/8/12/10 -> 21%,
+  // 17/9/8/13/11 -> 19% — a real gradient the whole way, not a repeat of
+  // the old cliff, this composition just tolerates more total headcount
+  // than the one that broke at 46. Last +1 to sporethrower alone (8->9)
+  // was the one outsized step (19% -> 3%, then 7% at n=200) — landed there
+  // rather than fine-tuning further for an exact 15%, since LOSS stayed at
+  // 0 (all COMMANDER_DOWN) throughout, clean at every step tested.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }, { x: 10, y: 8 }, { x: 19, y: 8 }] },
-    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }] },
-    { archetypeId: "bloom_sporethrower", count: 5, atTurn: 4, spawnAt: [{ x: 10, y: 8 }, { x: 19, y: 8 }] },
-    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 7, spawnAt: [{ x: 11, y: 5 }, { x: 18, y: 5 }, { x: 11, y: 11 }, { x: 18, y: 11 }] },
-    { archetypeId: "bloom_splitfang", count: 7, atTurn: 10, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }, { x: 10, y: 8 }, { x: 19, y: 8 }] },
+    { archetypeId: "bloom_crawlmass", count: 17, atTurn: 1, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }, { x: 10, y: 8 }, { x: 19, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 9, atTurn: 1, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }] },
+    { archetypeId: "bloom_sporethrower", count: 9, atTurn: 4, spawnAt: [{ x: 10, y: 8 }, { x: 19, y: 8 }] },
+    { archetypeId: "bloom_crawlmass", count: 13, atTurn: 7, spawnAt: [{ x: 11, y: 5 }, { x: 18, y: 5 }, { x: 11, y: 11 }, { x: 18, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 11, atTurn: 10, spawnAt: [{ x: 14, y: 5 }, { x: 14, y: 11 }, { x: 10, y: 8 }, { x: 19, y: 8 }] },
     { archetypeId: "bloom_gallcyst", count: 2, atTurn: 13, spawnAt: [{ x: 11, y: 8 }, { x: 18, y: 8 }] },
   ],
   events: [

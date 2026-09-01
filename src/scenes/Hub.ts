@@ -1862,7 +1862,7 @@ export class Hub extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#0c0f12");
 
     this.roomTitleText = this.add
-      .text(480, 20, `THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]} (PROTOTYPE)`, { fontFamily: "monospace", fontSize: "16px", color: TEXT_MAIN })
+      .text(480, 20, `THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]}`, { fontFamily: "monospace", fontSize: "16px", color: TEXT_MAIN })
       .setOrigin(0.5);
     // wordWrap added this pass — caught in Playwright verification, not by
     // eye: this line measured 1232px wide (checked via the Text object's
@@ -1877,7 +1877,7 @@ export class Hub extends Phaser.Scene {
       .text(
         480,
         44,
-        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real. M = muster call (debug), R = test rumor (debug).",
+        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real.",
         {
           fontFamily: "monospace",
           fontSize: "11px",
@@ -1975,11 +1975,21 @@ export class Hub extends Phaser.Scene {
     };
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.eKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.mKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    this.rKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    // EA Launch Plan Week 1 hardening, 1 Sep 2026 — M (debug muster) and R
+    // (debug rumor) stay real and bound in dev builds only. Readiness Plan
+    // §3.1 asked to keep them usable for continued dev testing rather than
+    // deleting them outright, just stop an EA player from ever seeing or
+    // triggering them: import.meta.env.DEV is false in a production Vite
+    // build, so mKey/rKey simply stay undefined there and every existing
+    // `if (this.mKey && ...)`/`if (this.rKey && ...)` check below already
+    // no-ops on undefined — no other call site needed to change.
+    if (import.meta.env.DEV) {
+      this.mKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+      this.rKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    }
     this.tKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    this.input.keyboard?.addCapture("W,A,S,D,E,M,R,T");
+    this.input.keyboard?.addCapture(import.meta.env.DEV ? "W,A,S,D,E,M,R,T" : "W,A,S,D,E,T");
 
     this.buildChatBox();
     this.buildChatLogPanel();
@@ -4507,14 +4517,24 @@ export class Hub extends Phaser.Scene {
       room: "grotto",
       x: coPos.x,
       y: coPos.y,
-      // Bear — placeholder catalyst pick, same "not a locked content
-      // decision" caveat npcSeed.ts already carries for the other three;
-      // steady/watchful/authority read fits a CO better than the three
-      // catalysts already in use (raven/wolf/crow — Bosk/Anand/Iyari).
+      // Wolf — was "bear" (a placeholder pick, same "not a locked content
+      // decision" caveat npcSeed.ts already carries for the other three).
+      // Flipped 1 Sep 2026 once he got a real background: roster doc §4.3
+      // (claude_Bloom_Wars_NPC_Catalyst_Formula_Closing_And_Roster_Assignments_v1.md)
+      // resolves his Sector/Planet/Birthplace Texture/Academy to
+      // Mid-Rim/Sheltered — Saturn on the Planet-12 table, which the
+      // formula's §2 pairs with Wolf, not Bear. Reads better for a CO
+      // besides: the duty-bound, team-first steadiness of Saturn/Wolf is
+      // closer to what running a whole complement actually asks of him
+      // than Bear's isolation ever was. Hardcoded here rather than looked
+      // up via catalystForPilot() — same as before this change — since
+      // he's a standalone HubNpc, not a WARDEN_PILOTS roster entry
+      // (BACKGROUND_CATALYST_ASSIGNMENTS in npcSeed.ts doesn't list him
+      // for the same reason; see that map's own header).
       // Stage hardcoded "command" rather than tier-derived — he isn't on
       // the WARDEN_PILOTS tier-promotion track this scene's other Stage
       // logic assumes, and "command" is the fitting register regardless.
-      ambient: { catalyst: "bear", stage: "command", stress: coSocial.stress, morale: coSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
+      ambient: { catalyst: "wolf", stage: "command", stress: coSocial.stress, morale: coSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
       favorability: coSocial.favorability,
       circle: coCircle,
       root: coRoot,
@@ -4610,6 +4630,52 @@ export class Hub extends Phaser.Scene {
       { mekId: "mek_anand", pilotId: "pilot_anand", catalyst: "dog", x: 265, y: 420 },
       { mekId: "mek_lask", pilotId: "pilot_lask", catalyst: "rabbit", x: 395, y: 420 },
     ];
+
+    // Mek scope decision follow-through, 1 Sep 2026
+    // (claude/Bloom_Wars_Build_Log_Addendum_MekScopeDecision_01Sep2026.md).
+    // Turned out the walkable-NPC/bond/hot-topic mechanism below ALREADY
+    // covers all 15 pilots' Meks, not just these 5 — the generic loop right
+    // after this one already reads each pilot's real, already-shipped
+    // WARDEN_MEKS/SECOND_LANCE_MEKS/THIRD_LANCE_MEKS displayName
+    // (data/campaignAmaranth.ts), seeds the same Matchset bond, and is
+    // already picked up by checkMekRetirement()'s hot-topic scan below —
+    // none of that needed building. The one real gap: those other 10 fell
+    // through to catalystForPilot()'s deterministic hash (safe, but
+    // arbitrary) instead of a hand-picked catalyst the way these 5 got.
+    // This map closes exactly that gap, same "not tied to any MekTrack
+    // specialization, picked for voice variety" caveat as mekSeeds' own
+    // catalysts above — plus a few deliberate echoes: both other Munti
+    // Meks (Vashti, Yeun) share "rabbit" with Lask's own, continuing a
+    // healer-adjacent thread; Okafor's Mek echoes Bosk's "bear" since
+    // Okafor's own pilot comment already calls his track a direct mirror
+    // of Bosk's; Tarrant's Mek echoes Iyari's "crow" the same way
+    // Tarrant's own pilot comment says he "gets Armorer like Iyari."
+    // Anyone not listed here (a future lance, a generated recruit) keeps
+    // the exact same safe hash fallback as before this change.
+    //
+    // Correction, same day: Maxime's actual picking principle is "chosen
+    // for ease of familiarisation and friendliness between pilot and
+    // Mek" — so every pick above was re-checked against its own pilot's
+    // catalyst (hand-seeded where one exists, catalystForPilot()'s hash
+    // fallback otherwise) using CATALYST_CLASH_PAIRS (catalystProfile.ts)
+    // as the concrete definition of "not friendly." One real conflict:
+    // mek_solheim was "shark," but pilot_solheim's own hash fallback is
+    // "rabbit," and rabbit/shark is a defined clash pair. Swapped to
+    // "dog" — reads as loyal/companionable, doesn't clash with rabbit,
+    // and fits the found-family tone the Mek system is going for.
+    const MEK_CATALYST_OVERRIDES: Record<string, Catalyst> = {
+      mek_okafor: "bear",
+      mek_solheim: "dog",
+      mek_tarrant: "crow",
+      mek_vashti: "rabbit",
+      mek_reyes: "cat",
+      mek_kova: "wolf",
+      mek_ness: "bear",
+      mek_onwuka: "crow",
+      mek_delgado: "fox",
+      mek_yeun: "rabbit",
+    };
+
     for (const seed of mekSeeds) {
       const pilotEntry = this.campaignState.pilots[seed.pilotId];
       // A Mek is never lost to combat, only retires the instant their own
@@ -4757,7 +4823,7 @@ export class Hub extends Phaser.Scene {
         // hash fallback (see npcSeed.ts's own header) — feeding it mekId
         // rather than pilotId gives this Mek its own independent-but-
         // stable catalyst, not a copy of their pilot's.
-        ambient: { catalyst: catalystForPilot(mekId), stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
+        ambient: { catalyst: MEK_CATALYST_OVERRIDES[mekId] ?? catalystForPilot(mekId), stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
         favorability: mekSocial.favorability,
         circle,
         root,
@@ -6470,7 +6536,7 @@ export class Hub extends Phaser.Scene {
   // since it used to assume it was the only thing on screen).
   private refreshRoomVisibility() {
     const deck = ROOM_DECK[this.currentRoomId];
-    this.roomTitleText.setText(`THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]} (PROTOTYPE)`);
+    this.roomTitleText.setText(`THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]}`);
     this.deckIndicatorText.setText(`DECK: ${DECK_TITLES[deck]}`);
 
     // The egg hull, 27 Aug 2026 (both passes) — exactly one of the three
@@ -6835,9 +6901,12 @@ function isRumorSubject(npc: HubNpc, message: HubMessage): boolean {
 // miss the one-time bubble a persistent way to notice," complementing
 // rather than replacing §37's graduation reveal — the reveal is the
 // moment, this is the lasting evidence. Plain English over a cryptic
-// abbreviation, matching this file's existing "with X"/"(demo)" style
-// rather than inventing a new pip/icon convention. Not exported: this
-// string is only ever consumed by favorabilityLabel just below.
+// abbreviation, matching this file's existing "with X" style rather than
+// inventing a new pip/icon convention. Not exported: this string is only
+// ever consumed by favorabilityLabel just below. (The "(demo)" suffix
+// favorabilityLabel used to append was stripped 1 Sep 2026, EA Launch
+// Plan Week 1 hardening — this comment's own reference to it is now
+// historical only.)
 function stageBadge(stage: Stage): string {
   const label = stage === "green" ? "Green" : stage === "blooded" ? "Blooded" : "Command";
   return `[${label}]`;
@@ -6850,7 +6919,7 @@ function stageBadge(stage: Stage): string {
 // both tags render together rather than one taking priority.
 function favorabilityLabel(npc: HubNpc, partner?: string, rival?: string): string {
   const sign = npc.favorability >= 0 ? "+" : "";
-  let base = `${npc.displayName.split("—")[0].trim()}  ${stageBadge(npc.ambient.stage)}  ${sign}${npc.favorability} (demo)`;
+  let base = `${npc.displayName.split("—")[0].trim()}  ${stageBadge(npc.ambient.stage)}  ${sign}${npc.favorability}`;
   if (partner) base += `  ♥ ${partner}`;
   if (rival) base += `  ⚡ ${rival}`;
   return base;

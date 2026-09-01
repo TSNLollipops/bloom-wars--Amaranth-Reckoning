@@ -11,15 +11,14 @@
 import type { CampaignMission } from "./types";
 import { MISSIONS_BY_ID as TEAM_ONE_MISSIONS_BY_ID } from "./campaign";
 import { AMARANTH_ACT1, AMARANTH_ACT2, AMARANTH_ACT3, AMARANTH_MISSIONS_BY_ID } from "./campaignAmaranth";
-// House Amaranth (31 Aug 2026 scaffolding pass) — same "data kept, resolves
-// by id, not shown in mission-select" treatment this file's own comment
-// below already documents for the archived Team One campaign. Deliberately
-// NOT added to the CAMPAIGNS array below: that's what actually puts a tab
-// in front of a player, and this is one real mission of a planned 36, not
-// a campaign ready to hand someone. Only HOUSE_AMARANTH_MISSIONS_BY_ID is
-// merged into ALL_MISSIONS_BY_ID, so `npm run sim -- mission_house_amaranth_1`
-// resolves it directly.
-import { HOUSE_AMARANTH_MISSIONS_BY_ID } from "./campaignHouseAmaranth";
+// House Amaranth — all 36 missions now built (1 Sep 2026) and, as of this
+// pass, wired into CAMPAIGNS below the same way Warden Company is: three
+// act-scoped CampaignDef entries, real tabs on the mission-select screen.
+// The "resolvable by id, not offered in the picker" treatment this file's
+// header describes for Team One was House Amaranth's OWN state through 31
+// Aug (STATUS comment in campaignHouseAmaranth.ts, "deliberately NOT wired
+// into CAMPAIGNS... that's a later step") — that step is this one.
+import { HOUSE_AMARANTH_ACT1, HOUSE_AMARANTH_ACT2, HOUSE_AMARANTH_ACT3, HOUSE_AMARANTH_MISSIONS_BY_ID } from "./campaignHouseAmaranth";
 
 export interface CampaignDef {
   id: string;
@@ -83,6 +82,42 @@ export const CAMPAIGNS: CampaignDef[] = [
     // addendum for the batch's full build/tuning history.
     subtitle: "Warden Company. Meridian's Oath, the withdrawal, The Cradle, the relief fleet — Act III complete, missions 25-36 of 36. Campaign complete.",
     missions: AMARANTH_ACT3,
+  },
+  // House Amaranth — Mission Select + roster-seeding wiring pass, 1 Sep
+  // 2026. Titles from Bloom_Wars_House_Amaranth_Mission_Plan_v1.md §4 ("The
+  // Amaranth Bargain," act titles Harvest Ground / The Bargain Holds / The
+  // Stalling Season) — already the names every mission's own build-time
+  // comment in campaignHouseAmaranth.ts uses, so this isn't picking a new
+  // name, just surfacing the one already in use. Same permissive behavior
+  // as Warden's own three tabs above: nothing here gates a tab behind
+  // finishing the previous act or behind which SIDE a save was started as
+  // (CampaignSetup.ts) — a Warden save browsing into these tabs will find
+  // an empty House Amaranth roster, same as the existing cross-act
+  // permissiveness this file's own header already documents for Warden.
+  // Not fixed in this pass — flagged, not silently patched over, since
+  // building real campaign-scoping in MapSelect would be a new system, not
+  // wiring an existing one.
+  {
+    id: "house_amaranth_act1",
+    name: "The Amaranth Bargain — Act I: Harvest Ground",
+    subtitle: "House Amaranth. Col. Marrow's lance, the diversion program's early days — Act I complete, missions 1-12 of 12.",
+    missions: HOUSE_AMARANTH_ACT1,
+  },
+  {
+    id: "house_amaranth_act2",
+    name: "The Amaranth Bargain — Act II: The Bargain Holds",
+    // Second Lance integration (engine/campaignState.ts's
+    // integrateHouseAmaranthSecondLance) fires off a Mission 12 win, same
+    // "regardless of which tab you're looking at" permissiveness Warden's
+    // own Act II comment above already documents.
+    subtitle: "House Amaranth. A second lance, political pressure, the shared Mission 20 duel — Act II complete, missions 13-20 of 20.",
+    missions: HOUSE_AMARANTH_ACT2,
+  },
+  {
+    id: "house_amaranth_act3",
+    name: "The Amaranth Bargain — Act III: The Stalling Season",
+    subtitle: "House Amaranth. The Bramble, the Wellroot, a stalling action fought to real local vindication — Act III complete, missions 21-36 of 36. Campaign complete.",
+    missions: HOUSE_AMARANTH_ACT3,
   },
 ];
 

@@ -26,7 +26,7 @@
 // dressing"). "Hangar" below is only this file's internal scene key/title,
 // not a claim that the Antfarm's actual Hangar Deck room fiction is live.
 import Phaser from "phaser";
-import { createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
+import { createWardenCampaignState, loadCampaignState, saveCampaignState, baseSceneKeyFor, type CampaignState } from "../engine/campaignState";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 
@@ -92,10 +92,20 @@ export class Hangar extends Phaser.Scene {
     // PROTOTYPE deliberately — this doesn't claim the Antfarm's actual
     // Hangar Deck fiction is live, same discipline this file's own header
     // already holds itself to.
-    makeShopButton(this, this.footerLayer, 480, 572, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
-      saveCampaignState(this.state);
-      this.scene.start("Hub");
-    });
+    //
+    // Gated 1 Sep 2026 (House Amaranth Mission Select wiring pass): only
+    // shown for a Warden Company save (baseSceneKeyFor, engine/
+    // campaignState.ts) — Hub.ts is built entirely around WARDEN_PILOTS
+    // and has no House Amaranth roster of its own to render, so offering
+    // this button to a House Amaranth save would route straight into the
+    // exact broken-Hub problem baseSceneKeyFor exists to avoid everywhere
+    // else in this codebase.
+    if (baseSceneKeyFor(this.state) === "Hub") {
+      makeShopButton(this, this.footerLayer, 480, 572, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
+        saveCampaignState(this.state);
+        this.scene.start("Hub");
+      });
+    }
   }
 
   private flashSavedMessage(slot: number): void {

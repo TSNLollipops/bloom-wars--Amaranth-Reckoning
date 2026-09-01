@@ -84,6 +84,18 @@ describe("Mission.tagExtractionTarget — named pilot never deployed (the actual
     expect(mission.units.filter((u) => u.isExtractionTarget)).toHaveLength(1);
   });
 
+  // Readiness Plan §3.6, 1 Sep 2026 — the briefing/dialogue text still names
+  // Orin regardless of who actually carries the objective; this
+  // acknowledgment log line is the cheap mechanical stand-in for rewriting
+  // that hand-authored prose, so the mismatch reads as an intentional
+  // in-fiction reassignment rather than a bug.
+  it("logs a plain acknowledgment naming both the original pilot and the fallback target", () => {
+    const mission = quietMission(rosterExcluding("pilot_orin"));
+    const orinName = findPilot("pilot_orin")!.displayName;
+    const target = mission.unitById(mission.resolvedExtractionTargetId!)!;
+    expect(mission.log.some((line) => line.includes(orinName) && line.includes(target.displayName))).toBe(true);
+  });
+
   it("is genuinely winnable via the fallback target reaching an exit tile — the mission is no longer structurally impossible", () => {
     const mission = quietMission(rosterExcluding("pilot_orin"));
     const target = mission.unitById(mission.resolvedExtractionTargetId!)!;
@@ -99,5 +111,12 @@ describe("Mission.tagExtractionTarget — named pilot never deployed (the actual
     mission.endPlayerTurn();
     expect(mission.outcome).toBe("loss");
     expect(mission.log).toContain("Loss: the unit to extract was downed.");
+  });
+});
+
+describe("Mission.tagExtractionTarget — no acknowledgment noise when nothing actually fell back", () => {
+  it("stays silent when the named pilot is the one actually carrying the objective", () => {
+    const mission = quietMission();
+    expect(mission.log.some((line) => line.includes("wasn't in the field"))).toBe(false);
   });
 });

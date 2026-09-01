@@ -24,7 +24,7 @@
 // "return to base" reads as the Hub now that CONTINUE actually goes there,
 // not the flat mission list.
 import Phaser from "phaser";
-import { loadCampaignState, saveCampaignState, evaluateMissionTimeout, applyMissionTimeout } from "../engine/campaignState";
+import { loadCampaignState, saveCampaignState, evaluateMissionTimeout, applyMissionTimeout, baseSceneKeyFor, type CampaignState } from "../engine/campaignState";
 import { ALL_MISSIONS_BY_ID } from "../data/allCampaigns";
 
 export class Boot extends Phaser.Scene {
@@ -43,7 +43,7 @@ export class Boot extends Phaser.Scene {
       // purchase is.
       applyMissionTimeout(state, Date.now());
       saveCampaignState(state);
-      this.drawRecallNotice(timeout.missionId);
+      this.drawRecallNotice(state, timeout.missionId);
       return;
     }
     this.scene.start("MainMenu");
@@ -60,7 +60,7 @@ export class Boot extends Phaser.Scene {
    * Data Pack §11.1 already holds briefings to, applied to a screen that's
    * allowed a little more voice than a briefing since it isn't one.
    */
-  private drawRecallNotice(missionId?: string) {
+  private drawRecallNotice(state: CampaignState, missionId?: string) {
     this.cameras.main.setBackgroundColor("#0c0f12");
     const missionName = missionId ? (ALL_MISSIONS_BY_ID[missionId]?.displayName ?? missionId) : "the mission";
 
@@ -75,6 +75,15 @@ export class Boot extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // "Warden Company"/"Command" text is Warden-flavored — this whole
+    // recall-notice screen has always been (its own file header: Rourke's
+    // own CO). Left as-is for a House Amaranth save reaching this screen
+    // (real but rare edge case: a mid-flight mission abandoned for 12+
+    // hours) rather than writing House Amaranth-specific recall copy this
+    // pass wasn't asked for — flagged here, not silently accepted, since
+    // it's a real if minor immersion gap. The routing below IS fixed
+    // (baseSceneKeyFor), which is the part that would otherwise be broken
+    // rather than just off-flavor.
     this.add
       .text(
         480,
@@ -101,6 +110,8 @@ export class Boot extends Phaser.Scene {
     this.add.text(480, 460, "RETURN TO BASE", { fontFamily: "monospace", fontSize: "14px", color: "#ffffff" }).setOrigin(0.5);
     btn.on("pointerover", () => btn.setFillStyle(0x3a6f92, 1));
     btn.on("pointerout", () => btn.setFillStyle(0x2e5c7a, 1));
-    btn.on("pointerdown", () => this.scene.start("Hub"));
+    // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
+    // campaignState.ts): a House Amaranth save has no Hub to send it to.
+    btn.on("pointerdown", () => this.scene.start(baseSceneKeyFor(state)));
   }
 }

@@ -312,6 +312,27 @@ export const AMARANTH_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
     tier: "G",
     spawnAt: { x: 17, y: 6 },
   },
+  // Added 30 Aug 2026 (Maxime: "again a mirored lance would be fine. but
+  // honestly leave it open for random lance formation, as long as they
+  // also have munties of their own") for mission_amaranth_23 — the game's
+  // first Munti-path hostile mech, rounding this foursome into a real
+  // five-archetype lance. Referenced by campaignAmaranth.ts's own Mission
+  // 23 wave list and comment since that day, but the archetype itself was
+  // missing from this file — never actually landed here, or lost to a
+  // later overwrite (this project's build log has more than one
+  // confirmed instance of that happening). Confirmed missing by a crash
+  // (`Unknown hostile mech id: hostile_mech_amaranth_05`) surfaced while
+  // baseline-simming the campaign for the Warden 36-mission retune, 1 Sep
+  // 2026 — restored here, same tank/meeps/meeps/reeps-sibling shape, tier
+  // G (no combat-data basis exists for a different tier), no new stat
+  // block needed since HostileMechArchetype carries none of its own.
+  hostile_mech_amaranth_05: {
+    id: "hostile_mech_amaranth_05",
+    displayName: "House Amaranth Line Trooper",
+    path: "munti",
+    tier: "G",
+    spawnAt: { x: 18, y: 10 },
+  },
 };
 
 // Amaranth Act II, Mission 16 ("Collaborators," 25 Aug 2026) — House

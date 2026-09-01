@@ -28,7 +28,7 @@
 // separate, bigger scope call (an actual art pipeline decision) — not
 // something this pass quietly assumed into "polished."
 import Phaser from "phaser";
-import { loadCampaignState, listManualSlots } from "../engine/campaignState";
+import { loadCampaignState, listManualSlots, baseSceneKeyFor } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 
 export class MainMenu extends Phaser.Scene {
@@ -108,7 +108,9 @@ export class MainMenu extends Phaser.Scene {
     let y = 300;
 
     makeShopButton(this, layer, cx, y, w, h, "CONTINUE", hasLiveSave, () => {
-      this.scene.start("Hub");
+      // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
+      // campaignState.ts): a House Amaranth save has no Hub to send it to.
+      this.scene.start(state ? baseSceneKeyFor(state) : "Hub");
     });
     y += spacing;
 

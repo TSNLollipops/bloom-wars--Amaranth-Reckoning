@@ -100,6 +100,95 @@ export const NPC_BOND_SEED: Record<string, number> = {
 // once catalysts for the wider roster get decided for real.
 const ALL_CATALYSTS: Catalyst[] = ["wolf", "dog", "cat", "crow", "raven", "bear", "fox", "rabbit", "shark"];
 
+// BACKGROUND_CATALYST_ASSIGNMENTS — added 1 Sep 2026, wiring in
+// claude_Bloom_Wars_NPC_Catalyst_Formula_Closing_And_Roster_Assignments_v1.md.
+// That document closes the gap this file's own header left open above:
+// background (Sector/Planet/Birthplace Texture/Academy, resolved through
+// Background_Zones_v1 §6's Zone × Pressure → Planet-12 table) now DRIVES
+// catalyst for every named pilot and Mek, rather than the two being
+// independent picks. This map is that document's full §4 roster table
+// (49 entries, minus the CO — his catalyst is hardcoded directly at his
+// own HubNpc push in Hub.ts, not looked up through catalystForPilot, so he
+// isn't listed here).
+//
+// Two different kinds of entry, on purpose, both kept rather than trimmed
+// to only what's "live," so this map is the single complete record the
+// roster doc's table maps to:
+//
+// - FRESH entries (§4.1 Warden pilots, §4.2 House Amaranth pilots, §4.6
+//   House Amaranth Meks — 26 total) are real, previously-unassigned picks.
+//   These change live behavior: before this map existed, every one of
+//   these ids fell through to the deterministic hash fallback below.
+// - REVERSE-FIT entries (§4.4's 7 pilots, §4.5's 15 Warden Meks — 22
+//   total) are inert here. The 7 pilots are already caught by NPC_SEED or
+//   HOUSE_AMARANTH_NPC_SEED above, both checked before this map. The 15
+//   Warden Meks are already hardcoded at their own call sites in Hub.ts
+//   (mekSeeds' seed.catalyst, and MEK_CATALYST_OVERRIDES), which take
+//   precedence over calling catalystForPilot() at all for those five, or
+//   are checked ahead of it for the other ten. Every value below matches
+//   what's already live — see the roster doc's own §3 for why reverse-fit
+//   existed in the first place (protecting catalysts real shipped dialogue
+//   already depends on).
+export const BACKGROUND_CATALYST_ASSIGNMENTS: Record<string, Catalyst> = {
+  // --- Warden Company pilots — fresh backgrounds, roster doc §4.1 (11) ---
+  pilot_lask: "wolf",
+  pilot_okafor: "bear",
+  pilot_solheim: "shark",
+  pilot_tarrant: "fox",
+  pilot_vashti: "crow",
+  pilot_reyes: "cat",
+  pilot_kova: "bear",
+  pilot_ness: "wolf",
+  pilot_onwuka: "shark",
+  pilot_delgado: "raven",
+  pilot_yeun: "rabbit",
+
+  // --- House Amaranth pilots — fresh backgrounds, roster doc §4.2 (5) ---
+  pilot_kessler: "wolf",
+  pilot_vantana: "raven",
+  pilot_reyken: "cat",
+  pilot_solano: "bear",
+  pilot_marrin: "crow",
+
+  // --- House Amaranth Meks — fresh backgrounds, roster doc §4.6 (10) ---
+  mek_marrow: "shark",
+  mek_vondra: "fox",
+  mek_meir: "crow",
+  mek_bray: "dog",
+  mek_orin: "wolf",
+  mek_kessler: "fox",
+  mek_vantana: "bear",
+  mek_reyken: "rabbit",
+  mek_solano: "cat",
+  mek_marrin: "dog",
+
+  // --- Reverse-fit pilots, roster doc §4.4 (7) — inert, see header above ---
+  pilot_bosk: "raven",
+  pilot_anand: "wolf",
+  pilot_iyari: "crow",
+  pilot_vondra: "raven",
+  pilot_meir: "wolf",
+  pilot_bray: "bear",
+  pilot_orin: "rabbit",
+
+  // --- Reverse-fit Warden Meks, roster doc §4.5 (15) — inert, see header above ---
+  mek_rourke: "raven",
+  mek_bosk: "bear",
+  mek_iyari: "fox",
+  mek_anand: "dog",
+  mek_lask: "rabbit",
+  mek_okafor: "bear",
+  mek_solheim: "dog",
+  mek_tarrant: "crow",
+  mek_vashti: "rabbit",
+  mek_reyes: "cat",
+  mek_kova: "wolf",
+  mek_ness: "bear",
+  mek_onwuka: "crow",
+  mek_delgado: "fox",
+  mek_yeun: "rabbit",
+};
+
 export function catalystForPilot(pilotId: string): Catalyst {
   const seeded = NPC_SEED.find((s) => s.pilotId === pilotId);
   if (seeded) return seeded.catalyst;
@@ -110,9 +199,20 @@ export function catalystForPilot(pilotId: string): Catalyst {
   // populate yet).
   const houseAmaranthSeeded = HOUSE_AMARANTH_NPC_SEED.find((s) => s.pilotId === pilotId);
   if (houseAmaranthSeeded) return houseAmaranthSeeded.catalyst;
+  // Background→catalyst formula, 1 Sep 2026 (see BACKGROUND_CATALYST_ASSIGNMENTS'
+  // own header just above) — checked after both hand-seeded lists (which
+  // stay authoritative for the three-plus-four named pilots they already
+  // cover) and before the hash fallback, so every other named pilot/Mek
+  // this map lists now gets their real, background-derived catalyst
+  // instead of an arbitrary stable pick.
+  const backgroundAssigned = BACKGROUND_CATALYST_ASSIGNMENTS[pilotId];
+  if (backgroundAssigned) return backgroundAssigned;
   // Simple deterministic string hash (djb2-ish) — not cryptographic, just
   // stable and spread out enough that adjacent recruit ids (pilot_recruit_1,
-  // pilot_recruit_2, ...) don't all land on the same catalyst.
+  // pilot_recruit_2, ...) don't all land on the same catalyst. Still the
+  // fallback for anyone not in any of the three lists above — a future
+  // lance, a generated recruit, or a Mek id nobody's assigned a background
+  // to yet.
   let hash = 5381;
   for (let i = 0; i < pilotId.length; i++) {
     hash = (hash * 33 + pilotId.charCodeAt(i)) | 0;

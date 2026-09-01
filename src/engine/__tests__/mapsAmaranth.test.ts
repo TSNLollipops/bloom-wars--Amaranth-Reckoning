@@ -119,11 +119,36 @@ describe("Amaranth I.2 keeps its single doorway, and stays winnable", () => {
     expect(map.holdZone!.length).toBeLessThanOrEqual(20);
   });
 
-  it("a squad that plugs the doorway and stands on the zone wins on the hold turn", () => {
+  it("a squad that plugs the doorway, stands on the zone, and fights back reaches a real terminal outcome (not a stall)", () => {
     // Played the way the mission asks and the sim harness never does: the
     // Tank parks ON the doorway tile (units block movement, so that alone
-    // seals the room), everyone else takes a hold tile. No attacking at all,
-    // so this measures the map and the hold rule rather than damage rolls.
+    // seals the room), everyone else takes a hold tile.
+    //
+    // Used to be zero attacking, and asserted an outright win — pure
+    // positioning, no damage rolls, specifically to isolate the map/hold
+    // rule from combat RNG, back when the melee-only chokepoint made a
+    // plug-and-hold script a guaranteed win regardless.
+    //
+    // Retuned 1 Sep 2026 (whole-campaign =<15% win-rate pass, Maxime: "we
+    // havr to redo all the warden mission to get them to a ceiling of
+    // 15%"): AMARANTH_MISSION_2 now stages Sporethrower at explicit
+    // spawnAt coordinates on the WEST side of the wall (see that mission's
+    // own comment in campaignAmaranth.ts) specifically so a minimum-range
+    // unit can pressure the doorway from outside the melee chokepoint —
+    // the entire point being that pure door-plugging, on its own, is no
+    // longer supposed to guarantee a win. src/sim's own batch harness
+    // (a materially smarter, objective-aware Player AI, not this hand-
+    // scripted one) confirms this is real and intentional: 52/500 (10%)
+    // at the composition this test now runs against. A hand-scripted
+    // defense with no target prioritization and no repositioning against
+    // the sniper is, if anything, WORSE than that Player AI, so this test
+    // asserting a guaranteed win would just be asserting last month's
+    // balance, not this one's. What's still a genuine regression this
+    // test can catch: the mission stalling forever instead of resolving
+    // (the `safety` counter tripping), or resolving to something other
+    // than one of the mission's real terminal outcomes. Batch-sim numbers,
+    // not this single deterministic script, are the authority on this
+    // mission's actual win rate — see runBatch.ts.
     const mission = new Mission(AMARANTH_MISSION_2);
     const hold = mission.map.holdZone!;
     const door = doorwaysOf(mission.map)[0];
@@ -133,27 +158,43 @@ describe("Amaranth I.2 keeps its single doorway, and stays winnable", () => {
     let safety = 0;
     while (mission.outcome === "ongoing" && safety < 30) {
       safety += 1;
-      for (const unit of mission.livingUnits().filter((u) => u.side === "player")) {
+      for (const unit of mission.livingUnits().filter((u) => u.side === "player" && !u.downed)) {
         const goal = unit.instanceId === plugId ? door : hold[0];
         while (unit.actionsRemaining > 0) {
           const occupied = new Set(mission.livingUnits().map((u) => coordKey(u.pos)));
           const reachable = mission.getReachableTiles(unit.instanceId).filter((c) => !occupied.has(coordKey(c)));
-          if (!reachable.length) break;
           const settled = unit.instanceId === plugId ? coordKey(unit.pos) === coordKey(door) : holdKeys.has(coordKey(unit.pos));
-          if (settled) break;
-          const target = reachable.reduce((best, c) =>
-            Math.abs(c.x - goal.x) + Math.abs(c.y - goal.y) < Math.abs(best.x - goal.x) + Math.abs(best.y - goal.y) ? c : best
-          );
-          if (coordKey(target) === coordKey(unit.pos)) break;
-          if (!mission.moveUnit(unit.instanceId, target)) break;
+          if (!settled && reachable.length) {
+            const target = reachable.reduce((best, c) =>
+              Math.abs(c.x - goal.x) + Math.abs(c.y - goal.y) < Math.abs(best.x - goal.x) + Math.abs(best.y - goal.y) ? c : best
+            );
+            if (coordKey(target) !== coordKey(unit.pos) && mission.moveUnit(unit.instanceId, target)) continue;
+          }
+          // In position (or can't improve it) — shoot anything reachable
+          // within this unit's own attack range before ending its turn.
+          const target = mission
+            .livingUnits()
+            .filter((h) => h.side === "hostile" && !h.downed)
+            .find((h) => {
+              const d = Math.max(Math.abs(h.pos.x - unit.pos.x), Math.abs(h.pos.y - unit.pos.y));
+              return d >= unit.attackRange[0] && d <= unit.attackRange[1];
+            });
+          if (target && mission.attack(unit.instanceId, target.instanceId)) continue;
+          break;
         }
       }
       if (mission.outcome !== "ongoing") break;
       mission.endPlayerTurn();
     }
 
-    expect(mission.outcome).toBe("win");
-    expect(mission.turn).toBeLessThanOrEqual(AMARANTH_MISSION_2.objectiveParams.turnLimit);
-    expect(mission.log).toContain("Win: objective complete.");
+    // A stalled `safety` counter (still "ongoing" after 30 simulated
+    // turns) would mean the script itself is broken, not that the mission
+    // is hard — that's the real regression this test still guards against.
+    expect(safety).toBeLessThan(30);
+    expect(["win", "commander_down", "loss"]).toContain(mission.outcome);
+    if (mission.outcome === "win") {
+      expect(mission.turn).toBeLessThanOrEqual(AMARANTH_MISSION_2.objectiveParams.turnLimit);
+      expect(mission.log).toContain("Win: objective complete.");
+    }
   });
 });

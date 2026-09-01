@@ -54,6 +54,8 @@ import type { MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
 import type { Stage } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "../data/campaignAmaranth";
+// House Amaranth — Mission Select + roster-seeding pass, 1 Sep 2026.
+import { HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_MEKS, HOUSE_AMARANTH_SECOND_LANCE_PILOTS, HOUSE_AMARANTH_SECOND_LANCE_MEKS } from "../data/campaignHouseAmaranth";
 import { findPilot } from "../data/pilotRegistry";
 import type { SocialLogEntry } from "../data/verbs";
 import type { BattleUnit } from "./units";
@@ -251,6 +253,71 @@ export function createCampaignState(pilots: PilotRecord[], meks: Record<string, 
 /** The live campaign's actual starting state (Warden Company, data/campaignAmaranth.ts — the non-archived roster; data/campaign.ts's Team One slice is intentionally untouched by this whole pass). */
 export function createWardenCampaignState(startingPoints = 0): CampaignState {
   return createCampaignState(WARDEN_PILOTS, WARDEN_MEKS, startingPoints);
+}
+
+/**
+ * House Amaranth's own starting state (1 Sep 2026, Mission Select +
+ * roster-seeding pass) — mirrors createWardenCampaignState exactly, same
+ * generic factory this file's own doc comment above already says was built
+ * "on purpose" for a second roster. Deliberately reuses the shared
+ * CampaignState shape/save system rather than a separate module: the
+ * campaign plan doc (Bloom_Wars_House_Amaranth_Mission_Plan_v1.md §3d)
+ * floated a fully separate state module as a possibility but explicitly
+ * left it as an open question ("confirm before it's built") in the context
+ * of the FULL Hub-integration build (isolating Hub.ts's own mutation
+ * logic from a not-yet-built HubHouseAmaranth.ts) — a different, bigger
+ * concern than this pass's actual scope. This function only creates a
+ * CampaignState with House Amaranth's pilots/meks in it and saves/loads it
+ * through the exact same STORAGE_KEY and manual-save-slot mechanism
+ * Warden already uses, which is faction-agnostic under the hood (it just
+ * serializes whatever CampaignState it's given). Practical consequence
+ * worth knowing: Ironman mode still has exactly one active save at a time,
+ * regardless of which side it's for — same behavior Warden alone already
+ * had, not a new limitation this introduces. A player who wants a Warden
+ * run AND a House Amaranth run going simultaneously needs Ironman off and
+ * two manual save slots, same mechanism either side already uses for
+ * multiple saves.
+ *
+ * Known simplification, flagged rather than silently accepted:
+ * `rourkeRank` (and the CO bonus it drives, engine/campaignEconomy.ts's
+ * computeCoBonus) stays at its "2nd_lt" default for a House Amaranth
+ * campaign forever — integrateHouseAmaranthSecondLance below deliberately
+ * does not touch it, since there is no Marrow-equivalent rank field or
+ * promotion schedule designed yet, and inventing one wasn't part of what
+ * this pass was asked to build. The field/bonus still works, it just never
+ * increases for this side — a missing nice-to-have, not a bug.
+ */
+export function createHouseAmaranthCampaignState(startingPoints = 0): CampaignState {
+  return createCampaignState(HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_MEKS, startingPoints);
+}
+
+/**
+ * Real gap found and fixed 1 Sep 2026, same wiring pass: every "return to
+ * base" button in this codebase (scenes/MainMenu.ts's CONTINUE,
+ * scenes/Debrief.ts's RETURN TO BASE, scenes/Boot.ts's recall notice) was
+ * unconditionally `this.scene.start("Hub")` — harmless while Warden
+ * Company was the only campaign a save could ever hold, but scenes/Hub.ts
+ * is built entirely around WARDEN_PILOTS/SECOND_LANCE/THIRD_LANCE (its own
+ * NPCs, rooms, ambient lines, the `rourkeRank` header). Handed a House
+ * Amaranth CampaignState, it would try to resolve pilot ids it has no
+ * record of at all — not a clean "wrong content," a real risk of missing
+ * NPCs or a lookup that assumes pilot_rourke exists. House Amaranth has no
+ * Hub of its own yet (Maxime, 1 Sep 2026: "ill do the hub some other
+ * day"), so there's nowhere narratively appropriate to send it instead —
+ * scenes/Hangar.ts (the roster-agnostic "CAMPAIGN SHOP" screen, already
+ * built 25 Aug 2026 as Act I's own pre-Hub meta-screen) is the existing,
+ * already-generic stand-in.
+ *
+ * Presence of `pilot_rourke` is the cheapest reliable signal for "this is
+ * a Warden Company save" without adding a new field to CampaignState —
+ * every Warden save has that pilot from creation and no other roster ever
+ * will. Correctly (if incidentally) routes a Team One save the same way a
+ * House Amaranth save gets routed, which is more correct than the old
+ * unconditional behavior for that archived roster too, not a new special
+ * case invented for House Amaranth specifically.
+ */
+export function baseSceneKeyFor(state: CampaignState): "Hub" | "Hangar" {
+  return state.pilots["pilot_rourke"] ? "Hub" : "Hangar";
 }
 
 // ---- Save / load (Build Brief step 11: "campaign persistence across
@@ -817,6 +884,29 @@ export function integrateSecondLance(state: CampaignState): SecondLanceResult {
   for (const [id, m] of Object.entries(SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
   state.rourkeRank = "capt";
   return { integrated: true, pilots: SECOND_LANCE_PILOTS };
+}
+
+/**
+ * House Amaranth's own Second Lance integration (1 Sep 2026) — mirrors
+ * integrateSecondLance above line for line, same idempotent/free/
+ * unconditional shape. Call site (scenes/Debrief.ts) fires this gated on
+ * `mission.mission.id === "mission_house_amaranth_12" && outcome ===
+ * "win"` — Mission 12, "Harvest's End," is this campaign's own Act I
+ * finale, matching Warden's own "the previous act's own last mission,
+ * won" trigger shape exactly. Deliberately does NOT set state.rourkeRank
+ * (createHouseAmaranthCampaignState's own doc comment above explains why:
+ * there's no Marrow-equivalent rank field built yet, and this pass wasn't
+ * asked to build one). No Third Lance equivalent exists for this roster —
+ * campaignHouseAmaranth.ts's own comment above HOUSE_AMARANTH_ACT3
+ * confirms House Amaranth stays on the combined 10-pilot squad from
+ * Mission 13 through Mission 36, so there is nothing for a third
+ * integration function to add.
+ */
+export function integrateHouseAmaranthSecondLance(state: CampaignState): SecondLanceResult {
+  if (state.pilots[HOUSE_AMARANTH_SECOND_LANCE_PILOTS[0].id]) return { integrated: false };
+  for (const p of HOUSE_AMARANTH_SECOND_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
+  for (const [id, m] of Object.entries(HOUSE_AMARANTH_SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
+  return { integrated: true, pilots: HOUSE_AMARANTH_SECOND_LANCE_PILOTS };
 }
 
 // ---- 8. Third Lance integration (Act III opening, 25 Aug 2026 — same-day

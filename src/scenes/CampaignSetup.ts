@@ -7,14 +7,23 @@
 // menu, not changeable mid-run." This screen just gives that decision an
 // actual place to live.
 import Phaser from "phaser";
-import { createWardenCampaignState, saveCampaignState } from "../engine/campaignState";
+import { createWardenCampaignState, createHouseAmaranthCampaignState, saveCampaignState } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 import { AMARANTH_ACT1 } from "../data/campaignAmaranth";
+import { HOUSE_AMARANTH_ACT1 } from "../data/campaignHouseAmaranth";
+
+type Side = "warden" | "house_amaranth";
 
 export class CampaignSetup extends Phaser.Scene {
   private ironmanChecked = true; // checked by default — Ironman is the base experience, not an opt-in extra (§4)
   private checkboxBg!: Phaser.GameObjects.Rectangle;
   private checkboxMark!: Phaser.GameObjects.Text;
+  // Side select, made real 1 Sep 2026 (Mission Select wiring pass) — was a
+  // pre-selected, non-interactive slot ("House Amaranth's side isn't built
+  // yet") until House Amaranth actually had missions to launch into.
+  private selectedSide: Side = "warden";
+  private wardenBg!: Phaser.GameObjects.Rectangle;
+  private houseAmaranthBg!: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super("CampaignSetup");
@@ -35,25 +44,46 @@ export class CampaignSetup extends Phaser.Scene {
     });
   }
 
-  // Side select (§5): "Warden Company" vs. "House Amaranth" once the latter
-  // exists. Today it renders pre-selected with nothing else to choose —
-  // cheap to leave the slot in the layout now (per §4's own note) rather
-  // than retrofit it once a second side is actually built.
+  // Side select (§5): "Warden Company" vs. "House Amaranth," made real 1
+  // Sep 2026 — House Amaranth's own 36 missions are built and (as of this
+  // pass) reachable, so the slot this screen always reserved for a second
+  // side (per §4's own note, "cheap to leave now rather than retrofit
+  // later") is finally live. Two side-by-side toggle buttons rather than a
+  // dropdown — same "few big obvious choices" visual language the Ironman
+  // checkbox right below already uses on this screen.
   private drawSideSelect() {
     this.add.text(480, 110, "SIDE", { fontFamily: "monospace", fontSize: "12px", color: "#6b7a8a" }).setOrigin(0.5);
+
+    this.wardenBg = this.add
+      .rectangle(330, 140, 280, 40, 0x2e5c7a, 1)
+      .setStrokeStyle(1, 0x4a7a9a)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(330, 140, "WARDEN COMPANY", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+
+    this.houseAmaranthBg = this.add
+      .rectangle(630, 140, 280, 40, 0x1a2028, 1)
+      .setStrokeStyle(1, 0x4a7a9a)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(630, 140, "HOUSE AMARANTH", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+
+    this.wardenBg.on("pointerdown", () => this.setSide("warden"));
+    this.houseAmaranthBg.on("pointerdown", () => this.setSide("house_amaranth"));
+
     this.add
-      .rectangle(480, 140, 300, 40, 0x2e5c7a, 1)
-      .setStrokeStyle(1, 0x4a7a9a);
-    this.add.text(480, 140, "WARDEN COMPANY", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
-    this.add
-      .text(480, 168, "House Amaranth's side isn't built yet — Warden Company is the only choice today.", {
+      .text(480, 168, "House Amaranth has no Hub of its own to walk around in yet — missions and roster only for now.", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#5a6472",
         align: "center",
-        wordWrap: { width: 500 },
+        wordWrap: { width: 560 },
       })
       .setOrigin(0.5);
+  }
+
+  private setSide(side: Side) {
+    this.selectedSide = side;
+    this.wardenBg.setFillStyle(side === "warden" ? 0x2e5c7a : 0x1a2028);
+    this.houseAmaranthBg.setFillStyle(side === "house_amaranth" ? 0x2e5c7a : 0x1a2028);
   }
 
   private drawIronmanCheckbox() {
@@ -89,15 +119,17 @@ export class CampaignSetup extends Phaser.Scene {
     // the real squad-review/BEAM DOWN screen, same as picking it manually
     // would have, just without the pointless intermediate list.
     //
-    // AMARANTH_ACT1[0].id rather than a second "mission_amaranth_1" string
-    // literal — derived from the same array MapSelect itself renders, so
-    // this can never silently drift from whatever Act I's actual opening
-    // mission is if that array's order ever changes.
+    // AMARANTH_ACT1[0].id / HOUSE_AMARANTH_ACT1[0].id rather than a second
+    // "mission_amaranth_1"/"mission_house_amaranth_1" string literal —
+    // derived from the same arrays MapSelect itself renders, so this can
+    // never silently drift from whatever each side's actual opening
+    // mission is if either array's order ever changes.
     makeShopButton(this, this.add.container(0, 0), 480, 540, 320, 48, "BEGIN CAMPAIGN", true, () => {
-      const state = createWardenCampaignState();
+      const state = this.selectedSide === "house_amaranth" ? createHouseAmaranthCampaignState() : createWardenCampaignState();
       state.ironman = this.ironmanChecked;
       saveCampaignState(state);
-      this.scene.start("TransporterPad", { missionId: AMARANTH_ACT1[0].id });
+      const missionId = this.selectedSide === "house_amaranth" ? HOUSE_AMARANTH_ACT1[0].id : AMARANTH_ACT1[0].id;
+      this.scene.start("TransporterPad", { missionId });
     });
   }
 }

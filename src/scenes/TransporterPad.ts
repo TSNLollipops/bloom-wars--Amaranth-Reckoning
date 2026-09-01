@@ -106,11 +106,28 @@ export const ACT3_DEPLOY_CAP = 15;
 /**
  * Resolves which deploy cap applies to a given mission id. Team One's own
  * missions (`mission_1a`, `mission_2`, ...) and anything that doesn't match
- * the `mission_amaranth_N` shape fall back to ACT1_DEPLOY_CAP, same
- * behavior as before this function existed — this only changes anything
- * for Amaranth missions 13 and up.
+ * either the `mission_amaranth_N` or `mission_house_amaranth_N` shape fall
+ * back to ACT1_DEPLOY_CAP, same behavior as before this function existed —
+ * this only changes anything for Amaranth missions 13 and up.
+ *
+ * Bug found and fixed 1 Sep 2026, during House Amaranth's own Mission
+ * Select wiring pass: the original regex only matched
+ * `mission_amaranth_N`, so every `mission_house_amaranth_N` id (a
+ * DIFFERENT string — the extra "house_" doesn't match) silently fell
+ * through to the "doesn't match" branch and got ACT1_DEPLOY_CAP (5)
+ * regardless of act — meaning House Amaranth's own 10-pilot Act II/III
+ * squad (HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD, missions 13-36) would have
+ * been capped at deploying only 5 of the 10 pilots actually available,
+ * the moment a player reached Mission 13. House Amaranth has no Third
+ * Lance (see integrateHouseAmaranthSecondLance's own doc comment,
+ * engine/campaignState.ts) so its own tiering is simpler than Warden's:
+ * just two tiers, not three.
  */
 export function deployCapForMission(missionId: string): number {
+  const houseAmaranthMatch = missionId.match(/^mission_house_amaranth_(\d+)$/);
+  if (houseAmaranthMatch) {
+    return Number(houseAmaranthMatch[1]) <= 12 ? ACT1_DEPLOY_CAP : ACT2_DEPLOY_CAP;
+  }
   const match = missionId.match(/^mission_amaranth_(\d+)$/);
   if (!match) return ACT1_DEPLOY_CAP;
   const n = Number(match[1]);
