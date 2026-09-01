@@ -405,9 +405,116 @@ export const AMARANTH_RIVAL_MECHS: Record<string, HostileMechArchetype> = {
 // hostile-mech source would silently fail to resolve on the battlefield —
 // exactly the pilot-lookup gap the Amaranth roster hit first (see
 // campaignAmaranth.ts's own file header / the build log).
+// House Amaranth Act II, Mission 20 ("Marrow's Line") — the same shared
+// convergence Warden Company fights in AMARANTH_RIVAL_MECHS above, played
+// from the other side. House Amaranth's squad (playerPilotIds led by
+// pilot_marrow) fights Warden Company here, so this file needs a Warden-
+// as-enemy block for the first time — nothing above covers it, every
+// existing Warden pilot only ever appears as a player unit. Same 4-path
+// generic-escort shape as AMARANTH_HOSTILE_MECHS' own "House Amaranth Line
+// Trooper" block (tank/meeps/meeps/reeps, tier G) — a professional
+// detachment, not conscripts, matching Warden Company's own established
+// characterization.
+export const WARDEN_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
+  hostile_mech_warden_01: {
+    id: "hostile_mech_warden_01",
+    displayName: "Warden Company Trooper",
+    path: "tank",
+    tier: "G",
+    spawnAt: { x: 2, y: 2 },
+  },
+  hostile_mech_warden_02: {
+    id: "hostile_mech_warden_02",
+    displayName: "Warden Company Trooper",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 2, y: 4 },
+  },
+  hostile_mech_warden_03: {
+    id: "hostile_mech_warden_03",
+    displayName: "Warden Company Trooper",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 2, y: 6 },
+  },
+  hostile_mech_warden_04: {
+    id: "hostile_mech_warden_04",
+    displayName: "Warden Company Trooper",
+    path: "reeps",
+    tier: "G",
+    spawnAt: { x: 2, y: 8 },
+  },
+};
+
+// The rival half of the same mirror: 2nd Lt. Dessa Rourke, playable in
+// Warden's own campaign (campaignAmaranth.ts, arch_meeps_bipedal), fought
+// here as House Amaranth's Mission 20 boss. Same tier-C step-up logic as
+// hostile_mech_marrow above (a real step up, not a wall, off the existing
+// TIERS ladder rather than hand-tuned numbers with no evidence behind
+// them) and same "not special-cased in engine/ai.ts" caveat — this is a
+// standard eliminate-style threat for the extract_unit objective's
+// disengagement fiction, not a scripted retreat.
+export const WARDEN_RIVAL_MECHS: Record<string, HostileMechArchetype> = {
+  hostile_mech_rourke: {
+    id: "hostile_mech_rourke",
+    displayName: "2nd Lt. Dessa Rourke",
+    path: "meeps",
+    tier: "C",
+    spawnAt: { x: 2, y: 5 },
+  },
+};
+
+// Loyalist regulars (House Amaranth Mission 24, "Seizure Order," 1 Sep
+// 2026) -- plan doc §6: "sector command moves to seize the program by
+// force... Marrow has to get Halcyon out ahead of loyalist troops." First
+// human-military hostile force House Amaranth's own squad fights that
+// ISN'T Warden Company -- "loyalist" has been a recurring faction name in
+// this campaign's own fiction since Mission 14 (a loyalist liaison
+// officer) and Mission 22 (a loyalist auditor), always as a person to
+// escort, never a combat force, until this mission makes it one. Mission
+// 30 ("Two Fronts") reuses this same block fighting alongside the Bramble,
+// per the plan doc's own "loyalist regulars" phrasing there. Same
+// generic-detachment shape as WARDEN_HOSTILE_MECHS/AMARANTH_HOSTILE_MECHS
+// (tank/meeps/meeps/reeps, tier G) -- a professional force acting on
+// orders, not conscripts or a named rival; the mission itself doesn't call
+// for a boss-tier officer, so no rival-tier unit was added alongside it.
+export const LOYALIST_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
+  hostile_mech_loyalist_01: {
+    id: "hostile_mech_loyalist_01",
+    displayName: "Sector Command Regular",
+    path: "tank",
+    tier: "G",
+    spawnAt: { x: 2, y: 2 },
+  },
+  hostile_mech_loyalist_02: {
+    id: "hostile_mech_loyalist_02",
+    displayName: "Sector Command Regular",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 2, y: 4 },
+  },
+  hostile_mech_loyalist_03: {
+    id: "hostile_mech_loyalist_03",
+    displayName: "Sector Command Regular",
+    path: "meeps",
+    tier: "G",
+    spawnAt: { x: 2, y: 6 },
+  },
+  hostile_mech_loyalist_04: {
+    id: "hostile_mech_loyalist_04",
+    displayName: "Sector Command Regular",
+    path: "reeps",
+    tier: "G",
+    spawnAt: { x: 2, y: 8 },
+  },
+};
+
 export const ALL_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
   ...HOSTILE_MECHS,
   ...AMARANTH_HOSTILE_MECHS,
   ...AMARANTH_CONSCRIPT_MECHS,
   ...AMARANTH_RIVAL_MECHS,
+  ...WARDEN_HOSTILE_MECHS,
+  ...WARDEN_RIVAL_MECHS,
+  ...LOYALIST_HOSTILE_MECHS,
 };

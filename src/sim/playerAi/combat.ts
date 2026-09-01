@@ -234,6 +234,58 @@ function squadAveragePowerAgainst(defenderPath: Path, allies: BattleUnit[]): num
 /** Multiplies an emergent-tier boss's rawToughness score before ranking (lower score = higher priority for weakestTarget's min-reduce) — NOT tuned to a precise number, a deliberately moderate nudge (same spirit as this file's other placeholder constants) that stops a boss reading as effectively infinite-priority-last without making it always-first over a genuinely easier kill sitting right next to it. */
 export const EMERGENT_BOSS_PRIORITY_DISCOUNT = 0.5;
 
+// ---- Defensive focus fire — "protect the VIP" (31 Aug 2026, Player AI
+// hardening pass) ----
+// Maxime, direct and blunt, after three straight Guard Taunt attempts each
+// broke a different set of missions (design/Bloom_Wars_PlayerAI_Hardening_
+// And_Alicialisation_Roadmap_v1.md §1a/§1b): "the playerai suck a lot
+// still." commander_down is still the dominant failure mode campaign-wide —
+// a fresh 40-mission/1600-run sweep just before this fix confirmed it, not
+// a stale number: 55% aggregate, essentially every hard eliminate_all
+// mission (mission_amaranth_6/8/10/12/24, among others) sitting at a flat
+// 0%, dominated entirely by commander_down.
+//
+// All three Guard Taunt attempts tried to redirect enemy targeting onto a
+// sacrificial unit, and each one traded away a whole turn — and, for the
+// taunting unit itself, real survival odds — for one turn of insurance:
+// "a wrong heuristic is worse than the current honest zero," this file's
+// own standing rule, three times over with three different failure shapes
+// (see this section's own history two headers up, in index.ts's disabled
+// guard_taunt branch).
+//
+// This is a different lever, not a fourth Guard Taunt attempt: instead of
+// spending a whole turn drawing fire onto a decoy, bias WHICH already-
+// in-range target an ordinary attack goes to — kill or hurt whatever is
+// actually bearing down on the commander/Munti first, ahead of the squad's
+// generic "weakest" pick. This costs nothing extra (every unit in range
+// was already about to attack something this turn; this only changes
+// which target) and never touches movement or resource spend, so it
+// cannot reproduce any of Guard Taunt's three failure modes — no unit is
+// ever exposed further, delayed, or spends a turn on defense instead of
+// offense. Scoped exactly like EMERGENT_BOSS_PRIORITY_DISCOUNT just above:
+// an opt-in discount applied only at focusFireTargetInRange's in-range
+// call site, never at the two distant chase-target call sites
+// (advance_into_range/seek_fight in index.ts) — the same "no distance/
+// exposure term to weigh a risky detour against" reasoning Tier 0's own
+// class-triangle pass and the boss-priority pass both already established
+// for those two sites, and the exact class of regression (73.25%->67%)
+// that got a wider version of the class-triangle fix reverted the one time
+// it was tried unscoped.
+/** Enemies that could reach and attack a front-line-protected ally (commander/Munti) next turn — the same moveRange+attackRange[1] reach proxy threatCount above already uses for retreat-safety scoring, reused here to flag "this is bearing down on the VIP" instead of "is this tile safe to retreat to." */
+export function enemiesThreateningVips(allUnits: BattleUnit[], enemies: BattleUnit[]): Set<string> {
+  const vips = allUnits.filter((u) => !u.downed && needsFrontLineProtection(u));
+  const threatening = new Set<string>();
+  for (const vip of vips) {
+    for (const e of enemies) {
+      if (chebyshevDistance(e.pos, vip.pos) <= e.moveRange + e.attackRange[1]) threatening.add(e.instanceId);
+    }
+  }
+  return threatening;
+}
+
+/** Multiplies rawToughness for a target actively threatening a front-line-protected ally, same mechanism and same "deliberately moderate, not sim-tuned to a precise number yet" spirit as EMERGENT_BOSS_PRIORITY_DISCOUNT above — strong enough that defending the commander usually wins over a marginal type-advantage difference, not so strong it overrides a genuinely easier kill sitting right next to it. */
+export const VIP_THREAT_PRIORITY_DISCOUNT = 0.4;
+
 /**
  * weakestTarget's actual ranking score. Bloom targets (no `path` — GDD
  * §8.2, Bloom aren't in the class triangle) and any call with no living
@@ -251,11 +303,15 @@ export const EMERGENT_BOSS_PRIORITY_DISCOUNT = 0.5;
  * for why it's opt-in) applies EMERGENT_BOSS_PRIORITY_DISCOUNT to an
  * emergent-tier target's rawToughness before any of the above, so a boss
  * doesn't get buried under its own huge Endurance the way a plain
- * toughness formula otherwise would.
+ * toughness formula otherwise would. `vipThreatIds` (optional — see
+ * "Defensive focus fire" above) applies VIP_THREAT_PRIORITY_DISCOUNT to any
+ * target currently bearing down on the commander/Munti, same multiplicative
+ * shape, composing with the boss discount if a target happens to be both.
  */
-function targetPriorityScore(t: BattleUnit, allies: BattleUnit[], prioritizeBosses = false): number {
+function targetPriorityScore(t: BattleUnit, allies: BattleUnit[], prioritizeBosses = false, vipThreatIds?: Set<string>): number {
   let rawToughness = t.currentHp * t.effectiveDefense;
   if (prioritizeBosses && intelligenceOf(t) === "emergent") rawToughness *= EMERGENT_BOSS_PRIORITY_DISCOUNT;
+  if (vipThreatIds?.has(t.instanceId)) rawToughness *= VIP_THREAT_PRIORITY_DISCOUNT;
   if (!t.path) return rawToughness;
   const avgPower = squadAveragePowerAgainst(t.path, allies);
   if (avgPower <= 0) return rawToughness;
@@ -270,13 +326,14 @@ function targetPriorityScore(t: BattleUnit, allies: BattleUnit[], prioritizeBoss
  * bug the 25 Aug focus-fire fix closed (see this file's own header on
  * focusFireTargetInRange). Omitting `allies` (or calling with none living)
  * reproduces the pre-Tier-0 unweighted behavior exactly. `prioritizeBosses`
- * (default off) threads through to targetPriorityScore — see the
- * "Boss/priority-target awareness" section above for why this stays
- * opt-in and only ever true at focusFireTargetInRange's own call site.
+ * (default off) and `vipThreatIds` (default undefined) both thread through
+ * to targetPriorityScore — see the "Boss/priority-target awareness" and
+ * "Defensive focus fire" sections above for why both stay opt-in and only
+ * ever set at focusFireTargetInRange's own call site.
  */
-export function weakestTarget(targets: BattleUnit[], allies: BattleUnit[] = [], prioritizeBosses = false): BattleUnit {
+export function weakestTarget(targets: BattleUnit[], allies: BattleUnit[] = [], prioritizeBosses = false, vipThreatIds?: Set<string>): BattleUnit {
   return targets.reduce((best, t) =>
-    targetPriorityScore(t, allies, prioritizeBosses) < targetPriorityScore(best, allies, prioritizeBosses) ? t : best
+    targetPriorityScore(t, allies, prioritizeBosses, vipThreatIds) < targetPriorityScore(best, allies, prioritizeBosses, vipThreatIds) ? t : best
   );
 }
 
@@ -350,6 +407,46 @@ export function findLethalTargetFrom(map: MapDefinition, unit: BattleUnit, from:
 function threatCount(pos: Coord, enemies: BattleUnit[]): number {
   return enemies.filter((e) => chebyshevDistance(e.pos, pos) <= e.moveRange + e.attackRange[1]).length;
 }
+
+// ---- Gang-up retreat (31 Aug 2026, Player AI hardening pass, same "the
+// playerai suck a lot still" push as "Defensive focus fire" above) ----
+// TRIED, MEASURED, REVERTED — index.ts's own call site is disabled (a
+// comment, not live code, same "reverted, not deleted" shape as Guard
+// Taunt's own three reverts above it) — these two primitives stay defined
+// here, correct and reusable, for a future retry. Traced two live
+// commander_down cases before writing a line of this: mission_amaranth_12
+// (turn 5) — Rourke at FULL hp going into the hostile phase, no dodge,
+// took three near-simultaneous Splitfang hits (30 each = 90) in one
+// hostile turn and died outright. hpFraction only ever changes AFTER a
+// hostile turn resolves — the existing retreat_low_hp gate
+// (COMMANDER_RETREAT_HP_FRACTION) can only ever react to a hit that
+// already landed, never see a three-enemy pile-on coming the turn before
+// it happens. A real player reads the board ("three things can already
+// reach me") and backs off pre-emptively; this engine had no equivalent
+// check for the one unit that most needs it.
+//
+// Wiring this in (index.ts's own disabled comment has the exact call
+// site) was a real, large win on the case it targeted — isolated n=100:
+// mission_amaranth_12 0%->67%. But two real problems, both confirmed
+// against actual batch runs: a regression on the one live emergent-boss
+// mission (mission_amaranth_21, 45-49%->6%, n=100 — retreating from an
+// ever-growing spawn just delays the inevitable while it adds more, same
+// failure SHAPE as Guard Taunt's own boss-mission regression above), and a
+// genuine performance/correctness problem on mission_amaranth_3/24 (each
+// ran long enough to blow a 60s n=100 batch timeout every other mission in
+// the same pass cleared in under 15s) — retreatPath has no exposure-
+// history/oscillation guard the way regroupPath was given one after an
+// identical round-trip bug (see "Regroup-toward-safety" below), not yet
+// root-caused to a specific line. See index.ts's own disabled call site
+// for the full numbers and the real next-attempt shape (a per-unit
+// "already retreated this crisis" memory, or an emergent-tier opt-out).
+/** How many currently-VISIBLE enemies could reach and attack `unit` next turn — same reach proxy as threatCount above, with a visibility check added (isVisibleTo, the identical real check the hostile AI itself uses) so this only ever counts a genuine, board-confirmed threat, never a hypothetical one on the other side of the map. */
+export function visibleGangCount(unit: BattleUnit, enemies: BattleUnit[], turn: number): number {
+  return enemies.filter((e) => isVisibleTo(e, unit, turn) && chebyshevDistance(e.pos, unit.pos) <= e.moveRange + e.attackRange[1]).length;
+}
+
+/** At or above this many enemies simultaneously able to reach a front-line-protected ally, retreating (if a genuinely safer tile exists — retreatPath's own "actually farther" gate still governs) is worth considering even while still above the ordinary HP-based retreat threshold — see this section's own header for the traced alpha-strike case this responds to. Not sim-tuned to a precise number — 2 is the smallest value that actually names "a pile-on," since a single attacker is just an ordinary fight, matching this file's other placeholder constants' own "deliberately moderate, worth revisiting once there's real data to tune it against" status. */
+export const GANG_UP_THRESHOLD = 2;
 
 export function retreatPath(map: MapDefinition, unit: BattleUnit, enemies: BattleUnit[], allUnits: BattleUnit[]): Coord[] | null {
   const movementKind = chassisToMovementKind(unit.chassis ?? "bipedal", false);
@@ -519,18 +616,24 @@ export function focusFireTargetInRange(map: MapDefinition, unit: BattleUnit, fro
   unit.pos = savedPos;
   // prioritizeBosses=true here only — see "Boss/priority-target awareness"
   // above the targetPriorityScore/weakestTarget definitions for why this
-  // is the one call site it's safe to enable at. Honest result, not
-  // oversold: isolated at n=1000 (aggregate 71% vs. 72% baseline) and
+  // is the one call site it's safe to enable at. Honest result at the time,
+  // not oversold: isolated at n=1000 (aggregate 71% vs. 72% baseline) and
   // n=100 on mission_amaranth_21 specifically (26% vs. 28% baseline) —
-  // both flat, no measurable win yet. That mission's real failure mode is
-  // still overwhelmingly commander_down (72-74/100 either way), which
-  // swamps whatever this nudge contributes — kept on because it's a
-  // correct, zero-regression fix for a real documented gap
-  // (player_ai_engine.md's own "focus_weak has no notion of 'this is the
-  // boss'"), not because it's proven itself yet. Worth re-measuring once
-  // commander-exposure protection (see index.ts's reverted Guard Taunt
-  // section) actually gets solved and stops masking this signal.
-  return damageable.length ? weakestTarget(damageable, livingSameSideMechs(unit, allUnits), true) : undefined;
+  // both flat, no measurable win on their own. That mission's real failure
+  // mode was still overwhelmingly commander_down, which swamped whatever
+  // this nudge contributed by itself — flagged then as "worth re-measuring
+  // once commander-exposure protection actually gets solved and stops
+  // masking this signal." vipThreatIds (31 Aug 2026 — see "Defensive focus
+  // fire" above) is that: computed once here from the FULL `targets` list
+  // (every living hostile this mission's turn knows about, not just this
+  // unit's own in-range subset — a squadmate two tiles away bearing down on
+  // the commander still deserves priority from a unit that can reach her
+  // attacker right now) so every unit asking this question the same turn
+  // agrees on which targets are actually threatening the VIP, same
+  // squad-shared discipline weakestTarget's own header already requires of
+  // `allies`.
+  const vipThreatIds = enemiesThreateningVips(allUnits, targets);
+  return damageable.length ? weakestTarget(damageable, livingSameSideMechs(unit, allUnits), true, vipThreatIds) : undefined;
 }
 
 // ---- Squad cohesion (25 Aug 2026, Maxime: "wierd mission 1 is easy") ----

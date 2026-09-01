@@ -93,7 +93,18 @@
 // these two through the same pipe means "First Blowup"/"First Breakdown"
 // milestones and social-log lines come for free, no parallel plumbing
 // needed for the fact that these two didn't come from a click.
-export type VerbId = "talk" | "shareADrink" | "pegBoard" | "poker" | "fletchers" | "askOut" | "angerBlowup" | "breakdown";
+// spar, 30 Aug 2026 (Maxime: "boredom should trigger spar") — same
+// not-player-initiated shape as angerBlowup/breakdown just above (Hub.ts's
+// tryBoredomSpar fires this off boredom crossing NEEDS_LOW_THRESHOLD in the
+// Spar Room, not off a menu click), given a real VerbId for the identical
+// reason those two were: socialLog entries and the Highlights reel
+// (highlights.ts's buildFirstMilestones) already work generically over
+// VerbId, so a "First Spar" milestone and social-log line come for free.
+// Distinct from Breakdown's own "spar" RESOLUTION FLAVOR (data/breakdown.ts
+// — a Stress+Worried crisis caught in the Spar Room) — that one still logs
+// under the "breakdown" verb id, unchanged; this is a separate, everyday
+// event with its own id.
+export type VerbId = "talk" | "shareADrink" | "pegBoard" | "poker" | "fletchers" | "askOut" | "angerBlowup" | "breakdown" | "spar";
 
 export interface VerbRequirements {
   minFavorability?: number;
@@ -148,6 +159,7 @@ export const VERBS: Record<VerbId, VerbDef> = {
   // way Talk is.
   angerBlowup: { id: "angerBlowup", label: "Blowup", broadcast: false },
   breakdown: { id: "breakdown", label: "Breakdown", broadcast: false },
+  spar: { id: "spar", label: "Spar", broadcast: false },
 };
 
 // The "Log entry" §3 asks for ("feeds the social-history record... it's

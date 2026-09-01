@@ -1,4 +1,4 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, new to this bridge (source doc dated 2026-08-27). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, re-synced 2026-09-01 (source now v2, 2026-08-28 — adds Reunion Two, Book 38 Act 4, Fenn Okafor's exit scene). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
 # THE QIRAKI FILES — ERA VI OUTLINE: THE BROKEN TABLE, BOOKS 36-42
 
@@ -6,7 +6,7 @@
 
 **Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Era5_Quiet_Years_Outline_v1.md, Qiraki_Concept_v5.docx, Qiraki_Political_Web.docx, Qiraki_Military_Rank_Path_v1.md, Qiraki_Preserve_Species.md, Qiraki_Cosmology_And_Spread_Math_v1.docx.
 
-**Version:** v1, 2026-08-27.
+**Version:** v2, 2026-08-28. Adds Reunion Two (Book 38 Act 4, Fenn's exit scene).
 
 ---
 
@@ -171,9 +171,11 @@ Year 1's top overall rank. Expected by staff to be the year's standout pilot, an
 
 **His counting tic, planted in Book 1 and running the whole way, gets its last number**, and it should be small and stupid and about something irrelevant, and it should be the last thing he says, and **nobody in the scene should treat it as last words.**
 
-**Fenn Okafor**, his mek since Book 1, calm, unhurried, never impressed by him and never bothered by that either, survives him and rotates groundside and does not appear again.
+**Fenn Okafor**, his mek since Book 1, calm, unhurried, never impressed by him and never bothered by that either, survives him and rotates groundside and does not appear again after this book.
 
 **Act 4, Ch.37-47.** The line stabilises. **Two chains of command, both legitimate by their own account, both staffed by graduates of the same institution, both running Auftragstaktik, both correct about what the other one is.**
+
+**The second reunion, [CLAUDE], echoes Book 27's directly, same shape, same rituals, one more chair gone.** Trav and Reqa, Ilyen and Petra, Talia and Sana if she's reachable, and Fenn, before she rotates groundside for good. **This is her actual exit scene, not an off-page vanish.** Corw's chair is empty now too, next to the one that's been empty since before any of them thought to call this a tradition. **Nobody says the table used to seat ten.** [CLAUDE] Craft rule, same as Book 27's: no paragraph closes this out by naming what it cost. The count does that on its own.
 
 ---
 

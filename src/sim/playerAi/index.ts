@@ -515,9 +515,16 @@ export function decidePlayerAiAction(
   // full fix for every extraction — a threat sitting squarely between the
   // target and the exit still forces retreat/regroup while spotted, same as
   // before; see the build log addendum for the honest before/after numbers.
+  // Reads unit.isExtractionTarget, not a comparison against the literal
+  // configured objectiveParams.extractUnitId — 31 Aug 2026 role-fallback
+  // pass (engine/mission.ts's tagExtractionTarget comment). The named
+  // pilot may never have been deployed this run, in which case
+  // tagExtractionTarget already transferred the flag to whichever
+  // squadmate actually showed up; isExtractionTarget is the single source
+  // of truth both engine and Player AI now read.
   if (
     context.mission.objective === "extract_unit" &&
-    unit.instanceId === context.mission.objectiveParams.extractUnitId &&
+    unit.isExtractionTarget &&
     hpFraction < RETREAT_HP_FRACTION &&
     !spotted
   ) {
@@ -554,6 +561,54 @@ export function decidePlayerAiAction(
       }
     }
   }
+
+  // ---- Gang-up retreat (31 Aug 2026, Player AI hardening pass — tried,
+  // measured, reverted; combat.ts's own "Gang-up retreat" section has the
+  // full trace this responded to and keeps visibleGangCount/
+  // GANG_UP_THRESHOLD defined, same "reverted, not deleted" precedent
+  // Guard Taunt's own primitives already set two headers up. Re-enabling
+  // needs `visibleGangCount, GANG_UP_THRESHOLD,` added back to this file's
+  // own combat.ts import block above.
+  //
+  // Intent: a front-line-protected unit (commander/Munti) retreats
+  // pre-emptively once GANG_UP_THRESHOLD+ visible enemies could reach and
+  // attack it next turn, regardless of current HP — not waiting for the
+  // ordinary retreat_low_hp gate, which can only react to a hit that
+  // already landed. Traced case this targeted: mission_amaranth_12, Rourke
+  // at FULL hp, downed outright in one hostile turn by three
+  // near-simultaneous Splitfang hits nothing here saw coming.
+  //
+  //   const gangCount = frontLineProtected ? visibleGangCount(unit, enemies, turn) : 0;
+  //   const gangedUp = gangCount >= GANG_UP_THRESHOLD;
+  //   if ((hpFraction < retreatThreshold && spotted) || gangedUp) { ... same retreatPath/hold_cornered fallback as retreat_low_hp below, reason "retreat_gang_up" ... }
+  //
+  // A REAL, LARGE win on the exact case it targeted — isolated n=100:
+  // mission_amaranth_12 0%->67%. But two problems, both confirmed against
+  // real batch runs, not assumed: (1) a real regression on the one live
+  // emergent-boss mission (mission_amaranth_21, 45-49%->6%, n=100) — same
+  // failure SHAPE as Guard Taunt's own boss-mission regression: retreating
+  // from an ever-growing spawn doesn't reduce the threat, it just delays
+  // the inevitable while the boss adds more, and eventually there's
+  // nowhere left to retreat TO. (2) A genuine performance/correctness
+  // problem: mission_amaranth_3 and mission_amaranth_24 each ran long
+  // enough to blow through a 60s per-mission n=100 batch timeout that
+  // every OTHER mission in this same pass cleared in under 15s — a single
+  // seed 1 verbose trace on mission_3 resolved fine in 6 turns, so this
+  // isn't every run, but it's real and frequent enough to hang a 100-run
+  // batch outright. retreatPath has no exposure-history/oscillation guard
+  // the way regroupPath was given one (25 Aug, this file's own "Regroup-
+  // toward-safety" section) after an identical round-trip bug — a unit
+  // gang-up-retreating every turn a threat count crosses the threshold,
+  // with nothing remembering it already retreated last turn, is the same
+  // shape of bug, not yet root-caused to a specific fix. Same call as
+  // Guard Taunt's own three reverts: a wrong (or not-yet-safe) heuristic
+  // is worse than the current honest zero. The real next attempt needs
+  // either a per-unit "already retreated this crisis, don't re-trigger
+  // every single turn" memory, or an opt-out for emergent-tier missions
+  // the same way EMERGENT_BOSS_PRIORITY_DISCOUNT and
+  // GUARD_TAUNT_ALLY_HP_THRESHOLD's own history both eventually needed —
+  // not built this pass.
+  // ---- end Gang-up retreat (disabled) ----
 
   if (hpFraction < retreatThreshold && spotted) {
     const path = retreatPath(map, unit, enemies, allUnits);
@@ -828,7 +883,9 @@ export function decidePlayerAiAction(
   // includes an extract target who's already moving toward the exit; a
   // bespoke escort heuristic on top of that is more machinery than a
   // kid-level pass needs today.
-  if (context.mission.objective === "extract_unit" && unit.instanceId === context.mission.objectiveParams.extractUnitId) {
+  // unit.isExtractionTarget, not a literal extractUnitId comparison — see
+  // the branch above's own comment on the 31 Aug 2026 role-fallback pass.
+  if (context.mission.objective === "extract_unit" && unit.isExtractionTarget) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
       // openExits — same fix, same reason as the unspotted/low-hp branch

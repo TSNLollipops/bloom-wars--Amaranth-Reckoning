@@ -11,6 +11,15 @@
 import type { CampaignMission } from "./types";
 import { MISSIONS_BY_ID as TEAM_ONE_MISSIONS_BY_ID } from "./campaign";
 import { AMARANTH_ACT1, AMARANTH_ACT2, AMARANTH_ACT3, AMARANTH_MISSIONS_BY_ID } from "./campaignAmaranth";
+// House Amaranth (31 Aug 2026 scaffolding pass) — same "data kept, resolves
+// by id, not shown in mission-select" treatment this file's own comment
+// below already documents for the archived Team One campaign. Deliberately
+// NOT added to the CAMPAIGNS array below: that's what actually puts a tab
+// in front of a player, and this is one real mission of a planned 36, not
+// a campaign ready to hand someone. Only HOUSE_AMARANTH_MISSIONS_BY_ID is
+// merged into ALL_MISSIONS_BY_ID, so `npm run sim -- mission_house_amaranth_1`
+// resolves it directly.
+import { HOUSE_AMARANTH_MISSIONS_BY_ID } from "./campaignHouseAmaranth";
 
 export interface CampaignDef {
   id: string;
@@ -80,4 +89,5 @@ export const CAMPAIGNS: CampaignDef[] = [
 export const ALL_MISSIONS_BY_ID: Record<string, CampaignMission> = {
   ...TEAM_ONE_MISSIONS_BY_ID,
   ...AMARANTH_MISSIONS_BY_ID,
+  ...HOUSE_AMARANTH_MISSIONS_BY_ID,
 };

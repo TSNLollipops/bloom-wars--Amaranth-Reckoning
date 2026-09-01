@@ -1315,26 +1315,58 @@ export const AMARANTH_MISSION_20: CampaignMission = {
   // with an escort, not a three-way brawl that dilutes the beat.
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
-  // NOT a balance fix, deliberately left as originally shipped (26 Aug
-  // 2026 investigation) — this mission sims at a clean, deterministic
-  // 0/20 regardless of squad size (8 or 10) or enemy-wave timing (tried
-  // staggering the escort two different ways below before reverting both;
-  // neither moved the result at all). Root-caused instead of tuned around:
-  // Rourke's own arch_meeps_bipedal has moveRange 6, well ahead of the
-  // rest of the squad's, so she consistently arrives alone; the player
-  // test AI's seek_fight/attack targeting has no class-triangle awareness,
-  // so it has her attack hostile_mech_amaranth_01 (path: "tank") — the one
-  // matchup the game's own combat rules hit hardest, Tank beating Meeps —
-  // and eats a 46-51 damage counter on top of Marrow's own attack the same
-  // hostile turn, well past her 105 max HP either way. A human who knows
-  // Tank beats Meeps would simply not send Rourke into that fight alone,
-  // or would send a Reeps pilot at the Tank instead (Reeps beats Tank) —
-  // this is a test-AI blind spot to the game's own signature mechanic, not
-  // a mission-balance bug, so no mission data below was changed to chase
-  // it. Flagged to Maxime rather than silently "fixed" with numbers that
-  // wouldn't address the real cause; worth knowing this same blind spot
-  // could be quietly skewing sim results on other missions too, not just
-  // this one.
+  // 26 Aug 2026 investigation (original note, kept for the record): this
+  // mission was found simming at a clean, deterministic 0/20 back then,
+  // root-caused to Rourke's own arch_meeps_bipedal moveRange 6 having her
+  // consistently arrive alone into a Tank-beats-Meeps matchup the player
+  // test AI has no class-triangle awareness to avoid — a test-AI blind
+  // spot, not a mission-balance bug, so nothing here was changed to chase
+  // it at the time.
+  //
+  // CORRECTED 30 Aug 2026, same day as the mirror-deployment change below:
+  // that "deterministic 0/20" premise had gone STALE and nobody re-checked
+  // it before this mission's mirror-deployment work started. This same
+  // day's earlier roam-fallback fix (engine/ai.ts's reflexiveDecision/
+  // packDecision, shipped before this change) already fixed the ground the
+  // 26 Aug bug was standing on — a fresh baseline re-check just now (before
+  // touching enemyWaves) found this mission actually sitting at a healthy
+  // 100% (n=150), not 0%. The mirror-deployment work below was ALMOST
+  // shipped on the old, wrong assumption that "sim can't validate this
+  // mission anyway" — worth flagging plainly rather than quietly fixing,
+  // since it's exactly the kind of stale-comment trap this project's own
+  // "verify against the actual current file, don't trust memory"
+  // discipline exists to catch, and it nearly caught this session out too.
+  //
+  // MIRROR DEPLOYMENT, 30 Aug 2026 — Maxime, live: "mission 20 could do
+  // with a full mirror deployement on the enemy side instead of a
+  // preplanned spawn. they were less numerous than I." The four escort
+  // waves below were a fixed 4, unconditionally, regardless of how big a
+  // squad the player actually brought (ACT2_DEFAULT_SQUAD is 10) — see
+  // EnemyWave.mirrorPlayerSquad's own comment (data/types.ts) for the
+  // general mechanism. Marrow herself stays exactly as she was: a fixed,
+  // non-mirrored 1-count wave — she's the named boss anchor this mission
+  // is actually about, not part of the "how many mechs did you bring"
+  // math.
+  //
+  // A literal 1:1 mirror (target === all 10 pilots, split across the four
+  // escort archetypes) was tried FIRST and, once the fresh 100% baseline
+  // above made real sim verification possible again, turned out to be
+  // exactly the kind of cliff Mission 22/23 already hit this same session:
+  // 100% -> 1% (n=150), COMMANDER_DOWN=149/150 — 3 Tanks in the mix instead
+  // of 1 reproduces the same class-triangle blind spot the 26 Aug note
+  // above already found, just with far more surface area for it to bite
+  // on. Landed on EnemyWave.mirrorScale: 0.6 instead (see its own comment)
+  // — round(10 * 0.6) = 6 escorts, split across the same
+  // tank/meeps/meeps/reeps composition Mission 6/18's own detachment
+  // already established, plus Marrow herself makes 7 total, up from the
+  // original 5 (a real, meaningfully bigger fight, not the old "always
+  // exactly 4 regardless of squad size" undershoot) without recreating the
+  // 1:1 cliff. Sims at 62% (n=300) — real, felt difficulty; COMMANDER_DOWN
+  // still the dominant loss mode, same underlying test-AI blind spot as
+  // ever, just no longer amplified to guaranteed-loss levels. Scales with
+  // squad size the way Maxime actually asked for (a smaller deploy still
+  // gets a proportionally smaller, not fixed, escort) even though the
+  // multiplier means it's no longer an exact headcount match.
   enemyWaves: [
     // hostile_mech_marrow's own spawnAt ({x:23,y:7}) already matches this
     // coordinate — listed explicitly anyway so this wave reads the same
@@ -1342,11 +1374,12 @@ export const AMARANTH_MISSION_20: CampaignMission = {
     { archetypeId: "hostile_mech_marrow", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 7 }] },
     // Line Trooper escort, flanking, same four archetypes as Mission 6
     // and Mission 18 rather than a fresh set — this is the same force,
-    // not a new faction.
-    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
-    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }] },
-    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }] },
-    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }] },
+    // not a new faction. Equal-weight mirrorPlayerSquad waves — see this
+    // mission's own enemyWaves header comment above.
+    { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }], mirrorPlayerSquad: true, mirrorScale: 0.6 },
+    { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 4 }], mirrorPlayerSquad: true },
+    { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }], mirrorPlayerSquad: true },
+    { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 10 }], mirrorPlayerSquad: true },
   ],
   events: [
     {
@@ -1547,10 +1580,50 @@ export const AMARANTH_MISSION_22: CampaignMission = {
   // this is the first protect_asset mission in the whole campaign and an
   // Act II squad, not Act III's later-game stakes. If this gets revisited,
   // retest in single-unit steps — the margin here is that tight.
+  //
+  // FLYER WAVE ADDED 30 Aug 2026 (Maxime: "we can def add waves of flyier
+  // to mission 22"). Sirenmaw ignores moveCost for sump tiles entirely
+  // (data/tiles.ts: sump is Infinity for bipedal/centauroid, 1 for
+  // flight_membrane) — it can fly straight from a far-shore spawn to the
+  // dock, bypassing both causeway chokepoints this mission's whole design
+  // leans on. Confirmed that's a real cliff, not a gradient: one Sirenmaw
+  // at turn 3 alone barely moved the needle (still 150/150); two arriving
+  // TOGETHER at turn 3 was a deterministic 0/150 — a synchronized pair
+  // apparently reaches the ship faster than the squad can peel off and
+  // intercept, every single run. Splitting them across two turns (one at
+  // turn 3, one at turn 6, so they never arrive as a pair) is what actually
+  // reads as "waves" instead of a burst: 252/300 (84%), a real step down
+  // from the ground-only 100% baseline without being a coin flip. Landed
+  // there. If revisited, do not add a third Sirenmaw or move two into the
+  // same atTurn without re-testing at n=150 — this mechanic's whole danger
+  // is in simultaneous arrivals, not raw count.
+  //
+  // UNDERTOW "BEHIND THE LINE" — INVESTIGATED, NOT ADDED. Maxime also
+  // asked for "some undertow to spread panik behind line" here. Tried it
+  // three ways — 2 Undertow spawned inside the dock/defendZone itself, 2
+  // spawned just outside it on the plain flanking tiles, then a single
+  // Undertow alone on one flank at turn 6 — and every single variant came
+  // back a deterministic 0/150. Root cause: this mission's own comment
+  // above already documents the failure mode ("one or two orphaned campers
+  // is enough to burn through assetMaxHp... well inside turnLimit"), and
+  // today's earlier packDecision/reflexiveDecision fix (engine/ai.ts — see
+  // that file's own comment) means any hostile that can't see a target now
+  // walks toward and camps the map's defendZone instead of freezing. An
+  // Undertow spawned behind the line has nothing to see back there, so it
+  // beelines for the dock and starts ticking PROTECT_ASSET_TICK_DAMAGE
+  // immediately — exactly the orphaned-camper case, triggered on purpose
+  // by the spawn placement instead of by AI drift. That's a structural
+  // conflict between "ambusher behind the squad" and "isolated hostile
+  // auto-walks to camp the asset," not a number to retune down. Left this
+  // mission's enemyWaves at ground waves + the Sirenmaw addition only;
+  // flagging for Maxime rather than shipping something that loses every
+  // run, or quietly dropping the ask.
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_crawlmass", count: 2, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 3, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 6, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
   ],
   events: [
     {
@@ -1591,11 +1664,40 @@ export const AMARANTH_MISSION_23: CampaignMission = {
   // the same reason). See this mission's build-log tuning note.
   objectiveParams: { turnLimit: 17, extractUnitId: "pilot_anand" },
   playerPilotIds: ACT2_DEFAULT_SQUAD,
+  // MORE MECHS + MUNTIES, 30 Aug 2026 (Maxime: "mission 23 can have more
+  // mech spawn as enemy, again a mirored lance would be fine. but honestly
+  // leave it open for random lance formation, as long as they also have
+  // munties of their own"). Added hostile_mech_amaranth_05 — the first
+  // Munti-path hostile in the game (data/units.ts), built for this ask —
+  // to round the existing tank/meeps/meeps/reeps foursome out to a real
+  // five-archetype lance instead of a fixed narrow set.
+  //
+  // First tried this with EnemyWave.mirrorPlayerSquad on all five waves
+  // (the same mechanism Mission 20 just got) — literal 1:1 mirroring
+  // against ACT2_DEFAULT_SQUAD's 10 pilots meant 10 hostiles here, more
+  // than double the original 4, and extract_unit turned out just as
+  // fragile to that as missions 17/26/11 already were this session:
+  // 72%->5% with COMMANDER_DOWN=141/150. Reverted the mirror flag — this
+  // mission just doesn't have the map space or turn budget for a full
+  // squad-sized force while also shepherding Anand to the exit, unlike
+  // Mission 20's open defensive ground. Landed on a flat, moderate bump
+  // instead: +1 Munti alone (5 total) actually sim'd BETTER than the old
+  // 4-enemy baseline (72%->86%) — plausible AI-pathing/aggro-split
+  // interaction, not something to fight — so went to +2 Munti (6 total,
+  // "leave it open" read as a small varied lance rather than a strict
+  // mirror) to land back near the original difficulty with a visibly
+  // bigger, more varied force: 219/300 (73%, essentially the original 72%
+  // baseline), six mechs across all five archetypes
+  // including two of the player's own new Munti-path option. True
+  // per-playthrough random composition (a different lineup each attempt)
+  // isn't something the engine does anywhere yet — would be new work, not
+  // a data change, if that's actually wanted later.
   enemyWaves: [
     { archetypeId: "hostile_mech_amaranth_01", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 2 }] },
     { archetypeId: "hostile_mech_amaranth_02", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 2 }] },
     { archetypeId: "hostile_mech_amaranth_03", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
     { archetypeId: "hostile_mech_amaranth_04", count: 1, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
+    { archetypeId: "hostile_mech_amaranth_05", count: 2, atTurn: 1, spawnAt: [{ x: 18, y: 10 }] },
   ],
   events: [
     {

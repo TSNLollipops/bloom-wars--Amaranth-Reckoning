@@ -25,7 +25,7 @@
 // framing, quoted rather than reworded (§2, §7).
 import type { Echo } from "./ambientLines";
 
-export type NeedKind = "hunger" | "thirst" | "sleep";
+export type NeedKind = "hunger" | "thirst" | "sleep" | "boredom";
 
 // §2 — decay is a flat rate for all three, always, off-duty. Restore is a
 // separate, additive bonus while standing in the matching room — the spec
@@ -73,13 +73,22 @@ export function needsStressMoraleDelta(hunger: number, thirst: number, sleep: nu
 }
 
 // §2/§4 — which room restores (and, via worstNeed below, biases roaming
-// toward) each meter. Only Berths and Rec Room are in play at all — every
-// other room stays exactly as weighted as pickExploreTarget/EXPLORE_CHANCE
-// already had it before this pass.
-export const NEED_ROOM: Record<NeedKind, "berths" | "recroom"> = {
+// toward) each meter. Only Berths and Rec Room were in play for the
+// original three meters — every other room stays exactly as weighted as
+// pickExploreTarget/EXPLORE_CHANCE already had it before this pass.
+//
+// boredom: "sparRoom" added 30 Aug 2026 (Maxime: "boredom should trigger
+// spar"). One real difference from the other three, flagged rather than
+// silently varied: boredom's own RESTORE condition (Hub.ts's updateNeeds —
+// "currently in a live encounter bubble," not a room) is unrelated to this
+// entry. This mapping is only ever read by worstNeed/the roaming bias below
+// to decide WHERE a bored pilot walks to look for company, not by what
+// relieves the meter once they're there.
+export const NEED_ROOM: Record<NeedKind, "berths" | "recroom" | "sparRoom"> = {
   hunger: "recroom",
   thirst: "recroom",
   sleep: "berths",
+  boredom: "sparRoom",
 };
 
 /**
@@ -89,10 +98,22 @@ export const NEED_ROOM: Record<NeedKind, "berths" | "recroom"> = {
  * NPC gets biased toward and the line they might say about it can never
  * disagree with each other. undefined when every meter is at/above
  * NEEDS_LOW_THRESHOLD. Ties (two meters equally low) resolve to whichever
- * this scan hits first (hunger, then thirst, then sleep) — arbitrary, but
- * deterministic, and not worth a real tie-break rule for a first pass.
+ * this scan hits first (hunger, then thirst, then sleep, then boredom) —
+ * arbitrary, but deterministic, and not worth a real tie-break rule for a
+ * first pass.
+ *
+ * `boredom` is a separate, OPTIONAL fourth parameter, not a required one
+ * alongside the original three — 30 Aug 2026, added for Maxime's "boredom
+ * should trigger spar" ask without touching this function's two existing
+ * 3-argument call sites (Hub.ts's pickNeedsFlavorLine, which has no
+ * boredom flavor-bank entry to return and shouldn't start being handed one
+ * it can't use, and the Mek Workshop-confinement branch, which deliberately
+ * excludes boredom on purpose — see homeRoom's own comment: a bored Mek
+ * stays put, "unless they are sleeping or eating" names only two
+ * exceptions). Omitted (undefined) behaves exactly as before this pass —
+ * never a candidate, never breaks an existing caller.
  */
-export function worstNeed(hunger: number, thirst: number, sleep: number): NeedKind | undefined {
+export function worstNeed(hunger: number, thirst: number, sleep: number, boredom?: number): NeedKind | undefined {
   // Typed here, as its own statement, rather than inline before .filter() —
   // TS infers an inline array literal's element type from the array itself
   // first (widening `kind` to plain `string`) when the annotation only sits
@@ -103,6 +124,7 @@ export function worstNeed(hunger: number, thirst: number, sleep: number): NeedKi
     { kind: "thirst", value: thirst },
     { kind: "sleep", value: sleep },
   ];
+  if (boredom !== undefined) all.push({ kind: "boredom", value: boredom });
   const candidates = all.filter((c) => c.value < NEEDS_LOW_THRESHOLD);
   if (candidates.length === 0) return undefined;
   return candidates.reduce((worst, c) => (c.value < worst.value ? c : worst)).kind;
@@ -130,6 +152,15 @@ export const NEEDS_FLAVOR_BANK: Record<NeedKind, NeedsFlavorEntry> = {
   sleep: {
     echo: "fear",
     lines: ["Haven't really slept. Every time I close my eyes it's the last mission again.", "Running on fumes out here. Don't tell the CO."],
+  },
+  // boredom, 30 Aug 2026 — "anger" echo, not sadness/fear like the other
+  // three: this meter is about restless, pent-up energy with nothing to do
+  // about it, not the low-energy register hunger/thirst/sleep read as —
+  // the same restlessness that's the whole reason it biases roaming toward
+  // the Spar Room (NEED_ROOM.boredom) instead of just sitting with it.
+  boredom: {
+    echo: "anger",
+    lines: ["Nothing's happened in hours. I'm going to lose it if I don't move.", "Could use a real reason to hit something. Anything, honestly."],
   },
 };
 

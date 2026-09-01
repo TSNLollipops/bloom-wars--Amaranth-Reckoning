@@ -12,7 +12,7 @@ import { Debrief } from "./scenes/Debrief";
 import { Hangar } from "./scenes/Hangar";
 import { Hub } from "./scenes/Hub";
 
-new Phaser.Game({
+const __bwGame = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "app",
   // Tier 6 hotfix, 30 Aug 2026 — Maxime: "increase the size of the chat
@@ -51,3 +51,16 @@ new Phaser.Game({
   // work at all; off by default. No effect on any other scene.
   dom: { createContainer: true },
 });
+
+// Playwright verification harness (31 Aug 2026, see tools/verify/'s own
+// README) — exposes the live Phaser.Game instance on window so a headless
+// browser test can read real scene state (NPC positions, stuckMs, etc.)
+// instead of only screenshotting pixels. Dev-only: import.meta.env.DEV is
+// Vite's own build-time flag (false in `vite build`, true under `vite dev`
+// or `vite preview --mode development`), so this never reaches the shipped
+// production bundle — `npm run build`'s tsc pass also doesn't see it change
+// any exported surface, since it's a plain window property, not a module
+// export.
+if (import.meta.env.DEV) {
+  (window as unknown as { __bwGame: Phaser.Game }).__bwGame = __bwGame;
+}

@@ -100,6 +100,7 @@ export type PlayerAiReason =
   | "seek_fight" // nothing in range yet, closing distance on the weakest target (cohesion-capped — see combat.ts's cohesiveMoveToward)
   | "regroup_low_hp" // low HP, unspotted, no kill/repair available — closing on the nearest living ally instead of chasing the enemy alone
   | "retreat_low_hp" // below RETREAT_HP_FRACTION with no kill available — fell back
+  | "retreat_gang_up" // front-line-protected (commander/Munti), still above the HP threshold, but GANG_UP_THRESHOLD+ visible enemies could reach and attack next turn — fell back pre-emptively rather than waiting to actually get hit first, see combat.ts's own "Gang-up retreat" section
   | "hold_cornered" // wanted to retreat but nowhere safer was reachable — fought anyway
   | "hold_no_target"; // no living enemies at all
 

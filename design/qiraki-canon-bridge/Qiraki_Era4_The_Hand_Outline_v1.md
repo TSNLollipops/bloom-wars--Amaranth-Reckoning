@@ -1,12 +1,12 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, new to this bridge (source doc dated 2026-08-27). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, re-synced 2026-09-01 (source now v2, 2026-08-28 — adds Reunion One, Talia Renn's return, Book 27 Act 4). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
 # THE QIRAKI FILES — ERA IV OUTLINE: THE HAND, BOOKS 22-28
 
 **ID:** ERA4. **Tier:** 2, outline. **Owns:** Books 22 through 28 at book-spine level. Nothing here overrides Tier 1.
 
-**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Era3_Ones_Who_Come_Back_Outline_v1.md, Qiraki_Political_Web.docx, Qiraki_Concept_v5.docx, Qiraki_Character_Sheets_v12.docx, Qiraki_Weapons_And_Progression.docx, Qiraki_Cosmology_And_Spread_Math_v1.docx.
+**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Era3_Ones_Who_Come_Back_Outline_v1.md, Qiraki_Political_Web.docx, Qiraki_Concept_v5.docx, Qiraki_Character_Sheets_v13.docx, Qiraki_Weapons_And_Progression.docx, Qiraki_Cosmology_And_Spread_Math_v1.docx.
 
-**Version:** v1, 2026-08-27.
+**Version:** v2, 2026-08-28. Adds Reunion One (Talia's return, Book 27 Act 4).
 
 ---
 
@@ -317,7 +317,15 @@ He asks a question at dinner. Somebody answers it charmingly and completely and 
 
 **Craft rule: she does not say any of that. She asks Trav a question about the server layout and he answers it and neither of them notices what just happened.**
 
-**Act 4, Ch.37-47.** Home. **And a Bloom incursion in the same act, deliberately, without a transition chapter, because the whole point of leave in a hundred-year war is that it ends on a Tuesday.**
+**Act 4, Ch.37-47.** Home.
+
+**Talia Renn, LOCKED, resolves Era II's E3.** First time since Book 11. She is groundside, running a training rig, and she is extremely good at it. **Nobody discusses what happened, including her.** Sana Voight is with her, same steady, unglamorous presence she's always been.
+
+**The reunion, [CLAUDE], and it should read as the found-family payoff the whole academy era planted.** Whoever of the original five-and-five is actually reachable gathers around it: Ilyen and Petra, Corw and Fenn, all three still inside Trav's own Guild orbit by this point in the era. Old jokes, the counting tic, somebody bringing up a class none of them passed the first time. **One chair is quietly not filled, and nobody explains why, because by this point in the era nobody who was there needs it explained.** [CLAUDE] Denic Voss, see Qiraki_Era2_Synker_Wars_Outline_v1.md's new entry, dead since Books 9-10, off every page that mattered to any of them at the time.
+
+**Craft rule, absolute:** no paragraph gets to say what the evening meant. It just gets to be a genuinely good one.
+
+**And a Bloom incursion in the same act, deliberately, without a transition chapter, because the whole point of leave in a hundred-year war is that it ends on a Tuesday.** [CLAUDE] Let the incursion interrupt this specifically, mid-evening, so the thing that gets cut short is a reunion the reader was just allowed to enjoy without reservation, not a generic homecoming.
 
 ---
 

@@ -1,12 +1,12 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, new to this bridge (source doc dated 2026-08-27). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, re-synced 2026-09-01 (source now v2, 2026-08-28 — adds the Denic Voss "a separate war" entry and resolves E3, Talia Renn's reappearance, as a cross-reference to Era IV Book 27). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
 # THE QIRAKI FILES — ERA II OUTLINE: THE SYNKER WARS, BOOKS 8-14
 
 **ID:** ERA2. **Tier:** 2, outline. **Owns:** Books 9 through 14 at book-spine level, the era's roster movement, and the era's device allocation. **Does not own:** Book 8, which stays with Qiraki_Military_Era_Outline_v3.docx in full and is only summarised here for placement. Nothing here overrides Tier 1.
 
-**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Military_Era_Outline_v3.docx, Qiraki_Character_Sheets_v12.docx, Qiraki_Weapons_And_Progression.docx, Qiraki_Concept_v5.docx, Qiraki_Bestiary.md, Qiraki_Bioterror_Bank_v2.docx.
+**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Military_Era_Outline_v3.docx, Qiraki_Character_Sheets_v13.docx, Qiraki_Weapons_And_Progression.docx, Qiraki_Concept_v5.docx, Qiraki_Bestiary.md, Qiraki_Bioterror_Bank_v2.docx.
 
-**Version:** v1, 2026-08-27.
+**Version:** v2, 2026-08-28. Adds Denic Voss's fate, resolves E3 (Talia's reappearance).
 
 **Provenance:** Unmarked text restates existing locks. **[CLAUDE]** is my construction, swappable. **[PROPOSED]** wants a ruling. **[OPEN]** has no answer here.
 
@@ -69,6 +69,16 @@ Meks: Reqa Tremblay, Petra Lindqvist, and three more, at least one of whom shoul
 ### Standing presences, not on any roster
 
 **Peregrine Thale**, Heirloom pilot, separate unit, on the same carrier. **Alina Firemoss**, his mek. **Coherence of Process**, Carabil, carrier commander, resident in the Groto. **Zeteii**, in the cockpit and, from Book 9, in the room.
+
+### Denic Voss, a separate war, [PROPOSED, resolves an open gap rather than a flagged item]
+
+He is not on MeltaDread and never appears in this era's rosters, and that absence was an oversight rather than a choice until now. **Bunkmate, year 1, Trav's own team through Books 2 through 6, its original Munti, the one the team trusted with their lives.** Institutional, not personal: the elite/spec-ops pipeline that pulls Trav out early takes rune-patterning marks and academic standing into account and Denic's are mediocre, cockpit gift or not, so he ships through the regular channels to a different Guild, a different carrier, a different war, at the exact same graduation everyone else's postings get decided. **Two people who spent five years in the same bunk end up in wars that never once cross paths on the page.**
+
+**He dies as a Munti**, per the era's own locked mechanic, restated in Weapons_And_Progression: without restock, casualty rates run near eighty percent, and most or whole teams go down once the Munti support unit is lost. His team loses him and loses most of itself in the same action. **Off Trav's page entirely.** No transmission like Team One's, no slow on-page loss like Team Two's, a third shape of grief for the era to hold: **word arrives late, secondhand, weeks after the fact, and there is no scene to have been present for.** [CLAUDE] Placement, loose rather than chapter-locked: somewhere across Books 9 to 10, before Talia's Book 11 and before the Siege gets the whole of Book 12, so it does not have to compete with either. A name on a list Trav is handed for an unrelated reason, and he has to find it himself.
+
+**Doyle Marsh**, his mek, is not deployed forward when it happens, per the same shipboard-mek pattern already established for Reqa at Team One's own wipe, and survives. Rotates per the locked general rule, maintenance, teaching, or building from scratch, [CLAUDE] building from scratch specifically, matching his established precision. **He does not stay close to Trav's orbit afterward.** Not estrangement, just the ordinary way a friendship's other half can drift once the person who was actually the friendship is gone. [CLAUDE, swappable, lighter-touch than Denic's own fate, background mek tier]
+
+**What this does downstream, [CLAUDE]:** Book 2's "I like him. That's going to be a problem" about Corw stays exactly what it already was, an early instance of a pattern, never a pairing to build toward, the existing lock on that holds. It just never gets the chance to become anything else either way, which is the actual shape of the loss, not a reversal of the lock, a door that was already closed by the time anyone could have opened it.
 
 ---
 
@@ -229,6 +239,8 @@ Talia is not written as broken. She is written as somebody with a real problem a
 
 **[CLAUDE] Do not have anyone say she was unlucky, and do not have anyone say the system failed her. Have somebody in the next chapter ask who is filling the slot.**
 
+**Reappearance, RESOLVED, author's ruling.** She does come back, once, in Era IV, groundside, running a training rig and extremely good at it, exactly as recommended above. See Qiraki_Era4_The_Hand_Outline_v1.md, Book 27, Act 4, for the actual scene, a full reunion of the surviving five-and-five rather than a solo visit.
+
 **Act 4, Ch.37-47. The Arcblade.**
 
 Fifteen thousand points, C-tier. Laser-edge, the physical edge replaced by a sustained cutting beam, same matched-pair ambidextrous style, wrist rotation cutting an arc around himself. **The weapon he graduated on was the Pairblade and he has had it for four years.** The change is not a reward for finishing, it is a marker of having left.
@@ -388,8 +400,6 @@ Vrassik is promoted off MeltaDread's Team Two and into the Guildmaster track.
 **E1. [OPEN, author-lane]** Whether Peregrine ever finishes his question. Proposed above: never, and somebody else finishes it in Era VII.
 
 **E2. [OPEN, DEC-27, restated]** Whether Hiro knew he was infected. Affects Book 8 only on a second read, which is the best kind of open item to leave open.
-
-**E3. [OPEN, author-lane]** Whether Talia Renn ever reappears. **[CLAUDE] Recommend she does, once, in Era IV, running a training rig groundside and being extremely good at it, and that nobody discusses what happened.** The alternative, which is also defensible, is that she is the project's second Toma Ruiz and simply stops appearing.
 
 **E4. [OPEN, and it is a real fork]** Whether Trav's Book 8 infection ever surfaces. Ruled dormant, sub-clinical, undetectable by current COE instruments. **Nothing in any document says what it does or whether it ever does anything.** The research facility in Mission 8 establishes that the Bloom can infest Enlightened at the sessile state and turn them into brainless drones, and Trav was told not to say a word of what he saw. **This is a loaded weapon sitting in Book 8 with no downstream plan and it needs one, or it needs to be deliberately written down as a permanent dormancy that never fires.** Both are good. Silence is not.
 

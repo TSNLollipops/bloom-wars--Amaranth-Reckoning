@@ -374,6 +374,15 @@ export class Battle extends Phaser.Scene {
       .on("pointerdown", doEndTurn);
     this.add.text(835, 600, "END TURN  [space]", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     endTurnBtn.setStrokeStyle(1, 0x4a7a9a);
+    // [tab] next mech hint, same idea as "[space]" on the button above it —
+    // a static label rather than a Mission 1 tutorial-flow hint (see
+    // tutorialHasSelected's own comment block) since this one has no
+    // natural one-shot trigger condition and is meant to just sit there as
+    // a standing reminder, the same way a real XCOM HUD keeps its own
+    // hotkey legend always on screen rather than teaching it once.
+    this.add
+      .text(835, 618, "[tab] next mech", { fontFamily: "monospace", fontSize: "11px", color: "#8fb3c9" })
+      .setOrigin(0.5);
 
     // Spacebar end-turn (XCOM's own binding — Maxime reached for it before
     // checking whether it existed). Explicit off() first: this scene's own
@@ -388,6 +397,42 @@ export class Battle extends Phaser.Scene {
     this.input.keyboard?.addCapture("SPACE");
     this.input.keyboard?.off("keydown-SPACE");
     this.input.keyboard?.on("keydown-SPACE", doEndTurn);
+
+    // Tab-to-cycle (30 Aug 2026, Maxime: "we could prolly instil some kinda
+    // way to mvoe easily between mech like in xcom") — same well, same
+    // reflex as SPACE just above: XCOM's own Tab/Shift+Tab binding for
+    // "next/previous soldier who still has actions left." Cycles only
+    // units eligible to be selected by a click in the first place (the
+    // exact same guard as the click-select branch below: side "player",
+    // not downed/npcIncapacitated/isCivilian, actionsRemaining > 0) — a
+    // unit that's already spent its turn is skipped, same as XCOM greying
+    // out a soldier who's done. Order follows mission.livingUnits()'s own
+    // order, which is deployment order — stable across a turn, not
+    // re-sorted by position, so repeated Tabs step through the squad the
+    // same way every time. No selection yet -> starts at the first
+    // eligible unit; already at the last eligible unit -> wraps around,
+    // same reason a modal loop beats a dead end at either edge.
+    const cycleSelectableUnit = (direction: 1 | -1) => {
+      if (this.mission.outcome !== "ongoing") return;
+      if (this.mission.phase !== "player") return;
+      if (this.isAnimatingMove) return;
+      const eligible = this.mission
+        .livingUnits()
+        .filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated && !u.isCivilian && u.actionsRemaining > 0);
+      if (eligible.length === 0) return;
+      const currentIndex = this.selectedUnitId ? eligible.findIndex((u) => u.instanceId === this.selectedUnitId) : -1;
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + direction + eligible.length) % eligible.length;
+      const next = eligible[nextIndex];
+      this.selectedUnitId = next.instanceId;
+      this.tutorialHasSelected = true;
+      this.recomputeSelectionHighlights(next.instanceId);
+      this.render();
+    };
+    this.input.keyboard?.addCapture("TAB");
+    this.input.keyboard?.off("keydown-TAB");
+    this.input.keyboard?.on("keydown-TAB", (event: KeyboardEvent) => {
+      cycleSelectableUnit(event.shiftKey ? -1 : 1);
+    });
 
     // The contextual action bar. This replaced the single, always-present
     // OVERWATCH button (47ab304) when the ability-depth pass took the verb
@@ -1502,8 +1547,14 @@ export class Battle extends Phaser.Scene {
     // on this board. Only ever the single-target shape (Mission 31's
     // civilian convoy doesn't set extractUnitId, so this simply never
     // matches there — see engine/mission.ts's checkExtraction for why the
-    // two shapes are mutually exclusive per mission).
-    if (this.mission.mission.objective === "extract_unit" && unit.instanceId === this.mission.mission.objectiveParams.extractUnitId) {
+    // two shapes are mutually exclusive per mission). Reads
+    // resolvedExtractionTargetId, not the literal configured
+    // objectiveParams.extractUnitId — 31 Aug 2026 role-fallback pass
+    // (engine/mission.ts's tagExtractionTarget comment): the named pilot
+    // may never have been deployed this run, in which case this ring needs
+    // to follow whoever the role actually transferred to, not point at
+    // nobody.
+    if (this.mission.mission.objective === "extract_unit" && unit.instanceId === this.mission.resolvedExtractionTargetId) {
       g.lineStyle(3, 0x22c55e, 0.95);
       g.strokeCircle(cx, cy, r + 6);
     }
@@ -1597,7 +1648,10 @@ export class Battle extends Phaser.Scene {
     // "off-board asset" framing), so this is the only place a player can
     // see it. Always shown, not just while a unit is selected, same as the
     // Objective line right above it.
-    if (m.mission.objective === "protect_asset") lines.push(`Providence: ${m.assetHp}/${m.assetMaxHp} HP`);
+    // Label was hardcoded "Providence" until House Amaranth's Mission 22
+    // (31 Aug/1 Sep 2026) needed a different one for the same objective
+    // type — see engine/mission.ts's Mission.assetName comment.
+    if (m.mission.objective === "protect_asset") lines.push(`${m.assetName}: ${m.assetHp}/${m.assetMaxHp} HP`);
     // Hold Zone status line (30 Aug 2026) — see drawBoard's own teal-marker
     // comment for the full "reached the turn limit, nobody died, mission
     // failed anyway" bug this closes. Same always-shown treatment as
@@ -1644,7 +1698,15 @@ export class Battle extends Phaser.Scene {
         const threshold = m.mission.objectiveParams.extractThreshold ?? total;
         lines.push(`Extraction (green exit tiles): ${m.extractedCivilianCount}/${threshold} needed out (of ${total} total)`);
       } else {
-        const targetId = m.mission.objectiveParams.extractUnitId;
+        // resolvedExtractionTargetId, not the literal configured
+        // objectiveParams.extractUnitId — 31 Aug 2026 role-fallback pass
+        // (engine/mission.ts's tagExtractionTarget comment). Reading the
+        // literal id here used to be able to show "extracted — clear" from
+        // turn 1 when the named pilot was never even deployed (target
+        // undefined reads as the already-extracted state below), which is
+        // exactly backwards — nothing had happened, and the real win
+        // condition could never fire either.
+        const targetId = m.resolvedExtractionTargetId;
         const target = targetId ? m.unitById(targetId) : undefined;
         const status = !target ? "extracted — clear" : target.downed ? "DOWNED — mission lost" : "still in the field — get them to a green exit tile";
         lines.push(`Extract: ${target?.displayName ?? "target"} (${status})`);

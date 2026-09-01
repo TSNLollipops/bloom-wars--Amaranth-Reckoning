@@ -47,6 +47,30 @@ export class MapSelect extends Phaser.Scene {
       .text(480, 76, "engine test pass — pick a mission", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
 
+    // Click-through-the-Act-tabs fix (30 Aug 2026, Maxime: "if I scroll
+    // down the mission number and I then click on the act pannel, i hit
+    // the mission underneath the act panel instead of the act panel").
+    // missionListLayer is created FIRST now, before any of the fixed
+    // header controls below (CAMPAIGN SHOP, MENU, the Act tab row) —
+    // deliberately reordered from how this used to read. The mask further
+    // down only clips RENDERING to [listTop, canvas bottom]; Phaser's input
+    // plugin hit-tests every interactive object by its own bounds
+    // regardless of any mask, and picks whichever masks it out or not
+    // — the TOPMOST one in the display list wins a click at that screen
+    // position. Once CAMPAIGNS.length > 1 made the Act tab row live (25
+    // Aug 2026, Act I/II split), scrolling the list far enough moves an
+    // upper mission card's rendered position up into the tab row's own
+    // y~116 band — invisible there (masked), but tabButtons were created
+    // BEFORE missionListLayer in the old code, so the scrolled, invisible
+    // card sat later in the display list and Phaser handed it the click
+    // instead of the tab underneath it. Creating missionListLayer first
+    // means every fixed header control created after it (hangarLayer,
+    // the MENU button, the tab row) is later in the display list and wins
+    // that hit-test in the overlap band, exactly reversing the bug — with
+    // zero visual change, since the mask already made those scrolled cards
+    // invisible up there either way.
+    this.missionListLayer = this.add.container(0, 0);
+
     // Hangar entry point (25 Aug 2026, Maxime: "make me a little box for
     // the ui I would see in the antfarm... from the mission menu") — fixed
     // in the header, not inside missionListLayer, so it survives scrolling
@@ -66,11 +90,7 @@ export class MapSelect extends Phaser.Scene {
     // every time this scene restarts, and Phaser destroys the previous
     // run's GameObjects on the way out but never touches this array on its
     // own — without the reset, a second visit would push more entries onto
-    // stale, destroyed tab buttons instead of replacing them. Currently
-    // dormant (CAMPAIGNS.length is 1, so showTabs is false and the forEach
-    // below never runs), but it's the identical landmine and this is the
-    // one place it can be defused before a second campaign ever un-archives
-    // and makes the tab row live.
+    // stale, destroyed tab buttons instead of replacing them.
     this.tabButtons = [];
     const showTabs = CAMPAIGNS.length > 1;
     if (showTabs) {
@@ -95,13 +115,15 @@ export class MapSelect extends Phaser.Scene {
       });
     }
 
-    this.missionListLayer = this.add.container(0, 0);
     const listTop = showTabs ? 156 : 100;
-    this.renderMissionList(listTop);
+    this.renderMissionList(listTop); // populates the container created above — doesn't move it in the display list
 
     // Mask the scrollable area to [listTop, canvas bottom] so a scrolled
     // card clips at the list's own top edge rather than drawing over the
     // fixed "THE BLOOM WARS" header, which isn't part of this container.
+    // (Rendering only — see the reordering comment above for why the fixed
+    // header controls ALSO have to be later in the display list, not just
+    // masked, to stop a scrolled card from eating their clicks.)
     const maskShape = this.make.graphics({});
     maskShape.fillRect(0, listTop, 960, GAME_HEIGHT - listTop);
     this.listMask = maskShape.createGeometryMask();

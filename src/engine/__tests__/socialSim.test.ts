@@ -11,6 +11,7 @@ import {
   resolveTalkEncounter,
   resolvePegBoardEncounter,
   resolveAbstractedMinigameEncounter,
+  resolveSparEncounter,
   resolveAskOutEncounter,
   simulateEncounter,
   simulateDay,
@@ -236,6 +237,29 @@ describe("resolveAbstractedMinigameEncounter", () => {
     const result = resolveAbstractedMinigameEncounter("fletchers", { pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.9 });
     expect(result.kind).toBe("fletchers");
     expect(result.summary).toContain("Anand won");
+  });
+});
+
+describe("resolveSparEncounter — boredom-driven, 30 Aug 2026", () => {
+  it("a forced-low rng picks pilotA as the winner, always a +6 delta, kind 'spar'", () => {
+    const result = resolveSparEncounter({ pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.1 });
+    expect(result.kind).toBe("spar");
+    expect(result.bondDelta).toBe(6);
+    expect(result.summary).toContain("Bosk came out on top");
+    expect(result.becameCouple).toBe(false);
+  });
+
+  it("a forced-high rng picks pilotB as the winner instead", () => {
+    const result = resolveSparEncounter({ pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.9 });
+    expect(result.summary).toContain("Anand came out on top");
+  });
+});
+
+describe("pickEncounterKind — 'spar' is never rolled here", () => {
+  it("across many real-random draws (askOut-eligible and not), never returns 'spar' — Hub.ts's tryBoredomSpar is the only caller of resolveSparEncounter", () => {
+    for (let i = 0; i < 500; i++) {
+      expect(pickEncounterKind({ eligibleForAskOut: i % 2 === 0, rng: Math.random })).not.toBe("spar");
+    }
   });
 });
 

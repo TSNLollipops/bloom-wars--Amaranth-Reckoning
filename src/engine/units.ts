@@ -248,7 +248,15 @@ export interface BattleUnit {
    * uses isCivilian above and deliberately stays "real stakes, the hostile
    * AI targets them like anyone else" per Maxime's own call on that
    * mission). Set once, in Mission's constructor (tagExtractionTarget), on
-   * whichever player unit's instanceId matches extractUnitId.
+   * whichever player unit's instanceId matches extractUnitId — OR, since
+   * the 31 Aug 2026 role-fallback pass, on the first living player unit in
+   * deploy order when the named pilot was never actually deployed this run
+   * (left home, or permanently lost to an earlier mission's permadeath —
+   * see tagExtractionTarget's own comment). This flag, not the literal
+   * configured id, is now the single source of truth everywhere the real
+   * extraction target matters — engine/mission.ts's own checks, Player AI
+   * (sim/playerAi/index.ts), and Battle.ts's HUD line and green ring all
+   * read it rather than re-deriving from objectiveParams.extractUnitId.
    *
    * 30 Aug 2026 — Maxime, after the enemy-roam fallback's campaign sweep
    * found mission_amaranth_26's stranded extraction target (Okafor,

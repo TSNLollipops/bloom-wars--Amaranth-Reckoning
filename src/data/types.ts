@@ -162,6 +162,57 @@ export interface EnemyWave {
   atTurn: number;
   spawnAt: "enemy_deploy" | Coord[];
   burrowed?: boolean;
+  // "Mirror deployment" (30 Aug 2026 — Maxime, Mission 20: "could do with a
+  // full mirror deployement on the enemy side instead of a preplanned
+  // spawn. they were less numerous than I"). Every existing EnemyWave's
+  // `count` is a literal number, hand-picked once and never revisited
+  // against how big a squad the player actually brings — Act II's own
+  // deploy cap alone ranges 1-10, so a fixed count either overshoots a
+  // small squad or, as Maxime hit here, undershoots a full one. When this
+  // is true, `count` stops being an absolute number and becomes a WEIGHT,
+  // shared only among the other mirrorPlayerSquad waves at the SAME
+  // atTurn — engine/mission.ts's spawnWavesForTurn sums those weights,
+  // divides Mission.deployedPilotIds.length proportionally across them
+  // (largest-remainder rounding, so the total always comes out exactly
+  // equal to however many mechs the player actually deployed, never off
+  // by a rounding error), and spawns that many. A non-mirrored wave at the
+  // same atTurn (Marrow herself, say — a named boss anchor that should
+  // stay exactly 1 regardless of squad size) is completely unaffected;
+  // this only ever touches waves that opt in. Equal weights (all `count:
+  // 1`) split the mirrored total evenly across archetypes.
+  //
+  // CORRECTED 30 Aug 2026, same day: this used to also claim Mission 23
+  // uses this mechanism for its own "leave it open for random lance
+  // formation, as long as they also have munties of their own" ask. It
+  // doesn't, in the end — tried it there first, and a literal 1:1 mirror
+  // against a 10-pilot squad turned out just as catastrophic on that
+  // mission as it did here (see mirrorScale's own comment below) before
+  // either mission's real numbers were re-tested. Mission 23 was reverted
+  // to a flat, moderate count increase instead (see its own comment,
+  // campaignAmaranth.ts) — this mechanism is Mission 20's alone for now.
+  mirrorPlayerSquad?: boolean;
+  // mirrorScale, 30 Aug 2026 — added the SAME day this mechanism first
+  // shipped, once actually sim-testing Mission 20 with it (not just
+  // unit-testing the math in isolation — mirrorDeployment.test.ts only
+  // ever checks the SPLIT is correct, never whether the resulting fight is
+  // winnable) showed a literal 1:1 mirror is not a gradient here either:
+  // Mission 20 sat at a healthy, freshly-reconfirmed 100% (n=150) with its
+  // original fixed 4-escort count, and fell to 1% the instant
+  // mirrorPlayerSquad made that 10 (ACT2_DEFAULT_SQUAD's own size)
+  // instead — a real collapse, not the STALE "sim can't validate this
+  // mission at all" comment this file's own history briefly carried over
+  // from an outdated (pre-Phase-1-roam-fix) investigation. Optional,
+  // defaults to 1 (today's exact prior behavior, target ===
+  // deployedPilotIds.length) when omitted — every existing
+  // mirrorPlayerSquad wave is unaffected unless it opts in. When set on
+  // any wave in a mirror group, resolveMirrorCounts multiplies
+  // deployedPilotIds.length by this BEFORE the largest-remainder split, so
+  // "mirror" can mean "scales with however big a squad you bring" without
+  // meaning "exactly as numerous as you, always" — Maxime's own "less
+  // numerous than I" complaint was about DIRECTION (the old fixed 4
+  // undershot a 10-pilot squad), not a demand for an exact 1:1 headcount
+  // match regardless of what that does to the fight.
+  mirrorScale?: number;
 }
 
 export interface MissionEvent {
@@ -321,6 +372,15 @@ export interface CampaignMission {
     // because Appendix A already names a second protect_asset mission
     // (32, Act III) that may want a different ship-toughness feel than 22.
     assetMaxHp?: number;
+    // protect_asset only (House Amaranth Mission 22 "Audit Under Fire," 31
+    // Aug/1 Sep 2026 — see engine/mission.ts's own Mission.assetName comment
+    // for the bug this closes: the asset's display name was hardcoded to
+    // "Providence" everywhere, harmless while Warden's own ship-defense
+    // mission was the only protect_asset mission that existed, wrong the
+    // moment a second one defends something else). Defaults to "Providence"
+    // when unset, so Warden's Mission 22 needs no data change to keep
+    // behaving exactly as it did before this field existed.
+    assetName?: string;
     // extract_unit + civilianSpawns only (Mission 31 "The Last Convoy," 25
     // Aug 2026 — Independent Campaign doc: "not everyone gets out," same
     // flag as Mission 12's own permadeath note, §6a). The minimum number of

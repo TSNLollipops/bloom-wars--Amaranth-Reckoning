@@ -150,6 +150,7 @@ const counts: Record<PlayerAiReason, number> = {
   seek_fight: 0,
   regroup_low_hp: 0,
   retreat_low_hp: 0,
+  retreat_gang_up: 0,
   hold_cornered: 0,
   hold_no_target: 0,
 };

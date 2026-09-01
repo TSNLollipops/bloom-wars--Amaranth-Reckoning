@@ -1,9 +1,15 @@
 // src/data/pilotRegistry.ts
 // A single lookup surface over every pilot/mek source in the project: Team
 // One's slice roster and bench (data/meks.ts's PILOTS/MEKS and
-// ROSTER_DEPTH_PILOTS/ROSTER_DEPTH_MEKS) plus Warden Company
-// (data/campaignAmaranth.ts's WARDEN_PILOTS/WARDEN_MEKS). engine/units.ts
-// and engine/mission.ts look pilots and meks up through here instead of
+// ROSTER_DEPTH_PILOTS/ROSTER_DEPTH_MEKS), Warden Company
+// (data/campaignAmaranth.ts's WARDEN_PILOTS/WARDEN_MEKS, +Second/Third
+// Lance), plus House Amaranth's own (data/campaignHouseAmaranth.ts's
+// HOUSE_AMARANTH_PILOTS/HOUSE_AMARANTH_MEKS, +its own Second Lance —
+// HOUSE_AMARANTH_SECOND_LANCE_PILOTS/HOUSE_AMARANTH_SECOND_LANCE_MEKS,
+// renamed with that prefix specifically to avoid colliding with
+// campaignAmaranth.ts's own SECOND_LANCE_PILOTS/SECOND_LANCE_MEKS once
+// both land in this one file — see that file's header). engine/units.ts and
+// engine/mission.ts look pilots and meks up through here instead of
 // importing PILOTS/MEKS directly, so a second campaign's roster resolves
 // without either engine file needing to know it exists. Mirrors the
 // fallback `MEKS[mekId] ?? ROSTER_DEPTH_MEKS[mekId]` pattern that already
@@ -13,6 +19,12 @@
 import type { MekArchetype, PilotRecord } from "./types";
 import { PILOTS, MEKS, ROSTER_DEPTH_PILOTS, ROSTER_DEPTH_MEKS } from "./meks";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "./campaignAmaranth";
+import {
+  HOUSE_AMARANTH_PILOTS,
+  HOUSE_AMARANTH_MEKS,
+  HOUSE_AMARANTH_SECOND_LANCE_PILOTS,
+  HOUSE_AMARANTH_SECOND_LANCE_MEKS,
+} from "./campaignHouseAmaranth";
 
 // Second Lance (25 Aug 2026, Act II batch 2) — the exact pilot-lookup gap
 // this file's own header already names, hit again: integrateSecondLance
@@ -33,7 +45,15 @@ import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THI
 // what keeps `npm run sim -- mission_amaranth_25` resolving them instead
 // of throwing "Unknown pilot id."
 const PILOT_INDEX: Record<string, PilotRecord> = Object.fromEntries(
-  [...PILOTS, ...ROSTER_DEPTH_PILOTS, ...WARDEN_PILOTS, ...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS].map((p) => [p.id, p])
+  [
+    ...PILOTS,
+    ...ROSTER_DEPTH_PILOTS,
+    ...WARDEN_PILOTS,
+    ...SECOND_LANCE_PILOTS,
+    ...THIRD_LANCE_PILOTS,
+    ...HOUSE_AMARANTH_PILOTS,
+    ...HOUSE_AMARANTH_SECOND_LANCE_PILOTS,
+  ].map((p) => [p.id, p])
 );
 
 const MEK_INDEX: Record<string, MekArchetype> = {
@@ -42,6 +62,8 @@ const MEK_INDEX: Record<string, MekArchetype> = {
   ...WARDEN_MEKS,
   ...SECOND_LANCE_MEKS,
   ...THIRD_LANCE_MEKS,
+  ...HOUSE_AMARANTH_MEKS,
+  ...HOUSE_AMARANTH_SECOND_LANCE_MEKS,
 };
 
 export function findPilot(pilotId: string | undefined): PilotRecord | undefined {

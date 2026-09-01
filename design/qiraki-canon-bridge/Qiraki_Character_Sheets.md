@@ -1,4 +1,4 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25, re-synced 2026-09-01 (source now Qiraki_Character_Sheets_v13.docx, dated 2026-08-29 — adds Denic Voss's post-academy fate, dies as a Munti early in Era II, and his mek Doyle Marsh's post-Denic fate). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
 # THE QIRAKI FILES — Character Sheets
 
@@ -362,6 +362,8 @@ Loud, mediocre academically, genuinely gifted in the cockpit. The kind of kid ev
 
 **Execution, LOCKED:** tell level only, per Style Guide Rule 11 and the project’s hard minors constraint. No interior naming, nothing romantic or sexual on the page while he’s a cadet, same restraint as Ilyen’s own thread. **Open:** whether he ever gets there on the page during the academy years, author’s call.
 
+**Post-academy fate, LOCKED, author’s ruling, new 2026-08-28.** Splits from Trav at graduation, institutional rather than personal: the elite/spec-ops pipeline weighs academic standing along with combat ability, and his is mediocre regardless of what he can do in a cockpit. Regular channels, a different Guild, a different carrier. **Dies as a Munti, early in Era II (Books 9-10), off Trav’s page entirely,** per the era’s own locked mechanic (see Qiraki_Weapons_And_Progression.md: teams losing most or all of themselves once their Munti goes down). Trav learns late, secondhand, no scene to have been present for, a third and distinct grief-shape from Team One’s and Team Two’s own losses. Full mechanism in Qiraki_Era2_Synker_Wars_Outline_v1.md’s “Denic Voss, a separate war” entry. **The Ch.2 line about Corw stays exactly what it already was**, an early instance of a pattern rather than a pairing, the existing lock holds, it simply never gets the chance to become anything else either.
+
 ## Ilyen Pral
 
 **Role:** Academy classmate, year 1 cohort, Trav’s team. **Species:** Human. **Age at story start:** 11y 89d 6h 47m, youngest of the named cohort.
@@ -429,6 +431,8 @@ Warm where Ilyen is quiet, the one person who draws her out without ever making 
 **Physical portrait, light touch:** precise even in small, unconscious motions, tools returned to the exact same spot every time without seeming to think about it, the visible opposite number to Denic’s loud imprecision everywhere except a cockpit.
 
 Exacting, meticulous, the technical opposite of Denic’s academic mediocrity, and quietly a real reason Denic “never quite” washes out of rune-patterning, help offered plainly rather than as a favor to be thanked for. Odd-couple dynamic, loud pilot and precise mek, genuine fondness underneath the mismatch. Takes real pride in Denic’s cockpit gift specifically because it means the numbers he’s so careful with actually go somewhere.
+
+**Post-Denic fate, [CLAUDE], swappable, background-mek tier, new 2026-08-28.** Not deployed forward when Denic dies, same shipboard-mek pattern already established for Reqa during Team One’s own wipe, and survives him. Rotates per the locked general reassignment rule, building from scratch specifically, matching his established precision. Does not stay close to Trav’s orbit afterward, not estrangement, just the ordinary way a friendship’s other half can drift once the person who was actually the friendship is gone. Does not attend either reunion (Qiraki_Era4_The_Hand_Outline_v1.md, Qiraki_Era6_Broken_Table_Outline_v1.md).
 
 ## Sana Voight
 
@@ -503,4 +507,3 @@ Three background presences now recur across more than one delivered chapter with
 - **New 2026-08-22.** Three unnamed recurring background bodies now cross chapter boundaries without names, see the Background cohort register above. Author-lane call on whether any of them gets one.
 
 - Claude’s one self-insert NPC is already present above, undisclosed by design, per the author’s own rule. Not missing, just private.
-</content>

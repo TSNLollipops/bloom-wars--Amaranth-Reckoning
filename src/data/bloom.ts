@@ -45,6 +45,46 @@ export const BLOOM: Record<string, BloomArchetype> = {
     colorPalette: ["#3DDCFF", "#F2E63D", "#8A4A2A"],
     spriteKey: "bloom_pack_medium",
   },
+  // The Bramble (House Amaranth Mission 26, "The Bramble," 1 Sep 2026) --
+  // plan doc §4/§10: "a strain of the diverted Bloom breaks true
+  // containment doctrine for the first time -- fast, aggressive, spreading
+  // uncontrolled, the literal weed that grows when a garden stops being
+  // tended." Splitfang-descended (§10's own resolution, checked against
+  // the real archetype data rather than narrative feel alone: Splitfang is
+  // movementType swarm, moveRange 5, swarmSize [3,5] -- the actual
+  // mechanical shape the pitch describes, where Gallcyst's sessile-turret
+  // shape doesn't). Validated via design/combat_sim.py's own "13. THE
+  // BRAMBLE" section before this stat block shipped, per this project's
+  // house rule that a new archetype only counts once combat_sim.py has run
+  // on it. Escalated from Splitfang the same ~40% way this project already
+  // escalates a "scarier version of X" (Choir over Sirenmaw, the Unnamed
+  // over Heartwood's own endurance): END 70->98, attackPower 38->54
+  // (+42%, matching), moveRange 5->6 ("fast"), swarmSize [3,5]->[4,6]
+  // ("spreading uncontrolled" is the literal multiplication mechanic, not
+  // just flavor text). VIT nudged only 70->80 (+14%, deliberately smaller
+  // than the END jump) -- same reasoning as the Wellroot's own VIT 60->70
+  // nudge: stays Collapse-then-vitality-chip vulnerable rather than
+  // getting uniformly tankier, so Severance-style play still matters
+  // against it. combat_sim.py's own escalation gate confirms it takes
+  // strictly more hits to kill than its own Splitfang parent (5 vs. 4 at
+  // the project's standard 45-damage test attack).
+  bloom_bramble: {
+    id: "bloom_bramble",
+    displayName: "The Bramble",
+    weaponType: "claws",
+    movementType: "swarm",
+    perception: "compound",
+    intelligence: "pack",
+    endurance: 98,
+    vitality: 80,
+    moveRange: 6,
+    attackRange: [1, 1],
+    attackPower: 54,
+    vision: 5,
+    swarmSize: [4, 6],
+    colorPalette: ["#5C1F0F", "#8A2E12", "#C4491F"],
+    spriteKey: "bloom_pack_medium",
+  },
   bloom_undertow: {
     id: "bloom_undertow",
     displayName: "Undertow",

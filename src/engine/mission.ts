@@ -6,6 +6,7 @@
 import type {
   CampaignMission,
   Coord,
+  EnemyWave,
   MapDefinition,
   MekArchetype,
   PilotRecord,
@@ -295,6 +296,13 @@ export class Mission {
   private stallNudgeShown = false;
   private eventState: EventRuntimeState = createEventRuntimeState();
   private extractedUnitId: string | null = null;
+  // Single point of truth for WHO the extract_unit target actually is once
+  // the mission starts, set once by tagExtractionTarget() and read by
+  // checkExtraction/checkWinLoss below — never re-derive this from
+  // mission.objectiveParams.extractUnitId directly after construction (see
+  // tagExtractionTarget's own comment for why the literal configured id
+  // can silently stop matching anyone on the board).
+  private resolvedExtractUnitId: string | null = null;
   // Mission 31 "The Last Convoy" (25 Aug 2026) — companion to extractedUnitId
   // above, for the multi-civilian shape (data/types.ts's civilianSpawns/
   // extractThreshold). Empty on every mission without civilianSpawns; the
@@ -359,6 +367,19 @@ export class Mission {
   // that isn't protect_asset — nothing reads either field otherwise.
   assetMaxHp: number = PROTECT_ASSET_DEFAULT_MAX_HP;
   assetHp: number = PROTECT_ASSET_DEFAULT_MAX_HP;
+  // Found while building House Amaranth Mission 22 (31 Aug/1 Sep 2026,
+  // second protect_asset mission ever authored): the asset's own display
+  // name was hardcoded to "the Providence" in both this file's log lines
+  // AND scenes/Battle.ts's live HUD line -- harmless while Warden's own
+  // "Ash on the Water" (Mission 22) was the only protect_asset mission that
+  // existed, since it happens to BE the Providence, but a real bug the
+  // moment a second protect_asset mission defends something else (House
+  // Amaranth's diversion relay has never heard of Warden Company's ship).
+  // Fixed generically rather than special-cased: assetName defaults to
+  // "Providence" so Warden's Mission 22 needs zero data changes to keep
+  // behaving exactly as before, and any mission can override it via
+  // objectiveParams.assetName (data/types.ts).
+  assetName: string = "Providence";
 
   constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[], builtBays: ReservedBayId[] = []) {
     this.mission = mission;
@@ -366,6 +387,7 @@ export class Mission {
     if (mission.objective === "protect_asset") {
       this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
       this.assetHp = this.assetMaxHp;
+      this.assetName = mission.objectiveParams.assetName ?? "Providence";
     }
     const map = MAPS[mission.mapId];
     if (!map) throw new Error(`Unknown map id: ${mission.mapId}`);
@@ -502,11 +524,54 @@ export class Mission {
     unit.abilities = [...unit.abilities, ...grants.map((g) => g.abilityId)];
   }
 
+  /**
+   * "Mirror deployment" resolution (30 Aug 2026 — see EnemyWave.
+   * mirrorPlayerSquad's own comment in data/types.ts for the full design).
+   * Every mirrorPlayerSquad wave among `wavesThisTurn` shares its `count`
+   * as a WEIGHT; this splits `deployedPilotIds.length` across them
+   * proportionally, largest-remainder rounding so the total always comes
+   * out to exactly that number, never off by a rounding error regardless
+   * of how the weights divide. Returns a count per wave (by array index,
+   * not by wave identity — two mirror waves can carry identical
+   * archetype/atTurn/spawnAt and still need different resolved counts,
+   * which a Map keyed on the wave object would collapse if two entries
+   * were ever the same object reference, though they never are today
+   * since each is its own object literal in mission data).
+   *
+   * mirrorScale, added same day — see EnemyWave.mirrorScale's own comment
+   * (data/types.ts) for why: a literal 1:1 target === deployedPilotIds.length
+   * turned out to be a real, sim-confirmed cliff on Mission 20 (100% ->
+   * 1%), not just a "more enemies, somewhat harder" gradient. Read off the
+   * first mirror wave that specifies one (mixed scales within one mirror
+   * group would be ambiguous — which wave's number wins? — so this isn't
+   * supported; every mirror wave in a group is expected to either omit it
+   * or agree), defaulting to 1 (today's exact prior behavior) when none
+   * do.
+   */
+  private resolveMirrorCounts(wavesThisTurn: EnemyWave[]): number[] {
+    const scale = wavesThisTurn.find((w) => w.mirrorPlayerSquad && w.mirrorScale !== undefined)?.mirrorScale ?? 1;
+    const target = Math.round(this.deployedPilotIds.length * scale);
+    const totalWeight = wavesThisTurn.reduce((sum, w) => sum + (w.mirrorPlayerSquad ? w.count : 0), 0);
+    if (totalWeight <= 0 || target <= 0) return wavesThisTurn.map(() => 0);
+    const raw = wavesThisTurn.map((w) => (w.mirrorPlayerSquad ? (w.count / totalWeight) * target : 0));
+    const floors = raw.map(Math.floor);
+    const remainder = target - floors.reduce((sum, f) => sum + f, 0);
+    const byFracDesc = raw
+      .map((r, i) => ({ i, frac: r - floors[i] }))
+      .filter((_, i) => wavesThisTurn[i].mirrorPlayerSquad)
+      .sort((a, b) => b.frac - a.frac);
+    const resolved = [...floors];
+    for (let k = 0; k < remainder && k < byFracDesc.length; k++) resolved[byFracDesc[k].i] += 1;
+    return resolved;
+  }
+
   private spawnWavesForTurn(turn: number): void {
-    for (const wave of this.mission.enemyWaves) {
-      if (wave.atTurn !== turn) continue;
+    const wavesThisTurn = this.mission.enemyWaves.filter((w) => w.atTurn === turn);
+    const mirrorCounts = wavesThisTurn.some((w) => w.mirrorPlayerSquad) ? this.resolveMirrorCounts(wavesThisTurn) : null;
+    wavesThisTurn.forEach((wave, waveIndex) => {
+      const count = wave.mirrorPlayerSquad ? mirrorCounts![waveIndex] : wave.count;
       const spots = wave.spawnAt === "enemy_deploy" ? this.map.deployZones.enemy : wave.spawnAt;
-      for (let i = 0; i < wave.count; i++) {
+      for (let i = 0; i < count; i++) {
         const pos = spots.length ? spots[i % spots.length] : this.map.deployZones.enemy[0] ?? { x: 0, y: 0 };
         const freePos = this.findFreeAdjacent(pos);
         if (wave.archetypeId.startsWith("hostile_mech_")) {
@@ -515,7 +580,7 @@ export class Mission {
           this.units.push(createBloomUnit(wave.archetypeId, freePos, { burrowed: !!wave.burrowed }));
         }
       }
-    }
+    });
   }
 
   /**
@@ -630,6 +695,19 @@ export class Mission {
   // that same count made public instead of re-deriving it from the board.
   get extractedCivilianCount(): number {
     return this.extractedCivilianIds.size;
+  }
+
+  // Single-target extract_unit's own public counterpart to
+  // extractedCivilianCount above — Battle.ts's HUD line and on-board green
+  // ring (drawUnit) both need to know WHO the real target is, which per
+  // tagExtractionTarget's own comment is not always the literal id in
+  // mission.objectiveParams.extractUnitId (the named pilot may never have
+  // been deployed, in which case the role already transferred to whoever
+  // actually showed up). Null until tagExtractionTarget runs (constructor,
+  // right after deployPlayerUnits) or on any mission that isn't a
+  // single-target extract_unit at all.
+  get resolvedExtractionTargetId(): string | null {
+    return this.resolvedExtractUnitId;
   }
 
   private movementKindFor(unit: BattleUnit): "bipedal" | "centauroid" | "flying" {
@@ -2155,13 +2233,44 @@ export class Mission {
    * stakes, the hostile AI targets them like anyone else" call on that
    * mission, so this bails out early exactly where checkExtraction's own
    * civilianSpawns branch does.
+   *
+   * Fallback pass, 31 Aug 2026 (Maxime: "you shouldnt make a single nsmed
+   * chsracter the most important part of a mission. use a role. un case
+   * the player doesnt bring those npc with him or they die. dont forget
+   * other than the mc. no one is safe from perma death"). A real bug, not
+   * just design taste: the named pilot in objectiveParams.extractUnitId
+   * (e.g. pilot_orin, pilot_anand) can genuinely not be on the board —
+   * left home by a real Transporter-pad squad selection, or permanently
+   * lost to an earlier mission's own permadeath check (every pilot except
+   * the exemptFromPermadeath commander can die for good; nothing in
+   * mission data enforces that a named extraction target is even in the
+   * eligible roster). Before this fix, `this.unitById(id)` came back
+   * undefined in that case and the mission was mathematically unwinnable
+   * — checkExtraction's own `if (!unit) return;` guard meant
+   * extractedUnitId could never be set, so the ONLY way out was the
+   * turnLimit loss branch, every single run, regardless of skill.
+   *
+   * Fixed at the role level, matching Maxime's own framing: if the named
+   * pilot is actually deployed, nothing changes — they're still the
+   * target, and still losing them mid-mission (unit.downed) is still a
+   * real loss, same stakes as before. Only when nobody with that id is on
+   * the board at all does the role transfer — to the first living player
+   * unit in deploy order (deterministic, not random, so a given squad's
+   * fallback target is always the same pilot from run to run). Every
+   * downstream read (checkExtraction, checkWinLoss, Battle.ts's HUD line
+   * and on-board green ring) goes through resolvedExtractUnitId /
+   * unit.isExtractionTarget now, never the literal configured id again —
+   * see those call sites' own comments.
    */
   private tagExtractionTarget(): void {
     if (this.mission.objective !== "extract_unit" || this.mission.civilianSpawns?.length) return;
     const id = this.mission.objectiveParams.extractUnitId;
     if (!id) return;
-    const unit = this.unitById(id);
-    if (unit) unit.isExtractionTarget = true;
+    const unit = this.unitById(id) ?? this.units.find((u) => u.side === "player" && !u.downed);
+    if (unit) {
+      unit.isExtractionTarget = true;
+      this.resolvedExtractUnitId = unit.instanceId;
+    }
   }
 
   /** Extraction objective: call when the extract-unit reaches an exit tile. */
@@ -2182,7 +2291,12 @@ export class Mission {
       }
       return;
     }
-    const id = this.mission.objectiveParams.extractUnitId;
+    // Reads resolvedExtractUnitId (set once by tagExtractionTarget, see its
+    // own comment) rather than re-deriving from the literal configured
+    // objectiveParams.extractUnitId — that id can point at a pilot who was
+    // never deployed this run, in which case the role already transferred
+    // to whoever's actually on the board.
+    const id = this.resolvedExtractUnitId;
     if (!id) return;
     const unit = this.unitById(id);
     if (!unit || unit.downed || this.extractedUnitId) return;
@@ -2409,7 +2523,7 @@ export class Mission {
     const damage = hostilesInZone * PROTECT_ASSET_TICK_DAMAGE;
     this.assetHp = Math.max(0, this.assetHp - damage);
     this.log.push(
-      `The Providence takes ${damage} damage — ${hostilesInZone} hostile(s) reached the perimeter (${this.assetHp}/${this.assetMaxHp} HP remaining).`
+      `The ${this.assetName} takes ${damage} damage — ${hostilesInZone} hostile(s) reached the perimeter (${this.assetHp}/${this.assetMaxHp} HP remaining).`
     );
   }
 
@@ -2575,7 +2689,9 @@ export class Mission {
         }
         return false;
       }
-      const id = this.mission.objectiveParams.extractUnitId;
+      // resolvedExtractUnitId, not the literal configured extractUnitId —
+      // see tagExtractionTarget's own comment on why the two can differ.
+      const id = this.resolvedExtractUnitId;
       const unit = id ? this.unitById(id) : undefined;
       if (unit?.downed) {
         this.outcome = "loss";
@@ -2632,7 +2748,7 @@ export class Mission {
       // real, and only, loss condition is assetHp hitting 0.
       if (this.assetHp <= 0) {
         this.outcome = "loss";
-        this.log.push("Loss: the Providence has taken critical damage.");
+        this.log.push(`Loss: the ${this.assetName} has taken critical damage.`);
         return true;
       }
       if (!hostileAlive.length) return this.finishWin();

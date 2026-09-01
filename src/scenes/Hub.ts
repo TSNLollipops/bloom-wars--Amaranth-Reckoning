@@ -128,7 +128,7 @@ import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStage
 import { pickFrictionLine } from "../data/friction";
 import { worryTriggerChance } from "../data/missionWorry";
 import { gate0Reacts } from "../data/reactionGate";
-import { NEED_ROOM, NEEDS_FLAVOR_BANK, NEEDS_FLAVOR_CHANCE, needsStressMoraleDelta, tickNeed, worstNeed } from "../data/needsCounter";
+import { NEED_ROOM, NEEDS_FLAVOR_BANK, NEEDS_FLAVOR_CHANCE, NEEDS_LOW_THRESHOLD, needsStressMoraleDelta, tickNeed, worstNeed } from "../data/needsCounter";
 import { resolveAskOut, isRomanceableSpecies, ALREADY_TOGETHER_LINES, CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { pairKey, findClosestBond, findWorstRival, pointNear, pointAwayFrom, CLIQUE_THRESHOLD, RIVAL_THRESHOLD } from "../data/npcBonds";
@@ -185,7 +185,7 @@ import { ShopPanel, SHOP_CARD_W, SHOP_CARD_R } from "./shop/ShopPanel";
 // re-deriving any of Talk/peg board/poker/fletchers/Ask Out — see
 // updateNpcEncounters()/runNpcEncounter() below and socialSim.ts's own
 // header for the full design history.
-import { simulateEncounter, isCommitted, type SocialSimPilot } from "../engine/socialSim";
+import { simulateEncounter, resolveSparEncounter, isCommitted, type SocialSimPilot } from "../engine/socialSim";
 // The egg hull, 27 Aug 2026 — kept in its own Phaser-free module so its
 // math is directly unit-testable; see hubGeometry.ts's own header for why.
 import { clampToEllipse } from "../engine/hubGeometry";
@@ -440,6 +440,17 @@ const BREAKDOWN_CHECK_INTERVAL_MS = 15_000;
 // resolution than an ordinary 15s recheck would.
 const BREAKDOWN_RESOLUTION_COOLDOWN_MIN_MS = 90_000;
 const BREAKDOWN_RESOLUTION_COOLDOWN_MAX_MS = 180_000;
+
+// Boredom-driven Spar, 30 Aug 2026 (Maxime: "boredom should trigger spar")
+// — the chance tryBoredomSpar actually fires once a same-room, eligible
+// pair is already found in the Spar Room. Set noticeably higher than
+// ANGER_BLOWUP_CHANCE (0.35, data/angerBlowup.ts) on purpose: a blowup is
+// meant to read as a rare flare-up, but a bored pilot walking all the way
+// to the Spar Room specifically looking for a bout should actually usually
+// find one once someone else is there too, not whiff most of the time —
+// same "not a locked number, tune against real play" placeholder status as
+// every other chance/weight in this file.
+const SPAR_CHANCE = 0.5;
 
 // Live-visual staging, 26 Aug 2026 — Maxime: "we go ham bro" on the "full
 // live-Hub-visual NPC-to-NPC feature" this file's own header already
@@ -980,6 +991,25 @@ const MUSTER_POINT = { x: 480, y: ROOM_BOUNDS.bottom - 50 };
 // were added 27 Aug, which is exactly the bug this constant's new use
 // fixes.
 const MUSTER_ROOM: RoomId = "recroom";
+
+// The Rec Room table, 30 Aug 2026 (Maxime: "ther eshould be a table in the
+// rec room they can go around. assign sport around the table, if full the
+// ant gonna find something else to do"). A real point + capacity, not just
+// a visual — the same "landmark point other systems key off of" role
+// MUSTER_POINT already plays, one deck over. Placed clear of every named
+// pilot's own fixed seat (buildNpcs' `positions`: (220,268)/(460,268)/
+// (340,462)) and of MUSTER_POINT itself (480,502), roughly the room's own
+// open center instead.
+//
+// RECROOM_TABLE_SEATS is a headcount, not a literal ring of pre-computed
+// seat coordinates — updateNpcRoaming's own mingle branch (see its
+// "at the table" comment) only needs to know how many NPCs already count
+// as "at the table" (within RECROOM_TABLE_RADIUS) to decide whether
+// there's room for one more; it doesn't need to reserve a specific chair.
+const RECROOM_TABLE = { x: 340, y: 340 };
+const RECROOM_TABLE_RADIUS = 46;
+const RECROOM_TABLE_SEATS = 4;
+
 const NPC_WALK_SPEED = 90; // px/sec — slower than the player's 190; this is "heading to muster," not urgent
 const NPC_ARRIVE_THRESHOLD = 5;
 // 26 Aug 2026 — found verifying the new live encounters (updateNpcEncounters
@@ -1505,6 +1535,22 @@ type HubNpc = {
   // mingle branches entirely and just computes the next door to walk
   // through via nextHopDoor() instead.
   travelTargetRoom?: RoomId;
+  // Mek Workshop confinement, 30 Aug 2026 (Maxime: "mek need to stay in the
+  // workshop unless they are sleeping or eating"). Undefined for every
+  // ordinary roaming NPC — the ship-wide explore/mingle behaviour above is
+  // completely unaffected by this field existing. Set to "workshop" for
+  // every Mek (buildNpcs' mekSeeds and generic-Mek loops) — updateNpcRoaming
+  // reads it to skip the normal uniform-random pickExploreTarget entirely
+  // for a confined NPC and instead only ever sends them to whichever real
+  // need room (NEED_ROOM — Rec Room for hunger/thirst, Berths for sleep)
+  // is currently worst, or straight back here once that need clears. This
+  // is also the actual fix for a real inconsistency the generic-Mek loop's
+  // own comment already claimed ("they don't otherwise roam the whole ship
+  // on their own errands") without the code backing it up — every Mek had
+  // nextRoamAt set exactly like any deployable pilot and could wander to
+  // any of the ship's other five rooms before this field existed to stop
+  // it.
+  homeRoom?: RoomId;
   // 27 Aug 2026 — Maxime: "the antfarmer need to stay near the bay when a
   // muster waiting until muster is done or cancelled." Before this, a
   // mustered NPC's stay at MUSTER_POINT lasted exactly until its own
@@ -1548,6 +1594,20 @@ type HubNpc = {
   hunger: number;
   thirst: number;
   sleep: number;
+  // Boredom, 30 Aug 2026 (Maxime: "boredom should trigger spar" — see this
+  // file's own Rec Room table/updateNpcRoaming comments for the full
+  // "table + spar" pass). Same shape and same tickNeed()/clampNeed()
+  // machinery as hunger/thirst/sleep above (needsCounter.ts), added as a
+  // fourth NeedKind there rather than a separate bespoke meter — but its
+  // restore condition is deliberately NOT a room the way the other three
+  // are (Berths for sleep, Rec Room for hunger/thirst): boredom is relieved
+  // by actually being in an active encounter bubble (updateNpcEncounters'
+  // own bubbleUntil), wherever that happens to be, not by standing in any
+  // particular room. See its own tick call site (updateNpcNeeds) for the
+  // exact condition, and NEED_ROOM.boredom (needsCounter.ts) — "sparRoom"
+  // — for where a bored, idle pilot gets biased to roam toward once it's
+  // their worst need.
+  boredom: number;
   // Same staggered-real-minute-cooldown shape as nextRoamAt/nextEncounterAt
   // above. Deliberately left undefined for the CO (see his own push() call
   // below) — same "undefined clock = this NPC opts out" convention those
@@ -1753,6 +1813,12 @@ export class Hub extends Phaser.Scene {
   private roomNoteText!: Phaser.GameObjects.Text;
   private bayOutline!: Phaser.GameObjects.Graphics;
   private bayLabel!: Phaser.GameObjects.Text;
+  // The Rec Room table, 30 Aug 2026 (Maxime: "ther eshould be a table in
+  // the rec room they can go around") — same dashed-marker shape as
+  // bayOutline/bayLabel just above, at RECROOM_TABLE instead of
+  // MUSTER_POINT. See drawRecroomTable's own comment for the full account.
+  private recroomTableOutline!: Phaser.GameObjects.Graphics;
+  private recroomTableLabel!: Phaser.GameObjects.Text;
   // Antfarm Grid v0, 27 Aug 2026 — one entry per non-grotto room, the
   // divider line(s) + floating name label that make a deck's other zones
   // legible before you've walked into them. Toggled by DECK, not by exact
@@ -1880,6 +1946,7 @@ export class Hub extends Phaser.Scene {
     this.sparRoomFloor = this.drawDeckFloor(SPAR_ROOM_BOUNDS);
     this.drawGrottoFloor();
     this.drawMusterPoint();
+    this.drawRecroomTable();
     this.drawHangarShopPoint();
     this.buildDoors();
     this.buildZoneDecor();
@@ -2540,7 +2607,13 @@ export class Hub extends Phaser.Scene {
   // missed — same "usually nothing happens" shape GATE0_BASE_CHANCE/
   // AMBIENT_BLEED_CHANCE already have.
   private pickNeedsFlavorLine(npc: HubNpc): string | undefined {
-    const kind = worstNeed(npc.hunger, npc.thirst, npc.sleep);
+    // boredom included here too, 30 Aug 2026 — once NEEDS_FLAVOR_BANK
+    // needed a boredom entry anyway (Record<NeedKind, ...> requires all
+    // four now that NeedKind has grown one), there's no reason this flavor
+    // pick should be the one place that ignores it; a bored pilot's own
+    // ambient line surfaces the same way an hungry/thirsty/tired one
+    // already does.
+    const kind = worstNeed(npc.hunger, npc.thirst, npc.sleep, npc.boredom);
     if (!kind) return undefined;
     if (Math.random() >= NEEDS_FLAVOR_CHANCE) return undefined;
     const bank = NEEDS_FLAVOR_BANK[kind];
@@ -3956,6 +4029,31 @@ export class Hub extends Phaser.Scene {
     this.bayLabel = this.add.text(MUSTER_POINT.x, MUSTER_POINT.y, "BAY", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" }).setOrigin(0.5);
   }
 
+  // The Rec Room table, 30 Aug 2026 — same dashed-marker instinct as
+  // drawMusterPoint just above, but a circle instead of a rectangle
+  // (RECROOM_TABLE_RADIUS), so it reads as a round table you gather AROUND
+  // rather than another rectangular pad you stand ON, matching Maxime's own
+  // "a table... they can go around."
+  private drawRecroomTable() {
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x6b7d8a, 0.7);
+    const dash = 6;
+    const circumference = 2 * Math.PI * RECROOM_TABLE_RADIUS;
+    const steps = Math.max(8, Math.round(circumference / (dash * 2)));
+    for (let i = 0; i < steps; i++) {
+      const a0 = (i / steps) * Math.PI * 2;
+      const a1 = a0 + (dash / RECROOM_TABLE_RADIUS);
+      g.lineBetween(
+        RECROOM_TABLE.x + Math.cos(a0) * RECROOM_TABLE_RADIUS,
+        RECROOM_TABLE.y + Math.sin(a0) * RECROOM_TABLE_RADIUS,
+        RECROOM_TABLE.x + Math.cos(a1) * RECROOM_TABLE_RADIUS,
+        RECROOM_TABLE.y + Math.sin(a1) * RECROOM_TABLE_RADIUS,
+      );
+    }
+    this.recroomTableOutline = g;
+    this.recroomTableLabel = this.add.text(RECROOM_TABLE.x, RECROOM_TABLE.y, "TABLE", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" }).setOrigin(0.5);
+  }
+
   // Tier 4, 30 Aug 2026 — same dash-drawing shape as drawMusterPoint just
   // above, one more time, at HANGAR_SHOP_POINT instead of MUSTER_POINT.
   private drawHangarShopPoint() {
@@ -4345,6 +4443,7 @@ export class Hub extends Phaser.Scene {
         hunger: 100,
         thirst: 100,
         sleep: 100,
+        boredom: 100,
         // Same staggering instinct as nextRoamAt/nextEncounterAt above.
         nextNeedsTickAt: Math.random() * 4000,
         // Breakdown, 28 Aug 2026 — same staggering instinct one more time.
@@ -4433,11 +4532,12 @@ export class Hub extends Phaser.Scene {
       // Needs Counter fields set (type requires them) but nextNeedsTickAt
       // deliberately left unset too, same convention — a CO who never
       // deploys isn't who this system is about; he just reads as
-      // permanently 100/100/100 rather than opting into a system built for
-      // pilots' off-duty life.
+      // permanently 100/100/100/100 rather than opting into a system built
+      // for pilots' off-duty life.
       hunger: 100,
       thirst: 100,
       sleep: 100,
+      boredom: 100,
     });
 
     // Meks as walkable Hub NPCs — Mek NPC Introduction Plan v1, 29 Aug
@@ -4468,8 +4568,16 @@ export class Hub extends Phaser.Scene {
     //
     // Unlike the CO, these DO roam (nextRoamAt/nextEncounterAt/etc. all
     // set below, not left undefined) — plan doc §2: "Otherwise they can
-    // roam," the same ambient movement code as any deployable pilot, not
-    // confined to the Workshop.
+    // roam," the same ambient movement code as any deployable pilot.
+    //
+    // CORRECTED 30 Aug 2026 (Maxime: "mek need to stay in the workshop
+    // unless they are sleeping or eating") — "otherwise roam" turns out to
+    // mean roam WITHIN the Workshop and to their own needs' rooms, not the
+    // whole ship: homeRoom "workshop" below is what actually enforces that
+    // now (see its own field comment, updateNpcRoaming). Still uses the
+    // exact same movement/encounter machinery as a deployable pilot — this
+    // only narrows WHERE the explore branch is allowed to send them, not
+    // which system does it.
     //
     // No bespoke dialogue content this pass, matching the CO's own launch
     // precedent just above (he shipped with zero bespoke lines too, only a
@@ -4562,6 +4670,7 @@ export class Hub extends Phaser.Scene {
         initials,
         color,
         room: "workshop",
+        homeRoom: "workshop",
         x: pos.x,
         y: pos.y,
         ambient: { catalyst: seed.catalyst, stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
@@ -4583,6 +4692,7 @@ export class Hub extends Phaser.Scene {
         hunger: 100,
         thirst: 100,
         sleep: 100,
+        boredom: 100,
         nextNeedsTickAt: Math.random() * 4000,
         nextBreakdownCheckAt: Math.random() * 4000,
       });
@@ -4640,6 +4750,7 @@ export class Hub extends Phaser.Scene {
         initials,
         color,
         room: "workshop",
+        homeRoom: "workshop",
         x: pos.x,
         y: pos.y,
         // catalystForPilot works off any string id via its deterministic
@@ -4662,6 +4773,7 @@ export class Hub extends Phaser.Scene {
         hunger: 100,
         thirst: 100,
         sleep: 100,
+        boredom: 100,
         nextNeedsTickAt: Math.random() * 4000,
         nextBreakdownCheckAt: Math.random() * 4000,
       });
@@ -5155,6 +5267,14 @@ export class Hub extends Phaser.Scene {
       npc.hunger = tickNeed(npc.hunger, npc.room === "recroom");
       npc.thirst = tickNeed(npc.thirst, npc.room === "recroom");
       npc.sleep = tickNeed(npc.sleep, npc.room === "berths");
+      // Boredom, 30 Aug 2026 — see this field's own comment (HubNpc) for why
+      // its restore condition is "currently in a live encounter bubble"
+      // rather than a fixed room the way the three needs just above are.
+      // `now < npc.bubbleUntil` is the exact same "actually, visibly
+      // socially engaged right now" check updateNpcEncounters' own
+      // currentDeckBubbleCount already uses — real company relieves
+      // boredom, just standing in a room (even the Rec Room) doesn't.
+      npc.boredom = tickNeed(npc.boredom, now < npc.bubbleUntil);
 
       const { stressDelta, moraleDelta } = needsStressMoraleDelta(npc.hunger, npc.thirst, npc.sleep);
       if (stressDelta === 0 && moraleDelta === 0) continue;
@@ -5481,6 +5601,59 @@ export class Hub extends Phaser.Scene {
       // why it has to run before this now.
       if (npc.mustered) continue;
 
+      // Mek Workshop confinement, 30 Aug 2026 (Maxime: "mek need to stay in
+      // the workshop unless they are sleeping or eating") — see homeRoom's
+      // own field comment. Checked here, after mustered (a homeRoom NPC
+      // isn't currently ever mustered, but nothing stops that from mattering
+      // later, and mustered's own reason to take priority applies just the
+      // same either way) and before the ordinary explore roll below, which
+      // this replaces entirely for a confined NPC rather than narrowing.
+      //
+      // Two real cases, both driven by the exact same worstNeed/NEED_ROOM
+      // read the ordinary explore-bias branch below already uses (kept
+      // identical on purpose — "eating" and "sleeping" have to mean the
+      // same rooms and the same threshold everywhere, not a second
+      // definition that could drift from the first):
+      //  - Away from home with the need that sent them out now satisfied
+      //    (or, degenerately, away from home with no need at all —
+      //    shouldn't happen given the branch below only ever sends them out
+      //    FOR a need, but failing safe by sending them home either way
+      //    costs nothing) -> walk straight back to the Workshop.
+      //  - At home with a real need outstanding -> walk straight to that
+      //    need's room (Rec Room for hunger/thirst, Berths for sleep),
+      //    skipping pickExploreTarget's uniform pick across all six rooms
+      //    entirely — a Mek never rolls a trip to the Hangar Deck, the
+      //    Vault, the CIC, the Spar Room, or the Grotto.
+      // Neither case fires: already home with nothing pulling them out, or
+      // already away satisfying a real need that hasn't cleared yet — both
+      // fall through to the same-room mingle logic at the bottom of this
+      // loop unchanged, so a Mek still chats or games with whoever's
+      // actually standing next to them, at home or in the Rec Room/Berths.
+      if (npc.homeRoom !== undefined) {
+        const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep);
+        const needRoom = worstOfNeeds ? NEED_ROOM[worstOfNeeds] : undefined;
+        if (npc.room !== npc.homeRoom && needRoom === undefined) {
+          const door = nextHopDoor(npc.room, npc.homeRoom);
+          if (door) {
+            npc.travelTargetRoom = npc.homeRoom;
+            const approach = this.approachDoorTarget(npc, door);
+            npc.targetX = approach.x;
+            npc.targetY = approach.y;
+          }
+          continue;
+        }
+        if (npc.room === npc.homeRoom && needRoom !== undefined && needRoom !== npc.homeRoom) {
+          const door = nextHopDoor(npc.room, needRoom);
+          if (door) {
+            npc.travelTargetRoom = needRoom;
+            const approach = this.approachDoorTarget(npc, door);
+            npc.targetX = approach.x;
+            npc.targetY = approach.y;
+          }
+          continue;
+        }
+      }
+
       // Explore — Build Plan §24. Leave the current room outright,
       // occasionally, rather than only ever mingling with whoever's
       // already here. Rolled before the same-room logic below (and before
@@ -5494,12 +5667,24 @@ export class Hub extends Phaser.Scene {
       // door/stair involved, exactly the same shape as the mingle branch
       // below just aimed at a zone instead of a person. Only a genuinely
       // cross-deck target still uses the stairs/travelTargetRoom machinery.
-      if (Math.random() < EXPLORE_CHANCE) {
+      //
+      // homeRoom guard, 30 Aug 2026: a confined NPC (Meks) never reaches
+      // this branch at all — the block just above already handled both of
+      // its real cases and continue'd past this point, so this only ever
+      // runs now for npc.homeRoom === undefined (every ordinary pilot),
+      // exactly as before this pass.
+      if (npc.homeRoom === undefined && Math.random() < EXPLORE_CHANCE) {
         // Needs Counter roaming bias, 28 Aug 2026 — see NEEDS_ROAM_WEIGHT_BONUS's
         // own comment. worstNeed reads straight off this NPC's live
-        // hunger/thirst/sleep; NEED_ROOM maps whichever one's worst to the
-        // room that actually restores it.
-        const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep);
+        // hunger/thirst/sleep/boredom; NEED_ROOM maps whichever one's worst
+        // to the room that actually restores it. boredom passed here (30
+        // Aug 2026, "boredom should trigger spar") — deliberately NOT
+        // passed at the Mek homeRoom branch above (see that branch's own
+        // 3-argument call and homeRoom's field comment) or at
+        // pickNeedsFlavorLine's own 3-argument call (no boredom entry in
+        // NEEDS_FLAVOR_BANK to return) — this is the one call site an idle
+        // ordinary pilot's own roaming actually goes through.
+        const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep, npc.boredom);
         const biasRoom = worstOfNeeds ? NEED_ROOM[worstOfNeeds] : undefined;
         const target = pickExploreTarget(npc.room, biasRoom);
         if (sameDeck(npc.room, target)) {
@@ -5547,12 +5732,20 @@ export class Hub extends Phaser.Scene {
       // zero familiarity — falls through to mingling with someone picked
       // at random from the room. Mingling never targets empty space.
       let dest: { x: number; y: number };
+      // The Rec Room table, 30 Aug 2026 (Maxime: "assign sport around the
+      // table, if full the ant gonna find something else to do") — only
+      // set true by the two "walking toward company" branches below
+      // (clique-approach and the random mingle fallback), never the
+      // rival-avoid branch just above them (fleeing someone shouldn't
+      // detour through a table on the way out).
+      let wantsCompany = false;
       if (worst && worst.value <= RIVAL_THRESHOLD && Math.random() < RIVAL_AVOID_CHANCE) {
         const rivalNpc = roommates.find((n) => n.pilotId === worst.otherId)!;
         dest = pointAwayFrom({ x: npc.x, y: npc.y }, { x: rivalNpc.x, y: rivalNpc.y }, ROAM_DRIFT_DIST);
       } else if (closest && closest.value >= CLIQUE_THRESHOLD && Math.random() < CLIQUE_APPROACH_CHANCE) {
         const bondNpc = roommates.find((n) => n.pilotId === closest.otherId)!;
         dest = pointNear({ x: bondNpc.x, y: bondNpc.y }, ROAM_APPROACH_DIST);
+        wantsCompany = true;
       } else {
         // Mingle — a close friend gave way this round, a rival wasn't
         // worth dodging this time, or there's simply nobody with a strong
@@ -5563,6 +5756,25 @@ export class Hub extends Phaser.Scene {
         // always a person to walk toward, never a blind self-wander.
         const target = roommates[Math.floor(Math.random() * roommates.length)];
         dest = pointNear({ x: target.x, y: target.y }, ROAM_APPROACH_DIST);
+        wantsCompany = true;
+      }
+
+      // The Rec Room table, continued — redirect an already-decided "walk
+      // toward company" destination to the table instead, but only while a
+      // real seat is open. RECROOM_TABLE_SEATS full falls straight through
+      // to the dest already computed above, UNCHANGED — that IS "find
+      // something else to do" here: still mingling with that same
+      // roommate, just wherever they actually are, not queued at a full
+      // table. Counts roommates currently within RECROOM_TABLE_RADIUS
+      // (this NPC isn't there yet, so it isn't counted against its own
+      // seat) — a live, per-tick count, not a reserved/claimed seat
+      // system, same "cheap enough at today's roster size" ethos every
+      // other O(n) scan in this file already runs on.
+      if (npc.room === "recroom" && wantsCompany) {
+        const atTable = roommates.filter((n) => n.room === "recroom" && Phaser.Math.Distance.Between(n.x, n.y, RECROOM_TABLE.x, RECROOM_TABLE.y) <= RECROOM_TABLE_RADIUS).length;
+        if (atTable < RECROOM_TABLE_SEATS) {
+          dest = pointNear(RECROOM_TABLE, RECROOM_TABLE_RADIUS * 0.6);
+        }
       }
 
       // Clamped here, not left to tryMoveNpc's own per-step clamp — an
@@ -5625,6 +5837,16 @@ export class Hub extends Phaser.Scene {
         // encounter, same "one real thing happens per settled pair per
         // tick" shape this loop already has.
         if (this.tryAngerBlowup(npcA, npcB, now)) {
+          break;
+        }
+
+        // Boredom-driven Spar, 30 Aug 2026 (Maxime: "boredom should trigger
+        // spar") — same "instead of, not on top of" shape as Anger Blowup
+        // just above, checked second: a settled pair in the Spar Room with
+        // a real reason to be there gets an actual spar, not a coin-flip
+        // chance at "talk"/pegBoard/poker/fletchers/askOut instead (none of
+        // which make sense in the Spar Room's own context anyway).
+        if (this.tryBoredomSpar(npcA, npcB, now)) {
           break;
         }
 
@@ -5705,6 +5927,59 @@ export class Hub extends Phaser.Scene {
     // ENCOUNTER_COOLDOWN_MIN/MAX_MS already uses just above.
     npcA.nextBlowupAt = now + ANGER_BLOWUP_COOLDOWN_MIN_MS + Math.random() * (ANGER_BLOWUP_COOLDOWN_MAX_MS - ANGER_BLOWUP_COOLDOWN_MIN_MS);
     npcB.nextBlowupAt = now + ANGER_BLOWUP_COOLDOWN_MIN_MS + Math.random() * (ANGER_BLOWUP_COOLDOWN_MAX_MS - ANGER_BLOWUP_COOLDOWN_MIN_MS);
+  }
+
+  // Boredom-driven Spar, 30 Aug 2026 (Maxime: "boredom should trigger
+  // spar") — see socialSim.ts's own EncounterKind comment for the full
+  // "how this differs from Breakdown's own spar flavor" account. No
+  // dedicated cooldown clock the way Anger Blowup gets its own
+  // nextBlowupAt — this is an everyday, low-stakes social event, not a rare
+  // crisis, so the shared nextEncounterAt cooldown both sides already had
+  // to clear to reach updateNpcEncounters' inner loop at all is enough on
+  // its own (set at the end of runBoredomSpar, same as an ordinary
+  // encounter). Eligible only when BOTH are actually standing in the Spar
+  // Room (this makes no sense anywhere else) and at least one side's
+  // boredom meter is genuinely low — mirrors isBreakdownEligible's own
+  // "both a real gate AND a chance roll" shape (data/breakdown.ts), not a
+  // guaranteed fire the instant two bored pilots happen to be in the room
+  // together.
+  private tryBoredomSpar(npcA: HubNpc, npcB: HubNpc, now: number): boolean {
+    if (npcA.room !== "sparRoom" || npcB.room !== "sparRoom") return false;
+    if (npcA.boredom >= NEEDS_LOW_THRESHOLD && npcB.boredom >= NEEDS_LOW_THRESHOLD) return false;
+    if (Math.random() >= SPAR_CHANCE) return false;
+    this.runBoredomSpar(npcA, npcB, now);
+    return true;
+  }
+
+  // The actual spar — a real socialSim.ts encounter (resolveSparEncounter),
+  // not a hand-rolled result here, same "this file composes, data/**
+  // decides" split runNpcEncounter already keeps for its own five kinds
+  // (Build Brief §5.2). No Stress relief applied here on purpose — that's
+  // Breakdown's own crisis-resolution job (BREAKDOWN_STRESS_RELIEF); an
+  // everyday bored-pilot spar only ever moves the bond and (via the next
+  // updateNeeds tick reading this bubble's own bubbleUntil, same as any
+  // other encounter — see boredom's own HubNpc field comment) relieves the
+  // boredom that sent them here in the first place.
+  private runBoredomSpar(npcA: HubNpc, npcB: HubNpc, now: number) {
+    const key = pairKey(npcA.pilotId, npcB.pilotId);
+    const bond = this.npcSocial.bonds[key] ?? 0;
+    const pilotA: SocialSimPilot = { pilotId: npcA.pilotId, displayName: npcA.displayName.split("—")[0].trim(), catalyst: npcA.ambient.catalyst, stage: npcA.ambient.stage };
+    const pilotB: SocialSimPilot = { pilotId: npcB.pilotId, displayName: npcB.displayName.split("—")[0].trim(), catalyst: npcB.ambient.catalyst, stage: npcB.ambient.stage };
+    const result = resolveSparEncounter({ pilotA, pilotB, bond, aCommitted: false, bCommitted: false, rng: Math.random });
+    this.npcSocial.bonds[key] = bond + result.bondDelta;
+    saveCampaignState(this.campaignState);
+
+    this.showBubble(npcA, result.summary, now);
+
+    // Logged to both sides, same NPC-vs-NPC convention runAngerBlowup's own
+    // comment already established (every other verb is player-vs-one-NPC).
+    npcA.socialLog?.push({ verb: "spar", line: result.summary, at: Date.now() });
+    npcB.socialLog?.push({ verb: "spar", line: result.summary, at: Date.now() });
+
+    const nextA = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
+    const nextB = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
+    npcA.nextEncounterAt = nextA;
+    npcB.nextEncounterAt = nextB;
   }
 
   // Turns a same-room, idle, close-enough pair into one real
@@ -6233,6 +6508,10 @@ export class Hub extends Phaser.Scene {
     // isAtHangarShop's own comment).
     this.hangarShopOutline.setVisible(onLowerDeck);
     this.hangarShopLabel.setVisible(onLowerDeck);
+    // The Rec Room table, 30 Aug 2026 — same whole-deck visibility as the
+    // bay/shop markers just above.
+    this.recroomTableOutline.setVisible(onLowerDeck);
+    this.recroomTableLabel.setVisible(onLowerDeck);
 
     const note = ROOM_NOTES[this.currentRoomId];
     const zone = ROOM_ZONE_BOUNDS[this.currentRoomId];

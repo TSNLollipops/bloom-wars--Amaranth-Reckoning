@@ -51,7 +51,20 @@ export interface SocialSimPilot {
   stage: Stage;
 }
 
-export type EncounterKind = "talk" | "pegBoard" | "poker" | "fletchers" | "askOut";
+// "spar" added 30 Aug 2026 (Maxime: "boredom should trigger spar") —
+// deliberately NOT one of the KIND_WEIGHTS options below, so it never fires
+// from the ordinary weighted roll pickEncounterKind makes for ANY same-room
+// pair. Hub.ts's own tryBoredomSpar is the only caller of
+// resolveSparEncounter, gated on both being in the Spar Room AND at least
+// one side's boredom meter being genuinely low (needsCounter.ts) — same
+// "checked ahead of, instead of, the ordinary roll" shape tryAngerBlowup
+// already uses there. Also distinct from the existing Breakdown system's
+// own "spar" resolution flavor (data/breakdown.ts) — that one is a
+// Stress+Worried CRISIS caught in the Spar Room, this one is an everyday
+// idle/bored pilot going there looking for a bout on purpose. Two real
+// triggers, two separate code paths, same room and same flavor of event by
+// coincidence, not by one implementing the other.
+export type EncounterKind = "talk" | "pegBoard" | "poker" | "fletchers" | "askOut" | "spar";
 
 export interface EncounterInput {
   pilotA: SocialSimPilot;
@@ -270,6 +283,28 @@ export function resolveAbstractedMinigameEncounter(kind: "poker" | "fletchers", 
 // Rourke specifically can romance a pilot, never whether two NPCs can
 // romance each other." Applying isRomanceableSpecies() here would be
 // re-introducing the exact bug that got fixed there.
+// Spar — boredom-driven, everyday, NOT a crisis (see EncounterKind's own
+// comment for how this differs from Breakdown's own "spar" flavor). Same
+// abstracted "no real move-by-move session" shape as
+// resolveAbstractedMinigameEncounter's poker/fletchers branch above — a
+// physical bout has even less reason to be modeled hit-by-hit than a card
+// game or a dart throw would, and the same +6 "decisive session" bond
+// magnitude those two already use, for the same reason (this file's own
+// resolvePegBoardEncounter header): two people who spar together and one
+// of them wins doesn't sensibly cost the loser anything on a SHARED
+// pairwise bond, so this only ever moves upward, same as every other
+// resolve*Encounter in this file.
+export function resolveSparEncounter(input: EncounterInput): EncounterResult {
+  const aWon = input.rng() < 0.5;
+  const winner = aWon ? input.pilotA : input.pilotB;
+  return {
+    kind: "spar",
+    bondDelta: 6,
+    summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} went a few rounds in the Spar Room — ${winner.displayName} came out on top. Bond +6.`,
+    becameCouple: false,
+  };
+}
+
 export function resolveAskOutEncounter(input: EncounterInput): EncounterResult {
   const outcome = resolveAskOut({ favorability: input.bond, romanceable: true, alreadyInRelationship: false });
   // alreadyInRelationship is always false here by construction — this
@@ -302,6 +337,12 @@ export function simulateEncounter(input: EncounterInput): EncounterResult {
       return resolveAbstractedMinigameEncounter("fletchers", input);
     case "askOut":
       return resolveAskOutEncounter(input);
+    // pickEncounterKind never actually returns "spar" (see EncounterKind's
+    // own comment — it's deliberately outside KIND_WEIGHTS) — Hub.ts's
+    // tryBoredomSpar calls resolveSparEncounter directly instead. This case
+    // only exists so this switch stays exhaustive over the real type.
+    case "spar":
+      return resolveSparEncounter(input);
   }
 }
 

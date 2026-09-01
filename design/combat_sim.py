@@ -400,6 +400,53 @@ for tier_name in ["G", "A"]:
     dmg = js_round(eff * 0.5 * 1 * (1 - 0.1 * 0))
     out(f"  {tier_name}-tier attacker vs Bloom, open ground: {dmg} dmg/hit")
 
+# ===========================================================================
+# 13. THE BRAMBLE -- proposed new archetype, House Amaranth Act III
+#     (Mission 26, 1 Sep 2026)
+# ===========================================================================
+hdr("THE BRAMBLE -- proposed stats, 1 Sep 2026")
+out("Splitfang-descended, per Bloom_Wars_House_Amaranth_Full_Campaign_Plan_v1.md")
+out("§10's own resolution: Splitfang is movementType swarm, moveRange 5,")
+out("swarmSize [3,5] -- matches the pitch ('fast, aggressive, spreading")
+out("uncontrolled... the literal weed that grows when a garden stops being")
+out("tended') mechanically, where Gallcyst's sessile turret shape doesn't.")
+out("NOT a boss -- a regular archetype, escalated from its own parent the")
+out("same way this project already escalates a 'scarier version of X': the")
+out("~40% step Choir took over Sirenmaw and the Unnamed took over Heartwood's")
+out("own endurance (see that section's own comment above).")
+out()
+out("Splitfang (parent):  END 70 / VIT 70, moveRange 5, attackPower 38, swarmSize [3,5]")
+out("Bramble (proposed):  END 98 / VIT 80, moveRange 6, attackPower 54, swarmSize [4,6]")
+out("  END  70 -> 98  (+40%, same ratio as the Choir/Unnamed precedent)")
+out("  VIT  70 -> 80  (+14%, a modest bump only -- kept LOW relative to the")
+out("                  END increase on purpose, same reasoning as the")
+out("                  Wellroot's own VIT 60->70 nudge: staying vulnerable to")
+out("                  a Collapse-then-vitality-chip fight rather than just")
+out("                  getting uniformly tankier, so Severance-style play")
+out("                  still matters against it)")
+out("  moveRange 5 -> 6, attackPower 38 -> 54 (+42%, matching the END ratio)")
+out("  swarmSize [3,5] -> [4,6] (uncontrolled multiplication is the whole pitch)")
+
+if recon_ok:
+    splitfang_hits = collapse_trace("Splitfang", "Act III parent, for comparison", 70, 70, 45)
+    bramble_hits = collapse_trace("The Bramble", "proposed, House Amaranth Mission 26", 98, 80, 45)
+    out()
+    out("Escalation check, same 45/hit test attack (this project's own standard")
+    out("test-attack value, matching the Gallcyst/Sporethrower/Crawlmass checks")
+    out("above) against parent vs. descendant:")
+    out(f"  Splitfang    : {splitfang_hits} hits to kill")
+    out(f"  The Bramble  : {bramble_hits} hits to kill")
+    gate_ok_bramble = bramble_hits > splitfang_hits
+    out(f"  GATE: Bramble strictly tougher than its own Splitfang parent -- {'PASS' if gate_ok_bramble else 'FAIL'}")
+    out()
+    out("Output side (does it hit harder than its parent, not just survive")
+    out("longer): attackPower 38 -> 54 is a direct engine-read value, no formula")
+    out("needed -- 54 > 38, so yes. Sanity-checked against the mission harness,")
+    out("not just this idealized 1v1 math: see Mission 26's own build-log")
+    out("addendum for the real sim-tuning numbers once the mission is built.")
+else:
+    out("SKIPPED -- reconstruction check above failed, not trusting new numbers yet.")
+
 out()
 out("=" * 74)
 out("DONE. Full trace above; RECONSTRUCTION CHECK section is the load-bearing")

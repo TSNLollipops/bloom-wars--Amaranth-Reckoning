@@ -20,6 +20,7 @@
 // of placeholder numbers").
 import { pairKey } from "./npcBonds";
 import type { Catalyst } from "./ambientLines";
+import { HOUSE_AMARANTH_NPC_SEED } from "./npcSeedHouseAmaranth";
 
 // Placeholder catalyst/state picks for the three seeded Rec Room NPCs —
 // not a locked content decision, just enough to prove the state-driven
@@ -102,6 +103,13 @@ const ALL_CATALYSTS: Catalyst[] = ["wolf", "dog", "cat", "crow", "raven", "bear"
 export function catalystForPilot(pilotId: string): Catalyst {
   const seeded = NPC_SEED.find((s) => s.pilotId === pilotId);
   if (seeded) return seeded.catalyst;
+  // House Amaranth's own hand-picked cast (data/npcSeedHouseAmaranth.ts) —
+  // a second, separate seed list, not merged into NPC_SEED itself (see
+  // that file's own header for why: NPC_SEED is also Hub.ts's live Rec
+  // Room NPC *position* seed, which House Amaranth has no Hub scene to
+  // populate yet).
+  const houseAmaranthSeeded = HOUSE_AMARANTH_NPC_SEED.find((s) => s.pilotId === pilotId);
+  if (houseAmaranthSeeded) return houseAmaranthSeeded.catalyst;
   // Simple deterministic string hash (djb2-ish) — not cryptographic, just
   // stable and spread out enough that adjacent recruit ids (pilot_recruit_1,
   // pilot_recruit_2, ...) don't all land on the same catalyst.

@@ -84,24 +84,50 @@ describe("worstNeed", () => {
   });
 
   it("every NeedKind round-trips through NEED_ROOM to a real room", () => {
-    const kinds: NeedKind[] = ["hunger", "thirst", "sleep"];
-    for (const k of kinds) expect(["berths", "recroom"]).toContain(NEED_ROOM[k]);
+    const kinds: NeedKind[] = ["hunger", "thirst", "sleep", "boredom"];
+    for (const k of kinds) expect(["berths", "recroom", "sparRoom"]).toContain(NEED_ROOM[k]);
     expect(NEED_ROOM.sleep).toBe("berths");
     expect(NEED_ROOM.hunger).toBe("recroom");
     expect(NEED_ROOM.thirst).toBe("recroom");
+    expect(NEED_ROOM.boredom).toBe("sparRoom");
+  });
+});
+
+describe("worstNeed — boredom (30 Aug 2026, Maxime: \"boredom should trigger spar\")", () => {
+  it("omitted boredom (the Mek homeRoom / pickNeedsFlavorLine call shape) behaves exactly as the original 3-argument function — never a candidate", () => {
+    expect(worstNeed(100, 100, 100)).toBeUndefined();
+    expect(worstNeed(10, 100, 100)).toBe("hunger");
+  });
+
+  it("a low boredom alongside three fine meters is picked, same as any other low meter", () => {
+    expect(worstNeed(100, 100, 100, 10)).toBe("boredom");
+  });
+
+  it("boredom competes on magnitude with the other three, not picked just because it's passed", () => {
+    expect(worstNeed(5, 100, 100, 50)).toBe("hunger"); // hunger lower than boredom
+    expect(worstNeed(50, 100, 100, 5)).toBe("boredom"); // boredom lower than hunger
+  });
+
+  it("boredom at/above threshold is not a candidate, same strict-below rule as the other three", () => {
+    expect(worstNeed(100, 100, 100, NEEDS_LOW_THRESHOLD)).toBeUndefined();
   });
 });
 
 describe("NEEDS_FLAVOR_BANK", () => {
-  it("has exactly two lines per need, and a valid fear/sadness echo tag", () => {
-    const kinds: NeedKind[] = ["hunger", "thirst", "sleep"];
+  it("has exactly two lines per need, and a valid echo tag", () => {
+    // boredom (30 Aug 2026) deliberately uses "anger", not fear/sadness like
+    // the original three — see its own entry's comment (needsCounter.ts):
+    // restless/pent-up energy, not the low-energy register the other three
+    // read as.
+    const kinds: NeedKind[] = ["hunger", "thirst", "sleep", "boredom"];
     for (const k of kinds) {
       const entry = NEEDS_FLAVOR_BANK[k];
       expect(entry.lines).toHaveLength(2);
-      expect(["fear", "sadness"]).toContain(entry.echo);
+      expect(["fear", "sadness", "anger"]).toContain(entry.echo);
       for (const line of entry.lines) {
         expect(line.length).toBeGreaterThan(0);
       }
     }
+    expect(NEEDS_FLAVOR_BANK.boredom.echo).toBe("anger");
   });
 });
