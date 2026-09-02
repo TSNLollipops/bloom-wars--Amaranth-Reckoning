@@ -49,15 +49,22 @@ import type { Path, Tier } from "./types";
 
 // Canon Pass §D's own 4×7 table, Qiraki_Points_Shop_Catalog.md's Meeps/
 // Tank/Reeps/Munti tiers G through A, copied verbatim (Meeps column
-// follows Trav's own blade-branch progression — the doc notes a
+// follows Marcus Voss's own blade-branch progression — the doc notes a
 // lance-branch fork exists as an alternate flavor set, not used here).
 // Display strings only, same as the doc's own framing — no new stats or
 // slots, just what {LOADOUT} says instead of "Tier X".
 const GEAR_TIER_NAMES: Record<Path, Record<Tier, string>> = {
-  meeps: { G: "Stocklance", F: "Heavylance", E: "Twinlance", D: "Pairblade", C: "Arcblade", B: "Flareblade", A: "Stormblade" },
-  tank: { G: "Blockshield", F: "Wallpanel", E: "Skinshield", D: "Groupshield", C: "Maserline", B: "Tachlance", A: "Bastion" },
-  reeps: { G: "Popgun", F: "Burstrifle", E: "Twinburst", D: "Longeye", C: "Farmark", B: "Twinmark", A: "Skyline" },
-  munti: { G: "Quickfix kit", F: "Longarm", E: "Farfix", D: "Lifebox", C: "Quickbox", B: "Widefix", A: "Overcharge" },
+  // S added 2 Sep 2026 with the Heirloom pass. NOT from the Canon Pass
+  // table above, which only ever ran G-A: an S-tier pilot is carrying an
+  // Heirloom, and that Heirloom's own named frame IS their loadout. A
+  // ninth invented weapon name per path would contradict whichever
+  // Heirloom they're actually holding, so the honest generic says so
+  // instead. A later pass wanting the real name can read it from
+  // data/heirlooms.ts's own per-Heirloom frameFlavor.
+  meeps: { G: "Stocklance", F: "Heavylance", E: "Twinlance", D: "Pairblade", C: "Arcblade", B: "Flareblade", A: "Stormblade", S: "Heirloom frame" },
+  tank: { G: "Blockshield", F: "Wallpanel", E: "Skinshield", D: "Groupshield", C: "Maserline", B: "Tachlance", A: "Bastion", S: "Heirloom frame" },
+  reeps: { G: "Popgun", F: "Burstrifle", E: "Twinburst", D: "Longeye", C: "Farmark", B: "Twinmark", A: "Skyline", S: "Heirloom frame" },
+  munti: { G: "Quickfix kit", F: "Longarm", E: "Farfix", D: "Lifebox", C: "Quickbox", B: "Widefix", A: "Overcharge", S: "Heirloom frame" },
 };
 
 // RIVAL and LOST added 28 Aug 2026 — Recall Item 3 Decision + Spec v1's

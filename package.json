@@ -14,9 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . && node tools/lint-spoiler.mjs",
-    "pretest": "node tools/lint-spoiler.mjs",
-    "prebuild": "node tools/lint-spoiler.mjs"
+    "lint": "eslint . && node tools/lint-spoiler.mjs && node tools/lint-cast-collision.mjs",
+    "pretest": "node tools/lint-spoiler.mjs && node tools/lint-cast-collision.mjs",
+    "prebuild": "node tools/lint-spoiler.mjs && node tools/lint-cast-collision.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

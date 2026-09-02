@@ -50,7 +50,10 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   const backdrop = scene.add
     .rectangle(scene.cameras.main.centerX, scene.cameras.main.centerY, scene.cameras.main.width, scene.cameras.main.height, 0x000000, 0.75)
     .setInteractive();
-  const panel = scene.add.rectangle(480, 300, 380, 320, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
+  // Forgotten Plans Audit, 1 Sep 2026 — grown from 320 to 380 tall (center
+  // shifted 300->310) to fit the new CODEX row below without crowding
+  // CLOSE against the panel's own bottom edge.
+  const panel = scene.add.rectangle(480, 310, 380, 380, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
   const title = scene.add.text(480, 180, "MENU", { fontFamily: "monospace", fontSize: "20px", color: "#e8e2d4" }).setOrigin(0.5);
   layer.add([backdrop, panel, title]);
 
@@ -74,6 +77,16 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   makeShopButton(scene, layer, 480, y, 260, 36, "OPTIONS", true, () => {
     layer.destroy();
     scene.scene.start("Options", { returnScene: scene.scene.key });
+  });
+  y += rowGap;
+
+  // Forgotten Plans Audit, 1 Sep 2026 — the field-manual codex, reachable
+  // from the pause menu (this was the audit's original ask — a link to
+  // HOW_TO_PLAY.html — built out as an in-game codex instead per Maxime's
+  // own call).
+  makeShopButton(scene, layer, 480, y, 260, 36, "CODEX", true, () => {
+    layer.destroy();
+    scene.scene.start("Codex", { returnScene: scene.scene.key });
   });
   y += rowGap;
 

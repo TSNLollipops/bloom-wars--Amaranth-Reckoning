@@ -221,4 +221,32 @@ describe("renderHotTopicLine", () => {
     );
     for (const line of bearLines) expect(crowLines.has(line)).toBe(false);
   });
+
+  // Seventh kind, 2 Sep 2026 (crew-interaction brainstorm pass — the Insult
+  // Tier-2 escalation step). Same shape as the muntiLost/promoted coverage
+  // above, kept as its own small block rather than folded into the
+  // five-kind exhaustive checks above — mekRetired (the sixth kind) was
+  // never folded in there either, same established precedent.
+  it("substitutes {ABOUT} for an insulted topic and leaves no stray {WITH} token", () => {
+    const line = renderHotTopicLine(makeTopic({ kind: "insulted", aboutName: "Bosk" }), "wolf");
+    expect(line).toContain("Bosk");
+    expect(line).not.toContain("{ABOUT}");
+    expect(line).not.toContain("{WITH}");
+  });
+
+  it("returns real, non-empty insulted content for every catalyst", () => {
+    for (const catalyst of ALL_CATALYSTS) {
+      for (let i = 0; i < 10; i++) {
+        const line = renderHotTopicLine(makeTopic({ kind: "insulted", aboutName: "Bosk" }), catalyst);
+        expect(typeof line).toBe("string");
+        expect(line.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("different catalysts draw genuinely different insulted content too", () => {
+    const wolfLines = new Set(Array.from({ length: 20 }, () => renderHotTopicLine(makeTopic({ kind: "insulted", aboutName: "Bosk" }), "wolf")));
+    const sharkLines = new Set(Array.from({ length: 20 }, () => renderHotTopicLine(makeTopic({ kind: "insulted", aboutName: "Bosk" }), "shark")));
+    for (const line of wolfLines) expect(sharkLines.has(line)).toBe(false);
+  });
 });

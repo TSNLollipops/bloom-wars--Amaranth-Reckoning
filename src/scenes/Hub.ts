@@ -114,11 +114,51 @@ import {
   detectHistoryRequest,
   detectHighlightsRequest,
   detectBuildRequest,
+  detectDebriefRequest,
+  detectBriefRequest,
+  mentionsCoByAlias,
+  detectConfideRequest,
+  detectRemovePilotIntent,
+  detectSmallTalk,
+  extractNamedTarget,
   CHAT_FALLBACK_LINES,
   type BuildRequest,
   type KnownUnbuildableId,
   type BuildableBayId,
 } from "../data/chatIntent";
+// Crew-interaction brainstorm pass, 2 Sep 2026 — six new single-target
+// verbs (Gift/Praise/Insult/Apology/Congratulate/Send-Off) plus the CO's
+// two new bespoke lines (Confide, the Tier-3 call-out). See that file's own
+// header for the full provenance; every function/constant below is used
+// exactly once, in this scene's own new handler methods further down.
+import {
+  GIFT_FAVORABILITY_DELTA,
+  pickGiftLine,
+  PRAISE_FAVORABILITY_DELTA,
+  pickPraiseLine,
+  INSULT_FAVORABILITY_DELTA,
+  pickInsultLine,
+  APOLOGY_FAVORABILITY_DELTA,
+  pickApologyLine,
+  INSULT_TIER2_COUNT,
+  INSULT_TIER2_STRESS_BUMP,
+  INSULT_TIER3_COUNT,
+  INSULT_TIER3_FAVORABILITY_CEILING,
+  CONGRATULATE_FAVORABILITY_DELTA,
+  CONGRATULATE_MORALE_DELTA,
+  pickCongratulateLine,
+  SEND_OFF_FAVORABILITY_DELTA,
+  SEND_OFF_STRESS_DELTA,
+  pickSendOffLine,
+  MC_STRESS_DEFAULT,
+  CONFIDE_STRESS_DELTA,
+  pickCoConfideLine,
+  pickCoCalloutLine,
+} from "../data/socialActions";
+// Chat Keyword Categories Plan v1 closing pass, 1 Sep 2026 — see
+// data/smallTalk.ts's own header for the full provenance (three separate
+// 1 Sep content docs) and the two judgment calls made wiring it in.
+import { pickGreetingLine, pickFarewellLine, pickAdviceLine, pickBanterLine, pickCoGreetingLine, pickCoFarewellLine, pickCoAdviceLine } from "../data/smallTalk";
 import { pickCatalystReaction, pickAmbientLineWithBleed, findCatalystClash } from "../data/catalystProfile";
 import { pickSlottedVariant, resolveSlotText, type SlotContext } from "../data/crewBanterSlots";
 import { VERBS, type SocialLogEntry } from "../data/verbs";
@@ -134,6 +174,26 @@ import { UNIT_ARCHETYPES } from "../data/units";
 import { pairKey, findClosestBond, findWorstRival, pointNear, pointAwayFrom, CLIQUE_THRESHOLD, RIVAL_THRESHOLD } from "../data/npcBonds";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
+// Cursor-following hover tip, 2 Sep 2026 — shared with Battle.ts. See
+// scenes/ui/HoverTip.ts (drawing) and engine/hoverTipLayout.ts (placement,
+// unit-tested).
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
+// The Workshop's own second layer, 2 Sep 2026 — see data/carrierModules.ts.
+import { CARRIER_MODULES, LOCKED_MODULES, type CarrierModuleId } from "../data/carrierModules";
+import { purchaseCarrierModule } from "../engine/campaignEconomy";
+import {
+  heirloomHouseVerdicts,
+  heirloomsUnlocked,
+  heirloomPicksRemaining,
+  currentShortlist,
+  recruitHeirloom,
+  aristocracyStanding,
+  returnedHeirlooms,
+  resolveVaultDedication,
+  heirloomState,
+} from "../engine/heirlooms";
+import { HEIRLOOMS, HOUSE_VERDICT_CLAUSES, heirloomRecruitCost, HEIRLOOM_RECRUIT_BUDGET, type HeirloomId } from "../data/heirlooms";
 import { createPegGame, applyMove as applyPegBoardMove, legalMovesForTurn as pegLegalMoves, pickAiMove as pickPegAiMove, type PegGameState, type PegMove } from "../engine/pegBoard";
 import { createHoldemGame, applyHoldemAction, startNextHand as startNextHoldemHand, legalActionsFor as pokerLegalActions, potTotal as pokerPotTotal, pickAiAction as pickPokerAiAction, type HoldemGameState } from "../engine/holdem";
 import type { BettingAction } from "../engine/cardTable/bettingEngine";
@@ -152,6 +212,10 @@ import {
   type Rank,
   type ReservedBayId,
 } from "../engine/campaignState";
+// Calendar economy, 2 Sep 2026 — the Hub is one of the two scenes whose real
+// elapsed time feeds the campaign calendar (Battle.ts is the other). Maxime:
+// "time spent in the hub and time spent on mission run on the same ckock."
+import { tickCalendar, applyVerbDayCost, formatDayLabel, measureRealDelta } from "../engine/calendarClock";
 import { NPC_SEED, NPC_BOND_SEED, catalystForPilot } from "../data/npcSeed";
 // Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven by
 // the real roster) — buildNpcs()'s pilot lookup used to go straight
@@ -621,8 +685,23 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   // stats panel) — this used to say "still lives in the Campaign Shop for
   // now"; it doesn't anymore, see HANGAR_SHOP_POINT/openHangarShop below.
   hangarDeck: "Walk to the terminal and press E to manage roster, gear, and recruiting.",
-  workshop: "Gear, loadout upgrades, carrier modules — still in the Campaign Shop.", // "mek" -> "loadout" 29 Aug 2026, Mek NPC Introduction Plan v1 §1 — the Meks who now live here (below) are the people; this is naming the machine's gear system they'd otherwise be confused with.
-  vault: "Heirloom dedications belong here eventually. Nothing built yet.",
+  // 2 Sep 2026 — this used to read "Gear, loadout upgrades, carrier
+  // modules — still in the Campaign Shop," which is now half stale: the
+  // carrier modules live here for real (WORKSHOP_BENCH_POINT/
+  // buildWorkshopOverlay). Gear and tier purchases genuinely DO still live
+  // at the Hangar Deck console, so that half stays and is now stated as a
+  // direction rather than an apology. ("mek" -> "loadout" 29 Aug 2026, Mek
+  // NPC Introduction Plan v1 §1 — the Meks who live here are the people;
+  // this names the machine's gear system they'd otherwise be confused
+  // with.)
+  workshop: "Walk to the bench and press E for carrier modules. Gear and tiers are at the Hangar Deck console.",
+  // 2 Sep 2026 (Vault Build Plan v1, Phase 1 + 3) — used to say "Heirloom
+  // dedications belong here eventually. Nothing built yet." The dedication
+  // scene itself (Phase 4) is real now too, but it isn't something you walk
+  // up and press E for — checkVaultDedication resolves it on its own and
+  // the plinth surfaces it the moment it has, so this note only ever needs
+  // to describe the one thing you actually DO here at the plinth.
+  vault: "Walk to the plinth and press E for house offers, holdings, and standing.",
   berths: "Recruitment, romance, one-on-one scenes — not wired in yet.",
   cic: "Fire-support config, Energy allocation — not wired in yet.",
   sparRoom: "Where crew work things out with their fists, once there's a real reason to. Nothing wired in yet.",
@@ -774,6 +853,31 @@ const SPAR_ROOM_BOUNDS = { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top
 // "standing with the CO specifically" without either duplicating the
 // literal string or reaching into buildNpcs's own local scope.
 const CO_PILOT_ID = "npc_co";
+
+// Every key this scene asks Phaser to preventDefault, in one place — 2 Sep
+// 2026. This used to be three hand-written string literals (create's
+// addCapture, openChat's removeCapture, closeChat's addCapture) that had
+// already drifted: the last two listed M and R unconditionally while
+// create() only binds them in dev builds, so a production close-chat was
+// capturing two keys nothing reads.
+//
+// Centralised because adding H and L this pass would have drifted it
+// further in a way a player would actually feel: create() would capture
+// them, openChat's literal wouldn't release them, and both letters would
+// have been preventDefault'd straight out of the chat input — typing
+// "hello" would have produced "ello". One source, three call sites, no
+// way for the release to disagree with the capture.
+function hubCaptureKeys(): string {
+  return import.meta.env.DEV ? "W,A,S,D,E,M,R,T,H,L" : "W,A,S,D,E,T,H,L";
+}
+
+// CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. See
+// engine/campaignState.ts's own CampaignState.hasCheckedInWithCo comment
+// and canLaunchMission for the gate this satisfies. Called from every
+// distinct place this file already resolves "the player reached the CO" —
+// ordinary Talk (speak()), a chat build request, and small talk — rather
+// than adding a fourth, separate detection path. Guarded so a save that's
+// already checked in doesn't re-write/re-save on every later visit.
 
 // Mek NPC Introduction Plan v1 §2, 29 Aug 2026 — the Matchset bond value a
 // Mek and their own pilot start seeded at (npcBonds.ts's pairwise bond
@@ -1076,6 +1180,50 @@ const BAY_RADIUS = 60; // how close the player has to be to trigger the E-to-dep
 // sparRoom), so there's nothing else in this zone to collide with.
 const HANGAR_SHOP_POINT = { x: 690, y: 200 };
 const HANGAR_SHOP_RADIUS = 60; // same magnitude as BAY_RADIUS — same "a real console you walk up to" interaction shape
+
+// The Workshop bench, 2 Sep 2026 — Maxime: "finish the workshop add all
+// the module from weapon and dev." Same walk-up-and-press-E console shape
+// as HANGAR_SHOP_POINT above, in the Workshop's own zone this time.
+//
+// What this room is and ISN'T, since the source design gives the Workshop
+// two layers (Bloom_Wars_Antfarm_Carrier_Hub_v1.md §3) and only one of
+// them belongs here: layer one is "gear tier purchases, spare mek parts,
+// mek secondary specializations... at their existing costs" — that's the
+// Campaign Shop, and it is ALREADY reachable in this scene from the
+// Hangar Deck's ROSTER & GEAR console. Putting a second door to the same
+// panel in a second room would be two entrances to one screen, not a
+// finished room. So the bench owns layer TWO, the Carrier Upgrade Modules,
+// which is the half that has never had a home anywhere in the game.
+//
+// ROOM_ZONE_BOUNDS.workshop is the upper deck's own left/full-height
+// column; this sits centred in it, clear of the deck's stairs.
+// x=340 is that column's own centre ((130+550)/2). y=230 keeps a clear
+// 100px from the workshop-to-grotto stair at (480, 130) — comfortably more
+// than WORKSHOP_BENCH_RADIUS + DOOR_RADIUS (105), so a player standing at
+// the bench can never be "at" both at once and get the wrong E action.
+const WORKSHOP_BENCH_POINT = { x: 340, y: 230 };
+const WORKSHOP_BENCH_RADIUS = 60;
+
+// The Vault plinth, 2 Sep 2026 (Bloom_Wars_Vault_Build_Plan_v1.md §2) — same
+// walk-up-and-press-E console shape as HANGAR_SHOP_POINT/WORKSHOP_BENCH_POINT
+// above, third and last of this exact pattern, so this copies their own
+// geometry rather than generalising it, same reasoning drawWorkshopBenchPoint
+// already gives for its own copy-not-refactor call.
+//
+// ROOM_ZONE_BOUNDS.vault is `{ left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right,
+// top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y }` — textually IDENTICAL to
+// ROOM_ZONE_BOUNDS.hangarDeck, which is fine and not a bug: vault (upper
+// deck) and hangarDeck (lower deck) are different decks entirely (ROOM_DECK
+// disagrees on both), so reusing the same local rectangle is just "the same
+// quadrant shape, one floor up" — decks are never rendered at the same time.
+// That means HANGAR_SHOP_POINT's own (690, 200) is already a proven-safe
+// point in this exact quadrant shape (clear of every NPC/decor placement,
+// no door in range — hangarDeck's own comment already notes it has no door
+// of its own, and vault's zone has none either), so this reuses it exactly
+// rather than picking a fresh point and re-deriving the same clearance
+// checks HANGAR_SHOP_POINT already did.
+const VAULT_PLINTH_POINT = { x: 690, y: 200 };
+const VAULT_PLINTH_RADIUS = 60;
 
 // Antfarm Grid v0, 27 Aug 2026 — DOORS used to hold twelve entries, a door
 // between Rec Room and each of the other six rooms. Every one of those is
@@ -1678,6 +1826,13 @@ export class Hub extends Phaser.Scene {
   private keys!: { w: Phaser.Input.Keyboard.Key; a: Phaser.Input.Keyboard.Key; s: Phaser.Input.Keyboard.Key; d: Phaser.Input.Keyboard.Key };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private interactPrompt!: Phaser.GameObjects.Text;
+  // Cursor tip, 2 Sep 2026 — see scenes/ui/HoverTip.ts. Nullable rather
+  // than definite-assigned because updateHoverTip() is reachable from the
+  // update() loop, which can tick before create() finishes on a scene
+  // restart (the same first-tick hazard buildNpcs' own comment describes).
+  private hoverTip: HoverTip | null = null;
+  private pointerX = 0;
+  private pointerY = 0;
   private eKey?: Phaser.Input.Keyboard.Key;
   private mKey?: Phaser.Input.Keyboard.Key; // debug: test muster-call propagation (Build Plan §9 piece #1)
   // 27 Aug 2026 — tracks whether the debug M key's own muster is currently
@@ -1687,7 +1842,11 @@ export class Hub extends Phaser.Scene {
   // has no cancel UI yet either) — see callMuster/endMuster's own headers.
   private musterActive = false;
   private rKey?: Phaser.Input.Keyboard.Key; // debug: test rumor propagation (Build Plan §9 piece #1)
-  private tKey?: Phaser.Input.Keyboard.Key; // piece #3: open the real typed-chat box
+  private tKey?: Phaser.Input.Keyboard.Key;
+  // History / Highlights direct keys, 2 Sep 2026 — see update()'s own
+  // comment. Player-facing, so not dev-gated the way mKey/rKey are.
+  private hKey?: Phaser.Input.Keyboard.Key;
+  private lKey?: Phaser.Input.Keyboard.Key; // piece #3: open the real typed-chat box
   private chatInput!: Phaser.GameObjects.DOMElement;
   private chatOpen = false;
   private npcClickConsumed = false;
@@ -1786,6 +1945,20 @@ export class Hub extends Phaser.Scene {
   // container to be shown/hidden correctly, only to be title/close-button-
   // framed the same way the other overlays are.
   private hangarShopOpen = false;
+  // The Workshop bench panel, 2 Sep 2026 — see buildWorkshopOverlay.
+  private workshopOpen = false;
+  private workshopOverlay!: Phaser.GameObjects.Container;
+  /** Rebuilt-per-render row objects; cleared in renderWorkshop, never accumulated. */
+  private workshopRows: Phaser.GameObjects.GameObject[] = [];
+  private workshopBenchOutline?: Phaser.GameObjects.Graphics;
+  private workshopBenchLabel?: Phaser.GameObjects.Text;
+  // The Vault plinth, 2 Sep 2026 — see buildVaultOverlay.
+  private vaultOpen = false;
+  private vaultOverlay!: Phaser.GameObjects.Container;
+  /** Rebuilt-per-render row objects; cleared in renderVault, never accumulated — same discipline as workshopRows. */
+  private vaultRows: Phaser.GameObjects.GameObject[] = [];
+  private vaultPlinthOutline?: Phaser.GameObjects.Graphics;
+  private vaultPlinthLabel?: Phaser.GameObjects.Text;
   private hangarShopOverlay!: Phaser.GameObjects.Container;
   private hangarShop!: ShopPanel;
   private hangarShopOutline!: Phaser.GameObjects.Graphics;
@@ -1830,6 +2003,16 @@ export class Hub extends Phaser.Scene {
   // fixed once (see roomTitleText's own history).
   private zoneDecor: { room: RoomId; nodes: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] }[] = [];
   private deckIndicatorText!: Phaser.GameObjects.Text;
+  // Calendar economy, 2 Sep 2026 — the "Day 52" HUD readout. Repainted only
+  // on an actual day rollover (tickCalendar returns true on that one frame),
+  // not every frame: at 6 real minutes per day that's one setText call every
+  // ~21,600 frames instead of 60 a second.
+  private calendarDayText!: Phaser.GameObjects.Text;
+  // Calendar economy, 2 Sep 2026 — `Date.now()` at the previous calendar
+  // tick. 0 means "no previous frame to diff against yet". See
+  // calendarClock.ts's measureRealDelta for why this exists rather than
+  // trusting Phaser's own smoothed delta.
+  private lastCalendarTickAt = 0;
   // The egg hull, 27 Aug 2026 — drawRoom()'s single shared rectangle used
   // to be the background for every deck, always visible, never toggled
   // (nothing about it ever differed between rooms before this pass). Now
@@ -1877,7 +2060,12 @@ export class Hub extends Phaser.Scene {
       .text(
         480,
         44,
-        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real.",
+        // 2 Sep 2026 — H/L appended as part of the keybinding pass. Kept to
+        // one added clause rather than rewriting the line: this text is
+        // already at the width that clipped once (see the comment above),
+        // so it earns its space by naming the two panels that had no way
+        // in except typing at the chat box.
+        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real. H = history, L = highlights.",
         {
           fontFamily: "monospace",
           fontSize: "11px",
@@ -1931,6 +2119,22 @@ export class Hub extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
+    // Calendar economy, 2 Sep 2026 — the campaign-day readout, sharing the
+    // top HUD row with the rank line (left, x=16) and THREAT (right-aligned
+    // at x=818). Right-aligned at x=700 puts it clear of both: "THREAT:
+    // DISTANT" at 10px monospace is ~90px wide, so its own left edge sits
+    // near x=728, leaving real gap rather than a near-miss. Deliberately NOT
+    // tucked under the rank line at y=36 — the wide centered instructions
+    // text at y=44 wraps to 900px and would clip it, the same collision the
+    // deckIndicatorText comment just below already documents hitting.
+    this.calendarDayText = this.add
+      .text(700, 20, formatDayLabel(this.campaignState), {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#6b7d8a",
+      })
+      .setOrigin(1, 0.5);
+
     // Antfarm Grid v0, 27 Aug 2026 — set once here, kept live by
     // refreshRoomVisibility below every time the deck actually changes.
     // y=80, not directly under the rank line at y=20/36: the wide centered
@@ -1948,6 +2152,8 @@ export class Hub extends Phaser.Scene {
     this.drawMusterPoint();
     this.drawRecroomTable();
     this.drawHangarShopPoint();
+    this.drawWorkshopBenchPoint();
+    this.drawVaultPlinthPoint();
     this.buildDoors();
     this.buildZoneDecor();
     this.buildReservedBays();
@@ -1957,6 +2163,17 @@ export class Hub extends Phaser.Scene {
     this.refreshRoomVisibility();
 
     this.interactPrompt = this.add.text(480, ROOM_BOUNDS.bottom + 20, "", { fontFamily: "monospace", fontSize: "11px", color: ACCENT }).setOrigin(0.5);
+
+    // Cursor tip, 2 Sep 2026 — the Hub half of the same feature Battle got
+    // this pass (scenes/ui/HoverTip.ts). Built here after interactPrompt so
+    // it sits later in the display list than every room/NPC object created
+    // above; its own high depth handles the overlays built below.
+    this.hoverTip = new HoverTip(this);
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      this.pointerX = p.x;
+      this.pointerY = p.y;
+      this.updateHoverTip();
+    });
 
     const footer = this.add.container(0, 0);
     makeShopButton(this, footer, 90, 604, 140, 32, "BACK TO HANGAR", true, () => this.scene.start("Hangar"));
@@ -1988,8 +2205,14 @@ export class Hub extends Phaser.Scene {
       this.rKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     }
     this.tKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    // H (history) / L (highlights), 2 Sep 2026 — see update()'s own comment
+    // for why these two got direct keys. Not dev-gated: unlike M/R above
+    // these are real player-facing features, just ones that previously had
+    // no way in except typing at the chat box.
+    this.hKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.H);
+    this.lKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.L);
     this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    this.input.keyboard?.addCapture(import.meta.env.DEV ? "W,A,S,D,E,M,R,T" : "W,A,S,D,E,T");
+    this.input.keyboard?.addCapture(hubCaptureKeys());
 
     this.buildChatBox();
     this.buildChatLogPanel();
@@ -1999,6 +2222,8 @@ export class Hub extends Phaser.Scene {
     this.buildHistoryOverlay();
     this.buildHighlightsOverlay();
     this.buildHangarShopOverlay();
+    this.buildWorkshopOverlay();
+    this.buildVaultOverlay();
 
     this.input.on("pointerdown", (_pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
       // Hangar-shop hotfix (30 Aug 2026, Maxime: "still cant interact with
@@ -2057,6 +2282,16 @@ export class Hub extends Phaser.Scene {
       if (door) this.switchRoom(door);
       else if (this.isAtBay()) this.deploy();
       else if (this.isAtHangarShop()) this.openHangarShop();
+      // Workshop bench, 2 Sep 2026 — added to BOTH the click path and the
+      // E-key path, since this file's own rule (see the click handler's
+      // comment) is that the two must never disagree about what the
+      // interact affordance does from a given spot. Can't collide with the
+      // Hangar Deck console above: the two gate on different currentRoomId.
+      else if (this.isAtWorkshopBench()) this.openWorkshop();
+      // The Vault plinth, 2 Sep 2026 — same both-paths rule as the Workshop
+      // bench just above; gates on its own currentRoomId, so it can't
+      // collide with either console above it.
+      else if (this.isAtVaultPlinth()) this.openVault();
       else this.speak();
     });
   }
@@ -2152,9 +2387,11 @@ export class Hub extends Phaser.Scene {
   private openChat() {
     if (this.chatOpen) return;
     this.chatOpen = true;
-    // Same capture list as create()'s addCapture — release it while typing
-    // so none of those letters get preventDefault'd out of the input.
-    this.input.keyboard?.removeCapture("W,A,S,D,E,M,R,T");
+    // Exactly create()'s capture list — release it while typing so none of
+    // those letters get preventDefault'd out of the input. Shared helper
+    // rather than a repeated literal; see hubCaptureKeys' own header for
+    // the bug that motivated it.
+    this.input.keyboard?.removeCapture(hubCaptureKeys());
     const node = this.chatInput.node as HTMLInputElement;
     node.value = "";
     // Set the underlying node's display directly rather than calling
@@ -2178,7 +2415,7 @@ export class Hub extends Phaser.Scene {
     node.value = "";
     node.style.display = "none"; // see openChat's comment — same direct-node reasoning, kept symmetric
     this.chatInput.setVisible(false);
-    this.input.keyboard?.addCapture("W,A,S,D,E,M,R,T");
+    this.input.keyboard?.addCapture(hubCaptureKeys());
   }
 
   // Where a typed message actually becomes something the reaction engine
@@ -2303,6 +2540,70 @@ export class Hub extends Phaser.Scene {
       return;
     }
 
+    // Gift/Praise/Insult/Apology/Congratulate/Send-Off, 2 Sep 2026 — the
+    // crew-interaction brainstorm pass ("add it all they are good"). Same
+    // precedence slot as every real verb above (a genuine request beats
+    // build/debrief/history/highlights/small-talk/the generic shrug), and
+    // deliberately NOT room-gated the way Share a Drink/the minigames/Ask
+    // Out are — nothing about complimenting, insulting, apologizing to, or
+    // sending off a crewmate is tied to one specific room's furniture, so
+    // resolveChatTarget's ordinary deck-wide candidate pool applies exactly
+    // as it already does for Talk/History/Highlights.
+    if (verbId === "gift") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to give that to.");
+        return;
+      }
+      this.giveGift(target);
+      return;
+    }
+    if (verbId === "praise") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to hear that.");
+        return;
+      }
+      this.praiseNpc(target);
+      return;
+    }
+    if (verbId === "insult") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to hear that.");
+        return;
+      }
+      this.insultNpc(target);
+      return;
+    }
+    if (verbId === "apology") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to hear that.");
+        return;
+      }
+      this.apologizeToNpc(target);
+      return;
+    }
+    if (verbId === "congratulate") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to congratulate.");
+        return;
+      }
+      this.congratulateNpc(target);
+      return;
+    }
+    if (verbId === "sendOff") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to ask.");
+        return;
+      }
+      this.sendOffNpc(target);
+      return;
+    }
+
     // Build request — Antfarm build economy, first slice, 27 Aug 2026.
     // Checked in the same slot as the real verbs above (a genuine build
     // request beats both the history/highlights reads and the generic
@@ -2312,14 +2613,93 @@ export class Hub extends Phaser.Scene {
     // next to anyone else gets a clear redirect rather than a silent miss or
     // a fallback shrug, since "who do I even ask" is a real new-player
     // question this design creates.
+    // Every CO-only gate below (build/debrief/brief/confide/remove-pilot)
+    // used to repeat the same three lines — nearestNpcInRange, then check
+    // pilotId !== CO_PILOT_ID — with no way for the player to reach him by
+    // naming him instead of standing next to him. Centralized into
+    // isReachingCo() 2 Sep 2026 (playtest tally item 7 part B) so "aoc,
+    // debrief"/"aoc, brief" get the same treatment here that the six
+    // social-action verbs' own resolveChatTarget already gives a named
+    // target over "nearest" — see that method's own header just below.
     const buildRequest = detectBuildRequest(trimmed);
     if (buildRequest) {
-      const nearby = this.nearestNpcInRange(APPROACH_RADIUS);
-      if (nearby?.pilotId !== CO_PILOT_ID) {
+      if (!this.isReachingCo(trimmed)) {
         this.showFallback("Only the CO signs off on that — find him in the grotto.");
         return;
       }
+      this.markCoCheckedIn(); // CO Check-In Gate Plan v1 — a build request reaches him too
       this.handleBuildRequest(buildRequest);
+      return;
+    }
+
+    // Debrief request — CO-specific, 2 Sep 2026. Same gate shape as the
+    // build request just above, same reason: "who do I even ask" is a real
+    // new-player question, so asking anyone but the CO gets a clear
+    // redirect rather than a silent miss or a generic shrug. First pass
+    // (same day) mapped "brief"/"debrief" onto the generic History request
+    // below instead — Maxime's own correction: this is specifically a CO
+    // ask, not something any NPC answers. See chatIntent.ts's own
+    // DEBRIEF_KEYWORDS header and handleDebriefRequest below for what the
+    // CO actually says. Checked before History so "debrief" can never
+    // double-match there even if a future keyword list drifted — today the
+    // two sets don't overlap at all (chatIntent.ts's own HISTORY_KEYWORDS
+    // no longer includes either word).
+    if (detectDebriefRequest(trimmed)) {
+      if (!this.isReachingCo(trimmed)) {
+        this.showFallback("Ask the CO about that — find him in the grotto.");
+        return;
+      }
+      this.markCoCheckedIn(); // same as a build request reaching him — CO Check-In Gate Plan v1
+      this.handleDebriefRequest();
+      return;
+    }
+
+    // Brief request — CO-specific, 2 Sep 2026, split off from Debrief just
+    // above the same day (playtest tally item 7: "brief does the same
+    // thing as debrief. it should not. brief is before a mission debrief
+    // is after a mission."). Checked right after Debrief for the same
+    // reason Debrief is checked before History — the two keyword sets
+    // don't overlap (chatIntent.ts's own header on this explains why
+    // "debrief" can never double-match BRIEF_KEYWORDS), so order between
+    // them doesn't matter structurally, but keeping them adjacent keeps the
+    // pair readable as one unit. See chatIntent.ts's own BRIEF_KEYWORDS
+    // header and handleBriefRequest below for what the CO actually says.
+    if (detectBriefRequest(trimmed)) {
+      if (!this.isReachingCo(trimmed)) {
+        this.showFallback("Ask the CO about that — find him in the grotto.");
+        return;
+      }
+      this.markCoCheckedIn();
+      this.handleBriefRequest();
+      return;
+    }
+
+    // Confide request — CO-specific, 2 Sep 2026 (Antfarm Carrier Hub v1
+    // §11.3's long-flagged, never-built grotto stress-relief hook). Same
+    // CO-only gate shape as the build/debrief/brief checks just above, same
+    // reason: this is a direct ask of the CO specifically, not something
+    // any nearby NPC can answer.
+    if (detectConfideRequest(trimmed)) {
+      if (!this.isReachingCo(trimmed)) {
+        this.showFallback("That's between you and the CO — find him in the grotto.");
+        return;
+      }
+      this.markCoCheckedIn();
+      this.handleConfideRequest();
+      return;
+    }
+
+    // Remove-pilot request — CO-specific, 2 Sep 2026, the Insult Tier-3
+    // resolution path (Maxime: "wont fly with you, player will have to ask
+    // co to remove them from ship"). Same CO-only gate as Confide just
+    // above.
+    if (detectRemovePilotIntent(trimmed)) {
+      if (!this.isReachingCo(trimmed)) {
+        this.showFallback("That's a call only the CO can make — find him in the grotto.");
+        return;
+      }
+      this.markCoCheckedIn();
+      this.handleRemovePilotRequest(trimmed);
       return;
     }
 
@@ -2356,6 +2736,51 @@ export class Hub extends Phaser.Scene {
         return;
       }
       this.openHighlights(target);
+      return;
+    }
+
+    // Small talk — Chat Keyword Categories Plan v1 closing pass, 1 Sep 2026.
+    // Checked in the same precedence slot as History/Highlights just above
+    // (a specific, actionable read beats both "not open yet" and the
+    // coarse muster/emotion pass interpretPlayerChat runs below) and,
+    // crucially, BEFORE that muster/emotion pass — see chatIntent.ts's own
+    // detectSmallTalk header for the two real keyword collisions ("mission"
+    // inside a worry-checkin phrase, "worried" inside a fear-bucket phrase)
+    // this ordering closes for real, not just in theory.
+    const smallTalk = detectSmallTalk(trimmed);
+    if (smallTalk) {
+      if (this.pegOpen || this.pokerOpen || this.dartsOpen) return; // already mid-game — let that own the screen
+      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      if (!target) {
+        this.showFallback("Nobody's close enough to talk to.");
+        return;
+      }
+      const isCo = target.pilotId === CO_PILOT_ID;
+      if (isCo) this.markCoCheckedIn(); // CO Check-In Gate Plan v1 — small talk reaches him too
+      let line: string;
+      if (smallTalk === "worry_checkin") {
+        // Reuses the same rich, mood/needs/bleed-aware pick every ordinary
+        // Talk already uses — a genuinely worried listener surfaces a
+        // fear-flavored line for free, via the same worried-state priority
+        // pickSoloEcho already applies (data/ambientLines.ts), rather than
+        // this file re-deriving that priority a second time. Not CO-special-
+        // cased: his bespoke bank doesn't cover Worry check-in (see
+        // data/smallTalk.ts's own header), so he falls back to his own
+        // catalyst's read here, same as every other pilot.
+        line = this.pickAmbientLineWithMemory(target).line;
+      } else if (smallTalk === "greeting") {
+        line = isCo ? pickCoGreetingLine() : pickGreetingLine(target.ambient.catalyst);
+      } else if (smallTalk === "farewell") {
+        line = isCo ? pickCoFarewellLine() : pickFarewellLine(target.ambient.catalyst);
+      } else if (smallTalk === "advice") {
+        line = isCo ? pickCoAdviceLine(target.ambient.stress) : pickAdviceLine(target.ambient.catalyst);
+      } else {
+        // banter — the CO has no bespoke joke content (data/smallTalk.ts's
+        // own header), so he falls back to his own catalyst's crew banter
+        // line rather than a silent gap.
+        line = pickBanterLine(target.ambient.catalyst);
+      }
+      this.showBubble(target, line, this.time.now);
       return;
     }
 
@@ -2420,6 +2845,53 @@ export class Hub extends Phaser.Scene {
       }
     }
     return best;
+  }
+
+  // CO reach check, 2 Sep 2026 (playtest tally item 7 part B) — the five
+  // CO-only gates in submitChat (build/debrief/brief/confide/remove-pilot)
+  // used to check pure physical proximity only: whichever NPC is nearest
+  // within APPROACH_RADIUS, with no way for the player to reach the CO by
+  // naming him instead. That's different from resolveChatTarget just below,
+  // which already lets a named target beat "nearest" for the six social
+  // verbs — the CO's own requests never got that same treatment, and even
+  // if they had, extractNamedTarget alone wouldn't have caught "aoc" (see
+  // chatIntent.ts's own CO_ALIASES header). Naming him now resolves the
+  // same way a social-verb target does: scoped to the same deck as the
+  // player (resolveChatTarget's own candidate scope), not literally
+  // "nearest" — but also not full-ship reach. There's no established
+  // precedent yet for radioing the CO from anywhere on the ship, so this
+  // stays consistent with the existing same-deck precedent rather than
+  // inventing a bigger behavior no one asked for.
+  private isReachingCo(raw: string): boolean {
+    const nearby = this.nearestNpcInRange(APPROACH_RADIUS);
+    if (nearby?.pilotId === CO_PILOT_ID) return true;
+    if (!mentionsCoByAlias(raw)) return false;
+    const co = this.npcs.find((n) => n.pilotId === CO_PILOT_ID);
+    return !!co && sameDeck(co.room, this.currentRoomId);
+  }
+
+  // Named-target resolution, 2 Sep 2026 — the six new single-target verbs'
+  // own targeting need (chatIntent.ts's extractNamedTarget header has the
+  // full reasoning: "well done, Bosk" should reach Bosk specifically, not
+  // whoever happens to be standing closest). Tries a name match first,
+  // scoped to the exact same candidate set nearestNpcInRange would have
+  // considered (deck-shared, optionally room-narrowed); falls back to that
+  // same nearest-in-range behavior the instant no name is found, so every
+  // one of these six verbs degrades to the exact behavior every earlier
+  // verb already had rather than introducing a new failure mode.
+  private resolveChatTarget(raw: string, requireRoom?: RoomId): HubNpc | null {
+    const candidates = this.npcs.filter(
+      (npc) => sameDeck(npc.room, this.currentRoomId) && (requireRoom === undefined || npc.room === requireRoom)
+    );
+    const namedId = extractNamedTarget(
+      raw,
+      candidates.map((n) => ({ pilotId: n.pilotId, displayName: n.displayName }))
+    );
+    if (namedId) {
+      const named = candidates.find((n) => n.pilotId === namedId);
+      if (named) return named;
+    }
+    return this.nearestNpcInRange(APPROACH_RADIUS, requireRoom);
   }
 
   // 26 Aug 2026 — the write-back half of ensureHubSocialState (see
@@ -2650,11 +3122,142 @@ export class Hub extends Phaser.Scene {
     // rather than stacking — one duration, refreshed, not extended.
     npc.drunkUntil = Date.now() + DRUNK_DURATION_MS;
     if (def.outcome?.favorabilityDelta) npc.favorability += def.outcome.favorabilityDelta;
+    // Stress & Morale Trigger Proposal, 1 Sep 2026 — this verb's own
+    // stressDelta (see verbs.ts's own comment on why "getting drunk" isn't
+    // a separate trigger here).
+    if (def.outcome?.stressDelta) {
+      npc.ambient = { ...npc.ambient, stress: Math.max(0, Math.min(100, npc.ambient.stress + def.outcome.stressDelta)) };
+    }
     const { line } = this.pickAmbientLineWithMemory(npc);
     this.showBubble(npc, line, this.time.now);
     npc.socialLog = npc.socialLog ?? [];
-    npc.socialLog.push({ verb: "shareADrink", line, at: Date.now() });
+    this.logVerbAndCharge(npc, { verb: "shareADrink", line, at: Date.now() });
     this.persistNpcSocial(npc);
+  }
+
+  // Gift, 2 Sep 2026 — fills the verb-framework slot data/verbs.ts's own
+  // header named and left empty since Phase 2 ("Rec Room Invite, Gift...
+  // wait on content"). No real inventory system exists to pick a SPECIFIC
+  // item from (see data/socialActions.ts's own header) — one generic
+  // gesture, a flat Favorability nudge, a catalyst-flavored reaction.
+  private giveGift(npc: HubNpc) {
+    npc.favorability += GIFT_FAVORABILITY_DELTA;
+    const line = pickGiftLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, this.time.now);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "gift", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Praise, 2 Sep 2026 — Praise/Insult/Apology Proposal v1. Flat
+  // Favorability delta across every catalyst (see socialActions.ts's own
+  // header for why only Insult/Apology get per-catalyst tables).
+  private praiseNpc(npc: HubNpc) {
+    npc.favorability += PRAISE_FAVORABILITY_DELTA;
+    const line = pickPraiseLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, this.time.now);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "praise", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Insult, 2 Sep 2026 — Praise/Insult/Apology Proposal v1 §3, the
+  // escalation ladder. Tier 2 (INSULT_TIER2_COUNT lifetime insults against
+  // this specific pilot) registers a real hot topic and bumps this pilot's
+  // Stress. Tier 3 (INSULT_TIER3_COUNT, with Favorability still at or below
+  // INSULT_TIER3_FAVORABILITY_CEILING — a pilot who's been genuinely
+  // apologized back up doesn't get blindsided) sets refusesDeployment,
+  // which TransporterPad.ts's roster filter reads immediately. Maxime's own
+  // resolution of §3a: "wont fly with you, player will have to ask co to
+  // remove them from ship" — this method only ever sets the flag, never
+  // clears it and never sets CampaignPilotEntry.status itself; only
+  // handleRemovePilotRequest below (a deliberate CO conversation) can
+  // resolve the standoff.
+  private insultNpc(npc: HubNpc) {
+    const delta = INSULT_FAVORABILITY_DELTA[npc.ambient.catalyst];
+    npc.favorability += delta;
+    const social = ensureHubSocialState(this.campaignState, npc.pilotId, {
+      favorability: npc.favorability,
+      stress: npc.ambient.stress,
+      morale: npc.ambient.morale,
+    });
+    social.insultsGiven = (social.insultsGiven ?? 0) + 1;
+    const count = social.insultsGiven;
+    if (count === INSULT_TIER2_COUNT) {
+      this.hotTopics.push({
+        kind: "insulted",
+        aboutPilotId: npc.pilotId,
+        aboutName: npc.displayName.split("—")[0].trim(),
+        at: Date.now(),
+        mentionedBy: [],
+      });
+      npc.ambient = { ...npc.ambient, stress: Math.min(100, npc.ambient.stress + INSULT_TIER2_STRESS_BUMP) };
+    }
+    if (count >= INSULT_TIER3_COUNT && npc.favorability <= INSULT_TIER3_FAVORABILITY_CEILING && !social.refusesDeployment) {
+      social.refusesDeployment = true;
+    }
+    const line = pickInsultLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, this.time.now);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "insult", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Apology, 2 Sep 2026 — Praise/Insult/Apology Proposal v1. Raises
+  // Favorability by a catalyst-flavored amount (see socialActions.ts's
+  // APOLOGY_FAVORABILITY_DELTA header for the per-catalyst forgiveness
+  // reasoning) but deliberately never touches insultsGiven or
+  // refusesDeployment — repairing standing isn't the same as the insults
+  // never having happened, and once Tier 3 is actually reached, Apology
+  // alone can never resolve it (see insultNpc's own comment).
+  private apologizeToNpc(npc: HubNpc) {
+    const delta = APOLOGY_FAVORABILITY_DELTA[npc.ambient.catalyst];
+    npc.favorability += delta;
+    const line = pickApologyLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, this.time.now);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "apology", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Congratulate, 2 Sep 2026 — the hot-topic-attendance half of this pass
+  // ("let the player actually respond to news instead of only overhearing
+  // it"). Only pays out against a real, still-live "promoted" HotTopic
+  // about THIS specific pilot — otherwise this could be farmed for free
+  // Favorability/Morale by saying the phrase to anyone at any time. The
+  // muntiLost half (condolences) is deliberately not built — see
+  // socialActions.ts's own header for why.
+  private congratulateNpc(npc: HubNpc) {
+    const topic = this.hotTopics.find((t) => t.kind === "promoted" && t.aboutPilotId === npc.pilotId);
+    if (!topic) {
+      this.showBubble(npc, "Congrats for what?", this.time.now);
+      return;
+    }
+    npc.favorability += CONGRATULATE_FAVORABILITY_DELTA;
+    npc.ambient = { ...npc.ambient, morale: Math.min(100, npc.ambient.morale + CONGRATULATE_MORALE_DELTA) };
+    const line = pickCongratulateLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, this.time.now);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "congratulate", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Send-Off, 2 Sep 2026 — the pre-mission ritual. Hub-side payoff only
+  // this pass (Favorability + real Stress relief, same mechanism Share a
+  // Drink already uses); the real in-Battle tactical bonus is deliberately
+  // deferred pending a genuine combat_sim.py tuning pass — see
+  // CampaignState.preMissionSendOff's own comment. That field is set here,
+  // unconsumed, so the future pass has something real to read.
+  private sendOffNpc(npc: HubNpc) {
+    npc.favorability += SEND_OFF_FAVORABILITY_DELTA;
+    npc.ambient = { ...npc.ambient, stress: Math.max(0, npc.ambient.stress + SEND_OFF_STRESS_DELTA) };
+    const line = pickSendOffLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, this.time.now);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "sendOff", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+    this.campaignState.preMissionSendOff = { pilotId: npc.pilotId, grantedAt: Date.now() };
+    saveCampaignState(this.campaignState);
   }
 
   // Phase 3 piece two, 26 Aug 2026 — Ask Out. All the actual deciding
@@ -2683,7 +3286,7 @@ export class Hub extends Phaser.Scene {
       const line = CLOSE_FRIEND_ONLY_LINES[Math.floor(Math.random() * CLOSE_FRIEND_ONLY_LINES.length)];
       this.showBubble(npc, line, now);
       npc.socialLog = npc.socialLog ?? [];
-      npc.socialLog.push({ verb: "askOut", line, at: Date.now() });
+      this.logVerbAndCharge(npc, { verb: "askOut", line, at: Date.now() });
       this.persistNpcSocial(npc);
       return;
     }
@@ -2691,10 +3294,17 @@ export class Hub extends Phaser.Scene {
     npc.favorability += outcome.favorabilityDelta;
     if (outcome.result === "accepted") {
       npc.inRelationship = true;
+      // Stress & Morale Trigger Proposal, 1 Sep 2026 — "Ask Out accepted ->
+      // Morale gain." Proposed symmetric for both parties, but the asker
+      // (the player/MC) has no walkable, ambient-tracked social state of
+      // her own in this scene (verbs.ts's own header: "Actor isn't
+      // modeled... always the MC") — applied to the accepting NPC only,
+      // same honest scope limit the rejection branch below hits too.
+      npc.ambient = { ...npc.ambient, morale: Math.max(0, Math.min(100, npc.ambient.morale + 10)) };
       const line = pickLineForMessage(npc.ambient, { kind: "emotion", echo: "love" });
       this.showBubble(npc, line, now);
       npc.socialLog = npc.socialLog ?? [];
-      npc.socialLog.push({ verb: "askOut", line, at: Date.now() });
+      this.logVerbAndCharge(npc, { verb: "askOut", line, at: Date.now() });
       this.persistNpcSocial(npc);
       // Hot topics, first slice, 27 Aug 2026 — a new player-NPC
       // relationship is exactly the kind of news the rest of the crew
@@ -2714,10 +3324,16 @@ export class Hub extends Phaser.Scene {
 
     // Rejected — the direct reaction happens on her, right now, in her own
     // voice (sadness reads as a wistful decline better than anger here).
+    // Stress & Morale Trigger Proposal, 1 Sep 2026 — the proposal's own
+    // "small Stress tick for the asker only" is NOT applied here on
+    // purpose: the asker is the player/MC, who has no walkable, ambient-
+    // tracked Stress of her own in this scene (same gap the accepted
+    // branch above flags). Not silently dropped — a real follow-up once
+    // the player's own social state has somewhere to live.
     const rejectLine = pickLineForMessage(npc.ambient, { kind: "emotion", echo: "sadness" });
     this.showBubble(npc, rejectLine, now);
     npc.socialLog = npc.socialLog ?? [];
-    npc.socialLog.push({ verb: "askOut", line: rejectLine, at: Date.now() });
+    this.logVerbAndCharge(npc, { verb: "askOut", line: rejectLine, at: Date.now() });
     this.persistNpcSocial(npc);
 
     // Then, separately, word starts moving — same shape as startRumor()'s
@@ -2806,6 +3422,114 @@ export class Hub extends Phaser.Scene {
     this.showBubble(co, `Approved. ${bayName}, logged and building.`, now);
   }
 
+  // Debrief request — CO-specific, 2 Sep 2026. Reuses the exact mission-
+  // echo content already built for the ambient hot-topics system
+  // (checkMissionEcho above/HOT_TOPIC_LINES' own missionWin/missionLoss
+  // banks) rather than writing new CO-bespoke lines — Maxime's own "for
+  // now" scoping this pass to a CO-only redirect, not new content.
+  // Deliberately independent of that ambient system's own one-shot
+  // `announced` flag and HOT_TOPIC_SPEAK_CHANCE roll: those two gate
+  // whether some RANDOM nearby NPC happens to bring the outcome up
+  // unprompted, which has nothing to do with the player walking up and
+  // asking the CO directly — asking should always get a real answer, never
+  // silently miss because some other NPC already gossiped about it once,
+  // or because this roll happened to miss.
+  private handleDebriefRequest() {
+    const co = this.npcs.find((n) => n.pilotId === CO_PILOT_ID);
+    if (!co) return; // shouldn't happen — the CO exists the moment buildNpcs() runs
+    const now = this.time.now;
+    const echo = this.campaignState.lastMissionEcho;
+    if (!echo) {
+      this.showBubble(co, "Nothing to report yet — you haven't flown a mission.", now);
+      return;
+    }
+    // Same HotTopic shape checkMissionEcho itself constructs (kind derived
+    // from echo.outcome, aboutPilotId holding the mission's own id as a
+    // sentinel — see hotTopics.ts's own header for why a mission-outcome
+    // topic still needs one). Built fresh here rather than reused from
+    // this.hotTopics: this is a direct, deliberate ask, not gossip pulled
+    // from the shared ambient pool, so it doesn't consume or depend on
+    // whatever's sitting in that array.
+    const topic: HotTopic = {
+      kind: echo.outcome === "win" ? "missionWin" : "missionLoss",
+      aboutPilotId: echo.missionId,
+      aboutName: "",
+      at: Date.now(),
+      mentionedBy: [],
+    };
+    const line = renderHotTopicLine(topic, co.ambient.catalyst);
+    this.showBubble(co, line, now);
+  }
+
+  // Brief request — CO-specific, 2 Sep 2026, split off from Debrief just
+  // above (playtest tally item 7: brief is PRE-mission, debrief is POST-
+  // mission, and they used to be the same request). Deliberately minimal
+  // for now, matching Debrief's own original "for now" scoping rather than
+  // Debrief's actual approach of reusing real content — there's no
+  // pre-mission equivalent of the mission-echo lines to reuse here. This is
+  // an honest placeholder, not a real briefing: no read of MapSelect's
+  // mission list, no per-mission objective content. Flagged rather than
+  // built blind, since either of those would be new scope of its own —
+  // see the playtest tally's own item 7 for the options this was weighed
+  // against.
+  private handleBriefRequest() {
+    const co = this.npcs.find((n) => n.pilotId === CO_PILOT_ID);
+    if (!co) return; // shouldn't happen — the CO exists the moment buildNpcs() runs
+    const now = this.time.now;
+    this.showBubble(co, "No formal briefing drawn up yet — check the mission board for what's on offer.", now);
+  }
+
+  // Confide, 2 Sep 2026 — Antfarm Carrier Hub v1 §11.3's long-flagged grotto
+  // stress-relief hook, finally content-backed. The first real slice of the
+  // MC (player character) having their own persisted state at all — see
+  // CampaignState.mcStress's own comment for the full gap this closes.
+  // Deliberately minimal: one number, moved by one interaction, no UI yet
+  // reading it back — just enough for this one interaction to mean
+  // something rather than being pure flavor.
+  private handleConfideRequest() {
+    const co = this.npcs.find((n) => n.pilotId === CO_PILOT_ID);
+    if (!co) return; // shouldn't happen — the CO exists the moment buildNpcs() runs
+    const now = this.time.now;
+    const before = this.campaignState.mcStress ?? MC_STRESS_DEFAULT;
+    this.campaignState.mcStress = Math.max(0, before + CONFIDE_STRESS_DELTA);
+    saveCampaignState(this.campaignState);
+    this.showBubble(co, pickCoConfideLine(), now);
+  }
+
+  // Remove-pilot, 2 Sep 2026 — the Insult Tier-3 resolution, and the only
+  // way that standoff ever ends. Maxime's own words: "wont fly with you,
+  // player will have to ask co to remove them from ship." Sets
+  // CampaignPilotEntry.status to "reassigned" (never "permanently_lost" —
+  // this pilot is alive and fine, just off this ship) and drops them out of
+  // this.npcs so they stop appearing in the Hub. Named targeting
+  // (extractNamedTarget) disambiguates when more than one pilot is
+  // currently in the standoff; with exactly one, no name is required.
+  private handleRemovePilotRequest(raw: string) {
+    const co = this.npcs.find((n) => n.pilotId === CO_PILOT_ID);
+    if (!co) return; // shouldn't happen — the CO exists the moment buildNpcs() runs
+    const now = this.time.now;
+    const flagged = Object.values(this.campaignState.pilots).filter((e) => e.status === "active" && e.social?.refusesDeployment);
+    if (flagged.length === 0) {
+      this.showBubble(co, "I don't have anyone that needs reassigning right now.", now);
+      return;
+    }
+    const namedId = extractNamedTarget(
+      raw,
+      flagged.map((e) => ({ pilotId: e.pilot.id, displayName: e.pilot.displayName }))
+    );
+    const target = namedId ? this.campaignState.pilots[namedId] : flagged.length === 1 ? flagged[0] : undefined;
+    if (!target) {
+      this.showBubble(co, "Who, specifically? I've got more than one pilot in that state right now.", now);
+      return;
+    }
+    target.status = "reassigned";
+    saveCampaignState(this.campaignState);
+    const name = target.pilot.displayName.split("—")[0].trim();
+    const npcIndex = this.npcs.findIndex((n) => n.pilotId === target.pilot.id);
+    if (npcIndex !== -1) this.npcs.splice(npcIndex, 1);
+    this.showBubble(co, `Done. ${name}'s reassigned off the ship, effective now. Hope it was worth it.`, now);
+  }
+
   // --- Social history view — Hub polish, 26 Aug 2026 --------------------
   // Read-only, no engine state of its own — every socialLog entry already
   // existed and was already persisted (campaignState.ts section 11); this
@@ -2813,6 +3537,412 @@ export class Hub extends Phaser.Scene {
   // convention as the three minigame overlays, then shown/hidden and
   // re-rendered on open — but with no per-frame update loop of its own,
   // since nothing here animates or accepts input beyond the close button.
+  // The Workshop bench panel, 2 Sep 2026 — Carrier Upgrade Modules.
+  // Same container/bg/close-button shape as buildHistoryOverlay below,
+  // deliberately: this scene already has a settled idiom for "a panel that
+  // owns the screen until Esc," and a new room is not a reason to invent a
+  // second one. The one structural difference is that the rows here are
+  // interactive (each buyable module is a click target), so unlike the
+  // history panel's single text object the rows are rebuilt on each render
+  // rather than written once — a purchase changes what every other row can
+  // afford, so there is no partial redraw that would be correct.
+  private buildWorkshopOverlay() {
+    this.workshopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    const bg = this.add
+      .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
+      .setStrokeStyle(1, PANEL_BORDER);
+    this.workshopOverlay.add(bg);
+
+    const closeBtn = this.add
+      .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerdown", () => this.closeWorkshop());
+    this.workshopOverlay.add(closeBtn);
+  }
+
+  private openWorkshop() {
+    this.workshopOpen = true;
+    this.workshopOverlay.setVisible(true);
+    this.renderWorkshop();
+  }
+
+  private closeWorkshop() {
+    this.workshopOpen = false;
+    this.workshopOverlay.setVisible(false);
+  }
+
+  /**
+   * Rebuild the module list. Called on open and after every purchase.
+   *
+   * Rows are destroyed and recreated wholesale rather than updated in
+   * place — the list is at most seven rows, and a purchase changes the
+   * affordability of every OTHER row, so a targeted update would have to
+   * touch nearly all of them anyway. `workshopRows` is the accumulate-once
+   * pool that gets cleared here; see Battle.ts's actionSlots for the same
+   * discipline and the bug that taught it.
+   */
+  private renderWorkshop() {
+    for (const obj of this.workshopRows) obj.destroy();
+    this.workshopRows = [];
+
+    const owned = this.campaignState.builtModules ?? [];
+    const points = this.campaignState.points;
+    const add = (obj: Phaser.GameObjects.GameObject) => {
+      this.workshopOverlay.add(obj);
+      this.workshopRows.push(obj);
+    };
+
+    add(
+      this.add
+        .text(480, ROOM_BOUNDS.top + 22, "THE WORKSHOP — CARRIER UPGRADE MODULES", { fontFamily: "monospace", fontSize: "13px", color: TEXT_MAIN })
+        .setOrigin(0.5, 0),
+    );
+    add(
+      this.add
+        .text(480, ROOM_BOUNDS.top + 44, `Company points: ${points}    (gear, tiers and spare parts are at the Hangar Deck console)`, {
+          fontFamily: "monospace",
+          fontSize: "11px",
+          color: TEXT_DIM,
+        })
+        .setOrigin(0.5, 0),
+    );
+
+    let y = ROOM_BOUNDS.top + 78;
+    for (const id of Object.keys(CARRIER_MODULES) as CarrierModuleId[]) {
+      const def = CARRIER_MODULES[id];
+      const isOwned = owned.includes(id);
+      const affordable = points >= def.cost;
+      // Three states, three colours: installed (dim green, done), buyable
+      // (full white, clickable), too expensive (grey, deliberately still
+      // shown so the player can see what they're saving toward).
+      const color = isOwned ? "#7aa87a" : affordable ? TEXT_MAIN : "#5a6572";
+      const suffix = isOwned ? "INSTALLED" : `${def.cost} pts`;
+      const row = this.add
+        .text(200, y, `${def.displayName}  —  ${suffix}`, { fontFamily: "monospace", fontSize: "12px", color })
+        .setOrigin(0, 0);
+      if (!isOwned && affordable) {
+        row.setInteractive({ useHandCursor: true });
+        row.on("pointerdown", () => this.buyCarrierModule(id));
+      }
+      add(row);
+      add(
+        this.add
+          .text(212, y + 16, def.effect, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 520 } })
+          .setOrigin(0, 0),
+      );
+      y += 52;
+    }
+
+    // The designed-but-unsellable four. Shown rather than hidden so the
+    // room reads as "four of these are waiting on something" instead of
+    // silently pretending the design is only three modules long — and each
+    // carries its real reason, not a generic "coming soon."
+    y += 10;
+    add(
+      this.add
+        .text(200, y, "NOT YET AVAILABLE", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM }).setOrigin(0, 0),
+    );
+    y += 20;
+    for (const locked of LOCKED_MODULES) {
+      add(
+        this.add
+          .text(212, y, `${locked.displayName} — ${locked.reason}`, { fontFamily: "monospace", fontSize: "10px", color: "#5a6572", wordWrap: { width: 520 } })
+          .setOrigin(0, 0),
+      );
+      y += 18;
+    }
+  }
+
+  /**
+   * Buy a module, then redraw. All the actual rules live in
+   * engine/campaignEconomy.ts's purchaseCarrierModule — this scene only
+   * reports the outcome, the same division every other purchase path in
+   * this file keeps (see handleBuildRequest, which is the closest
+   * comparable: company pool, permanent, CO-voiced).
+   */
+  private buyCarrierModule(id: CarrierModuleId) {
+    const result = purchaseCarrierModule(this.campaignState, id);
+    if (!result.ok) {
+      this.showFallback(result.reason ?? "That can't be installed right now.");
+      return;
+    }
+    saveCampaignState(this.campaignState);
+    this.renderWorkshop();
+  }
+
+  // --- The Vault — Phase 1 (the counter) + Phase 3 (the wall), 2 Sep 2026 -
+  // Vault_Build_Plan_v1.md. Same container/bg/close-button construction as
+  // buildWorkshopOverlay above; renderVault follows renderWorkshop's own
+  // "destroy and rebuild every row, don't update in place" discipline for
+  // the same reason (a recruit changes the shortlist, the house standing,
+  // AND the holdings list all at once — a targeted update would touch
+  // nearly everything anyway).
+  //
+  // Phase 2 (the shelf — fielding, ability ranks) is deliberately NOT here.
+  // Locked in the build plan: the ~30 Heirloom combat abilities don't fire
+  // in combat yet, so a shop for ranking them up would read as broken
+  // rather than finished. That's real, tracked scope, not an oversight.
+  private buildVaultOverlay() {
+    this.vaultOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    const bg = this.add
+      .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
+      .setStrokeStyle(1, PANEL_BORDER);
+    this.vaultOverlay.add(bg);
+
+    const closeBtn = this.add
+      .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerdown", () => this.closeVault());
+    this.vaultOverlay.add(closeBtn);
+  }
+
+  private openVault() {
+    this.vaultOpen = true;
+    this.vaultOverlay.setVisible(true);
+    this.renderVault();
+  }
+
+  private closeVault() {
+    this.vaultOpen = false;
+    this.vaultOverlay.setVisible(false);
+  }
+
+  /**
+   * The dedication scene's own hand-authored text (Vault_Build_Plan_v1
+   * Phase 4 — "hand-authored with named slots," not procedural). Three
+   * variants, picked by resolveVaultDedication's own already-resolved
+   * choice (state.vaultDedication.fallenId), never re-derived here: this
+   * function only ever renders a decision that was already made and
+   * stored, same read-only relationship every other render* function in
+   * this class has to campaign state.
+   */
+  private vaultDedicationText(fallenId: string | undefined): string {
+    if (!fallenId) {
+      return (
+        'Everyone walks off the Fallow Line. Gjallar stays where it has always been — with Bosk, cased, unsounded.\n\n' +
+        "Some campaigns don't get a Requiem. This one, so far, doesn't need one."
+      );
+    }
+    if (fallenId === "pilot_bosk") {
+      return (
+        "Gjallar doesn't make a sound until Bosk goes down covering the gate. Then it does. Once. The kind of quiet after that you don't come back from clean.\n\n" +
+        "Anvil never explained a thing twice. He's not here to say it a third time, so I'm keeping the weapon and the habit both."
+      );
+    }
+    const entry = this.campaignState.pilots[fallenId];
+    const name = entry ? entry.pilot.displayName.split("—")[0].trim() : "one of ours";
+    return (
+      `${name} doesn't make it out of the Fallow Line. Bosk does. Somebody still has to carry what Gjallar means, and nobody in this company argues when it lands on me instead of him.\n\n` +
+      "I didn't expect to be the one holding it. I am now."
+    );
+  }
+
+  /**
+   * Rebuild the Vault panel. Called on open and after every recruit — same
+   * wholesale-rebuild discipline renderWorkshop already documents on its
+   * own, for the same reason: a recruit changes the shortlist, the
+   * standing, AND the holdings list all in one action.
+   */
+  private renderVault() {
+    for (const obj of this.vaultRows) obj.destroy();
+    this.vaultRows = [];
+    const add = (obj: Phaser.GameObjects.GameObject) => {
+      this.vaultOverlay.add(obj);
+      this.vaultRows.push(obj);
+    };
+
+    const state = this.campaignState;
+    let y = ROOM_BOUNDS.top + 22;
+    add(
+      this.add
+        .text(480, y, "THE VAULT — HOUSE OFFERS & STANDING", { fontFamily: "monospace", fontSize: "13px", color: TEXT_MAIN })
+        .setOrigin(0.5, 0),
+    );
+    y += 24;
+
+    // The dedication, Phase 4 — guaranteed, not probabilistic (see
+    // checkVaultDedication's own header comment on why this can't be a
+    // hotTopics roll). Shown every time the Vault is opened once resolved,
+    // same permanent-memorial framing a plaque gets; the ONLY thing `seen`
+    // changes is the header, so the first look reads as a real moment and
+    // every later look reads as what's already on record. Marked seen
+    // AFTER being built into a row here, never before — same "don't mark
+    // it seen before it's actually shown" discipline ackRankGreeting
+    // already follows elsewhere in this class.
+    const dedication = state.vaultDedication;
+    if (dedication) {
+      const header = dedication.seen ? "THE FALLOW LINE — IN MEMORIAM" : "THE FALLOW LINE";
+      add(
+        this.add
+          .text(200, y, header, { fontFamily: "monospace", fontSize: "12px", color: "#d7b46a" })
+          .setOrigin(0, 0),
+      );
+      y += 18;
+      add(
+        this.add
+          .text(200, y, this.vaultDedicationText(dedication.fallenId), {
+            fontFamily: "monospace",
+            fontSize: "11px",
+            color: TEXT_MAIN,
+            wordWrap: { width: 560 },
+            lineSpacing: 4,
+          })
+          .setOrigin(0, 0),
+      );
+      y += dedication.fallenId ? 78 : 62;
+      if (!dedication.seen) {
+        dedication.seen = true;
+        saveCampaignState(state);
+      }
+      y += 12;
+    }
+
+    // Section A — the counter (Phase 1). Three states: Act I lockout, an
+    // open shortlist, or the 3-pick budget already spent.
+    add(
+      this.add
+        .text(200, y, "HOUSE OFFERS", { fontFamily: "monospace", fontSize: "12px", color: "#d7b46a" })
+        .setOrigin(0, 0),
+    );
+    y += 18;
+    if (!heirloomsUnlocked(state)) {
+      add(
+        this.add
+          .text(212, y, "No house is offering yet. Heirloom candidates appear from Act II onward.", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM, wordWrap: { width: 540 } })
+          .setOrigin(0, 0),
+      );
+      y += 30;
+    } else {
+      const picksLeft = heirloomPicksRemaining(state);
+      const standing = aristocracyStanding(state);
+      add(
+        this.add
+          .text(212, y, `Company points: ${state.points}    Picks remaining: ${picksLeft}/${HEIRLOOM_RECRUIT_BUDGET}`, { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
+          .setOrigin(0, 0),
+      );
+      y += 20;
+      if (picksLeft <= 0) {
+        add(
+          this.add
+            .text(212, y, "Warden Company has taken on all three Heirloom pilots this campaign.", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM, wordWrap: { width: 540 } })
+            .setOrigin(0, 0),
+        );
+        y += 26;
+      } else {
+        const rung = (HEIRLOOM_RECRUIT_BUDGET - picksLeft) + standing.costSteps;
+        const cost = heirloomRecruitCost(rung);
+        const shortlist = currentShortlist(state);
+        if (shortlist.length === 0) {
+          add(
+            this.add
+              .text(212, y, "No house has a name to put forward right now.", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM, wordWrap: { width: 540 } })
+              .setOrigin(0, 0),
+          );
+          y += 26;
+        }
+        for (const heirloomId of shortlist) {
+          const def = HEIRLOOMS[heirloomId];
+          const affordable = cost !== undefined && state.points >= cost;
+          const color = affordable ? TEXT_MAIN : "#5a6572";
+          const title = def.epithet ? `${def.displayName}, ${def.epithet}` : def.displayName;
+          const row = this.add
+            .text(212, y, `${title} — ${def.pilot?.displayName ?? "?"}, House ${def.pilot?.house ?? "?"}  —  ${cost ?? "—"} pts`, { fontFamily: "monospace", fontSize: "12px", color })
+            .setOrigin(0, 0);
+          if (affordable) {
+            row.setInteractive({ useHandCursor: true });
+            row.on("pointerdown", () => this.recruitFromVault(heirloomId));
+          }
+          add(row);
+          add(
+            this.add
+              .text(224, y + 16, def.pilot?.hook ?? "", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 500 } })
+              .setOrigin(0, 0),
+          );
+          y += 44;
+        }
+      }
+    }
+
+    y += 8;
+
+    // Section C — the wall (Phase 3). What's actually with the company,
+    // what's gone home, and why — the grievance system's only visible
+    // surface anywhere in the game.
+    add(
+      this.add
+        .text(200, y, "HOLDINGS & HOUSE STANDING", { fontFamily: "monospace", fontSize: "12px", color: "#d7b46a" })
+        .setOrigin(0, 0),
+    );
+    y += 18;
+
+    const hs = heirloomState(state);
+    const homeSet = new Set(returnedHeirlooms(state));
+    const held = hs.recruited.filter((id) => !homeSet.has(id));
+    if (held.length === 0) {
+      add(
+        this.add
+          .text(212, y, "Nothing in the company's keeping yet.", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
+          .setOrigin(0, 0),
+      );
+      y += 20;
+    } else {
+      for (const heirloomId of held) {
+        const def = HEIRLOOMS[heirloomId];
+        const holderId = hs.assignedPilotId[heirloomId];
+        const holderEntry = holderId ? state.pilots[holderId] : undefined;
+        const holderName = holderEntry ? holderEntry.pilot.displayName.split("—")[0].trim() : "unassigned";
+        add(
+          this.add
+            .text(212, y, `${def.displayName} — carried by ${holderName}`, { fontFamily: "monospace", fontSize: "11px", color: TEXT_MAIN })
+            .setOrigin(0, 0),
+        );
+        y += 18;
+      }
+    }
+
+    y += 6;
+    const verdicts = aristocracyStanding(state).verdicts;
+    if (verdicts.length > 0) {
+      add(
+        this.add
+          .text(212, y, "RETURNED HOME", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
+          .setOrigin(0, 0),
+      );
+      y += 16;
+      for (const v of verdicts) {
+        const def = HEIRLOOMS[v.heirloomId];
+        const clause = HOUSE_VERDICT_CLAUSES[v.verdict];
+        const line = `${def?.displayName ?? v.heirloomId} — House ${v.house}, ${v.pilotName.split("—")[0].trim()}. ${clause}.`;
+        add(
+          this.add
+            .text(224, y, line, { fontFamily: "monospace", fontSize: "10px", color: v.verdict === "estranged" ? "#c17a6a" : TEXT_DIM, wordWrap: { width: 500 } })
+            .setOrigin(0, 0),
+        );
+        y += 30;
+      }
+    }
+  }
+
+  /**
+   * Recruit off the current shortlist, then redraw. All the actual rules
+   * live in engine/heirlooms.ts's recruitHeirloom (path resolution
+   * included — an "Any"-path Heirloom silently takes HEIRLOOM_DEFAULT_PATH
+   * when nothing more specific is asked for, so this scene doesn't need its
+   * own path-picker for v1); this scene only reports the outcome, same
+   * division buyCarrierModule keeps just above.
+   */
+  private recruitFromVault(heirloomId: HeirloomId) {
+    const result = recruitHeirloom(this.campaignState, heirloomId);
+    if (!result.ok) {
+      this.showFallback(result.reason ?? "That house isn't dealing with Warden Company right now.");
+      return;
+    }
+    saveCampaignState(this.campaignState);
+    this.renderVault();
+  }
+
   private buildHistoryOverlay() {
     this.historyOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
 
@@ -3243,9 +4373,18 @@ export class Hub extends Phaser.Scene {
 
     const delta = humanWon ? 6 : draw ? 2 : -2;
     npc.favorability += delta;
+    // Stress & Morale Trigger Proposal, 1 Sep 2026 — "minigame win -> small
+    // Morale gain, loss -> small Stress tick," resolving that proposal's
+    // own open question in favor of a real (small) cost on a loss, same
+    // shape as the Favorability swing right above it.
+    npc.ambient = {
+      ...npc.ambient,
+      morale: Math.max(0, Math.min(100, npc.ambient.morale + (humanWon ? 4 : draw ? 1 : 0))),
+      stress: Math.max(0, Math.min(100, npc.ambient.stress + (humanWon || draw ? 0 : 2))),
+    };
     const { line } = this.pickAmbientLineWithMemory(npc);
     npc.socialLog = npc.socialLog ?? [];
-    npc.socialLog.push({ verb: "pegBoard", line, at: Date.now() });
+    this.logVerbAndCharge(npc, { verb: "pegBoard", line, at: Date.now() });
     this.persistNpcSocial(npc);
 
     this.time.delayedCall(1800, () => {
@@ -3481,9 +4620,18 @@ export class Hub extends Phaser.Scene {
 
     const delta = humanWon ? 6 : -3;
     npc.favorability += delta;
+    // Stress & Morale Trigger Proposal, 1 Sep 2026 — same reasoning as the
+    // peg board's own comment, wider swing to match this sitting's wider
+    // Favorability delta right above (+6/-3 rather than the peg board's
+    // +6/+2/-2).
+    npc.ambient = {
+      ...npc.ambient,
+      morale: Math.max(0, Math.min(100, npc.ambient.morale + (humanWon ? 5 : 0))),
+      stress: Math.max(0, Math.min(100, npc.ambient.stress + (humanWon ? 0 : 3))),
+    };
     const { line } = this.pickAmbientLineWithMemory(npc);
     npc.socialLog = npc.socialLog ?? [];
-    npc.socialLog.push({ verb: "poker", line, at: Date.now() });
+    this.logVerbAndCharge(npc, { verb: "poker", line, at: Date.now() });
     this.persistNpcSocial(npc);
 
     this.time.delayedCall(1800, () => {
@@ -3794,9 +4942,18 @@ export class Hub extends Phaser.Scene {
 
     const delta = humanWon ? 6 : draw ? 2 : -2;
     npc.favorability += delta;
+    // Stress & Morale Trigger Proposal, 1 Sep 2026 — reuses the peg board's
+    // own +4/+1/stress-tick shape, same reasoning this delta right above
+    // already reuses the peg board's Favorability swing instead of Poker's
+    // wider one (a darts round is a quick game, not a multi-hand sitting).
+    npc.ambient = {
+      ...npc.ambient,
+      morale: Math.max(0, Math.min(100, npc.ambient.morale + (humanWon ? 4 : draw ? 1 : 0))),
+      stress: Math.max(0, Math.min(100, npc.ambient.stress + (humanWon || draw ? 0 : 2))),
+    };
     const { line } = this.pickAmbientLineWithMemory(npc);
     npc.socialLog = npc.socialLog ?? [];
-    npc.socialLog.push({ verb: "fletchers", line, at: Date.now() });
+    this.logVerbAndCharge(npc, { verb: "fletchers", line, at: Date.now() });
     this.persistNpcSocial(npc);
 
     this.time.delayedCall(1800, () => {
@@ -4085,6 +5242,60 @@ export class Hub extends Phaser.Scene {
     this.hangarShopOutline = g;
     this.hangarShopLabel = this.add
       .text(HANGAR_SHOP_POINT.x, HANGAR_SHOP_POINT.y, "ROSTER\n& GEAR", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a", align: "center" })
+      .setOrigin(0.5);
+  }
+
+  // 2 Sep 2026 — the Workshop bench, same dashed-outline treatment
+  // drawMusterPoint/drawHangarShopPoint above already established for
+  // "a real console you walk up to." Third use of this shape, so the
+  // geometry is copied deliberately rather than generalised: the two
+  // existing ones differ only in position and label, and a shared helper
+  // would be a refactor of already-shipped drawing code this pass has no
+  // other reason to touch.
+  private drawWorkshopBenchPoint() {
+    const w = 90;
+    const h = 46;
+    const x = WORKSHOP_BENCH_POINT.x - w / 2;
+    const y = WORKSHOP_BENCH_POINT.y - h / 2;
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x6b7d8a, 0.7);
+    const dash = 6;
+    for (let dx = 0; dx < w; dx += dash * 2) {
+      g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+      g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+    }
+    for (let dy = 0; dy < h; dy += dash * 2) {
+      g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+      g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+    }
+    this.workshopBenchOutline = g;
+    this.workshopBenchLabel = this.add
+      .text(WORKSHOP_BENCH_POINT.x, WORKSHOP_BENCH_POINT.y, "CARRIER\nMODULES", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a", align: "center" })
+      .setOrigin(0.5);
+  }
+
+  // The Vault plinth, 2 Sep 2026 — fourth use of the dashed-outline "walk-up
+  // console" shape; same copy-not-refactor call drawWorkshopBenchPoint's own
+  // comment already makes.
+  private drawVaultPlinthPoint() {
+    const w = 90;
+    const h = 46;
+    const x = VAULT_PLINTH_POINT.x - w / 2;
+    const y = VAULT_PLINTH_POINT.y - h / 2;
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x6b7d8a, 0.7);
+    const dash = 6;
+    for (let dx = 0; dx < w; dx += dash * 2) {
+      g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+      g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+    }
+    for (let dy = 0; dy < h; dy += dash * 2) {
+      g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+      g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+    }
+    this.vaultPlinthOutline = g;
+    this.vaultPlinthLabel = this.add
+      .text(VAULT_PLINTH_POINT.x, VAULT_PLINTH_POINT.y, "THE\nVAULT", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a", align: "center" })
       .setOrigin(0.5);
   }
 
@@ -4863,6 +6074,8 @@ export class Hub extends Phaser.Scene {
     this.checkMuntiLoss();
     this.checkMissionEcho();
     this.checkMekRetirement();
+    this.checkHeirloomRecall();
+    this.checkVaultDedication();
   }
 
   // Munti-loss hot topic, 27 Aug 2026 (roadmap #13). Deliberately NOT shaped
@@ -4990,6 +6203,67 @@ export class Hub extends Phaser.Scene {
     }
   }
 
+  // Heirloom recall hot topic, 2 Sep 2026. Same one-shot, full-roster-scan
+  // shape as checkMekRetirement above, for the same kind of event: a thing
+  // that happens off-screen the instant a pilot is permanently lost, and
+  // that nothing else in the game would ever tell the player about.
+  //
+  // Before this, a recall happened in total silence — fieldHeirloom simply
+  // started refusing and the button greyed out. That is the moment the
+  // arrangement shows its teeth (the company never owned the weapon, it
+  // borrowed one through somebody's child), so it is worth a beat.
+  //
+  // Driven off heirloomHouseVerdicts rather than off returnedHeirlooms:
+  // that reader already skips a holder who left without dying (a
+  // reassignment is not a grievance) and already resolves how the family
+  // took it, so this method never has to know the scoring rules. What it
+  // does know is that a verdict exists, which is exactly the condition for
+  // there being something to gossip about.
+  private checkHeirloomRecall() {
+    for (const verdict of heirloomHouseVerdicts(this.campaignState)) {
+      const entry = this.campaignState.pilots[verdict.pilotId];
+      if (!entry) continue;
+      const social = ensureHubSocialState(this.campaignState, verdict.pilotId, { favorability: 0, stress: 0, morale: 0 });
+      if (social.heirloomRecallAnnounced) continue;
+      social.heirloomRecallAnnounced = true;
+      // Saved immediately, same reasoning as checkMuntiLoss and
+      // checkMekRetirement above: ambient gossip, not a one-on-one reveal.
+      saveCampaignState(this.campaignState);
+      this.hotTopics.push({
+        kind: "heirloomRecalled",
+        aboutPilotId: verdict.pilotId,
+        aboutName: entry.pilot.displayName.split("—")[0].trim(),
+        houseName: verdict.house,
+        heirloomName: HEIRLOOMS[verdict.heirloomId]?.displayName ?? "the heirloom",
+        verdictClause: HOUSE_VERDICT_CLAUSES[verdict.verdict],
+        at: Date.now(),
+        mentionedBy: [],
+      });
+    }
+  }
+
+  // Mission 12's Vault scene, 2 Sep 2026 (Vault Build Plan v1, Decision 3 —
+  // one-shot check for EA). Deliberately NOT shaped like the hot-topic
+  // checks just above (checkMuntiLoss/checkMissionEcho/checkMekRetirement/
+  // checkHeirloomRecall): this scene is written up as "load-bearing, not
+  // skippable" (Antfarm Carrier Hub §8), and this.hotTopics is a
+  // probabilistic ~60%-chance-per-NPC surface — genuinely fine for ambient
+  // gossip, wrong for the one scene the design explicitly won't let be
+  // missed. So this only resolves state (all the real logic lives in
+  // resolveVaultDedication, same engine/scene split every other function in
+  // this class keeps); GUARANTEED delivery is renderVault()'s job, which
+  // shows the dedication panel every time the Vault is opened until the
+  // player has actually seen it once (state.vaultDedication.seen).
+  private checkVaultDedication() {
+    const result = resolveVaultDedication(this.campaignState);
+    if (!result) return;
+    // Saved immediately, same instinct as every other one-shot flip in this
+    // class — the resolution itself (who's memorialised, whether Gjallar
+    // transferred) must never be re-rolled by a reload before the player's
+    // even seen the Vault.
+    saveCampaignState(this.campaignState);
+  }
+
   private buildPlayer() {
     // Derived from the real WARDEN_PILOTS record rather than hardcoded —
     // caught in review, 25 Aug 2026: an earlier draft hardcoded "DR" here
@@ -5003,7 +6277,148 @@ export class Hub extends Phaser.Scene {
     this.player = this.add.container(this.playerX, this.playerY, [circle, label]);
   }
 
+  /** Calendar economy, 2 Sep 2026 — repaint the HUD day readout. Guarded because a day can roll over while a scene teardown is in flight. */
+  private refreshCalendarReadout(): void {
+    if (!this.calendarDayText || !this.calendarDayText.scene) return;
+    this.calendarDayText.setText(formatDayLabel(this.campaignState));
+  }
+
+  /**
+   * Calendar economy, 2 Sep 2026 — the single choke point where a resolved
+   * verb both lands in the social log and pays its calendar cost.
+   *
+   * Every `npc.socialLog.push(...)` in this scene routes through here rather
+   * than each verb charging itself at its own call site. That's the whole
+   * point: there are 13 push sites and only 6 of them cost anything today,
+   * so a per-site approach would mean the next person adding a verb has to
+   * notice an invisible obligation and remember to meet it. Routing the log
+   * write itself means a new verb is charged correctly by construction — and
+   * since VERB_DAY_COST is a full Record<VerbId, number>, adding a VerbId
+   * without pricing it is already a compile error. Free verbs no-op.
+   */
+  /**
+   * The NPC under the pointer, if any (2 Sep 2026).
+   *
+   * Deliberately NOT Phaser's own `currentlyOver` hit-testing, which the
+   * pointerdown handler above already uses: those circles are only
+   * interactive while their room is visible AND they're not mid-minigame,
+   * and several are re-`setInteractive()`d in three different places. A
+   * plain distance check against the NPCs on the visible deck is both
+   * simpler and immune to that; the tip is read-only, so it doesn't need
+   * to agree with the click system about what's clickable.
+   */
+  private hoveredNpc(): HubNpc | null {
+    const deck = ROOM_DECK[this.currentRoomId];
+    let best: HubNpc | null = null;
+    let bestD = NPC_R + 6;
+    for (const npc of this.npcs) {
+      if (ROOM_DECK[npc.room] !== deck) continue;
+      const d = Phaser.Math.Distance.Between(this.pointerX, this.pointerY, npc.x, npc.y);
+      if (d < bestD) {
+        bestD = d;
+        best = npc;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Lines for the cursor tip (2 Sep 2026). An NPC under the pointer gets a
+   * crew card; anything else gets the room the pointer is over.
+   *
+   * Everything here is already visible somewhere in this scene (the fav
+   * label over each NPC, the room note text, the chat log's own state
+   * lines) — the tip's job is putting it under the cursor instead of
+   * making the player go find it. Nothing is computed that wasn't already
+   * being computed, so this can't drift from what the sim actually thinks.
+   */
+  private hubHoverLines(): string[] {
+    const npc = this.hoveredNpc();
+    if (npc) {
+      const out: string[] = [];
+      const archetype = UNIT_ARCHETYPES[WARDEN_PILOTS.find((p) => p.id === npc.pilotId)?.archetypeId ?? ""];
+      out.push(npc.displayName);
+      if (archetype?.path) out.push(`${archetype.path}${npc.pilotId === CO_PILOT_ID ? " — commanding officer" : ""}`);
+      out.push(`Favor ${Math.round(npc.favorability)}`);
+      // Stress and morale are the two numbers the whole social sim turns
+      // on, and until now a player could only infer them from what an NPC
+      // happened to say. Worded, not bare, because "Stress 74" means
+      // nothing without knowing 70 is the panic threshold.
+      const stress = Math.round(npc.ambient.stress);
+      const morale = Math.round(npc.ambient.morale);
+      out.push(`Stress ${stress}${stress >= 70 ? " — at breaking point" : stress >= 45 ? " — strained" : ""}`);
+      out.push(`Morale ${morale}${morale <= 30 ? " — low" : morale >= 70 ? " — good" : ""}`);
+      if (npc.ambient.drunk) out.push("Drunk");
+      if (npc.ambient.worried) out.push("Worried about someone on mission");
+      if (npc.inRelationship) out.push("In a relationship");
+      if (npc.targetX !== undefined) out.push("(walking)");
+      return out;
+    }
+
+    // Nothing under the cursor: name the room it's over, and what that room
+    // is actually for. ROOM_NOTES is the same honest "not built yet" text
+    // the centre of the screen already shows, so an unbuilt room reads the
+    // same way here as it does there rather than promising anything.
+    const deck = ROOM_DECK[this.currentRoomId];
+    const roomId = zoneAt(deck, this.pointerX, this.pointerY);
+    const out = [ROOM_TITLES[roomId]];
+    const note = ROOM_NOTES[roomId];
+    if (note) out.push(...wrapTipText(note, 44));
+    return out;
+  }
+
+  /**
+   * Is a full-screen overlay currently up? Collected here rather than
+   * inlined so the tip can't fall out of sync as overlays are added — the
+   * seven booleans below are this scene's own complete set (each declared
+   * beside its own build*Overlay method).
+   */
+  private anyOverlayOpen(): boolean {
+    return this.chatOpen || this.pegOpen || this.pokerOpen || this.dartsOpen || this.historyOpen || this.highlightsOpen || this.hangarShopOpen || this.workshopOpen;
+  }
+
+  /** Push the current hover content into the cursor tip, or hide it. */
+  private updateHoverTip(): void {
+    if (!this.hoverTip) return;
+    // Any overlay open (chat, a minigame, the shop) owns the screen — a tip
+    // about whatever is underneath it would be pointing at something the
+    // player can't currently interact with.
+    if (this.anyOverlayOpen()) {
+      this.hoverTip.hide();
+      return;
+    }
+    this.hoverTip.show(this.hubHoverLines(), this.pointerX, this.pointerY);
+  }
+
+  private logVerbAndCharge(npc: HubNpc, entry: SocialLogEntry): void {
+    // Optional-chained because HubNpc.socialLog is optional (an NPC built
+    // before ensureHubSocialState ran has none). The calendar charge sits
+    // OUTSIDE that condition on purpose: the verb happened either way, and
+    // whether this NPC keeps a written record of it has nothing to do with
+    // whether time passed.
+    npc.socialLog?.push(entry);
+    if (applyVerbDayCost(this.campaignState, entry.verb)) this.refreshCalendarReadout();
+  }
+
   update(_time: number, delta: number) {
+    // Calendar economy, 2 Sep 2026 — first, and unconditional for the same
+    // reason as everything below it, but the reason matters more here than
+    // anywhere else on this list. Maxime's model is "the calandar run when
+    // you play. no matter what you do" — an ambient day/night cycle, not a
+    // meter that only moves while the player is doing something the game
+    // considers productive. Time spent sitting in the peg board overlay is
+    // still time spent aboard, so the clock keeps running behind every
+    // overlay gate below rather than freezing whenever one owns input.
+    //
+    // Deliberately NOT using Phaser's own `delta` above: it's smoothed and
+    // clamped, and live browser testing measured the Hub crediting only ~41%
+    // of real elapsed time on heavy frames because of it. See
+    // calendarClock.ts's measureRealDelta for the full account.
+    {
+      const measured = measureRealDelta(this.lastCalendarTickAt, Date.now());
+      this.lastCalendarTickAt = measured.at;
+      if (tickCalendar(this.campaignState, measured.deltaMs)) this.refreshCalendarReadout();
+    }
     // Cheap, unconditional, independent of whatever overlay (if any) owns
     // input this frame — a drunk NPC's clock should keep running even
     // while, say, the peg board is open, not stall until it closes.
@@ -5117,6 +6532,22 @@ export class Hub extends Phaser.Scene {
       return;
     }
 
+    // Same shape again — the Workshop bench panel owns input entirely
+    // while open (its rows are their own click targets), 2 Sep 2026.
+    if (this.workshopOpen) {
+      this.updateBubbles();
+      if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closeWorkshop();
+      return;
+    }
+
+    // Same shape again — the Vault overlay owns input entirely while open,
+    // 2 Sep 2026.
+    if (this.vaultOpen) {
+      this.updateBubbles();
+      if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closeVault();
+      return;
+    }
+
     this.handleMovement(delta);
     this.updateNpcMovement(delta);
     this.updateNpcRoaming(this.time.now);
@@ -5129,6 +6560,15 @@ export class Hub extends Phaser.Scene {
       if (door) this.switchRoom(door);
       else if (this.isAtBay()) this.deploy();
       else if (this.isAtHangarShop()) this.openHangarShop();
+      // Workshop bench, 2 Sep 2026 — added to BOTH the click path and the
+      // E-key path, since this file's own rule (see the click handler's
+      // comment) is that the two must never disagree about what the
+      // interact affordance does from a given spot. Can't collide with the
+      // Hangar Deck console above: the two gate on different currentRoomId.
+      else if (this.isAtWorkshopBench()) this.openWorkshop();
+      // The Vault plinth, 2 Sep 2026 — same both-paths rule noted at the
+      // click handler above.
+      else if (this.isAtVaultPlinth()) this.openVault();
       else this.speak();
     }
     if (this.mKey && Phaser.Input.Keyboard.JustDown(this.mKey)) {
@@ -5145,6 +6585,35 @@ export class Hub extends Phaser.Scene {
     }
     if (this.rKey && Phaser.Input.Keyboard.JustDown(this.rKey)) this.startRumor();
     if (this.tKey && Phaser.Input.Keyboard.JustDown(this.tKey)) this.openChat();
+    // History / Highlights hotkeys, 2 Sep 2026 (Maxime: "add some natural
+    // keybinding for the majority of action"). Until now these two panels
+    // were reachable ONLY by opening the chat box and typing a phrase
+    // detectHistoryRequest/detectHighlightsRequest happens to match —
+    // three deliberate steps for a read-only panel, and no way to discover
+    // either one exists. The chat path stays exactly as it is (it's how an
+    // NPC-directed request reads in fiction); this is the direct route.
+    //
+    // Both go through the same nearestNpcInRange(APPROACH_RADIUS) the chat
+    // handlers use, so "who does this open" is one rule, not two, and both
+    // give the same honest miss message when nobody's close enough.
+    if (this.hKey && Phaser.Input.Keyboard.JustDown(this.hKey)) this.openNearestPanel("history");
+    if (this.lKey && Phaser.Input.Keyboard.JustDown(this.lKey)) this.openNearestPanel("highlights");
+  }
+
+  /**
+   * Shared body of the H / L hotkeys above — same target rule and same
+   * overlay guard the chat-typed versions apply, in one place rather than
+   * copied twice.
+   */
+  private openNearestPanel(which: "history" | "highlights"): void {
+    if (this.anyOverlayOpen()) return;
+    const target = this.nearestNpcInRange(APPROACH_RADIUS);
+    if (!target) {
+      this.showFallback("Nobody's close enough to ask about.");
+      return;
+    }
+    if (which === "history") this.openHistory(target);
+    else this.openHighlights(target);
   }
 
   private handleMovement(delta: number) {
@@ -6088,7 +7557,18 @@ export class Hub extends Phaser.Scene {
 
     const pilotA: SocialSimPilot = { pilotId: npcA.pilotId, displayName: npcA.displayName.split("—")[0].trim(), catalyst: npcA.ambient.catalyst, stage: npcA.ambient.stage };
     const pilotB: SocialSimPilot = { pilotId: npcB.pilotId, displayName: npcB.displayName.split("—")[0].trim(), catalyst: npcB.ambient.catalyst, stage: npcB.ambient.stage };
-    const result = simulateEncounter({ pilotA, pilotB, bond, aCommitted, bCommitted, rng: Math.random });
+    // minigamesEligible, 2 Sep 2026 — real bug, not hypothetical: this
+    // caller is only ever reached for a same-DECK pair (updateNpcEncounters'
+    // own sameDeck check), and recroom/hangarDeck/berths all share the
+    // "lower" deck with no wall at the seam (ROOM_DECK above). Without this,
+    // socialSim.ts's pickEncounterKind could — and did — roll pegBoard/
+    // poker/fletchers for a pair idling in Hangar Deck or Berths, narrating
+    // a bubble about a poker game neither NPC was anywhere near. Checking
+    // both actual rooms, not just sameDeck, mirrors the requireRoom fix
+    // Tier 2 already applied to the player-triggered version of this same
+    // verb set (nearestNpcInRange's own requireRoom param, above).
+    const minigamesEligible = npcA.room === "recroom" && npcB.room === "recroom";
+    const result = simulateEncounter({ pilotA, pilotB, bond, aCommitted, bCommitted, minigamesEligible, rng: Math.random });
 
     this.npcSocial.bonds[key] = bond + result.bondDelta;
     if (result.becameCouple) {
@@ -6453,6 +7933,8 @@ export class Hub extends Phaser.Scene {
     if (door) this.interactPrompt.setText(`E — enter ${door.label}`);
     else if (this.isAtBay()) this.interactPrompt.setText("E — deploy");
     else if (this.isAtHangarShop()) this.interactPrompt.setText("E — roster & gear");
+    else if (this.isAtWorkshopBench()) this.interactPrompt.setText("E — carrier modules");
+    else if (this.isAtVaultPlinth()) this.interactPrompt.setText("E — the vault");
     else this.interactPrompt.setText(anyoneInRange ? "E — talk" : "");
   }
 
@@ -6463,6 +7945,14 @@ export class Hub extends Phaser.Scene {
   // but actually USING it needs the player standing at it specifically).
   private isAtHangarShop(): boolean {
     return this.currentRoomId === "hangarDeck" && Phaser.Math.Distance.Between(this.playerX, this.playerY, HANGAR_SHOP_POINT.x, HANGAR_SHOP_POINT.y) <= HANGAR_SHOP_RADIUS;
+  }
+
+  private isAtWorkshopBench(): boolean {
+    return this.currentRoomId === "workshop" && Phaser.Math.Distance.Between(this.playerX, this.playerY, WORKSHOP_BENCH_POINT.x, WORKSHOP_BENCH_POINT.y) <= WORKSHOP_BENCH_RADIUS;
+  }
+
+  private isAtVaultPlinth(): boolean {
+    return this.currentRoomId === "vault" && Phaser.Math.Distance.Between(this.playerX, this.playerY, VAULT_PLINTH_POINT.x, VAULT_PLINTH_POINT.y) <= VAULT_PLINTH_RADIUS;
   }
 
   private isAtBay(): boolean {
@@ -6578,6 +8068,20 @@ export class Hub extends Phaser.Scene {
     // bay/shop markers just above.
     this.recroomTableOutline.setVisible(onLowerDeck);
     this.recroomTableLabel.setVisible(onLowerDeck);
+    // The Workshop bench, 2 Sep 2026 — upper deck, same whole-deck
+    // visibility / exact-room usability split as every marker above.
+    // Optional-chained because drawWorkshopBenchPoint runs in create()
+    // alongside the others but these two fields are declared optional
+    // (the marker is new this pass and nothing else depends on it
+    // existing), so a partially-constructed scene can't throw here.
+    const onUpperDeck = sameDeck("workshop", this.currentRoomId);
+    this.workshopBenchOutline?.setVisible(onUpperDeck);
+    this.workshopBenchLabel?.setVisible(onUpperDeck);
+    // The Vault plinth, 2 Sep 2026 — vault shares the upper deck with
+    // workshop (ROOM_DECK.vault === "upper"), so onUpperDeck already
+    // answers "is this deck showing" for both markers.
+    this.vaultPlinthOutline?.setVisible(onUpperDeck);
+    this.vaultPlinthLabel?.setVisible(onUpperDeck);
 
     const note = ROOM_NOTES[this.currentRoomId];
     const zone = ROOM_ZONE_BOUNDS[this.currentRoomId];
@@ -6642,12 +8146,25 @@ export class Hub extends Phaser.Scene {
   // header for why every other call site — provoke's forced click, the
   // deterministic verbs, propagate's own separate catch-chance — stays
   // untouched).
+  // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Permanent
+  // once set (Maxime: "only once heavy nudge") — see canLaunchMission's own
+  // comment (engine/campaignState.ts) for what this unblocks.
+  private markCoCheckedIn() {
+    if (this.campaignState.hasCheckedInWithCo) return;
+    this.campaignState.hasCheckedInWithCo = true;
+    saveCampaignState(this.campaignState);
+  }
+
   private speak() {
     const now = this.time.now;
     for (const npc of this.npcs) {
       if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist > TALK_RADIUS) continue;
+      // CO Check-In Gate Plan v1 — reaching him via ordinary Talk satisfies
+      // it too, not just chat, regardless of which branch below actually
+      // fires a line.
+      if (npc.pilotId === CO_PILOT_ID) this.markCoCheckedIn();
       // Stage-promotion "graduation" reveal, 27 Aug 2026 — checked before
       // Gate 0, and deliberately bypasses it entirely: this is a one-time,
       // narratively real beat (the whole point is that a promotion is
@@ -6688,6 +8205,29 @@ export class Hub extends Phaser.Scene {
         npc.pendingRankGreeting = undefined;
         this.ackRankGreeting(npc);
         continue;
+      }
+      // CO Tier-3 call-out, 2 Sep 2026 — same Gate-0-bypassing, guaranteed-
+      // to-surface treatment as the two reveals just above, for the same
+      // reason: this is a real, one-time story beat (the CO confronting the
+      // player about a pilot who refuses to fly with them), not ordinary
+      // ambient chatter. Fires the next time the player talks to the CO
+      // specifically, while at least one pilot is sitting in the Insult
+      // Tier-3 standoff and hasn't been called out about yet — same
+      // one-shot shape muntiLossAnnounced/mekRetirementAnnounced already
+      // use (HubPilotSocialState.coCalloutGiven, engine/campaignState.ts).
+      if (npc.pilotId === CO_PILOT_ID) {
+        const flagged = Object.entries(this.campaignState.pilots).find(
+          ([, e]) => e.status === "active" && e.social?.refusesDeployment && !e.social?.coCalloutGiven
+        );
+        if (flagged) {
+          const [, entry] = flagged;
+          const name = entry.pilot.displayName.split("—")[0].trim();
+          const line = pickCoCalloutLine().replace("{NAME}", name);
+          this.showBubble(npc, line, now);
+          entry.social!.coCalloutGiven = true;
+          saveCampaignState(this.campaignState);
+          continue;
+        }
       }
       // Relationship-stage warm exchange, first slice, 27 Aug 2026 — only
       // for the player's own partner (npc.inRelationship), checked before

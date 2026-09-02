@@ -80,6 +80,23 @@ export interface EncounterInput {
   // elsewhere would actually keep hanging out.
   aCommitted: boolean;
   bCommitted: boolean;
+  // Room-gating the three real minigames, 2 Sep 2026 — a real gap, not a
+  // hypothetical: this file has no concept of physical rooms at all (see
+  // file header, "no live Hub visuals"), so pickEncounterKind was rolling
+  // pegBoard/poker/fletchers for ANY same-room pair Hub.ts's
+  // updateNpcEncounters found — including pairs standing in Hangar Deck or
+  // Berths, since those two share hub.ts's "lower" deck with the actual
+  // Rec Room (sameDeck(), not sameRoom()) with no wall at the seam. The
+  // player-triggered version of this exact bug (typing "let's play poker"
+  // outside the Rec Room) was already fixed 30 Aug 2026 (Tier 2,
+  // nearestNpcInRange's requireRoom) — this ambient/background path was
+  // missed, so a bubble could narrate two NPCs playing poker while neither
+  // was anywhere near the actual table. Optional, defaults to eligible
+  // (`?? true` in pickEncounterKind) so runSocialSim.ts's day-level CLI
+  // harness — which has no rooms to check at all — keeps rolling the full
+  // pool exactly as before; only Hub.ts's live runNpcEncounter passes this
+  // explicitly, computed from both NPCs' actual npc.room === "recroom".
+  minigamesEligible?: boolean;
   rng: () => number;
 }
 
@@ -124,11 +141,24 @@ const KIND_WEIGHTS: { kind: Exclude<EncounterKind, "askOut">; weight: number }[]
   { kind: "fletchers", weight: 0.15 },
 ];
 
-export function pickEncounterKind(input: { eligibleForAskOut: boolean; rng: () => number }): EncounterKind {
+export function pickEncounterKind(input: {
+  eligibleForAskOut: boolean;
+  // See EncounterInput's own comment on the field this threads through —
+  // undefined (every existing caller before 2 Sep 2026) means "eligible,"
+  // same as explicit true, so this is purely additive.
+  minigamesEligible?: boolean;
+  rng: () => number;
+}): EncounterKind {
   if (input.eligibleForAskOut && input.rng() < ASK_OUT_CHANCE) return "askOut";
-  const total = KIND_WEIGHTS.reduce((sum, w) => sum + w.weight, 0);
+  // Not in the actual Rec Room: the three real minigames drop out of the
+  // pool entirely rather than being re-weighted among themselves — a
+  // same-deck pair idling in Hangar Deck or Berths still gets an ordinary
+  // Talk, it just can't roll into "played poker" while standing nowhere
+  // near a poker table.
+  const pool = (input.minigamesEligible ?? true) ? KIND_WEIGHTS : KIND_WEIGHTS.filter((w) => w.kind === "talk");
+  const total = pool.reduce((sum, w) => sum + w.weight, 0);
   let roll = input.rng() * total;
-  for (const { kind, weight } of KIND_WEIGHTS) {
+  for (const { kind, weight } of pool) {
     if (roll < weight) return kind;
     roll -= weight;
   }
@@ -325,7 +355,7 @@ export function resolveAskOutEncounter(input: EncounterInput): EncounterResult {
 
 export function simulateEncounter(input: EncounterInput): EncounterResult {
   const eligibleForAskOut = !input.aCommitted && !input.bCommitted;
-  const kind = pickEncounterKind({ eligibleForAskOut, rng: input.rng });
+  const kind = pickEncounterKind({ eligibleForAskOut, minigamesEligible: input.minigamesEligible, rng: input.rng });
   switch (kind) {
     case "talk":
       return resolveTalkEncounter(input);

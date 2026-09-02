@@ -101,7 +101,7 @@ describe("Mission per-unit performance tracking (the new bookkeeping this pass a
   it("every deployed pilot gets a zeroed entry up front, even one who never acts", () => {
     const mission = new Mission(MISSION_1A);
     for (const pilotId of mission.mission.playerPilotIds) {
-      expect(mission.unitPerformance[pilotId]).toEqual({ damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false });
+      expect(mission.unitPerformance[pilotId]).toEqual({ damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false, damageTaken: 0, abilitiesUsed: {} }); // damageTaken/abilitiesUsed: telemetry pass, 1 Sep 2026
     }
   });
 });
@@ -663,6 +663,43 @@ describe("purchaseWeaponBranch / equipWeaponBranch — the Weapon Branch Point S
     expect(second.ok).toBe(true);
     expect(second.cost).toBe(WEAPON_BRANCH_COSTS[1]);
     expect(state.pilots[reeps].personalPoints).toBe(0);
+  });
+
+  // Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
+  // 1 Sep 2026) — Munti's 2nd branch, same "2nd branch = tier C" shape
+  // the Reeps case above already exercises.
+  it("gates a Munti pilot's 2nd branch (Aegis Ward) at WEAPON_BRANCH_TIER_GATE[1] (C), priced at WEAPON_BRANCH_COSTS[1]", () => {
+    const state = createWardenCampaignState();
+    const munti = "pilot_lask"; // arch_munti, per WARDEN_PILOTS
+    state.pilots[munti].pilot.tier = WEAPON_BRANCH_TIER_GATE[1]; // "C" — enough for the 2nd, not gate-blocked
+    state.pilots[munti].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1];
+    const first = purchaseWeaponBranch(state, munti, "munti_rapid_response");
+    expect(first.ok).toBe(true);
+    const second = purchaseWeaponBranch(state, munti, "munti_aegis_ward");
+    expect(second.ok).toBe(true);
+    expect(second.cost).toBe(WEAPON_BRANCH_COSTS[1]);
+    expect(state.pilots[munti].personalPoints).toBe(0);
+    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_aegis_ward"]);
+  });
+
+  // Field Doctor (Weapon Branch Point System, data/weaponBranches.ts,
+  // 1 Sep 2026) — Munti's 3rd branch, same purchase-order-not-branch-
+  // identity shape as the 2nd-branch cases just above: 3rd branch = tier
+  // B, WEAPON_BRANCH_COSTS[2], regardless of which specific branch it is.
+  it("gates a Munti pilot's 3rd branch (Field Doctor) at WEAPON_BRANCH_TIER_GATE[2] (B), priced at WEAPON_BRANCH_COSTS[2]", () => {
+    const state = createWardenCampaignState();
+    const munti = "pilot_lask"; // arch_munti, per WARDEN_PILOTS
+    state.pilots[munti].pilot.tier = WEAPON_BRANCH_TIER_GATE[2]; // "B" — enough for the 3rd, not gate-blocked
+    state.pilots[munti].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1] + WEAPON_BRANCH_COSTS[2];
+    const first = purchaseWeaponBranch(state, munti, "munti_rapid_response");
+    expect(first.ok).toBe(true);
+    const second = purchaseWeaponBranch(state, munti, "munti_aegis_ward");
+    expect(second.ok).toBe(true);
+    const third = purchaseWeaponBranch(state, munti, "munti_field_doctor");
+    expect(third.ok).toBe(true);
+    expect(third.cost).toBe(WEAPON_BRANCH_COSTS[2]);
+    expect(state.pilots[munti].personalPoints).toBe(0);
+    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor"]);
   });
 
   it("fails cleanly when the pilot can't afford it, leaving ownedWeaponBranches untouched", () => {

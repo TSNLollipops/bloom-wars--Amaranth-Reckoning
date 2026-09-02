@@ -53,11 +53,21 @@ const MUSTER_KEYWORDS = [
   "mission",
 ];
 
+// Reclassified 2 Sep 2026 (crew-interaction brainstorm pass): "well done"
+// (love), "stupid"/"idiot"/"shut up" (anger), and "sorry" (sadness) moved
+// out of these broadcast-emotion buckets and into the new targeted Praise/
+// Insult/Apology verbs below (VERB_REQUEST_KEYWORDS) — those three phrases
+// now mean something more specific and mechanical (a real Favorability
+// delta against a specific NPC, plus Insult's escalation ladder) than a
+// room-wide emotion broadcast, and detectVerbRequest is checked before
+// interpretPlayerChat in Hub.ts's submitChat, so the targeted read always
+// wins now. A deliberate behavior change, not a bug fix — flagged here per
+// this project's own convention rather than left to a diff to discover.
 const EMOTION_KEYWORDS: Record<Echo, string[]> = {
-  anger: ["angry", "mad", "furious", "stupid", "idiot", "shut up", "hate", "damn", "pissed", "screw this"],
+  anger: ["angry", "mad", "furious", "hate", "damn", "pissed", "screw this"],
   fear: ["scared", "afraid", "worried", "worry", "danger", "careful", "nervous", "risky", "watch out"],
-  sadness: ["sad", "sorry", "miss", "lost", "grief", "mourn", "cry", "rough day", "hurts"],
-  love: ["thanks", "thank you", "good job", "proud", "love", "appreciate", "well done", "nice work"],
+  sadness: ["sad", "miss", "lost", "grief", "mourn", "cry", "rough day", "hurts"],
+  love: ["thanks", "thank you", "good job", "proud", "love", "appreciate", "nice work"],
 };
 
 // Fixed tie-break order when two emotion buckets score equal on the same
@@ -148,13 +158,79 @@ const UNBUILT_VERB_LINES: { verb: string; keywords: string[]; line: string }[] =
 // instead of trying to parse a name out of the sentence, same "not
 // exhaustive by design, grows from playtesting" philosophy as every other
 // bucket in this file.
+// gift/praise/insult/apology/congratulate/sendOff, 2 Sep 2026 — the
+// crew-interaction brainstorm pass (data/verbs.ts's own header has the full
+// design reasoning; data/socialActions.ts has the content/numbers each one
+// resolves to). All six are single-target, so Hub.ts's submitChat resolves
+// WHO via resolveChatTarget (named-target-aware, falls back to nearest NPC)
+// once one of these ids comes back — same "recognize here, act in Hub.ts"
+// split every other entry in this table already follows.
 const VERB_REQUEST_KEYWORDS: Partial<Record<VerbId, string[]>> = {
   shareADrink: ["drink", "drinking", "booze"],
   pegBoard: ["peg", "pegs"],
   poker: ["poker"],
   fletchers: ["fletcher", "fletchers", "dart", "darts"],
   askOut: ["ask out", "ask her out", "ask him out", "ask them out", "date me", "go on a date", "date you"],
+  gift: ["gift", "give a gift", "brought you something", "got you something", "here's a gift"],
+  praise: ["well done", "great job", "good work", "proud of you", "you did great", "you're doing great", "nice job"],
+  insult: ["stupid", "idiot", "useless", "worthless", "pathetic", "screw you", "shut up"],
+  apology: ["sorry", "i apologize", "my apologies", "i shouldn't have said that", "forgive me", "i take it back"],
+  congratulate: ["congrats", "congratulations", "well earned", "you earned that"],
+  sendOff: ["wish me luck", "watch my back out there", "look out for me out there", "send me off"],
 };
+
+// Named single-target addressing, 2 Sep 2026 — every verb above resolves
+// its target the same way every verb before it did (nearest NPC in range),
+// which was fine when the Hub only ever had one or two NPCs close enough to
+// matter but stops being reliable once a message like "well done, Bosk" is
+// meant for a SPECIFIC person who might not be the nearest one. This finds
+// the best-matching candidate by first name (displayName's convention is
+// always "First Last — role", per every NPC built in Hub.ts's buildNpcs —
+// so only the part before the em dash is ever checked), longest match wins
+// if a message somehow contains more than one candidate's name (shouldn't
+// happen in practice, but a stable tie-break beats an arbitrary one). Names
+// under 3 characters are skipped as match candidates — too easy to false-
+// positive against ordinary words. Returns undefined (not null) so callers
+// can `??` straight into their existing nearest-NPC fallback without an
+// extra branch — same contract shape as detectVerbRequest's null but
+// distinct on purpose, since undefined here means "no name found, fall
+// back," not "nothing matched at all."
+//
+// Rank-token bug, caught in this pass's own live-browser Playwright
+// verification (tools/verify/checkSocialActions.mjs), fixed before this
+// shipped rather than after — a real displayName is "Spec. Corin Lask —
+// "Patch"", not a bare "First Last". The first version of this function
+// stripped PUNCTUATION out of each word (`word.replace(/[^a-zA-Z]/g, "")`),
+// which turned "Spec." into the bare word "Spec" and left it in as a
+// candidate match — so any two pilots sharing a rank ("Spec.", "Cpl.",
+// "Sgt.", ...) could false-match each other's rank prefix instead of an
+// actual name. Fixed to match scenes/TransporterPad.ts's own
+// pilotInitials() convention exactly: DROP any word containing a digit or a
+// period entirely (rank tokens always contain one or the other — "2nd",
+// "Lt.", "M.Sgt.", "Spec." all fall out this way) rather than stripping the
+// punctuation and keeping what's left.
+export function extractNamedTarget(raw: string, candidates: { pilotId: string; displayName: string }[]): string | undefined {
+  const text = raw.trim().toLowerCase();
+  if (!text) return undefined;
+  let bestId: string | undefined;
+  let bestLen = 0;
+  for (const c of candidates) {
+    const namePart = c.displayName.split("—")[0].trim();
+    const words = namePart
+      .split(/\s+/)
+      .map((w) => w.replace(/["“”]/g, ""))
+      .filter((w) => /^[A-Za-z']+$/.test(w));
+    for (const word of words) {
+      if (word.length < 3) continue;
+      const pattern = new RegExp(`\\b${escapeRegExp(word.toLowerCase())}\\b`);
+      if (pattern.test(text) && word.length > bestLen) {
+        bestId = c.pilotId;
+        bestLen = word.length;
+      }
+    }
+  }
+  return bestId;
+}
 
 export function detectVerbRequest(raw: string): VerbId | null {
   const text = raw.trim().toLowerCase();
@@ -288,6 +364,179 @@ export function detectBuildRequest(raw: string): BuildRequest | null {
   for (const [id, keywords] of Object.entries(UNBUILDABLE_KEYWORDS) as [KnownUnbuildableId, string[]][]) {
     if (countHits(text, keywords) > 0) return { kind: "unbuildable", id };
   }
+  return null;
+}
+
+// Debrief request — CO-specific, 2 Sep 2026. First pass at "brief"/
+// "debrief" (same day) mapped both words onto the generic, works-with-
+// anyone History request — Maxime's own correction: "add it to the thing
+// player can say specifically to the CO. other would tell you to ask the
+// co instead. for now." Same split as detectBuildRequest immediately
+// above: this function doesn't know or care who the player is talking to,
+// that gate (must be standing with the CO specifically, same "who do I
+// even ask" redirect that function's own header already names) lives in
+// Hub.ts's submitChat.
+//
+// Deliberately its own keyword set, not folded back into HISTORY_KEYWORDS
+// — a debrief specifically means asking the CO for the mission outcome,
+// not a generic "catch me up" read anyone can answer. Reuses the exact
+// mission-echo content already built for the ambient hot-topics system
+// (checkMissionEcho/HOT_TOPIC_LINES' missionWin/missionLoss banks) rather
+// than new CO-bespoke writing — see Hub.ts's handleDebriefRequest.
+//
+// Deliberately NOT built here: Maxime's own words, "later we can have npc
+// give you debrief if you ask them, their thought on the last mission, but
+// thats later" — this pass is the CO-only slice of that eventual
+// generalization to every NPC, not the generalization itself.
+//
+// Correction, same day (playtest tally item 7) — Maxime: "brief does the
+// same thing as debrief. it should not. brief is before a mission debrief
+// is after a mission." "brief" and "debrief" shared this one keyword
+// bucket, so either word always resolved to handleDebriefRequest's
+// POST-mission recap — there was no separate PRE-mission path at all.
+// Split into two keyword sets/detectors below: DEBRIEF_KEYWORDS keeps
+// exactly its prior single-word behavior and handleDebriefRequest is
+// untouched. BRIEF_KEYWORDS/detectBriefRequest is new — see Hub.ts's
+// handleBriefRequest for what the CO says pre-mission. The two lists don't
+// collide even though "debrief" contains the literal substring "brief":
+// countHits \b-anchors each keyword, and there's no word boundary between
+// "de" and "brief" inside "debrief" (both are word characters), so
+// \bbrief\b never matches there — same safe-by-construction shape as this
+// file's existing "log"-doesn't-match-inside-"catalog" note above.
+const DEBRIEF_KEYWORDS = ["debrief"];
+
+export function detectDebriefRequest(raw: string): boolean {
+  const text = raw.trim().toLowerCase();
+  if (!text) return false;
+  return countHits(text, DEBRIEF_KEYWORDS) > 0;
+}
+
+// Brief request — CO-specific, 2 Sep 2026, split off from Debrief just
+// above (see that header for the full story). A PRE-mission ask, mirrored
+// off Debrief's own shape but deliberately NOT reusing any existing
+// content the way Debrief reuses the mission-echo lines — there's no
+// pre-mission equivalent sitting around to reuse. For now this is an
+// honest "nothing formal yet" line rather than new mission-briefing
+// content or a wire into MapSelect's own mission list — see Hub.ts's
+// handleBriefRequest. A real pre-mission objective briefing, or the CO
+// naming the next available mission, are both bigger asks flagged for
+// Maxime rather than guessed at here.
+const BRIEF_KEYWORDS = ["brief"];
+
+export function detectBriefRequest(raw: string): boolean {
+  const text = raw.trim().toLowerCase();
+  if (!text) return false;
+  return countHits(text, BRIEF_KEYWORDS) > 0;
+}
+
+// CO aliases — 2 Sep 2026, playtest tally item 7 part B: Maxime asked that
+// "aoc, debrief"/"aoc, brief" reach the CO by name. Distinct problem from
+// extractNamedTarget above: that function only matches literal words split
+// out of a real displayName ("Arangement of Content" → "Arangement"/
+// "Content" survive its filter, "of" is dropped for being under 3
+// characters) — "aoc" isn't a substring of that name anywhere, so it needs
+// its own alias list rather than pointing the existing machinery at him.
+// Deliberately narrow for now: just "aoc", the one word Maxime actually
+// used. Not "co" (bare two letters, \b-anchored or not, is far too likely
+// to false-match ordinary text) and not "commander" (never established as
+// a term players actually use for him in this project's docs) — easy to
+// widen later if Maxime wants either. See Hub.ts's isReachingCo for how
+// this combines with ordinary proximity.
+const CO_ALIASES = ["aoc"];
+
+export function mentionsCoByAlias(raw: string): boolean {
+  const text = raw.trim().toLowerCase();
+  if (!text) return false;
+  return countHits(text, CO_ALIASES) > 0;
+}
+
+// Confide request — CO-specific, 2 Sep 2026 (Antfarm Carrier Hub v1 §11.3's
+// long-flagged, never-built "grotto as a Stress-relief conversation
+// partner"). Same split as detectDebriefRequest/detectBuildRequest above:
+// this function doesn't know or care who the player is talking to — that
+// gate lives in Hub.ts's submitChat, same "find him in the grotto" redirect
+// pattern those two already use.
+const CONFIDE_KEYWORDS = ["vent", "confide", "i need to talk", "it's been a lot", "i need to get this off my chest", "can we talk", "need to talk to you"];
+
+export function detectConfideRequest(raw: string): boolean {
+  const text = raw.trim().toLowerCase();
+  if (!text) return false;
+  return countHits(text, CONFIDE_KEYWORDS) > 0;
+}
+
+// Remove-pilot request — CO-specific, 2 Sep 2026, the Insult Tier-3
+// resolution path (Maxime: "wont fly with you, player will have to ask co
+// to remove them from ship"). Same CO-only gate as detectConfideRequest
+// just above; Hub.ts's handleRemovePilotRequest is the only place that
+// actually reads WHICH pilot (via extractNamedTarget, falling back to
+// "ask who" if more than one pilot is currently in the standoff and no
+// name was given) — this function just recognizes the intent.
+const REMOVE_PILOT_KEYWORDS = ["remove", "reassign", "transfer off", "off the ship", "off my ship", "kick them off", "get rid of"];
+
+export function detectRemovePilotIntent(raw: string): boolean {
+  const text = raw.trim().toLowerCase();
+  if (!text) return false;
+  return countHits(text, REMOVE_PILOT_KEYWORDS) > 0;
+}
+
+// Small talk — Chat Keyword Categories Plan v1, 26 Aug 2026
+// (claude/Bloom_Wars_Chat_Keyword_Categories_Plan_v1.md), recognizer spec
+// first drafted the next day in Bloom_Wars_Chat_Keyword_Categories_
+// Delivery_v1.md but never checked against this actual file — that doc
+// said so itself ("not yet verified against the live chatIntent.ts/
+// Hub.ts"). This is that verification: keyword lists below are copied
+// verbatim from the Delivery doc's Categories 1-5 (Greeting/Worry-checkin/
+// Farewell/Advice/Banter), checked here against the real MUSTER_KEYWORDS/
+// EMOTION_KEYWORDS above rather than assumed clear of them.
+//
+// Two real collisions turned up, exactly the kind the Delivery doc flagged
+// as a risk without being able to check: "any word from the mission"
+// contains "mission" (a MUSTER_KEYWORDS entry) and "worried about them"/
+// "worried"/"anxious about the mission" all contain "worried" territory
+// that would otherwise fall into EMOTION_KEYWORDS.fear. Both are handled
+// the same way — detectSmallTalk is checked by Hub.ts's submitChat BEFORE
+// interpretPlayerChat's muster/emotion pass below, so the specific,
+// intended read wins over the coarse one, same precedence rule this file
+// already applies everywhere else (a real verb beats a build request beats
+// history/highlights beats muster/emotion beats the generic shrug).
+//
+// Order within the group, checked by detectSmallTalk itself: worry check-in
+// first, since it's the more specific read and its own phrase list contains
+// a genuine substring of the plain greeting list ("how's it going out
+// there" contains "how's it going," a GREETING_KEYWORDS entry) — the
+// longer, more specific phrase has to be checked before the shorter one it
+// contains, not after. Farewell/advice/banter don't overlap each other or
+// worry/greeting in practice (checked by inspection against every keyword
+// list in this file, including each other) but are kept in a fixed order
+// regardless, same reasoning as EMOTION_ORDER above.
+export type SmallTalkKind = "worry_checkin" | "greeting" | "farewell" | "advice" | "banter";
+
+const GREETING_KEYWORDS = ["hey", "hi", "hello", "how are you", "how's it going", "you good", "sup", "morning", "evening"];
+
+const WORRY_CHECKIN_KEYWORDS = [
+  "you okay about the mission",
+  "worried about them",
+  "how's it going out there",
+  "any word from the mission",
+  "worried",
+  "anxious about the mission",
+  "any news",
+];
+
+const FAREWELL_KEYWORDS = ["bye", "see you", "later", "gotta go", "take care", "dismissed"];
+
+const ADVICE_KEYWORDS = ["what do i do", "what should i do", "any advice", "what would you do"];
+
+const BANTER_KEYWORDS = ["tell me a joke", "make me laugh", "say something funny", "lighten the mood"];
+
+export function detectSmallTalk(raw: string): SmallTalkKind | null {
+  const text = raw.trim().toLowerCase();
+  if (!text) return null;
+  if (countHits(text, WORRY_CHECKIN_KEYWORDS) > 0) return "worry_checkin";
+  if (countHits(text, GREETING_KEYWORDS) > 0) return "greeting";
+  if (countHits(text, FAREWELL_KEYWORDS) > 0) return "farewell";
+  if (countHits(text, ADVICE_KEYWORDS) > 0) return "advice";
+  if (countHits(text, BANTER_KEYWORDS) > 0) return "banter";
   return null;
 }
 

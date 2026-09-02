@@ -263,6 +263,33 @@ describe("pickEncounterKind — 'spar' is never rolled here", () => {
   });
 });
 
+// minigamesEligible, 2 Sep 2026 — real bug fix, not a hypothetical: Hub.ts's
+// updateNpcEncounters only checked sameDeck(npcA.room, npcB.room), and
+// recroom/hangarDeck/berths all share the "lower" deck (Hub.ts's own
+// ROOM_DECK) with no wall at the seam. Without this gate, a pair idling in
+// Hangar Deck or Berths could roll pegBoard/poker/fletchers and narrate a
+// bubble about a minigame neither NPC was anywhere near a table for.
+describe("pickEncounterKind — minigamesEligible gate", () => {
+  it("across many real-random draws, minigamesEligible: false never returns pegBoard/poker/fletchers (or askOut)", () => {
+    for (let i = 0; i < 500; i++) {
+      const kind = pickEncounterKind({ eligibleForAskOut: false, minigamesEligible: false, rng: Math.random });
+      expect(kind).toBe("talk");
+    }
+  });
+
+  it("omitting minigamesEligible behaves exactly like true — existing callers (runSocialSim.ts's day-level harness) are unaffected", () => {
+    const values = [0.99, 0.99]; // askOut roll misses, weighted roll lands late in the pool -> fletchers (last bucket)
+    let i = 0;
+    const rngOmitted = () => values[i++];
+    i = 0;
+    const rngExplicit = () => values[i++];
+    const kindOmitted = pickEncounterKind({ eligibleForAskOut: true, rng: rngOmitted });
+    i = 0;
+    const kindExplicit = pickEncounterKind({ eligibleForAskOut: true, minigamesEligible: true, rng: rngExplicit });
+    expect(kindOmitted).toBe(kindExplicit);
+  });
+});
+
 describe("resolveAskOutEncounter", () => {
   it("above ROMANCE_MIN_FAVORABILITY, accepts — matches romance.ts's own accept delta and flags becameCouple", () => {
     const result = resolveAskOutEncounter({ pilotA: BOSK, pilotB: ANAND, bond: ROMANCE_MIN_FAVORABILITY, aCommitted: false, bCommitted: false, rng: () => 0.5 });
@@ -295,6 +322,13 @@ describe("simulateEncounter", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5); // keeps pegBoard's internal AI jitter and any Gate 0 check mid-range, not used for kind selection itself
     const talk = simulateEncounter({ pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.99 * 1 /* misses askOut */ });
     expect(["talk", "pegBoard", "poker", "fletchers"]).toContain(talk.kind); // eligible pool once askOut is excluded by the forced-high roll
+  });
+
+  it("threads minigamesEligible: false through to pickEncounterKind — across many draws, never resolves to pegBoard/poker/fletchers", () => {
+    for (let i = 0; i < 200; i++) {
+      const result = simulateEncounter({ pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, minigamesEligible: false, rng: Math.random });
+      expect(["talk", "askOut"]).toContain(result.kind);
+    }
   });
 
   it("never selects askOut when either pilot is committed, regardless of how low the rng roll is", () => {

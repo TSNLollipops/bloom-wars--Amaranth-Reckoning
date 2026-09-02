@@ -20,6 +20,34 @@ export const TIERS: Record<Tier, { attack: number; defense: number; hp: number; 
   C: { attack: 125, defense: 119, hp: 115, move: 1 },
   B: { attack: 132, defense: 125, hp: 120, move: 1 },
   A: { attack: 140, defense: 132, hp: 130, move: 2 },
+  // S — Heirloom-grade, 2 Sep 2026. Granted with an Heirloom, never
+  // purchasable (see engine/campaignEconomy.ts's TIER_ORDER, which
+  // deliberately excludes it).
+  //
+  // PLACEHOLDER NUMBERS, still — validated, not yet playtested. These
+  // continue the ladder's own established step sizes rather than inventing
+  // a jump — across G→A, attack grows ~6-8 per rung, defense ~4-7, hp in
+  // occasional +5-10 steps — so A→S is +9/+8/+10, one step past A's own
+  // increments and no more. Move deliberately stays at 2: another +1 would
+  // put an Heirloom two full tiles ahead of every A-tier pilot, a bigger
+  // battlefield change than a tier bump should carry by itself.
+  //
+  // VALIDATED 2 Sep 2026 — design/combat_sim.py's new §14 ("THE HEIRLOOM
+  // S-TIER"). Confirmed via the mech-vs-mech formula (the only combat math
+  // that harness covers — resolveAttackOnBloom, the mech-vs-Bloom side, is
+  // its own separately-flagged unvalidated gap, untouched by this pass):
+  // S never dies in fewer hits than A against any attacker tier this
+  // campaign actually fields (G — the typical hostile, C — the toughest
+  // named rival, and A itself as a hypothetical future case), across all
+  // 48 combinations tested, and every stat sits strictly above A's. One
+  // real finding worth remembering before this looks broken in play: 4 of
+  // 16 opening-hit matchups against a full-HP G-tier defender land
+  // identically for A and S, because A already saturates the 90-damage
+  // full-HP cap there — S's attack edge only shows up on tankier targets
+  // and on anything already below full HP. Still a placeholder in the
+  // sense that nobody has fought with one yet; no longer a placeholder in
+  // the sense of "might silently break combat" — that part is checked.
+  S: { attack: 149, defense: 140, hp: 140, move: 2 },
 };
 
 // Gear-tier pass (sprites/decor, 23 Aug 2026): scenes/Battle.ts draws one

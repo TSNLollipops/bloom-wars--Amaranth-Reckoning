@@ -191,12 +191,35 @@
 // reason the original file's header gave: "a starting point if any of this
 // gets reused for multiplayer-map bot opponents later." Call
 // `resetPlayerAiLog()` before a run; read `playerAiLog` after.
-import type { MapDefinition } from "../../data/types";
+//
+// ---- Difficulty tiers, 1 Sep 2026 (claude/Bloom_Wars_Player_AI_Difficulty_
+// Tiers_Plan_v1.md; Maxime: "plan a update to playertest ai so it can play
+// 3 way. easy, moderate, hard. hard being tactical genius... i know i
+// havent made my bit able to use spell and ability yet") ----
+//
+// Two new trailing parameters: `profile` (profile.ts — the settings sheet
+// every former module constant now reads from; MODERATE by default, so a
+// call site that never passes one behaves as the pre-tiers bot with
+// fog-honest vision and abilities on) and `memory` (types.ts's
+// PlayerAiMemory — per-run cooldowns, the seeded rng, and Hard's last-seen
+// map). The decision chain below is the same priority order as before with
+// the ability branches (abilities.ts) slotted where the plan's §4.1 puts
+// them, each gated by profile.useAbilities so a tier can drop any of them.
+//
+// The one behavior change that applies to every tier but LEGACY: honest
+// vision. This engine used to be handed every living hostile regardless of
+// fog — it could and did attack burrowed/concealed units no human can
+// target. `enemies` is now the set the player side can actually see
+// (engine/ai.ts's unitsVisibleToSide, the exact check scenes/Battle.ts
+// draws from), and a board with nothing in sight sends the squad toward
+// the nearest spawn seam (`explore`) instead of freezing. LEGACY keeps the
+// old full awareness so pre-1-Sep batch numbers stay reproducible.
+import type { Coord, MapDefinition } from "../../data/types";
 import type { BattleUnit } from "../../engine/units";
-import { livingTargets, isVisibleTo } from "../../engine/ai";
+import { livingTargets, isVisibleTo, unitsVisibleToSide, moveToward } from "../../engine/ai";
+import { chebyshevDistance } from "../../engine/grid";
+import { AMBUSH_DECLOAK_DAMAGE_MULTIPLIER } from "../../data/combatTables";
 import {
-  RETREAT_HP_FRACTION,
-  COMMANDER_RETREAT_HP_FRACTION,
   needsFrontLineProtection,
   commanderSafePathPrefix,
   lastStep,
@@ -207,14 +230,32 @@ import {
   cohesiveMoveToward,
   nearestLivingAlly,
   focusFireTargetInRange,
+  nearestDamageableInRange,
   regroupPath,
   nearestCoord,
   hasClearableBloomNearby,
+  bloomPatchEdgeTiles,
 } from "./combat";
 import { findCriticalRepairTarget, findRoutineRepairTarget, findAdjacentRescuableNpc, findRescuableNpcOnBoard } from "./support";
-import type { PlayerAiDecision, PlayerAiLogEntry, PlayerAiMissionContext } from "./types";
+import {
+  shouldSensorSweep,
+  shouldInterdict,
+  shouldOverwatch,
+  shouldAmbush,
+  shouldScreen,
+  shouldTaunt,
+  chooseFireSupportTile,
+  chooseMissileTile,
+  repairMove,
+  explorationTarget,
+} from "./abilities";
+import { MODERATE, type PlayerAiProfile } from "./profile";
+import { createPlayerAiMemory, type PlayerAiDecision, type PlayerAiLogEntry, type PlayerAiMissionContext, type PlayerAiMemory, type PlayerAiReason } from "./types";
+import { hardTierOverride, threatMapFor, betterFiringTile, threatAwareIntoRange, threatTrimmedPath, bestHoldTile } from "./hard";
 
-export type { PlayerAiDecision, PlayerAiReason, PlayerAiLogEntry, PlayerAiMissionContext } from "./types";
+export type { PlayerAiDecision, PlayerAiReason, PlayerAiLogEntry, PlayerAiMissionContext, PlayerAiMemory, PlayerAiTier, PlayerAiAction } from "./types";
+export { createPlayerAiMemory } from "./types";
+export { EASY, MODERATE, HARD, LEGACY, PROFILES, profileForTier, type PlayerAiProfile } from "./profile";
 
 export const playerAiLog: PlayerAiLogEntry[] = [];
 
@@ -231,832 +272,508 @@ export function decidePlayerAiAction(
   unit: BattleUnit,
   allUnits: BattleUnit[],
   turn: number,
-  context: PlayerAiMissionContext
+  context: PlayerAiMissionContext,
+  profile: PlayerAiProfile = MODERATE,
+  memory: PlayerAiMemory = createPlayerAiMemory()
 ): PlayerAiDecision {
   const hpFraction = unit.maxHp > 0 ? unit.currentHp / unit.maxHp : 1;
+  const entry = (reason: PlayerAiReason, extra: Partial<PlayerAiLogEntry> = {}): PlayerAiLogEntry => ({
+    turn,
+    unitId: unit.instanceId,
+    displayName: unit.displayName,
+    hpFraction,
+    reason,
+    ...extra,
+  });
+
   // Commander/Munti protection (28 Aug 2026, test-only — see combat.ts's
-  // own "Commander protection" section, and its "Extended to the Munti"
-  // follow-up, for the root-cause trace this responds to).
-  //
-  // Switched off entirely on extract_unit missions — found via a real
-  // regression, not guessed. First cut exempted only the named extract
-  // target from the front-line cap; that wasn't enough, because the OTHER
-  // protected unit(s) (an escorting Rourke, say) still slowed down for
-  // their own caution, which in turn slowed the squad's ability to clear
-  // the way and reach the exit tile in time. Exempting the retreat
-  // threshold too still didn't fully recover it — the interaction runs
-  // through the whole squad's pacing, not just one unit's own decisions,
-  // and isn't worth chasing further tile-by-tile at this hour. Mission
-  // 11's own turn limit is razor-thin (a win completes on turn 18, a loss
-  // hits the limit on turn 19), and this mission's whole point is racing
-  // that clock, not fighting cautiously — extra caution from anyone is
-  // actively the wrong instinct here, so the simplest correct fix is to
-  // not apply any of it while the objective itself is a race. Every other
-  // objective type (including hold_zone, which has its own turn pressure
-  // but no single unit racing a personal deadline the way extract_unit's
-  // named target does) keeps the full protection below.
+  // own "Commander protection" section for the root-cause trace). Switched
+  // off entirely on extract_unit missions (Mission 11's razor-thin turn
+  // limit — extra caution from anyone is actively the wrong instinct while
+  // the objective itself is a race; see the 28 Aug trace). Now also gated
+  // on profile.protectVips — EASY has none, the way a newcomer has none.
   const isExtractMission = context.mission.objective === "extract_unit";
-  const frontLineProtected = needsFrontLineProtection(unit) && !isExtractMission;
-  // Rescue-pickup avoidance, split off from frontLineProtected above (30
-  // Aug 2026 — Mission 5 "Foraging Party" traced at a near-0% win rate,
-  // n=60: 56/60 COMMANDER_DOWN, and a verbose run showed the exact same
-  // mechanism the Mission 16 fix below this file already closed — Rourke
-  // picking up the rescue NPC turn 2 and getting focus-fired down alone
-  // while carrying, defenseless. The Mission 16 fix gated on
-  // frontLineProtected, which is unconditionally FALSE on every
-  // extract_unit mission (the isExtractMission carve-out right above,
-  // itself a real fix for a different regression — Mission 11's own
-  // razor-thin turn limit — see that carve-out's own comment). Mission 5 IS
-  // extract_unit, so the earlier fix silently never applied there: Rourke
-  // was free to grab the rescue exactly as before. The two protections
-  // don't actually conflict — Mission 11's regression was about the whole
-  // squad slowing its PACE (retreat threshold, path caution) to protect the
-  // commander, which genuinely fights a hard clock; avoiding one specific,
-  // always-bad pickup doesn't slow anyone down, extract_unit race or not.
-  // So this flag alone drops the isExtractMission exemption and reuses only
-  // needsFrontLineProtection.
-  const avoidsRescuePickup = needsFrontLineProtection(unit);
-  // Every self-preservation gate below that reads RETREAT_HP_FRACTION
-  // against THIS unit's own hpFraction uses `retreatThreshold` instead, so
-  // Rourke and the field Munti specifically fall back sooner than an
-  // ordinary pilot would — for every other unit, and for everyone on an
-  // extract_unit mission, this is exactly RETREAT_HP_FRACTION, unchanged.
-  const retreatThreshold = frontLineProtected ? COMMANDER_RETREAT_HP_FRACTION : RETREAT_HP_FRACTION;
+  // A VIP with no line unit left to stand behind IS the line — the
+  // caution that keeps her alive behind a squad only delays the end once
+  // the squad is gone (Hard, Mission 1: a lone commander cycling retreat /
+  // cloak / overwatch / approach for 480 turns against two Crawlmass).
+  const lineUnitsAlive = allUnits.some((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId && !needsFrontLineProtection(u) && !u.isExtractionTarget);
+  // Hard keeps the VIP bar on extract missions too: its protection is
+  // threat-aware and doesn't slow the extraction target (hard.ts exempts
+  // it outright), and the Mission 10 trace without it was the commander
+  // walking into three Splitfangs on turn 3 with a line unit's bar.
+  const frontLineProtected = profile.protectVips && needsFrontLineProtection(unit) && (!isExtractMission || profile.threatMap) && lineUnitsAlive;
+  // Rescue-pickup avoidance (30 Aug 2026, Mission 5 trace — the commander
+  // grabbing the rescue and dying alone while carrying) deliberately drops
+  // the extract carve-out: avoiding one always-bad pickup slows nobody.
+  const avoidsRescuePickup = profile.protectVips && needsFrontLineProtection(unit);
+  const retreatThreshold = frontLineProtected ? profile.commanderRetreatHpFraction : profile.retreatHpFraction;
+  // Easy's deliberate mistake: with probability mistakeChance, take the
+  // second-best of a ranked list instead of the best. Seeded, so it replays.
+  const pick = <T>(ranked: T[]): T | undefined => {
+    if (!ranked.length) return undefined;
+    if (profile.mistakeChance > 0 && ranked.length > 1 && memory.rng() < profile.mistakeChance) return ranked[1];
+    return ranked[0];
+  };
+  // Squad cohesion (25 Aug 2026 — "wierd mission 1 is easy") — EASY has
+  // none: every unit sprints toward its own target, the exact two-clusters
+  // failure the cohesion fix closed for everyone else.
+  // Hard (hard.ts seam 4): every plain advance is cut back to the last
+  // step under the unit's danger bar, with a stalemate breaker.
+  // `objectiveTile`: an advance whose whole point is to stand on the
+  // target (a hold-zone tile) is NOT trimmed when it gets there — the zone
+  // is the mission; the threat-aware part is choosing WHICH zone tile
+  // (hard.ts bestHoldTile).
+  const advance = (target: Coord, objectiveTile = false): Coord[] => {
+    const path = profile.squadCohesion ? cohesiveMoveToward(map, unit, target, allUnits) : moveToward(map, unit, target, allUnits);
+    if (!profile.threatMap || !livingTargets(allUnits, "hostile").length) return path;
+    // A VIP keeps the trim even then — the zone is for the line to hold
+    // (House Amaranth 9 trace: the commander walking into the zone on
+    // turn 2 and dying in it on turn 4).
+    if (objectiveTile && !frontLineProtected && path.length > 1 && lastStep(path).x === target.x && lastStep(path).y === target.y) return path;
+    return threatTrimmedPath(path, map, unit, allUnits, threatMapFor(memory, map, allUnits, turn), profile, frontLineProtected, memory);
+  };
 
   // Already carrying the rescued NPC — combat is engine-refused while
-  // carryingRescueId is set (mission.ts's attack() guard), so the only
-  // useful thing this decision can do is close on the nearest exit. Checked
-  // before the "any enemies at all" gate below on purpose: a carrier still
-  // has somewhere to be even on a board with nothing left alive.
+  // carrying, so the only useful thing this decision can do is close on
+  // the nearest exit. Checked before anything else on purpose.
   if (unit.carryingRescueId) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
       const dest = nearestCoord(unit.pos, exits);
-      const path = cohesiveMoveToward(map, unit, dest, allUnits);
-      log({
-        turn,
-        unitId: unit.instanceId,
-        displayName: unit.displayName,
-        hpFraction,
-        reason: "rescue_carry",
-        destination: path.length > 1 ? lastStep(path) : undefined,
-      });
+      const path = advance(dest);
+      log(entry("rescue_carry", { destination: path.length > 1 ? lastStep(path) : undefined }));
       return { path };
     }
-    // No exit tiles on this map (shouldn't happen on a real rescue mission)
-    // — fall through rather than stall the unit outright.
   }
 
-  // Adjacent to an uncarried rescuable NPC — pick them up. Cheap enough
-  // (1 action, doesn't end the turn — rescueUnit's own contract) to take on
-  // sight, ahead of even the enemies check just below: grabbing a downed
-  // ally standing right next to you isn't a decision a real player agonizes
-  // over.
-  //
-  // Tier 6 hotfix, 30 Aug 2026 — Maxime: "mission 16 only give us 5 enemy
-  // mech, we field 10 of them. how does our bot lose lole?" Root cause,
-  // traced via a verbose sim run: Rourke happened to be the unit adjacent
-  // to the rescue NPC's spawn point on turn 2, so she's the one who picked
-  // it up — nothing here ever asked WHO was grabbing it. Once carrying,
-  // the very next branch above (carryingRescueId) takes over completely:
-  // combat is engine-refused while carrying (mission.ts's attack() guard),
-  // and that branch has no retreat/caution logic of its own — it just
-  // beelines for the exit no matter what's nearby. That's exactly the
-  // "commander protection" gap this file's combat decisions already fixed
-  // 28 Aug (needsFrontLineProtection's own header) — a defenseless solo
-  // walk to the exit is, if anything, MORE dangerous than the melee
-  // exposure that fix addressed, and it was never extended to this branch.
-  // Traced runs show Rourke reaching the exit corner alone by turn 5, still
-  // several turns ahead of the rest of a 10-unit squad, and getting focus-
-  // fired down before anyone catches up — matching Maxime's "10 vs 5 and
-  // we still lose" exactly: the numbers were never the problem, it's the
-  // commander specifically being sent in alone with no way to fight back.
-  // Fix: a front-line-protected unit (the commander or the squad's Munti —
-  // same pairing needsFrontLineProtection already uses, same reasoning:
-  // losing either costs far more than the unit itself) simply never
-  // volunteers for this pickup. Worst case if literally nobody else ever
-  // reaches the NPC, the bonus goes unclaimed — a missed 45 points is a
-  // trivially better outcome than the whole mission attempt ending.
-  const adjacentRescue = avoidsRescuePickup ? undefined : findAdjacentRescuableNpc(unit, allUnits);
+  // The extraction target on an extract_unit mission runs FIRST and shoots
+  // second (1 Sep 2026, Mission 5 trace at every tier: a Reeps extraction
+  // target with a target in range spent nine turns trading fire at the
+  // wrong end of the map while the turn limit ran out — the attack
+  // branches below all outrank the exit move). Move toward the nearest
+  // open exit tile, then attack from the destination if something is in
+  // range and an action is left. Not threat-trimmed: the limit is the
+  // threat.
+  if (isExtractMission && unit.isExtractionTarget && !unit.carryingRescueId) {
+    const exits = context.map.exitTiles ?? [];
+    if (exits.length) {
+      const openExits = exits.filter((c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y));
+      const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
+      const path = moveToward(map, unit, dest, allUnits);
+      const hostilesAlive = livingTargets(allUnits, "hostile");
+      const seen = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn) : new Set(hostilesAlive.map((h) => h.instanceId));
+      const visibleNow = hostilesAlive.filter((e) => seen.has(e.instanceId));
+      const from = path.length > 1 ? lastStep(path) : unit.pos;
+      const canShoot = path.length > 1 ? unit.actionsRemaining >= 2 : unit.actionsRemaining >= 1;
+      const target = canShoot
+        ? (findLethalTargetFrom(map, unit, from, visibleNow, allUnits) ?? (profile.focusFire ? focusFireTargetInRange(map, unit, from, visibleNow, allUnits) : nearestDamageableInRange(map, unit, from, visibleNow, allUnits)))
+        : undefined;
+      if (path.length > 1 || target) {
+        log(entry("extract_to_exit", { destination: path.length > 1 ? lastStep(path) : undefined, targetId: target?.instanceId, targetName: target?.displayName, note: "run first, shoot second" }));
+        return { path: path.length > 1 ? path : undefined, attackTargetId: target?.instanceId };
+      }
+    }
+  }
+
+  // Adjacent to an uncarried rescuable NPC — pick them up (1 action, turn
+  // continues). The commander/Munti never volunteer (Mission 16/5 traces).
+  const adjacentRescue = avoidsRescuePickup || !profile.useAbilities.rescue ? undefined : findAdjacentRescuableNpc(unit, allUnits);
   if (adjacentRescue) {
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "rescue_pickup",
-      targetId: adjacentRescue.instanceId,
-      targetName: adjacentRescue.displayName,
-    });
+    log(entry("rescue_pickup", { targetId: adjacentRescue.instanceId, targetName: adjacentRescue.displayName }));
     return { action: "rescue" };
   }
 
-  const enemies = livingTargets(allUnits, "hostile"); // full awareness — see file header
+  // ---- What this unit knows about the enemy ----
+  const allEnemies = livingTargets(allUnits, "hostile");
+  const visibleIds = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn) : new Set(allEnemies.map((e) => e.instanceId));
+  // Hard's last-seen memory: refresh for anything visible, forget the dead.
+  if (profile.rememberLastSeen) {
+    for (const e of allEnemies) if (visibleIds.has(e.instanceId)) memory.lastSeen.set(e.instanceId, { ...e.pos });
+    for (const [id, at] of [...memory.lastSeen.entries()]) {
+      if (!allEnemies.some((e) => e.instanceId === id)) memory.lastSeen.delete(id);
+      // A remembered spot this unit can see into with nothing there is
+      // stale — forget it, or the squad walks to it forever (mission_1a
+      // trace: a survivor oscillating between a ghost sighting on his own
+      // tile and the spawn seam for 400 turns).
+      else if (!visibleIds.has(id) && chebyshevDistance(unit.pos, at) <= unit.vision) memory.lastSeen.delete(id);
+    }
+  }
+  const enemies = allEnemies.filter((e) => visibleIds.has(e.instanceId));
+  // "Can something see ME" is computed against every living hostile, not
+  // just the ones I can see — a Bloom with longer eyes than mine is exactly
+  // the one to retreat from, and this gate is about self-preservation, not
+  // targeting information. Same as the bot always did.
+  const spotted = allEnemies.some((e) => isVisibleTo(e, unit, turn));
+  // A cloaked Meeps' first hit lands at 2x — read the kill check that way.
+  const strikeMult = unit.concealed && unit.stealthTurnsRemaining !== undefined && unit.stealthTurnsRemaining > 0 ? AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : 1;
 
-  // No blanket "no enemies -> nothing to decide" return any more (Phase 2,
-  // 25 Aug 2026): a hold_zone/extract_unit/clear_bloom mission still has
-  // real work to do after the board's clear of hostiles (holding the zone
-  // out, walking the extract target home, finishing the patch) — an empty
-  // `enemies` array is safe to pass through every branch below it
-  // (findLethalTargetFrom/focusFireTargetInRange both just find nothing;
-  // `enemies.some(...)` is false; regroupPath's own exposure check finds
-  // nothing to be exposed to), EXCEPT weakestTarget(enemies), which throws
-  // on an empty array — that one call (and everything downstream of it,
-  // advance_into_range and the final seek_fight fallback) is explicitly
-  // gated on `enemies.length > 0` below instead. hold_no_target is now the
-  // true last resort at the very end of this function, not an early exit.
+  // Hard tier (hard.ts): the threat map / squad planner may pre-empt the
+  // whole chain below with a pre-emptive retreat or a planned position —
+  // see that file. Returns null to let the ordinary chain decide.
+  if (profile.tier === "hard") {
+    const override = hardTierOverride(map, unit, allUnits, allEnemies, enemies, turn, context, profile, memory, frontLineProtected);
+    if (override) {
+      log(entry(override.reason, override.logExtra));
+      return override.decision;
+    }
+  }
 
   // Guaranteed kill in place beats everything, even at low HP or next to a
-  // dying ally — unchanged priority from before this pass.
-  const killNow = findLethalTargetFrom(map, unit, unit.pos, enemies, allUnits);
+  // dying ally.
+  const killNow = findLethalTargetFrom(map, unit, unit.pos, enemies, allUnits, strikeMult);
   if (killNow) {
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "kill",
-      targetId: killNow.instanceId,
-      targetName: killNow.displayName,
-    });
+    log(entry("kill", { targetId: killNow.instanceId, targetName: killNow.displayName }));
     return { attackTargetId: killNow.instanceId };
   }
 
-  // No kill on the table — a critically hurt ally standing next to a
-  // healer outranks even that healer's own self-preservation retreat
-  // (support.ts's CRITICAL_ALLY_HP_FRACTION), as long as the healer itself
-  // isn't ALSO in retreat territory (then self-preservation still governs,
-  // same as before this pass — see the retreat check just below).
-  if (hpFraction >= RETREAT_HP_FRACTION) {
-    const critical = findCriticalRepairTarget(unit, allUnits);
+  // A critically hurt ally in repair range outranks even the healer's own
+  // retreat, as long as the healer itself isn't in retreat territory.
+  if (hpFraction >= profile.retreatHpFraction && profile.useAbilities.abil_repair) {
+    const critical = findCriticalRepairTarget(unit, allUnits, profile.criticalAllyHpFraction);
     if (critical) {
-      log({
-        turn,
-        unitId: unit.instanceId,
-        displayName: unit.displayName,
-        hpFraction,
-        reason: "repair_critical_ally",
-        targetId: critical.instanceId,
-        targetName: critical.displayName,
-        note: `${Math.round((critical.currentHp / critical.maxHp) * 100)}% hp`,
-      });
+      log(entry("repair_critical_ally", { targetId: critical.instanceId, targetName: critical.displayName, note: `${Math.round((critical.currentHp / critical.maxHp) * 100)}% hp` }));
       return { repairTargetId: critical.instanceId };
     }
   }
 
-  // ---- Guard Taunt (30 Aug 2026, Player AI hardening pass — tried twice,
-  // reverted both times; RECONSTRUCTED 30 Aug 2026 after this file was
-  // accidentally overwritten mid-session by a stale local copy, clobbering
-  // a parallel Claude session's own committed changes here. combat.ts's
-  // canGuardTaunt/frontLineAllyToProtect (untouched, safe) and both build
-  // log addenda this reconstruction is sourced from —
-  // Bloom_Wars_Build_Log_Addendum_PlayerAI_GuardTauntTriedReverted_And_BossPriority_30Aug2026.md
-  // and Bloom_Wars_Build_Log_Addendum_TauntNoCharge_GuardTauntRetried_30Aug2026.md
-  // — are the record; this comment reproduces their own account of what
-  // this call site did, kept disabled exactly as they left it. Left as a
-  // comment, not live code, specifically so it doesn't reintroduce an
-  // unused import lint failure while disabled — re-enabling needs
-  // `import { canGuardTaunt, frontLineAllyToProtect } from "./combat";`
-  // added back to this file's own combat.ts import block above.
-  //
-  // Intent: a non-protected Meeps with an unspent-turn abil_taunt (Taunt is
-  // a reusable posture, not a charge, since the same-day no-charge
-  // redesign — engine/mission.ts's canTaunt/taunt) taunts the moment a
-  // front-line-protected ally (commander/Munti) is both visible to a
-  // living enemy AND already below GUARD_TAUNT_ALLY_HP_THRESHOLD (0.6) —
-  // gated above the retreat check, below kill/critical-repair.
-  //
-  //   if (canGuardTaunt(unit)) {
-  //     const ally = frontLineAllyToProtect(allUnits, enemies, turn);
-  //     if (ally) {
-  //       log({ turn, unitId: unit.instanceId, displayName: unit.displayName, hpFraction, reason: "guard_taunt", targetId: ally.instanceId, targetName: ally.displayName });
-  //       return { action: "taunt" };
-  //     }
-  //   }
-  //
-  // Reverted twice, both confirmed regressions at n=1000 full-campaign
-  // batch, not assumed: a visibility-only trigger (attempt 1, and again as
-  // attempt 2a once Taunt's charge limit was removed) fixed the original
-  // worst case outright (mission_amaranth_8, 25/25 commander_down -> 84%
-  // win) but broke the one live emergent-boss mission just as hard
-  // (mission_amaranth_21, ~28-36% baseline -> 0%, 25/25 commander_down) —
-  // a Meeps with no defensive bonus taunting every single turn an ally is
-  // visible dies to the very swarm it's drawing fire from, against a boss
-  // that keeps spawning adds. The HP-gated version above (attempt 2b) is
-  // the closer-to-neutral of the two (73% vs. 71-72% baseline aggregate)
-  // but still not a clean win: Mission 12 and 21 genuinely improved, but
-  // Mission 26 regressed (100%->72%) and Mission 8 — attempt 2a's actual
-  // win — went right back to 0% (an HP-gated trigger fires too late when
-  // the fatal alpha strike lands the same turn the commander first becomes
-  // visible, before her HP has had a turn to drop). Two trigger shapes,
-  // two different mission classes each one helps and each one badly
-  // breaks. The real next attempt needs to reason about threat count or
-  // incoming lethality on the TAUNTING unit itself, not just ally
-  // visibility or ally HP — not built yet.
-  // ---- end Guard Taunt (disabled) ----
+  // Taunt (tiers pass) — the trigger the three reverted 30 Aug attempts
+  // lacked: it reasons about the taunter's own survival first. See
+  // abilities.ts's shouldTaunt. Ahead of the retreat gate, below
+  // kill/critical-repair, exactly where the disabled Guard Taunt sat.
+  if (shouldTaunt(map, unit, enemies, allUnits, turn, hpFraction, memory, profile, profile.threatMap ? threatMapFor(memory, map, allUnits, turn) : undefined)) {
+    memory.lastTauntTurn.set(unit.instanceId, turn);
+    log(entry("guard_taunt"));
+    return { action: "taunt" };
+  }
 
-  // Low HP, no kill on the table this turn — fall back if there's somewhere
-  // safer, but ONLY if something can actually see this unit right now.
-  //
-  // Mission 3 sim-stalemate fix (Maxime, 22 Aug 2026): the last survivor of
-  // a wiped squad, badly wounded and nowhere near the remaining hostile
-  // cluster, would retreat every OTHER turn regardless of whether anything
-  // was anywhere near it — retreatPath only asks "is there a reachable
-  // tile strictly farther than where I am now," which a unit standing in
-  // open, empty space always satisfies. The turn in between, with retreat
-  // exhausted (or, cornered, immediately after), it fell through into the
-  // normal engage logic and advanced toward the fight — then retreated the
-  // full distance right back the next turn since hpFraction never changes
-  // on its own. Two fixed points, zero net progress, forever — confirmed
-  // via a debug instrumentation run: the sole survivor sat at one map
-  // corner while an entire untouched hostile cluster sat frozen at the
-  // other, both sides further apart than anyone's vision stat, for 400+
-  // turns straight.
-  //
-  // Retreating only makes sense against a threat that can actually see you
-  // — decideHostileAction (engine/ai.ts) never acts on a target outside
-  // its own vision (reflexiveDecision: "nothing in sensor range — hold
-  // position"), so a hostile with no line of sight cannot chase or punish
-  // you regardless of raw distance. Gating on isVisibleTo (imported from
-  // engine/ai.ts, the exact same check the real hostile AI itself uses,
-  // not a separate geometric approximation) means: nobody can currently
-  // see me, so there is nothing to retreat FROM — skip straight to closing
-  // the distance instead of pointlessly running from empty space. The
-  // moment a hostile genuinely spots this unit, the gate opens and retreat
-  // behaves exactly as before.
-  const spotted = enemies.some((e) => isVisibleTo(e, unit));
-
-  // Extract-target survival override (26 Aug 2026 — found via Mission 5
-  // "Foraging Party" stress-testing sitting at 0/8, root-caused with a full
-  // --ai-log trace, not guessed at: Farsight (Anand, the named extract
-  // target) dropped to 10% hp by turn 11 — her only Munti was already a
-  // permanent loss by then — and then spent the mission's entire remaining
-  // turn limit locked in retreat_low_hp/regroup_low_hp, never once falling
-  // through to extract_to_exit again. Both of those branches fire
-  // unconditionally once hp drops below RETREAT_HP_FRACTION, with no notion
-  // that THIS unit's actual objective is "reach that tile over there," not
-  // "stay alive in the abstract" — regroup_low_hp in particular pulled her
-  // toward whichever ally was still moving, which on this map's geometry
-  // (deploy west, exit east, the enemy wave spawns in between) meant
-  // repeatedly walking away from the exit. A single Munti loss shouldn't be
-  // able to permanently softlock an extraction this way.
-  //
-  // Fixed narrowly, reusing the exact "gate self-preservation on spotted"
-  // reasoning this file already applies to retreat_low_hp itself (see that
-  // block's own Mission 3 comment two blocks below): nobody able to see this
-  // unit right now means there's nothing to actually flee FROM, so a
-  // critically wounded extract target in that lull should spend the turn
-  // making real progress toward the exit instead of wandering toward a
-  // squad that may have no healer left either. Deliberately NOT touching the
-  // spotted case — mid-firefight, blindly beelining the exit through a live
-  // threat at 10% hp is a worse call than falling back, so
-  // retreat_low_hp/regroup_low_hp still govern exactly as before whenever
-  // something can actually see this unit. This is a real improvement, not a
-  // full fix for every extraction — a threat sitting squarely between the
-  // target and the exit still forces retreat/regroup while spotted, same as
-  // before; see the build log addendum for the honest before/after numbers.
-  // Reads unit.isExtractionTarget, not a comparison against the literal
-  // configured objectiveParams.extractUnitId — 31 Aug 2026 role-fallback
-  // pass (engine/mission.ts's tagExtractionTarget comment). The named
-  // pilot may never have been deployed this run, in which case
-  // tagExtractionTarget already transferred the flag to whichever
-  // squadmate actually showed up; isExtractionTarget is the single source
-  // of truth both engine and Player AI now read.
-  if (
-    context.mission.objective === "extract_unit" &&
-    unit.isExtractionTarget &&
-    hpFraction < RETREAT_HP_FRACTION &&
-    !spotted
-  ) {
+  // Extract-target survival override (26 Aug 2026, Mission 5 trace): a
+  // critically wounded, UNSPOTTED extract target runs for the exit rather
+  // than regrouping toward a squad that may have no healer left.
+  if (isExtractMission && unit.isExtractionTarget && hpFraction < profile.retreatHpFraction && !spotted) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
-      // openExits (Mission 23 "The Amaranth Accord," 25 Aug 2026 — see this
-      // mission's own build-log tuning note for the full stall this fixes):
-      // nearestCoord picks a single geometric target with no regard for
-      // whether anything is already standing on it. An ally parked on the
-      // literal nearest exit tile (easy to happen — every unit converging
-      // from the same direction tends to resolve to the same "nearest"
-      // tile) left the extraction target permanently unable to improve its
-      // distance to that one blocked coordinate, stalling the WHOLE squad
-      // for the rest of the mission, not just this unit. Filtering to
-      // unoccupied exit tiles first, falling back to the full set only if
-      // every exit tile happens to be occupied, is the narrow fix — it
-      // doesn't touch cohesiveMoveToward's own pathing/lead-cap logic.
-      const openExits = exits.filter(
-        (c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y)
-      );
+      const openExits = exits.filter((c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y));
       const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
-      const path = cohesiveMoveToward(map, unit, dest, allUnits);
+      const path = advance(dest);
       if (path.length > 1) {
-        log({
-          turn,
-          unitId: unit.instanceId,
-          displayName: unit.displayName,
-          hpFraction,
-          reason: "extract_to_exit",
-          destination: lastStep(path),
-          note: `${Math.round(hpFraction * 100)}% hp, unspotted — running for the exit instead of regrouping`,
-        });
+        log(entry("extract_to_exit", { destination: lastStep(path), note: `${Math.round(hpFraction * 100)}% hp, unspotted — running for the exit instead of regrouping` }));
         return { path };
       }
     }
   }
 
-  // ---- Gang-up retreat (31 Aug 2026, Player AI hardening pass — tried,
-  // measured, reverted; combat.ts's own "Gang-up retreat" section has the
-  // full trace this responded to and keeps visibleGangCount/
-  // GANG_UP_THRESHOLD defined, same "reverted, not deleted" precedent
-  // Guard Taunt's own primitives already set two headers up. Re-enabling
-  // needs `visibleGangCount, GANG_UP_THRESHOLD,` added back to this file's
-  // own combat.ts import block above.
-  //
-  // Intent: a front-line-protected unit (commander/Munti) retreats
-  // pre-emptively once GANG_UP_THRESHOLD+ visible enemies could reach and
-  // attack it next turn, regardless of current HP — not waiting for the
-  // ordinary retreat_low_hp gate, which can only react to a hit that
-  // already landed. Traced case this targeted: mission_amaranth_12, Rourke
-  // at FULL hp, downed outright in one hostile turn by three
-  // near-simultaneous Splitfang hits nothing here saw coming.
-  //
-  //   const gangCount = frontLineProtected ? visibleGangCount(unit, enemies, turn) : 0;
-  //   const gangedUp = gangCount >= GANG_UP_THRESHOLD;
-  //   if ((hpFraction < retreatThreshold && spotted) || gangedUp) { ... same retreatPath/hold_cornered fallback as retreat_low_hp below, reason "retreat_gang_up" ... }
-  //
-  // A REAL, LARGE win on the exact case it targeted — isolated n=100:
-  // mission_amaranth_12 0%->67%. But two problems, both confirmed against
-  // real batch runs, not assumed: (1) a real regression on the one live
-  // emergent-boss mission (mission_amaranth_21, 45-49%->6%, n=100) — same
-  // failure SHAPE as Guard Taunt's own boss-mission regression: retreating
-  // from an ever-growing spawn doesn't reduce the threat, it just delays
-  // the inevitable while the boss adds more, and eventually there's
-  // nowhere left to retreat TO. (2) A genuine performance/correctness
-  // problem: mission_amaranth_3 and mission_amaranth_24 each ran long
-  // enough to blow through a 60s per-mission n=100 batch timeout that
-  // every OTHER mission in this same pass cleared in under 15s — a single
-  // seed 1 verbose trace on mission_3 resolved fine in 6 turns, so this
-  // isn't every run, but it's real and frequent enough to hang a 100-run
-  // batch outright. retreatPath has no exposure-history/oscillation guard
-  // the way regroupPath was given one (25 Aug, this file's own "Regroup-
-  // toward-safety" section) after an identical round-trip bug — a unit
-  // gang-up-retreating every turn a threat count crosses the threshold,
-  // with nothing remembering it already retreated last turn, is the same
-  // shape of bug, not yet root-caused to a specific fix. Same call as
-  // Guard Taunt's own three reverts: a wrong (or not-yet-safe) heuristic
-  // is worse than the current honest zero. The real next attempt needs
-  // either a per-unit "already retreated this crisis, don't re-trigger
-  // every single turn" memory, or an opt-out for emergent-tier missions
-  // the same way EMERGENT_BOSS_PRIORITY_DISCOUNT and
-  // GUARD_TAUNT_ALLY_HP_THRESHOLD's own history both eventually needed —
-  // not built this pass.
-  // ---- end Gang-up retreat (disabled) ----
-
-  if (hpFraction < retreatThreshold && spotted) {
-    const path = retreatPath(map, unit, enemies, allUnits);
+  // Low HP, no kill on the table, something can see me — fall back if
+  // there's somewhere safer (Mission 3 stalemate fix: only while spotted).
+  // Easy's mistake roll can skip the retreat outright — retreating too late
+  // is the newcomer's signature error.
+  // The squad-stall commit (driveMission.ts) also suspends this retreat
+  // for a line unit: a 2-HP last survivor kiting a Sporethrower that
+  // never closes is a game with no ending (mission_2, seed 1007, 500
+  // loops of explore / retreat_low_hp).
+  const skipRetreat = (profile.mistakeChance > 0 && memory.rng() < profile.mistakeChance) || (memory.commitThisTurn && !frontLineProtected);
+  if (hpFraction < retreatThreshold && spotted && !skipRetreat) {
+    const path = retreatPath(map, unit, allEnemies, allUnits);
     if (path && path.length > 1) {
-      log({
-        turn,
-        unitId: unit.instanceId,
-        displayName: unit.displayName,
-        hpFraction,
-        reason: "retreat_low_hp",
-        destination: lastStep(path),
-        note: `${Math.round(hpFraction * 100)}% hp, no kill available`,
-      });
+      log(entry("retreat_low_hp", { destination: lastStep(path), note: `${Math.round(hpFraction * 100)}% hp, no kill available` }));
       return { path };
     }
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "hold_cornered",
-      note: `${Math.round(hpFraction * 100)}% hp, nowhere safer reachable — fighting anyway`,
-    });
-    // fall through — no safe retreat, so fight from here same as normal
+    log(entry("hold_cornered", { note: `${Math.round(hpFraction * 100)}% hp, nowhere safer reachable — fighting anyway` }));
+  } else if (hpFraction < retreatThreshold && spotted && skipRetreat) {
+    log(entry("mistake", { note: "should have retreated" }));
   }
 
-  // Critically wounded, no kill on the table — regroup toward the squad's
-  // healer BEFORE considering any further offense, not after (Maxime, 25
-  // Aug 2026 — same "wierd mission 1 is easy" thread, found by a stress-test
-  // log that outlasted the fix above). This used to sit much lower in the
-  // priority order, only reached once focus_weak/advance_into_range both
-  // came up empty — which sounds safe, but "empty" meant "literally zero
-  // damage possible," and it turns out that's a much narrower bar than
-  // "worth doing." resolveAttackOnBloom (engine/combat.ts) scales an
-  // attacker's own damage by ITS OWN currentHp/maxHp fraction (a flagged,
-  // not-fully-validated placeholder formula, but it's what's live) — so a
-  // unit at 4% hp still finds a real, positive-damage target almost every
-  // turn, just for a few points at a time. Confirmed against a captured
-  // 290-turn WIN (Mission 1): Farsight sat at 4% hp from turn ~13 onward,
-  // unspotted the entire time (so retreat_low_hp above never even fired),
-  // and focus_weak kept finding SOME crawlmass she could tickle for a
-  // handful of damage every single turn — 273 of 340 total decisions that
-  // run — because the old priority order only ever asked "can I hurt
-  // anything," never "is this worth doing given how close to dead I am."
-  // No real player grinds out 3-damage pokes at 4% hp when nothing is
-  // chasing them; they fall back to the medic. Guaranteed kills are
-  // already exempted (the killNow check at the top of this function is
-  // unconditional and always wins regardless of hp) — this only affects
-  // marginal, non-lethal offense. Same regroupPath (combat.ts) and same
-  // "only take real progress" guard as before — a unit that can't get any
-  // closer to its squad falls straight through to the normal combat chain
-  // below, so this can't stall a lone survivor with nowhere left to go.
-  if (hpFraction < retreatThreshold) {
+  // Critically wounded, unspotted, no kill — regroup toward the squad
+  // before considering marginal offense (25 Aug 2026 trace: the 4%-hp
+  // Farsight poking a Crawlmass for 3 damage a turn, 273 decisions running).
+  if (hpFraction < retreatThreshold && profile.squadCohesion) {
     const ally = nearestLivingAlly(unit, allUnits);
-    const pathToSquad = ally ? regroupPath(map, unit, ally, enemies, allUnits, turn) : null;
+    const pathToSquad = ally ? regroupPath(map, unit, ally, allEnemies, allUnits, turn) : null;
     if (pathToSquad && pathToSquad.length > 1) {
-      log({
-        turn,
-        unitId: unit.instanceId,
-        displayName: unit.displayName,
-        hpFraction,
-        reason: "regroup_low_hp",
-        targetId: ally!.instanceId,
-        targetName: ally!.displayName,
-        destination: lastStep(pathToSquad),
-        note: `${Math.round(hpFraction * 100)}% hp, prioritizing the squad over marginal offense`,
-      });
+      log(entry("regroup_low_hp", { targetId: ally!.instanceId, targetName: ally!.displayName, destination: lastStep(pathToSquad), note: `${Math.round(hpFraction * 100)}% hp, prioritizing the squad over marginal offense` }));
       return { path: pathToSquad };
     }
-    // No living ally, or already as close to one as this turn can get —
-    // nothing better to do than fall through to the normal chain below.
   }
 
-  // Still no kill, and no critical repair fired — a routine top-up beats
-  // chip-damaging a target that isn't dying to this attack anyway. Lower
-  // priority than the critical check above on purpose: this only matters
-  // once retreat/hold_cornered has already had its say for THIS unit.
-  const routine = findRoutineRepairTarget(unit, allUnits);
-  if (routine) {
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "repair_ally",
-      targetId: routine.instanceId,
-      targetName: routine.displayName,
-      note: `${Math.round((routine.currentHp / routine.maxHp) * 100)}% hp`,
-    });
-    return { repairTargetId: routine.instanceId };
+  // Routine top-up beats chip damage on a target that isn't dying anyway.
+  if (profile.useAbilities.abil_repair) {
+    const routine = findRoutineRepairTarget(unit, allUnits, profile.routineAllyHpFraction);
+    if (routine) {
+      log(entry("repair_ally", { targetId: routine.instanceId, targetName: routine.displayName, note: `${Math.round((routine.currentHp / routine.maxHp) * 100)}% hp` }));
+      return { repairTargetId: routine.instanceId };
+    }
   }
 
-  // Screen (25 Aug 2026, Maxime: "add screen too. its probably why mission 3
-  // still fail sometimes"). abil_screen was fully engine-built already
-  // (engine/mission.ts's canScreen/screenAllies, wired into engine/ai.ts's
-  // isVisibleTo since the 23 Aug ability-depth pass) but the header above
-  // still listed it as fully out of scope for this engine, for the same
-  // reason Ambush/Interdict/Sensor Sweep still are: Screen is once-per-
-  // mission per Munti (canScreen's own usedScreenThisMission gate), and a
-  // heuristic that spends a once-per-mission resource at the wrong moment
-  // is worse than never using it at all — a real player would have held it
-  // for the turn that actually needed it.
-  //
-  // Deliberately NOT a general "screen whenever it looks dangerous"
-  // heuristic — that's real judgment (how dangerous is dangerous enough to
-  // spend the only charge this Munti gets?) this engine has no board-reading
-  // for, and guessing at it risks the exact "wrong-moment burn" this was
-  // just flagged as worse than doing nothing. Scoped instead to the precise
-  // situation Maxime named: a Munti standing in a clear_bloom firing
-  // line — objective-gated the same way the clear_bloom branch below is,
-  // `hasClearableBloomNearby` confirming there's actually a patch here —
-  // that a hostile can actually see right now (`spotted`, the exact
-  // isVisibleTo check the retreat gate above already computed for this same
-  // unit) with the charge still unspent. No HP gate: by the time execution
-  // reaches this point, hpFraction < RETREAT_HP_FRACTION with `spotted` true
-  // has already returned via retreat_low_hp above, so this only ever sees
-  // either a healthy Munti or a cornered one retreat couldn't save — Screen
-  // is a good answer to both.
-  //
-  // Fires ahead of clear_bloom on purpose, not instead of it: screenAllies
-  // costs 1 action and does NOT end the turn (its own doc comment, same
-  // contract as Repair and Clear Bloom), so run.ts's per-unit action loop
-  // naturally chains screen-then-clear in the same turn the way it already
-  // chains repair-then-move — the second sub-decision this turn hits
-  // usedScreenThisMission=true and falls straight through to clear_bloom
-  // below.
+  // Sensor Sweep (tiers pass): something the squad can't see is inside
+  // sweep reach. Costs 1 action and the turn continues, so the driver
+  // re-asks and the unit can still shoot whatever the sweep painted.
+  if (shouldSensorSweep(unit, allEnemies, visibleIds, turn, memory, profile)) {
+    memory.lastSweepTurn.set(unit.instanceId, turn);
+    log(entry("sensor_sweep"));
+    return { action: "sensor_sweep" };
+  }
+
+  // Fire Support / Missile (tiers pass): a cluster, a boss, or a VIP
+  // threat inside one blast is worth more than a single focus shot.
+  const fireTile = chooseFireSupportTile(unit, enemies, allUnits, context, turn, memory, profile, map.width, map.height);
+  if (fireTile) {
+    memory.lastStrikeTurn = turn;
+    log(entry("fire_support", { destination: fireTile.tile, note: `${fireTile.hostiles} in the blast` }));
+    return { action: "fire_support", targetTile: fireTile.tile };
+  }
+  const missileTile = chooseMissileTile(unit, enemies, allUnits, profile, map.width, map.height);
+  if (missileTile) {
+    log(entry("missile", { destination: missileTile.tile, note: `${missileTile.hostiles} in the blast, no friendly` }));
+    return { action: "missile", targetTile: missileTile.tile };
+  }
+
+  // Screen — the narrow 25 Aug clear-bloom case (a spotted Munti in a
+  // clear_bloom firing line with the charge unspent), plus the general
+  // "two-plus under the umbrella, two-plus enemies bearing down" trigger.
+  const clearBloomObjective = context.mission.objective === "clear_bloom" || context.mission.bonusObjective?.kind === "clear_bloom_patch";
   if (
+    profile.useAbilities.abil_screen &&
     unit.path === "munti" &&
     unit.abilities.includes("abil_screen") &&
     !unit.usedScreenThisMission &&
-    (context.mission.objective === "clear_bloom" || context.mission.bonusObjective?.kind === "clear_bloom_patch") &&
-    hasClearableBloomNearby(map, unit.pos) &&
-    spotted
+    unit.actionsRemaining > 0 &&
+    ((clearBloomObjective && hasClearableBloomNearby(map, unit.pos) && spotted) || shouldScreen(unit, enemies, allUnits, profile))
   ) {
-    log({ turn, unitId: unit.instanceId, displayName: unit.displayName, hpFraction, reason: "use_screen" });
+    log(entry("use_screen"));
     return { action: "screen" };
   }
 
-  // Munti, objective-gated: the patch is this mission's actual job (or a
-  // bonus explicitly built around it), not a discretionary pick — prefer
-  // clearing over chip-damaging a target that isn't dying to this attack
-  // anyway. Objective-gated on purpose, not "any Munti near any bloom_mat":
-  // MISSION_1A (map_city_sweep_01) has bloom_mat tiles as plain damage
-  // terrain with no clear_bloom objective attached at all — checked directly
-  // against that map before writing this gate, not assumed. hpFraction gate
-  // mirrors the critical-repair bar above ("not in immediate danger").
-  // "Above focus_weak," per the plan doc's own table — this is the slot.
-  // abilities.includes check mirrors canClearBloom's own gate exactly
-  // (every real Munti archetype carries abil_clear_bloom today —
-  // data/units.ts's own comment: "on all [chassis]" — but checking the
-  // ability directly, not just unit.path === "munti", is what keeps this in
-  // sync with canClearBloom if that ever stops being true, and avoids
-  // burning a wasted sub-decision loop in run.ts if it doesn't).
+  // Munti, objective-gated: clear the patch that IS the mission.
   if (
+    profile.useAbilities.abil_clear_bloom &&
     unit.path === "munti" &&
     unit.abilities.includes("abil_clear_bloom") &&
-    hpFraction >= RETREAT_HP_FRACTION &&
-    (context.mission.objective === "clear_bloom" || context.mission.bonusObjective?.kind === "clear_bloom_patch") &&
+    hpFraction >= profile.retreatHpFraction &&
+    clearBloomObjective &&
     hasClearableBloomNearby(map, unit.pos)
   ) {
-    log({ turn, unitId: unit.instanceId, displayName: unit.displayName, hpFraction, reason: "clear_bloom" });
+    log(entry("clear_bloom"));
     return { action: "clear_bloom" };
   }
 
-  // No kill, no repair in place — attack the squad's shared priority target
-  // instead (focusFireTargetInRange, not bestAttackTargetInRange — see
-  // combat.ts's own header for why this unit's own "who do I hit hardest"
-  // isn't the right question for a coordinated squad).
-  const inPlace = focusFireTargetInRange(map, unit, unit.pos, enemies, allUnits);
+  // Munti, objective-gated, nothing to clear from here: walk to the patch.
+  // (1 Sep 2026, Mission 3 at every tier: once the last hostile died the
+  // Munti stood wherever it was and the run hit the 500-loop cap with the
+  // patch untouched — nothing ever moved it toward bloom it couldn't
+  // already reach.) Only when nothing is visible to shoot, so the fight
+  // still comes first; the destination is a clean tile beside the patch,
+  // never a bloom tile itself (turnStartDamage).
+  if (profile.useAbilities.abil_clear_bloom && unit.path === "munti" && unit.abilities.includes("abil_clear_bloom") && clearBloomObjective && enemies.length === 0 && !hasClearableBloomNearby(map, unit.pos) && unit.actionsRemaining > 0) {
+    const standing = new Set(allUnits.filter((u) => !u.downed && u.instanceId !== unit.instanceId).map((u) => `${u.pos.x},${u.pos.y}`));
+    const edge = bloomPatchEdgeTiles(map).filter((c) => !standing.has(`${c.x},${c.y}`));
+    if (edge.length) {
+      const dest = nearestCoord(unit.pos, edge);
+      // Plain moveToward, not the cohesion leash: with nothing in sight
+      // the rest of the squad has no reason to move, and a leashed Munti
+      // never reaches the patch (the escort branch at the bottom of this
+      // chain brings them along instead).
+      const path = moveToward(map, unit, dest, allUnits);
+      if (path.length > 1) {
+        log(entry("clear_bloom", { destination: lastStep(path), note: "walking to the patch" }));
+        return { path };
+      }
+    }
+  }
+
+  // No kill, no repair in place — shoot the squad's shared priority target
+  // (focus fire), or, for Easy, the nearest thing that can be hurt.
+  const inPlace = profile.focusFire
+    ? focusFireTargetInRange(map, unit, unit.pos, enemies, allUnits)
+    : nearestDamageableInRange(map, unit, unit.pos, enemies, allUnits);
   if (inPlace) {
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "focus_weak",
-      targetId: inPlace.instanceId,
-      targetName: inPlace.displayName,
-    });
-    return { attackTargetId: inPlace.instanceId };
+    // Easy's mistake: any other damageable in-range target instead.
+    const alternatives = enemies.filter((e) => e.instanceId !== inPlace.instanceId && nearestDamageableInRange(map, unit, unit.pos, [e], allUnits));
+    const chosen = pick([inPlace, ...alternatives]) ?? inPlace;
+    if (chosen !== inPlace) log(entry("mistake", { note: "shot the wrong target" }));
+    // Hard (hard.ts seam 2): same shot from a seat fewer hostiles can reach.
+    if (profile.threatMap) {
+      const seat = betterFiringTile(map, unit, chosen, allUnits, threatMapFor(memory, map, allUnits, turn), profile, frontLineProtected, memory, context, turn);
+      if (seat) {
+        log(entry("focus_weak", { targetId: chosen.instanceId, targetName: chosen.displayName, destination: lastStep(seat), note: "repositioned to a safer firing tile first" }));
+        return { path: seat, attackTargetId: chosen.instanceId };
+      }
+    }
+    log(entry("focus_weak", { targetId: chosen.instanceId, targetName: chosen.displayName }));
+    return { attackTargetId: chosen.instanceId };
   }
 
   // Nothing in range from here — close on the weakest target, preferring a
-  // safe (ranged-kiting-aware) tile. Guarded on enemies.length: weakestTarget
-  // throws on an empty array, and there's nothing to close distance on
-  // anyway once the board's clear of hostiles — see this function's own
-  // "no blanket early return" comment above for why that case now falls
-  // through to the objective-awareness branches below instead of stopping
-  // here.
-  //
-  // Deliberately called WITHOUT an allies list (Tier 0, 30 Aug 2026) — see
-  // combat.ts's own header on weakestTarget/targetPriorityScore for what
-  // passing one does. Tried it here first; a 400-run batch (npm run sim
-  // equivalent) across all 36+4 missions came back 67% aggregate win vs. a
-  // 73.25% baseline, a real regression, not noise — chasing a distant
-  // type-advantaged target across the whole map with zero distance/exposure
-  // awareness pulls the squad toward a farther, more dangerous approach
-  // purely for the matchup, which a real player wouldn't do blind. Scoping
-  // the triangle weighting to focusFireTargetInRange's already-in-range
-  // choice (below, and the "in-range from here" branch above) captured the
-  // fix with none of that downside — the same batch came back 73.5%, flat
-  // against baseline. Don't "fix" this back to weakestTarget(enemies,
-  // livingSameSideMechs(...)) without re-running that comparison.
+  // safe (kiting-aware) tile; the commander never past her own front line.
   if (enemies.length > 0) {
-    const goal = weakestTarget(enemies);
-    let pathIntoRange = reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits);
-    // Commander protection (28 Aug 2026, test-only — see combat.ts's own
-    // "Commander protection" section for the full trace, including a
-    // first attempt that didn't work). Truncate to the longest prefix that
-    // doesn't put her ahead of her own front line — she still advances,
-    // just never past whichever ally is already most exposed. Gated on
-    // frontLineProtected (commander + Munti, minus this mission's own
-    // extract target — see that flag's own comment above) so every other
-    // unit's already-tuned behaviour here is completely unchanged.
-    if (pathIntoRange && frontLineProtected) {
-      // A truncated-to-length-1 path (no move) still falls through to the
-      // atDest check below exactly like a normal "already here" case —
-      // deliberately not nulled out, since she may still have a real shot
-      // from wherever the front line currently caps her at.
-      pathIntoRange = commanderSafePathPrefix(pathIntoRange, unit, allUnits, enemies);
+    const ranked = [...enemies].sort((a, b) => (weakestTarget([a, b]) === a ? -1 : 1));
+    const goal = pick(ranked) ?? ranked[0];
+    // Hard (hard.ts seam 3): the in-range tile under the danger bar with
+    // the best damage/incoming/terrain trade, instead of "far edge of my
+    // range." Falls through to the ordinary pick only when NO reachable
+    // tile is in range of the goal at all (null) — when tiles exist but
+    // are all past the bar, Hard declines the advance and lets the
+    // later branches (overwatch, hold) run.
+    let hardHandled = false;
+    if (profile.threatMap) {
+      const threat = threatMapFor(memory, map, allUnits, turn);
+      const aware = threatAwareIntoRange(map, unit, goal, enemies, allUnits, threat, profile, frontLineProtected, memory, context, turn);
+      if (aware && (aware.path.length > 1 || aware.attackTargetId)) {
+        const dest = lastStep(aware.path);
+        log(entry("advance_into_range", { targetId: aware.attackTargetId, targetName: aware.attackTargetId ? enemies.find((e) => e.instanceId === aware.attackTargetId)?.displayName : undefined, destination: dest, note: "threat-aware tile" }));
+        return { path: aware.path, attackTargetId: aware.attackTargetId };
+      }
+      hardHandled = !(memory.commitThisTurn && !frontLineProtected) && reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits) !== null; // in-range tiles existed but were all past the bar (unless the stall breaker is on)
     }
+    let pathIntoRange = hardHandled ? null : reachableIntoRangePreferringSafety(map, unit, goal.pos, allUnits);
+    if (pathIntoRange && frontLineProtected) pathIntoRange = commanderSafePathPrefix(pathIntoRange, unit, allUnits, enemies);
     if (pathIntoRange) {
       const dest = lastStep(pathIntoRange);
-      const atDest = findLethalTargetFrom(map, unit, dest, enemies, allUnits) ?? focusFireTargetInRange(map, unit, dest, enemies, allUnits);
-      // Only commit to this branch if it's actually worth something — a real
-      // move (path.length > 1) or a target worth shooting once there. A
-      // reachable-into-range tile that turns out to just be "stay exactly
-      // where I already am, and there's nothing here worth shooting" (the
-      // damageable-only filter in focusFireTargetInRange can now correctly
-      // say so — see that function's own header) used to still return here
-      // and short-circuit the whole decision, permanently pre-empting the
-      // low-hp regroup fallback below every single turn. Found via the same
-      // 500-turn ONGOING run as that filter itself.
+      const atDest =
+        findLethalTargetFrom(map, unit, dest, enemies, allUnits, strikeMult) ??
+        (profile.focusFire ? focusFireTargetInRange(map, unit, dest, enemies, allUnits) : nearestDamageableInRange(map, unit, dest, enemies, allUnits));
       if (pathIntoRange.length > 1 || atDest) {
-        log({
-          turn,
-          unitId: unit.instanceId,
-          displayName: unit.displayName,
-          hpFraction,
-          reason: "advance_into_range",
-          targetId: atDest?.instanceId,
-          targetName: atDest?.displayName,
-          destination: dest,
-        });
+        log(entry("advance_into_range", { targetId: atDest?.instanceId, targetName: atDest?.displayName, destination: dest }));
         return { path: pathIntoRange, attackTargetId: atDest?.instanceId };
       }
-      // Already here, and nothing here is worth attacking — fall through
-      // instead of returning a no-op decision.
     }
   }
 
-  // Still too far to attack from anywhere reachable this turn. A
-  // critically wounded unit already had its shot at regrouping toward the
-  // squad above (before offense was even considered) — if that couldn't
-  // make progress then, it can't now either (nothing about the board
-  // changed in between), so there's no second regroup check here.
-  //
-  // Nothing better to do combat-wise — this is the "above seek_fight" slot
-  // the plan doc's table names for extract_to_exit/hold_zone, and the
-  // (lower-priority, bonus-only) slot for seek_rescue. Checked in that
-  // order — the real objective, then the bonus — never the other way
-  // around.
+  // Munti with nobody in range: walk into range of the worst ally and heal
+  // (repairPathing — MODERATE and up).
+  const rm = repairMove(map, unit, allUnits, enemies, profile);
+  if (rm) {
+    log(entry("repair_move", { targetId: rm.targetId, destination: lastStep(rm.path) }));
+    return { path: rm.path, repairTargetId: rm.targetId };
+  }
 
-  // extract_unit's own named target overrides the normal chase: getting
-  // them out is the actual mission, not a discretionary pick. Other units
-  // on an extract_unit mission are NOT special-cased here — they fall
-  // through to normal seek_fight/seek_rescue like any other mission; the
-  // plan doc's own "escorts screen the extract target" idea is deliberately
-  // NOT built this pass (see that doc's §2 vs. this comment) — squad
-  // cohesion (cohesiveMoveToward's own MAX_LEAD_FROM_ALLIES cap) already
-  // pulls stragglers toward whichever ally is closest, which in practice
-  // includes an extract target who's already moving toward the exit; a
-  // bespoke escort heuristic on top of that is more machinery than a
-  // kid-level pass needs today.
-  // unit.isExtractionTarget, not a literal extractUnitId comparison — see
-  // the branch above's own comment on the 31 Aug 2026 role-fallback pass.
-  if (context.mission.objective === "extract_unit" && unit.isExtractionTarget) {
+  // Hold-in-place postures (ambush / interdict / overwatch) all yield while
+  // an objective still needs this unit to move (a hold-zone tile it isn't
+  // standing on, an extraction it IS, a rescue nobody has reached).
+  const onHoldTile = (context.map.holdZone ?? []).some((c) => c.x === unit.pos.x && c.y === unit.pos.y);
+  const objectiveMovePending =
+    (context.mission.objective === "hold_zone" && !onHoldTile) || (isExtractMission && !!unit.isExtractionTarget) || !!findRescuableNpcOnBoard(allUnits);
+
+  // Ambush (tiers pass): unseen, healthy, nothing to shoot, an enemy in
+  // striking reach — cloak now, strike at 2x next turn. Deliberately NOT
+  // gated on objectiveMovePending like the two postures below: tried it
+  // (1 Sep 2026, House Amaranth 5 — two Meeps cloaking outside the zone on
+  // turn 2 looked like wasted turns) and every hold-zone mission in the
+  // check batch got worse (House Amaranth 9 100% → 50%, Mission 12 50% →
+  // 30%): a cloaked unit walking into the zone next turn is a unit the
+  // wave can't target, arriving with a 2x strike loaded.
+  if (!memory.commitThisTurn && shouldAmbush(unit, enemies, allUnits, spotted, hpFraction, profile)) {
+    log(entry("ambush"));
+    return { action: "ambush" };
+  }
+
+  // Interdict / Overwatch (tiers pass): they're coming and there's nothing
+  // to shoot yet — let them walk into it.
+  if (!objectiveMovePending && enemies.length > 0 && !memory.commitThisTurn) {
+    if (shouldInterdict(unit, enemies, allUnits, profile)) {
+      log(entry("interdict"));
+      return { action: "interdict" };
+    }
+    if (shouldOverwatch(unit, enemies, profile)) {
+      log(entry("overwatch"));
+      return { action: "overwatch" };
+    }
+  }
+
+  // ---- Objective moves (25 Aug 2026 objective-awareness pass) ----
+  if (isExtractMission && unit.isExtractionTarget) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
-      // openExits — same fix, same reason as the unspotted/low-hp branch
-      // above (see that branch's own comment for the full stall story).
-      const openExits = exits.filter(
-        (c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y)
-      );
+      const openExits = exits.filter((c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y));
       const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
-      const path = cohesiveMoveToward(map, unit, dest, allUnits);
-      log({
-        turn,
-        unitId: unit.instanceId,
-        displayName: unit.displayName,
-        hpFraction,
-        reason: "extract_to_exit",
-        destination: path.length > 1 ? lastStep(path) : undefined,
-      });
+      const path = advance(dest);
+      log(entry("extract_to_exit", { destination: path.length > 1 ? lastStep(path) : undefined }));
       return { path };
     }
-    // No exit tiles defined — fall through to normal seek_fight rather than stall.
   }
-
-  // hold_zone: every unit without a better action converges on the nearest
-  // zone tile instead of chasing the weakest enemy across the map. Once a
-  // unit is actually standing on a hold tile this naturally becomes a
-  // no-op (nearestCoord picks the tile it's already on, so
-  // cohesiveMoveToward returns a length-1 "path") — "prefer not leaving it
-  // once there" falls out for free rather than needing its own check.
   if (context.mission.objective === "hold_zone") {
     const hold = context.map.holdZone ?? [];
     if (hold.length) {
-      const dest = nearestCoord(unit.pos, hold);
-      const path = cohesiveMoveToward(map, unit, dest, allUnits);
-      log({
-        turn,
-        unitId: unit.instanceId,
-        displayName: unit.displayName,
-        hpFraction,
-        reason: "hold_zone",
-        destination: path.length > 1 ? lastStep(path) : undefined,
-      });
+      // Hard picks the zone tile nobody can punish (hard.ts bestHoldTile);
+      // everyone else takes the nearest.
+      const dest = (profile.threatMap ? bestHoldTile(map, unit, allUnits, threatMapFor(memory, map, allUnits, turn), context, memory) : null) ?? nearestCoord(unit.pos, hold);
+      const path = advance(dest, true);
+      log(entry("hold_zone", { destination: path.length > 1 ? lastStep(path) : undefined }));
       return { path };
     }
-    // No holdZone defined on this map (shouldn't happen on a real hold_zone
-    // mission) — fall through to normal seek_fight rather than stall.
   }
-
-  // Bonus objective, never the real one — an uncarried rescuable NPC still
-  // out there is worth heading toward once nothing higher in this chain had
-  // a better use for the turn, but never ahead of the mission's own
-  // objective (the two branches just above already claimed that priority
-  // when applicable).
-  //
-  // Tier 6 hotfix, 30 Aug 2026 — same `avoidsRescuePickup` gate as the
-  // actual pickup branch above (see its own header, and this same day's
-  // "extract_unit missions weren't actually protected" correction, for the
-  // full "why"). Without this, the commander/Munti could still spend every
-  // turn walking toward the NPC even though the pickup branch now refuses
-  // to let them grab it — camping next to a bonus they can never claim
-  // instead of fighting, repairing, or retreating like they normally would.
-  if (hpFraction >= RETREAT_HP_FRACTION && !avoidsRescuePickup) {
+  if (hpFraction >= profile.retreatHpFraction && !avoidsRescuePickup && profile.useAbilities.rescue) {
     const npc = findRescuableNpcOnBoard(allUnits);
     if (npc) {
-      const path = cohesiveMoveToward(map, unit, npc.pos, allUnits);
+      const path = advance(npc.pos);
       if (path.length > 1) {
-        log({
-          turn,
-          unitId: unit.instanceId,
-          displayName: unit.displayName,
-          hpFraction,
-          reason: "seek_rescue",
-          targetId: npc.instanceId,
-          targetName: npc.displayName,
-          destination: lastStep(path),
-        });
+        log(entry("seek_rescue", { targetId: npc.instanceId, targetName: npc.displayName, destination: lastStep(path) }));
         return { path };
       }
-      // No progress reachable toward them this turn — fall through to normal seek_fight.
     }
   }
 
-  // Close the distance on the weakest target — cohesion-capped (Maxime, 25
-  // Aug 2026 — see combat.ts's own header for the full Mission 1 diagnosis)
-  // so a fast unit doesn't sprint alone into a fight the rest of the squad
-  // is turns away from reaching. Guarded on enemies.length for the same
-  // reason as the advance_into_range block above (weakestTarget throws on
-  // an empty array) — recomputed here rather than threading a `goal`
-  // variable across the objective-awareness branches in between, since
-  // weakestTarget is a cheap reduce over however many enemies are left.
-  //
-  // Also deliberately called WITHOUT an allies list, same Tier 0 batch-sim
-  // finding as the advance_into_range branch above (see that block's own
-  // comment) — this is the other "chase across the map" call site the same
-  // regression came from.
+  // Close the distance on the weakest visible target (cohesion-capped).
   if (enemies.length > 0) {
     const goal = weakestTarget(enemies);
-    let path = cohesiveMoveToward(map, unit, goal.pos, allUnits);
-    // Commander protection (28 Aug 2026, test-only — same front-line cap
-    // as the advance_into_range branch above; see combat.ts's own
-    // "Commander protection" section). cohesiveMoveToward's own leash only
-    // ever checks distance-from-allies, not distance-to-the-enemy, so on
-    // its own it doesn't stop her ending up the most exposed unit in a
-    // formation that's advancing together — this closes that gap the same
-    // way, without touching any other unit's behaviour. Same
-    // frontLineProtected gate as advance_into_range above.
+    let path = advance(goal.pos);
     if (frontLineProtected) path = commanderSafePathPrefix(path, unit, allUnits, enemies);
-    log({
-      turn,
-      unitId: unit.instanceId,
-      displayName: unit.displayName,
-      hpFraction,
-      reason: "seek_fight",
-      targetId: goal.instanceId,
-      targetName: goal.displayName,
-      destination: path.length > 1 ? lastStep(path) : undefined,
-    });
+    log(entry("seek_fight", { targetId: goal.instanceId, targetName: goal.displayName, destination: path.length > 1 ? lastStep(path) : undefined }));
     return { path };
   }
 
-  // Escort convergence on extract_unit missions (25 Aug 2026 — found via
-  // Mission 11 "The Long Walk Back" stress-testing, not guessed at: 0/8
-  // wins, every single one a turn-limit timeout with the extract target
-  // stalled a few tiles short of the exit for the mission's entire back
-  // half; see the build log addendum for the full trace). Root cause: the
-  // extract_to_exit branch above only ever moves the NAMED target — every
-  // OTHER unit on the mission just falls through the normal combat chain
-  // like any other mission, same as this file's own header already
-  // documents as the deliberate choice ("a bespoke escort heuristic... felt
-  // like more machinery than a kid-level pass needs today"). That was fine
-  // on the assumption escorts would always have a fight pulling them
-  // roughly toward the target anyway — true until the board clears BEFORE
-  // the target reaches the exit, at which point every non-target unit hits
-  // hold_no_target and simply stops, forever. cohesiveMoveToward's own
-  // MAX_LEAD_FROM_ALLIES cap (combat.ts) then reads those four frozen
-  // units as "the squad" and refuses to let the target outpace them — a
-  // real deadlock, not a difficulty problem: the mission becomes
-  // mechanically unwinnable the moment combat ends early.
-  //
-  // Fixed the same shape hold_zone already uses above (converge everyone
-  // without a better action onto the objective), deliberately placed here
-  // — after seek_rescue, not before it — so it changes nothing about
-  // already-tested behaviour: a unit with a bonus rescue to chase still
-  // chases it first (the real objective already outranks the bonus for the
-  // extract TARGET itself; this keeps the same order for everyone else),
-  // and this only ever fires once there is truly nothing else, which is
-  // exactly the gap that let escorts freeze in the first place.
-  if (context.mission.objective === "extract_unit") {
-    const exits = context.map.exitTiles ?? [];
-    if (exits.length) {
-      const dest = nearestCoord(unit.pos, exits);
-      const path = cohesiveMoveToward(map, unit, dest, allUnits);
+  // Fog-honest and nothing in sight, but the enemy is still out there:
+  // head for where the Bloom comes from rather than freezing. Hard uses
+  // its last-seen memory first.
+  if (allEnemies.length > 0) {
+    // In order: where a hostile was last seen (Hard), the map's spawn
+    // seams, and — only on a squad-stall commit turn — the nearest
+    // hostile's real position. That last one is a small, deliberate cheat
+    // for the test harness: a lone 6-HP survivor at the far end of a map
+    // from seven Crawlmass that can't see him is a game nobody can end
+    // (mission_1a, 10/100 Hard runs at the 500-loop cap), and a human
+    // would go looking.
+    const guesses: Coord[] = [];
+    if (memory.commitThisTurn) guesses.push(nearestCoord(unit.pos, allEnemies.map((e) => e.pos)));
+    if (profile.rememberLastSeen && memory.lastSeen.size > 0) guesses.push(nearestCoord(unit.pos, [...memory.lastSeen.values()]));
+    const seam = explorationTarget(map, unit.pos);
+    if (seam) guesses.push(seam);
+    for (const target of guesses) {
+      let path = advance(target);
+      if (frontLineProtected) path = commanderSafePathPrefix(path, unit, allUnits, allEnemies);
       if (path.length > 1) {
-        log({
-          turn,
-          unitId: unit.instanceId,
-          displayName: unit.displayName,
-          hpFraction,
-          reason: "escort_to_exit",
-          destination: lastStep(path),
-        });
+        log(entry("explore", { destination: lastStep(path) }));
         return { path };
       }
-      // Already as close as cohesion allows (or already there) — fall
-      // through to hold_no_target rather than return a no-op decision.
     }
   }
 
-  // Truly nothing left to do: no enemies, nothing to hold/extract/clear/
-  // rescue, no ally to help. This is the real "hold_no_target" case now —
-  // see this function's own comment where the old blanket early-return used
-  // to sit for why it's here instead.
-  log({ turn, unitId: unit.instanceId, displayName: unit.displayName, hpFraction, reason: "hold_no_target" });
+  // Escort convergence on extract_unit missions (Mission 11 deadlock fix).
+  if (isExtractMission) {
+    const exits = context.map.exitTiles ?? [];
+    if (exits.length) {
+      const dest = nearestCoord(unit.pos, exits);
+      const path = advance(dest);
+      if (path.length > 1) {
+        log(entry("escort_to_exit", { destination: lastStep(path) }));
+        return { path };
+      }
+    }
+  }
+
+  // Nothing to fight and nothing to walk to: stay with the unit doing the
+  // objective's work (the Munti clearing a patch), so it isn't alone when
+  // the next wave lands.
+  if (clearBloomObjective && unit.path !== "munti") {
+    const worker = allUnits.find((u) => !u.downed && u.side === unit.side && u.path === "munti" && u.abilities.includes("abil_clear_bloom"));
+    if (worker && chebyshevDistance(unit.pos, worker.pos) > 2) {
+      const path = moveToward(map, unit, worker.pos, allUnits);
+      if (path.length > 1) {
+        log(entry("escort_to_exit", { targetId: worker.instanceId, targetName: worker.displayName, destination: lastStep(path), note: "staying with the Munti on the patch" }));
+        return { path };
+      }
+    }
+  }
+
+  log(entry("hold_no_target"));
   return {};
 }

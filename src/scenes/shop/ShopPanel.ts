@@ -368,9 +368,18 @@ export class ShopPanel {
 
     // Upgrade Tier
     const idx = TIER_ORDER.indexOf(pilot.tier);
-    const atMaxTier = idx === TIER_ORDER.length - 1;
-    const tierCost = atMaxTier ? undefined : TIER_UPGRADE_COST[pilot.tier as Exclude<Tier, "A">];
-    const tierLabel = atMaxTier ? "TIER MAXED" : `UPGRADE -> ${TIER_ORDER[idx + 1]} (${tierCost})`;
+    // S-tier (2 Sep 2026, Heirlooms) is off the purchase ladder entirely,
+    // so it isn't in TIER_ORDER and indexOf returns -1 for it. Checked
+    // explicitly rather than left to the arithmetic: with idx === -1,
+    // `atMaxTier` below would read false and `TIER_ORDER[idx + 1]` would
+    // resolve to TIER_ORDER[0], so this panel would have cheerfully
+    // offered an Heirloom pilot an "UPGRADE -> G" button. Same latent bug
+    // purchaseTierUpgrade needed guarding against; see TIER_ORDER's own
+    // comment.
+    const isHeirloomTier = pilot.tier === "S";
+    const atMaxTier = isHeirloomTier || idx === TIER_ORDER.length - 1;
+    const tierCost = atMaxTier ? undefined : TIER_UPGRADE_COST[pilot.tier as Exclude<Tier, "A" | "S">];
+    const tierLabel = isHeirloomTier ? "HEIRLOOM (S)" : atMaxTier ? "TIER MAXED" : `UPGRADE -> ${TIER_ORDER[idx + 1]} (${tierCost})`;
     const tierEnabled = !atMaxTier && tierCost !== undefined && entry.personalPoints >= tierCost;
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 84, top + 62, 148, 24, tierLabel, tierEnabled, () => {
       purchaseTierUpgrade(this.state, pilotId);
@@ -417,12 +426,15 @@ export class ShopPanel {
     const convertX = SHOP_CARD_R - 104;
     this.shopLayer.add(
       this.scene.add
-        .text(convertX, top + 96, "Convert to company:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+        .text(convertX, top + 92, "Convert to company:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
         .setOrigin(0.5, 0)
     );
     const convertGain = Math.floor(entry.personalPoints / CONVERSION_RATE);
     const convertLabel = entry.personalPoints > 0 ? `CONVERT ALL (${entry.personalPoints} -> ${convertGain})` : "NOTHING TO CONVERT";
-    makeShopButton(this.scene, this.shopLayer, convertX, top + 112, 170, 22, convertLabel, entry.personalPoints > 0, () => {
+    // top + 114 (was 112) and the label at top + 92 (was 96): the 22px
+    // button used to overlap its own 9px label — same overlap the Weapon
+    // Branch row below had, fixed together 1 Sep 2026.
+    makeShopButton(this.scene, this.shopLayer, convertX, top + 114, 170, 22, convertLabel, entry.personalPoints > 0, () => {
       convertPersonalToCompany(this.state, pilotId, entry.personalPoints);
       this.render();
     });
@@ -437,11 +449,18 @@ export class ShopPanel {
     const buildable = WEAPON_BRANCHES_BY_PATH[path] ?? [];
     if (buildable.length === 0) return;
     this.shopLayer.add(
-      this.scene.add.text(SHOP_CARD_L + 14, top + 96, "Weapon Branch:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+      this.scene.add.text(SHOP_CARD_L + 14, top + 92, "Weapon Branch:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
     );
     const owned = pilot.ownedWeaponBranches ?? [];
+    // Layout fix, 1 Sep 2026 (caught in a Debrief screenshot during the
+    // telemetry pass): makeShopButton takes a CENTER x, but this row was
+    // passing the card's left edge — every branch button rendered half off
+    // the card's left side, its label clipped, since the day it shipped.
+    // `bx` is the button's left edge; `bx + BRANCH_BTN_W / 2` is its centre.
+    const BRANCH_BTN_W = 210;
     let bx = SHOP_CARD_L + 14;
     for (const branchId of buildable) {
+      const cx = bx + BRANCH_BTN_W / 2;
       const branch = WEAPON_BRANCHES[branchId];
       const isOwned = owned.includes(branchId as WeaponBranchId);
       const isEquipped = pilot.equippedWeaponBranch === branchId;
@@ -449,23 +468,28 @@ export class ShopPanel {
         const purchaseIndex = owned.length;
         const cost = WEAPON_BRANCH_COSTS[purchaseIndex];
         const requiredTier = WEAPON_BRANCH_TIER_GATE[purchaseIndex];
-        const tierMet = TIER_ORDER.indexOf(pilot.tier) >= TIER_ORDER.indexOf(requiredTier);
+        // S is above every gate but absent from TIER_ORDER, so indexOf
+        // gives -1 and would fail every comparison — see
+        // purchaseWeaponBranch, which this button must agree with exactly
+        // or the UI disables a purchase the engine would allow.
+        const pilotTierIdx = pilot.tier === "S" ? TIER_ORDER.length : TIER_ORDER.indexOf(pilot.tier);
+        const tierMet = pilotTierIdx >= TIER_ORDER.indexOf(requiredTier);
         const affordable = cost !== undefined && entry.personalPoints >= cost;
         const label = cost === undefined ? `${branch.displayName} (maxed)` : `BUY ${branch.displayName} (${cost})`;
-        makeShopButton(this.scene, this.shopLayer, bx, top + 112, 210, 22, label, cost !== undefined && tierMet && affordable, () => {
+        makeShopButton(this.scene, this.shopLayer, cx, top + 114, BRANCH_BTN_W, 22, label, cost !== undefined && tierMet && affordable, () => {
           purchaseWeaponBranch(this.state, pilotId, branchId);
           this.render();
         });
         if (cost !== undefined && !tierMet) {
           this.shopLayer.add(
             this.scene.add
-              .text(bx, top + 124, `needs tier ${requiredTier}+`, { fontFamily: "monospace", fontSize: "8px", color: "#6b7a8a" })
+              .text(cx, top + 126, `needs tier ${requiredTier}+`, { fontFamily: "monospace", fontSize: "8px", color: "#6b7a8a" })
               .setOrigin(0.5, 0)
           );
         }
       } else {
         const label = isEquipped ? `${branch.displayName} [EQUIPPED]` : `EQUIP ${branch.displayName}`;
-        makeShopButton(this.scene, this.shopLayer, bx, top + 112, 210, 22, label, true, () => {
+        makeShopButton(this.scene, this.shopLayer, cx, top + 114, BRANCH_BTN_W, 22, label, true, () => {
           equipWeaponBranch(this.state, pilotId, isEquipped ? null : branchId);
           this.render();
         });

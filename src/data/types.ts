@@ -12,7 +12,27 @@ export type Path = "meeps" | "tank" | "reeps" | "munti";
 // through the archetype lookup every combat pilot uses.
 export type Species = "human" | "hiopi" | "osnius" | "carabil";
 export type Chassis = "bipedal" | "centauroid" | "bipedal_vibrissal";
-export type Tier = "G" | "F" | "E" | "D" | "C" | "B" | "A";
+/**
+ * Gear tier. G is the floor, A the top of the ladder a pilot can BUY.
+ *
+ * S (2 Sep 2026) is different in kind from the seven below it and the
+ * difference is load-bearing: it is GRANTED with an Heirloom and can never
+ * be purchased. Maxime's own words in the Heirloom plan, "and herloom are
+ * s ranked."
+ *
+ * The trap this deliberately avoids — worth spelling out here, at the
+ * type, because it's invisible at every call site: engine/campaignEconomy
+ * .ts's TIER_ORDER drives the purchase ladder, and the shop's "already at
+ * max tier" check is literally `index === TIER_ORDER.length - 1`. If S
+ * were appended to TIER_ORDER, every pilot in the game could simply buy
+ * their way to S with personal points, which would destroy the entire
+ * premise of the Heirloom pool (aristocrat mechs, 3 per campaign, one
+ * fielded at a time). So S is a member of THIS type and deliberately NOT a
+ * member of TIER_ORDER. Anything that walks the ladder must keep using
+ * TIER_ORDER; anything that merely displays or compares a tier can use
+ * this type. See TIER_ORDER's own comment for the other half of this.
+ */
+export type Tier = "G" | "F" | "E" | "D" | "C" | "B" | "A" | "S";
 export type MekTrack = "fabricator" | "armorer" | "runemaster" | "fieldwright" | "quartermaster";
 
 export type Coord = { x: number; y: number };
@@ -62,7 +82,7 @@ export interface UnitArchetype {
   spriteKey: string;
 }
 
-// Casting is separate from balance data (Data Pack §1.2): who Trav is
+// Casting is separate from balance data (Data Pack §1.2): who a pilot is
 // changes at a different rate than what a Meeps-on-centauroid is.
 export interface PilotRecord {
   id: string;

@@ -215,8 +215,18 @@ export class TransporterPad extends Phaser.Scene {
     // its own CampaignPilotEntry.
     this.state = loadCampaignState() ?? createWardenCampaignState();
 
+    // `&& !entry.social?.refusesDeployment` added 2 Sep 2026 — the Insult
+    // Tier-3 standoff (Praise/Insult/Apology Proposal §3a, Maxime: "wont
+    // fly with you"). This is the immediate half of that lock: the flag
+    // flips the instant Tier 3 is crossed (scenes/Hub.ts's insultNpc), no
+    // CO conversation required to START being blocked, only to resolve it
+    // (see engine/campaignState.ts's PilotStatus "reassigned" for the
+    // permanent half, set only via a deliberate CO chat). A pilot who's
+    // reassigned already fails the `status === "active"` check on its own;
+    // this covers the window between the standoff starting and the player
+    // actually going to ask the CO about it.
     const activePilotIds = Object.entries(this.state.pilots)
-      .filter(([, entry]) => entry.status === "active")
+      .filter(([, entry]) => entry.status === "active" && !entry.social?.refusesDeployment)
       .map(([id]) => id);
 
     // ---- The actual behavior fork this whole pass is about -------------

@@ -6,8 +6,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Bloom Wars</title>
     <style>
-      html, body { margin: 0; padding: 0; background: #0c0f12; }
-      #app { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+      /* Screen Resolution Plan v1, 2 Sep 2026 — the upper bound on how far
+         Phaser's Scale.FIT (src/main.ts) is allowed to stretch the game
+         canvas. Without a cap, FIT (shipped 1 Sep 2026) stretches the fixed
+         1074x640 logical canvas to fill the whole window on ANY monitor —
+         fine on a 1080p screen, but 2-3x oversized on a 1440p/4K/ultrawide
+         one, since every scene's UI is hand-placed in absolute pixel
+         coordinates that scale right along with the canvas. These two
+         values are overwritten at runtime by src/engine/displayScale.ts
+         (default 150%, player-adjustable in Options) the moment main.ts
+         runs — they're just the pre-script fallback so there's no flash of
+         an uncapped canvas before the first paint. See
+         claude/Bloom_Wars_Screen_Resolution_Plan_v1.md for the full
+         diagnosis and what's deliberately NOT fixed by this cap alone. */
+      :root { --bw-max-w: 1611px; --bw-max-h: 960px; }
+      html, body { margin: 0; padding: 0; background: #0c0f12; overflow: hidden; height: 100%; }
+      /* Centers #app itself once its own max-width/max-height below keep it
+         smaller than the viewport — without this, a capped #app sits
+         pinned to the top-left instead of in the middle of the screen. */
+      body { display: flex; align-items: center; justify-content: center; }
+      /* Sized to the full viewport, but never past --bw-max-w/--bw-max-h —
+         the actual resolution cap. Phaser's Scale.FIT then contains the
+         1074x640 logical canvas inside whatever size #app ends up at. */
+      #app {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100vw;
+        height: 100vh;
+        max-width: var(--bw-max-w);
+        max-height: var(--bw-max-h);
+      }
     </style>
   </head>
   <body>

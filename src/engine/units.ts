@@ -8,6 +8,7 @@ import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
 import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION } from "../data/combatTables";
 import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, type WeaponBranchId } from "../data/weaponBranches";
+import { SEND_OFF_DEFENSE_BONUS } from "../data/socialActions";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
 export type Side = "player" | "hostile";
@@ -50,6 +51,14 @@ export interface BattleUnit {
   // Bloom, rescued NPCs, civilians, and any pilot who hasn't bought/
   // equipped a branch all read as "plain default weapon."
   weaponBranchId?: WeaponBranchId;
+  // Send-Off tactical payoff (2 Sep 2026) — true only for the one pilot who
+  // was sent off in the Hub right before this mission launched (baked in at
+  // createPlayerUnit, consumed for the rest of the mission the same
+  // "doesn't change mid-mission" way weaponBranchId is). See data/
+  // socialActions.ts's SEND_OFF_DEFENSE_BONUS for the number this actually
+  // grants and scenes/Battle.ts's resolveDeployRoster for where the flag on
+  // CampaignState gets consumed. Undefined/false for every other unit.
+  sentOff?: boolean;
   // Gear-tier pass (sprites/decor, 23 Aug 2026): the raw Tier letter, kept
   // alongside the already-tier-adjusted effective* stats instead of being
   // discarded once TIERS[tier] has been baked into them. Only pilots and
@@ -341,7 +350,11 @@ function weaponBranchGrantedAbility(branchId: WeaponBranchId | undefined): strin
  * exactly as it was, so every existing call site (tests, npm run sim, and
  * Mission's own no-override fallback) is unaffected.
  */
-export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilot?: PilotRecord; mek?: MekArchetype }): BattleUnit {
+export function createPlayerUnit(
+  pilotId: string,
+  pos: Coord,
+  overrides?: { pilot?: PilotRecord; mek?: MekArchetype; sendOffBonus?: boolean }
+): BattleUnit {
   const pilot = overrides?.pilot ?? findPilot(pilotId);
   if (!pilot) throw new Error(`Unknown pilot id: ${pilotId}`);
   const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
@@ -359,9 +372,16 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
   const weaponBranchId = pilot.equippedWeaponBranch as WeaponBranchId | undefined;
   const branchAttackBonus = weaponBranchAttackBonus(weaponBranchId);
   const grantedAbility = weaponBranchGrantedAbility(weaponBranchId);
+  // Send-Off tactical payoff (2 Sep 2026) — see the BattleUnit.sentOff field
+  // comment above and data/socialActions.ts's SEND_OFF_DEFENSE_BONUS for the
+  // full reasoning. `overrides?.sendOffBonus` is only ever true for the one
+  // roster entry scenes/Battle.ts's resolveDeployRoster matched against
+  // CampaignState.preMissionSendOff.
+  const sentOff = overrides?.sendOffBonus === true;
+  const sendOffDefenseBonus = sentOff ? SEND_OFF_DEFENSE_BONUS : 0;
 
   const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack + branchAttackBonus;
-  const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense;
+  const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense + sendOffDefenseBonus;
   const maxHp = archetype.baseHp + (tier.hp - 100) + mekBonus.hp;
   const vision = archetype.vision + mekBonus.vision;
   const moveRange = archetype.moveRange + tier.move;
@@ -392,6 +412,7 @@ export function createPlayerUnit(pilotId: string, pos: Coord, overrides?: { pilo
     abilities,
     chassis: archetype.chassis,
     weaponBranchId,
+    sentOff,
     tier: pilot.tier,
     shield: 0,
     maxShield: 0,

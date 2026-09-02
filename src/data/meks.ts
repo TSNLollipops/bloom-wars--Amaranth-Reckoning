@@ -37,10 +37,10 @@ export const PILOTS: PilotRecord[] = [
     tier: "G",
   },
   {
-    id: "pilot_trav",
-    displayName: "Trav",
+    id: "pilot_voss",
+    displayName: "Marcus Voss",
     archetypeId: "arch_meeps_bipedal",
-    mekId: "mek_trav",
+    mekId: "mek_voss",
     tier: "G",
   },
 ];
@@ -74,9 +74,9 @@ export const MEKS: Record<string, MekArchetype> = {
     secondary: "quartermaster",
     spareParts: 0,
   },
-  mek_trav: {
-    id: "mek_trav",
-    displayName: "Trav's Mek",
+  mek_voss: {
+    id: "mek_voss",
+    displayName: "Voss' Mek",
     primary: "fabricator",
     secondary: "armorer",
     spareParts: 2,

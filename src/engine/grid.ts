@@ -57,6 +57,19 @@ export function isPassable(map: MapDefinition, c: Coord, kind: MovementKind): bo
  * Flood fill: every tile reachable within `budget` movement points, given a
  * set of occupied tiles (other units block passage but not targeting).
  * Returns a map of coordKey -> { cost, cameFrom } for path reconstruction.
+ *
+ * Same algorithm and same results as the original (1 Sep 2026 tiers pass,
+ * profiling the Hard bot's hostile oracle: this one function was half of
+ * every sim's CPU time): a Bellman-style relaxation that rescans every
+ * discovered tile, in discovery order, until nothing improves. The rewrite
+ * keeps that exact order — the returned Map is built in discovery order,
+ * and cameFrom is overwritten only on a strictly cheaper cost — because
+ * callers tie-break by iterating the Map (moveToward's strict `<`,
+ * reachableWithinRangeTile's strict `<`) and isStraightLineCharge reads
+ * the reconstructed path's shape; a "better" Dijkstra with different tie
+ * behaviour would silently change which tile a unit picks and whether a
+ * charge triggers. What changed is only the bookkeeping: typed arrays
+ * indexed by tile instead of parsing "x,y" strings on every visit.
  */
 export function reachableTiles(
   map: MapDefinition,
@@ -65,30 +78,62 @@ export function reachableTiles(
   kind: MovementKind,
   occupied: Set<string>
 ): Map<string, { cost: number; cameFrom: Coord | null }> {
-  const best = new Map<string, { cost: number; cameFrom: Coord | null }>();
-  best.set(coordKey(start), { cost: 0, cameFrom: null });
+  const W = map.width;
+  const H = map.height;
+  const size = W * H;
+  const cost = new Float64Array(size).fill(Infinity);
+  const from = new Int32Array(size).fill(-1);
+  const order: number[] = [];
+  const startI = start.y * W + start.x;
+  const startKey = coordKey(start);
+  cost[startI] = 0;
+  order.push(startI);
 
   // Simple Dijkstra/Bellman-ish relaxation — the board is tiny (<=20x12),
-  // so a priority queue is not worth the complexity.
+  // so a priority queue is not worth the complexity (and would change
+  // tie-breaks, see above). `order` grows while it is being scanned,
+  // exactly as the original's Map iteration visited entries appended
+  // mid-iteration.
   let improved = true;
   while (improved) {
     improved = false;
-    for (const [key, entry] of best) {
-      const [x, y] = key.split(",").map(Number);
+    for (let k = 0; k < order.length; k++) {
+      const i = order[k];
+      const x = i % W;
+      const y = (i - x) / W;
+      const base = cost[i];
       for (const d of CARDINAL) {
-        const next = { x: x + d.x, y: y + d.y };
+        const nx = x + d.x;
+        const ny = y + d.y;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const next = { x: nx, y: ny };
         if (!isPassable(map, next, kind)) continue;
-        const nextKey = coordKey(next);
-        if (occupied.has(nextKey) && nextKey !== coordKey(start)) continue; // can't pass through units
-        const cost = entry.cost + moveCost(map, next, kind);
-        if (cost > budget) continue;
-        const existing = best.get(nextKey);
-        if (!existing || cost < existing.cost) {
-          best.set(nextKey, { cost, cameFrom: { x, y } });
+        const nextKey = `${nx},${ny}`;
+        if (occupied.has(nextKey) && nextKey !== startKey) continue; // can't pass through units
+        const c = base + moveCost(map, next, kind);
+        if (c > budget) continue;
+        const ni = ny * W + nx;
+        const existing = cost[ni];
+        if (existing === Infinity) {
+          order.push(ni);
+          cost[ni] = c;
+          from[ni] = i;
+          improved = true;
+        } else if (c < existing) {
+          cost[ni] = c;
+          from[ni] = i;
           improved = true;
         }
       }
     }
+  }
+
+  const best = new Map<string, { cost: number; cameFrom: Coord | null }>();
+  for (const i of order) {
+    const x = i % W;
+    const y = (i - x) / W;
+    const f = from[i];
+    best.set(`${x},${y}`, { cost: cost[i], cameFrom: f < 0 ? null : { x: f % W, y: (f - (f % W)) / W } });
   }
   return best;
 }

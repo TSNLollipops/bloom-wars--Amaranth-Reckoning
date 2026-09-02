@@ -104,7 +104,40 @@
 // — a Stress+Worried crisis caught in the Spar Room) — that one still logs
 // under the "breakdown" verb id, unchanged; this is a separate, everyday
 // event with its own id.
-export type VerbId = "talk" | "shareADrink" | "pegBoard" | "poker" | "fletchers" | "askOut" | "angerBlowup" | "breakdown" | "spar";
+//
+// gift / praise / insult / apology / congratulate / sendOff, 2 Sep 2026 —
+// the crew-interaction brainstorm pass ("add it all they are good. code it.
+// you are free to go."). All six are single-target, player-initiated, and
+// share pegBoard/askOut's shape below: no fixed `outcome` here, since every
+// one of them resolves a catalyst-flavored (and, for Insult, escalation-
+// ladder-aware) effect that only Hub.ts has the context to apply — see
+// data/socialActions.ts for the actual content banks and numbers, and
+// chatIntent.ts's VERB_REQUEST_KEYWORDS for how a chat line maps to one of
+// these. Gift fills the verb-framework slot this file's own header already
+// named and left empty since Phase 2 ("Rec Room Invite, Gift... wait on
+// content"). Praise/Insult/Apology are the three-part system from
+// claude/Bloom_Wars_Praise_Insult_Apology_System_Proposal_v1.md. Congratulate
+// is the "attend a hot topic" half of that same brainstorm (condolences for
+// a Munti loss deliberately NOT built this pass — see socialActions.ts's own
+// header). Send-Off is the pre-mission ritual — Hub-side payoff only this
+// pass, the in-Battle tactical bonus deliberately deferred pending a real
+// combat_sim.py tuning pass (see CampaignState.preMissionSendOff).
+export type VerbId =
+  | "talk"
+  | "shareADrink"
+  | "pegBoard"
+  | "poker"
+  | "fletchers"
+  | "askOut"
+  | "angerBlowup"
+  | "breakdown"
+  | "spar"
+  | "gift"
+  | "praise"
+  | "insult"
+  | "apology"
+  | "congratulate"
+  | "sendOff";
 
 export interface VerbRequirements {
   minFavorability?: number;
@@ -115,9 +148,14 @@ export interface VerbRequirements {
 export interface VerbOutcome {
   favorabilityDelta?: number;
   setsDrunk?: boolean;
-  // Stress/Morale deltas: no verb below needs them yet — added when a
-  // real Stress-relief verb (CO Check-in, Phase 3+) does, not guessed at
-  // now for a verb that doesn't move either number.
+  // Stress/Morale Trigger Proposal, 1 Sep 2026 — the real Stress-relief
+  // verb this comment used to say hadn't shown up yet. shareADrink is the
+  // one fixed-outcome verb that uses this field directly; pegBoard/poker/
+  // fletchers/askOut still resolve their own dynamic outcome in Hub.ts (see
+  // each of those ids' own header above) and apply their stress/morale
+  // deltas there, same as they already do for favorabilityDelta.
+  stressDelta?: number;
+  moraleDelta?: number;
 }
 
 export interface VerbDef {
@@ -144,11 +182,20 @@ export const VERBS: Record<VerbId, VerbDef> = {
   // unreachable until now. +5 Favorability is a placeholder nudge, same
   // "not a locked number" caveat as everything else demo-Favorability
   // touches in this scene (Hub.ts's own header).
+  //
+  // stressDelta: -8, 1 Sep 2026 — the Stress & Morale Trigger Proposal's
+  // "Share a Drink -> small Stress relief, no Morale change." This is also
+  // this verb's whole answer to that same proposal's separate "getting
+  // drunk" trigger: setsDrunk above already fires on every Share a Drink
+  // (there's no separate drinking-to-excess action in this codebase), so
+  // one instant relief tick covers both named triggers rather than also
+  // building a second, timed effect that reverts when drunkUntil expires —
+  // flagged as a deliberate simplification, not an oversight.
   shareADrink: {
     id: "shareADrink",
     label: "Share a Drink",
     broadcast: false,
-    outcome: { favorabilityDelta: 5, setsDrunk: true },
+    outcome: { favorabilityDelta: 5, setsDrunk: true, stressDelta: -8 },
   },
   pegBoard: { id: "pegBoard", label: "The Peg Board", broadcast: false },
   poker: { id: "poker", label: "Poker", broadcast: false },
@@ -160,6 +207,16 @@ export const VERBS: Record<VerbId, VerbDef> = {
   angerBlowup: { id: "angerBlowup", label: "Blowup", broadcast: false },
   breakdown: { id: "breakdown", label: "Breakdown", broadcast: false },
   spar: { id: "spar", label: "Spar", broadcast: false },
+  // Crew-interaction brainstorm pass, 2 Sep 2026 — see this file's own
+  // header just above for the full reasoning. Same shape as pegBoard/
+  // askOut: no fixed `outcome`, Hub.ts resolves each one's real effect
+  // (data/socialActions.ts has the content and numbers).
+  gift: { id: "gift", label: "Gift", broadcast: false },
+  praise: { id: "praise", label: "Praise", broadcast: false },
+  insult: { id: "insult", label: "Insult", broadcast: false },
+  apology: { id: "apology", label: "Apology", broadcast: false },
+  congratulate: { id: "congratulate", label: "Congratulate", broadcast: false },
+  sendOff: { id: "sendOff", label: "Send-Off", broadcast: false },
 };
 
 // The "Log entry" §3 asks for ("feeds the social-history record... it's

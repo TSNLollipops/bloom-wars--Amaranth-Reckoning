@@ -746,7 +746,7 @@ Every named pilot below already has a rank, a mek track, and a personality note 
 - **Derek Barasj** (Munti, loyal, energetic) — Rabbit leaning Dog, Stage 1. *"Tell me if something hurts. Please. I'd rather know too early than too late."*
 - **Hiro Nagori** (Meeps, conspiracy-theorist flavor) — Crow, Stage 1. *"Okay but hear me out — what if the Bloom isn't random, what if there's a pattern, I've been tracking it—"*
 - **Yren Tourignie** (Reeps, joins mid-Mission 1 as reinforcement) — Wolf, Stage 1. *"First mission and I already know who I'm not leaving behind. That was fast."*
-- **Trav** (Meeps, player-facing lead) — Bear, Stage 1, per his own established book-canon voice (reserved, quiet, non-reflective, warms slowly). *"I don't know how to be useful to people I haven't fought next to yet."*
+- **Marcus Voss** (Meeps, player-facing lead) — Bear, Stage 1, reserved and quiet, non-reflective, warms slowly. *"I don't know how to be useful to people I haven't fought next to yet."*
 
 ### Team Two & bench (roster-depth pilots, Canon Pass §H — not wired into any mission yet)
 

@@ -29,7 +29,7 @@ const PARK: Record<string, { x: number; y: number }> = {
   pilot_barasj: { x: 1, y: 0 },
   pilot_nagori: { x: 2, y: 0 },
   pilot_tourignie: { x: 3, y: 0 },
-  pilot_trav: { x: 4, y: 0 },
+  pilot_voss: { x: 4, y: 0 },
 };
 
 /**

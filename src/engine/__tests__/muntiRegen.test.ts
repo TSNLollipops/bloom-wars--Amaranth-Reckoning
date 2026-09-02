@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 import { Mission } from "../mission";
 import { MISSION_1A } from "../../data/campaign";
 import { MUNTI_REGEN_RADIUS, MUNTI_REGEN_PER_TURN } from "../../data/combatTables";
+import { AEGIS_WARD_REGEN_RADIUS } from "../../data/weaponBranches";
 
 describe("Mission — Munti passive regen tick", () => {
   // Same rationale as shield.test.ts: mission 1a is eliminate_all, so
@@ -107,5 +108,37 @@ describe("Mission — Munti passive regen tick", () => {
 
     mission.endPlayerTurn();
     expect(ally.currentHp).toBe(ally.maxHp);
+  });
+
+  // Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
+  // 1 Sep 2026) — a Munti with this branch equipped projects the aura at
+  // AEGIS_WARD_REGEN_RADIUS instead of the plain MUNTI_REGEN_RADIUS.
+  it("Aegis Ward extends the aura radius for the Munti who has it equipped", () => {
+    const mission = new Mission(MISSION_1A);
+    neutralizeHostiles(mission);
+    const munti = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
+    const ally = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    munti.weaponBranchId = "munti_aegis_ward";
+    munti.pos = { x: 5, y: 5 };
+    ally.pos = { x: 5 + AEGIS_WARD_REGEN_RADIUS, y: 5 }; // past the plain radius, within the Ward's
+    const hpBefore = ally.maxHp - 20;
+    ally.currentHp = hpBefore;
+
+    mission.endPlayerTurn();
+    expect(ally.currentHp).toBe(hpBefore + MUNTI_REGEN_PER_TURN);
+  });
+
+  it("does not extend the aura at that same distance without the branch equipped", () => {
+    const mission = new Mission(MISSION_1A);
+    neutralizeHostiles(mission);
+    const munti = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
+    const ally = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
+    munti.pos = { x: 5, y: 5 };
+    ally.pos = { x: 5 + AEGIS_WARD_REGEN_RADIUS, y: 5 };
+    const hpBefore = ally.maxHp - 20;
+    ally.currentHp = hpBefore;
+
+    mission.endPlayerTurn();
+    expect(ally.currentHp).toBe(hpBefore);
   });
 });

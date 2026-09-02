@@ -49,7 +49,12 @@ export const STAGE_ORDER: Stage[] = ["green", "blooded", "command"];
 // for the one real call site.
 export function stageFromTier(tier: Tier): Stage {
   if (tier === "G" || tier === "F") return "green";
-  if (tier === "B" || tier === "A") return "command";
+  // S added 2 Sep 2026 alongside B and A, and it genuinely mattered: with
+  // S newly a member of Tier but missing from this branch, an Heirloom
+  // pilot — the most senior thing on the roster — would have fallen
+  // through to "blooded" and spoken in a mid-career register. Silent, and
+  // exactly the drift that adding a rung to an enum causes.
+  if (tier === "B" || tier === "A" || tier === "S") return "command";
   return "blooded"; // E, D, C
 }
 

@@ -31,16 +31,34 @@ import {
   integrateThirdLance,
   integrateHouseAmaranthSecondLance,
   baseSceneKeyFor,
+  applyMissionLosses,
   type CampaignState,
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
+// Calendar economy, 2 Sep 2026 — the flat per-mission day cost lands here,
+// where every other mission consequence already does. formatDayLabel is the
+// same formatter the Hub HUD readout uses, imported here for the campaign-
+// finale callout (drawCampaignFinaleCallout, below) — the "final day count
+// at the finale as a shareable stat" the v2 proposal's own §7 named.
+import { applyMissionCompletionDayCost, formatDayLabel } from "../engine/calendarClock";
 import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatalyst";
+import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry";
+import { summaryMvp, type MissionSummary } from "../engine/missionSummary";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 
 const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
 const CARD_R = 480 + CARD_W / 2;
+
+// Campaign-finale detection, 2 Sep 2026 (Calendar Economy v2 proposal §7's
+// "final day count at the finale as a shareable stat"). Hardcoded ids,
+// matching this file's own existing style for the Mission 12/24 story
+// gates just below rather than deriving them generically from
+// data/allCampaigns.ts's CAMPAIGNS array — there are exactly two finales
+// today (Warden Company's Mission 36, House Amaranth's own Mission 36) and
+// this file already hardcodes mission ids for gates of this shape.
+const CAMPAIGN_FINALE_MISSION_IDS = new Set(["mission_amaranth_36", "mission_house_amaranth_36"]);
 
 export class Debrief extends Phaser.Scene {
   private mission!: Mission;
@@ -52,6 +70,16 @@ export class Debrief extends Phaser.Scene {
   private secondLancePilots?: PilotRecord[];
   private thirdLancePilots?: PilotRecord[];
   private rescuedPilot?: PilotRecord;
+  // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Set once in
+  // create(), before lastMissionEcho gets overwritten below — see that
+  // assignment's own comment for why "was lastMissionEcho undefined before
+  // this debrief" is this save's first-ever debrief, without needing a
+  // separate counter.
+  private coCheckinNudgeDue = false;
+  // Campaign-finale callout (2 Sep 2026) — true only on a WIN of one of
+  // CAMPAIGN_FINALE_MISSION_IDS above. Set once in create(), same pattern
+  // as coCheckinNudgeDue just above.
+  private isCampaignFinale = false;
   // Grief Catalyst, live port 28 Aug 2026 — one entry per this mission's
   // permanentLosses (see the step 1b/1d comments below for why it's an
   // array, not a single result). Empty on a mission with no true losses.
@@ -62,6 +90,15 @@ export class Debrief extends Phaser.Scene {
   // engine/campaignEconomy.ts's computeBonusObjectivePoints for exactly
   // what this reads.
   private bonusObjectivePoints = 0;
+  // Telemetry pass (1 Sep 2026) — this mission's stored record, built in
+  // create() step 3d once every roster/points change above it has landed.
+  // Null only if the stats layer failed (it's best-effort); the earnings
+  // panel then just shows points, as it did before this pass.
+  private summary: MissionSummary | null = null;
+  // Calendar economy, 2 Sep 2026 — the day the campaign sat on when this
+  // debrief opened, and the day it sits on after the mission's flat cost.
+  // Set in create() step 2b.
+  private calendarSpan: { before: number; after: number } = { before: 1, after: 1 };
 
   private viewportTop = 0;
   private viewportBottom = 0;
@@ -81,6 +118,13 @@ export class Debrief extends Phaser.Scene {
 
     // ---- 1. Load campaign state ------------------------------------------
     this.state = loadCampaignState() ?? createWardenCampaignState();
+    // Telemetry pass (1 Sep 2026): the "before" numbers the mission record
+    // wants, captured before anything below changes them — points before
+    // earnings, roster before losses/recruits, and the BEAM DOWN timestamp
+    // before step 1a clears it.
+    const pointsBefore = this.state.points;
+    const rosterSizeBefore = activeRosterSize(this.state);
+    const startedAt = this.state.activeMissionAttempt?.startedAt;
 
     // ---- 1a. Mission real-time clock (25 Aug 2026) — clear the attempt --
     // Reaching this screen at all means the mission actually resolved for
@@ -109,13 +153,17 @@ export class Debrief extends Phaser.Scene {
     // are written to behave correctly either way (see each function's own
     // comment) — but doing it first keeps a lost pilot's balance at 0
     // rather than transiently nonzero.
-    for (const loss of this.mission.permanentLosses) {
-      const entry = this.state.pilots[loss.pilotId];
-      if (entry) {
-        entry.status = "permanently_lost";
-        entry.personalPoints = 0;
-      }
-    }
+    // Status flip, points discarded, and the loss context stamped — all
+    // three in engine/campaignState.ts's applyMissionLosses, which is
+    // where the rule lives and where a test can reach it. This screen's
+    // job is only to supply the two facts Mission itself cannot know at
+    // the moment of a downing: which mission it was, and how it ended.
+    applyMissionLosses(
+      this.state,
+      this.mission.permanentLosses,
+      this.mission.mission.id,
+      this.mission.outcome === "win" ? "win" : "loss",
+    );
 
     // ---- 1b-ii. Grief Catalyst (Grief Catalyst Port Spec v1, 28 Aug 2026) --
     // Deliberately a second loop over permanentLosses, run only AFTER every
@@ -140,6 +188,14 @@ export class Debrief extends Phaser.Scene {
     // separate flavor content by this pass. Always overwrites whatever was
     // here before, `announced` reset to false — only the most recent
     // mission is ever echoed.
+    //
+    // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Read BEFORE
+    // the overwrite below: lastMissionEcho is undefined only on this save's
+    // very first debrief, so capturing that here is exactly "is this the
+    // first debrief" (the plan's own trigger condition) with no new
+    // counter needed. See canLaunchMission's own comment (campaignState.ts)
+    // for the matching half of this gate.
+    this.coCheckinNudgeDue = this.state.lastMissionEcho === undefined && !this.state.hasCheckedInWithCo;
     this.state.lastMissionEcho = {
       missionId: this.mission.mission.id,
       outcome: this.mission.outcome === "win" ? "win" : "loss",
@@ -154,6 +210,17 @@ export class Debrief extends Phaser.Scene {
     // deliberately not folded into applyCompanyEarnings above; see that
     // function's own doc comment in engine/campaignEconomy.ts for why.
     this.bonusObjectivePoints = applyBonusObjectivePoints(this.state, this.mission);
+
+    // ---- 2b. Calendar: the flat mission-completion cost -------------------
+    // Calendar economy, 2 Sep 2026. This is ONLY the flat cost — the transit,
+    // prep and return that never get played out on screen. The real time the
+    // player actually spent in the battle was already credited by Battle.ts's
+    // own shutdown flush, so adding it again here would double-count it.
+    //
+    // Stored rather than rendered inline because the interesting half is the
+    // transition ("Day 47 → Day 52"), and the earnings panel that shows it is
+    // built further down in create().
+    this.calendarSpan = applyMissionCompletionDayCost(this.state);
 
     // ---- 3. The Munti guarantee, run once on entry -----------------------
     const muntiResult = checkMuntiGuarantee(this.state);
@@ -180,6 +247,11 @@ export class Debrief extends Phaser.Scene {
     // opening on that win specifically ("Warden Company forms around
     // Rourke's survivors AND a second lance" reads as one beat, not two).
     const win = this.mission.outcome === "win";
+    // Campaign-finale callout, 2 Sep 2026 — see CAMPAIGN_FINALE_MISSION_IDS'
+    // own comment above. A loss on the finale mission is not campaign
+    // completion (the war isn't won), same "only a win counts" reading the
+    // Second/Third Lance gates just below already use for their own beats.
+    this.isCampaignFinale = win && CAMPAIGN_FINALE_MISSION_IDS.has(this.mission.mission.id);
     if (this.mission.mission.id === "mission_amaranth_12" && win) {
       const result = integrateSecondLance(this.state);
       this.secondLancePilots = result.integrated ? result.pilots : undefined;
@@ -204,6 +276,18 @@ export class Debrief extends Phaser.Scene {
       this.thirdLancePilots = result.integrated ? result.pilots : undefined;
     }
 
+    // ---- 3d. Telemetry record (1 Sep 2026, Player Telemetry Plan §2) ----
+    // Written once, here, after every roster and points change above so
+    // the "after" numbers are final. engine/telemetry.ts is the single
+    // funnel both this screen and Battle's COMMAND DOWN path use.
+    this.summary = recordHumanMissionSummary(this.mission, this.state, {
+      startedAt,
+      pointsBefore,
+      pointsAfter: this.state.points,
+      rosterSizeBefore,
+      rosterSizeAfter: activeRosterSize(this.state),
+    });
+
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
 
     // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1 §2).
@@ -216,12 +300,28 @@ export class Debrief extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Calendar economy, 2 Sep 2026 — the dateline. Left-aligned on the card's
+    // own left edge at the header's y, which is free: DEBRIEF is centered at
+    // x=480 and the MENU control sits at x=890.
+    //
+    // Shows the transition rather than just the destination, because the span
+    // is the part that carries meaning — "Day 47 → Day 52" says the sortie
+    // cost five days, where a bare "Day 52" says nothing about what just
+    // happened. This is the pacing landmark Calendar_System_v1.md asked for.
+    this.add.text(CARD_L, 20, `Day ${this.calendarSpan.before} → Day ${this.calendarSpan.after}`, {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#6b7a8a",
+    });
+
     let cursorY = this.drawEarningsPanel(58);
     cursorY = this.drawGriefCallout(cursorY + 8);
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
     cursorY = this.drawSecondLanceCallout(cursorY + 8);
     cursorY = this.drawThirdLanceCallout(cursorY + 8);
+    cursorY = this.drawCoCheckinNudge(cursorY + 8);
+    cursorY = this.drawCampaignFinaleCallout(cursorY + 8);
 
     this.add
       .text(480, cursorY + 10, "CAMPAIGN SHOP", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
@@ -287,23 +387,59 @@ export class Debrief extends Phaser.Scene {
     const deployedIds = this.mission.deployedPilotIds;
     const lineH = 15;
     const headerH = 18;
+    // Telemetry pass (1 Sep 2026): one extra line for the after-action
+    // summary (turns, hostiles down, downed, lost) when a record exists.
+    const summaryLines = this.summary ? 1 : 0;
     const companyLines = 2;
     const padding = 14;
-    const height = headerH + deployedIds.length * lineH + companyLines * lineH + padding;
+    const height = headerH + deployedIds.length * lineH + summaryLines * lineH + companyLines * lineH + padding;
 
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552);
     this.add
-      .text(CARD_L + 16, top + 8, "EARNINGS THIS MISSION", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" });
+      .text(CARD_L + 16, top + 8, this.summary ? "AFTER ACTION — EARNINGS THIS MISSION" : "EARNINGS THIS MISSION", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" });
+    if (this.summary) {
+      // Column header for the stat block, right-aligned over the numbers.
+      this.add
+        .text(CARD_R - 90, top + 8, "dealt  taken  kills  asst", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+        .setOrigin(1, 0);
+    }
 
     let y = top + 8 + headerH;
+    const mvp = this.summary ? summaryMvp(this.summary) : undefined;
     for (const pilotId of deployedIds) {
       const entry = this.state.pilots[pilotId];
       const name = entry?.pilot.displayName ?? pilotId;
       const amount = this.earnings[pilotId] ?? 0;
-      this.add.text(CARD_L + 16, y, name, { fontFamily: "monospace", fontSize: "11px", color: "#e8e2d4" });
+      const row = this.summary?.squad.find((p) => p.pilotId === pilotId);
+      // Feature-gap report B1: the story of the fight, not just the points —
+      // MVP star, per-pilot dealt/taken/kills/assists, and the two tags
+      // that matter under permadeath: DOWNED (restocked) and LOST (gone).
+      const tag = row?.permanentlyLost ? "  LOST" : row?.downed ? "  DOWNED" : "";
+      const star = mvp && row && mvp.pilotId === pilotId && mvp.damageDealt > 0 ? "★ " : "  ";
+      const nameColor = row?.permanentlyLost ? "#ef4444" : row?.downed ? "#fbbf24" : "#e8e2d4";
+      this.add.text(CARD_L + 16, y, `${star}${name}${tag}`, { fontFamily: "monospace", fontSize: "11px", color: nameColor });
+      if (row) {
+        const cols = `${String(row.damageDealt).padStart(5)}  ${String(row.damageTaken).padStart(5)}  ${String(row.kills).padStart(5)}  ${row.assists.toFixed(1).padStart(4)}`;
+        this.add.text(CARD_R - 90, y, cols, { fontFamily: "monospace", fontSize: "11px", color: "#8fb3c9" }).setOrigin(1, 0);
+      }
       this.add
         .text(CARD_R - 16, y, `+${amount} pts`, { fontFamily: "monospace", fontSize: "11px", color: "#facc15" })
         .setOrigin(1, 0);
+      y += lineH;
+    }
+    if (this.summary) {
+      const sm = this.summary;
+      const hostilesDown = Object.values(sm.hostilesKilledByArchetype).reduce((a, b) => a + b, 0);
+      const downed = sm.squad.filter((p) => p.downed).length;
+      const lost = sm.squad.filter((p) => p.permanentlyLost).length;
+      const clean = downed === 0 && sm.outcome === "win" ? "  ·  CLEAN SWEEP" : "";
+      const turns = sm.turnLimit ? `${sm.turns} turns of ${sm.turnLimit}` : `${sm.turns} turns`;
+      const attempt = sm.attemptNumber > 1 ? `  ·  attempt ${sm.attemptNumber}` : "";
+      this.add.text(CARD_L + 16, y, `${turns}  ·  ${hostilesDown} hostile${hostilesDown === 1 ? "" : "s"} down  ·  ${downed} downed  ·  ${lost} lost${clean}${attempt}`, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#8a97a6",
+      });
       y += lineH;
     }
 
@@ -395,6 +531,64 @@ export class Debrief extends Phaser.Scene {
     // between calls, so the running +8 this loop uses between multiple
     // loss-blocks needs stripping off the very last one before returning.
     return y === top ? top : y - 8;
+  }
+
+  /**
+   * CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Only ever
+   * true on a save's first-ever debrief, and only while hasCheckedInWithCo
+   * is still false (see coCheckinNudgeDue's own assignment above) — a
+   * once-only heavy nudge, not a repeated per-mission line. Blue/
+   * informational rather than amber (Munti) or green (bonus): this isn't
+   * an emergency or a reward, just direction. Same panel shape as every
+   * other callout on this screen.
+   */
+  private drawCoCheckinNudge(top: number): number {
+    if (!this.coCheckinNudgeDue) return top;
+    const height = 40;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14202a, 1).setStrokeStyle(1, 0x4a7a9a);
+    this.add
+      .text(480, top + height / 2, "Report to the CO in the grotto before your next deployment.", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#7ec8e3",
+      })
+      .setOrigin(0.5);
+    return top + height;
+  }
+
+  /**
+   * Campaign-finale callout, 2 Sep 2026 — Calendar Economy v2 proposal §7's
+   * "final day count at the finale as a shareable stat, no leaderboard."
+   * Fires exactly once, on the same win that satisfies
+   * CAMPAIGN_FINALE_MISSION_IDS above. Two-row layout mirroring
+   * drawSecondLanceCallout/drawThirdLanceCallout's own shape (this is
+   * bigger news than a single-line callout), gold/celebratory rather than
+   * green (reward) or blue (info) — this isn't a mission reward, it's the
+   * whole campaign closing out. Deliberately doesn't name which campaign
+   * ("Warden Company" vs. the in-code CAMPAIGNS array's still-unrenamed
+   * "The Amaranth Reckoning" — see the Master Index's own naming note on
+   * that drift) — reusing formatDayLabel means this also picks up a named
+   * landmark for free if the finale ever happens to land on one.
+   */
+  private drawCampaignFinaleCallout(top: number): number {
+    if (!this.isCampaignFinale) return top;
+    const height = 56;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x241c0a, 1).setStrokeStyle(1, 0xfacc15);
+    this.add
+      .text(480, top + 16, "CAMPAIGN COMPLETE", {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: "#facc15",
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(480, top + 38, `Your run: ${formatDayLabel(this.state)}`, {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#c9b98a",
+      })
+      .setOrigin(0.5);
+    return top + height;
   }
 
   private drawMuntiCallout(top: number): number {

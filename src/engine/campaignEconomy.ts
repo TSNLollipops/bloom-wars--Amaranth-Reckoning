@@ -23,6 +23,7 @@
 // exactly like campaignState.ts's own DISCRETIONARY_RECRUIT_COST.
 import type { MekTrack, Tier } from "../data/types";
 import type { CampaignState, Rank, ReservedBayId } from "./campaignState";
+import { CARRIER_MODULES, FABRICATION_BAY_CAP_BONUS, type CarrierModuleId } from "../data/carrierModules";
 import { ensureHubSocialState } from "./campaignState";
 import type { Mission, UnitPerformance } from "./mission";
 import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../data/weaponBranches";
@@ -120,10 +121,27 @@ export function applyMissionEarnings(state: CampaignState, earnings: Record<stri
 // Exported (Debrief pass, 22 Aug 2026) so scenes/Debrief.ts can read a
 // pilot's next tier for a cost-preview label without duplicating this
 // ordering or mutating state via purchaseTierUpgrade just to peek at it.
+// THE PURCHASE LADDER, and deliberately not the full Tier union — 2 Sep
+// 2026. "S" exists in data/types.ts's Tier but is intentionally absent
+// here, because this array is what defines what a pilot can climb TO with
+// points: upgradeTier reads the current tier's index and moves to index+1,
+// and the shop's own "already maxed" check is `idx === TIER_ORDER.length -
+// 1`. Appending "S" would therefore let any pilot in the game simply BUY
+// S-tier, which is exactly the premise the Heirloom pool depends on not
+// being possible (aristocrat mechs, 3 per campaign, one fielded at a
+// time). S is granted with an Heirloom and by nothing else.
+//
+// Consequence worth knowing: TIER_ORDER.indexOf(tier) returns -1 for an
+// S-tier pilot. Every caller here handles that already — upgradeTier's own
+// guard below refuses them explicitly rather than relying on the
+// arithmetic — but a NEW caller that assumes indexOf always succeeds would
+// be wrong. See data/types.ts's Tier for the other half of this note.
 export const TIER_ORDER: Tier[] = ["G", "F", "E", "D", "C", "B", "A"];
 
-// Data Pack §12.1's own costs, transcribed, not invented here.
-export const TIER_UPGRADE_COST: Record<Exclude<Tier, "A">, number> = {
+// Data Pack §12.1's own costs, transcribed, not invented here. Keyed by
+// the tier being upgraded FROM, so neither "A" (the top of the ladder) nor
+// "S" (never on the ladder at all — see TIER_ORDER above) has an entry.
+export const TIER_UPGRADE_COST: Record<Exclude<Tier, "A" | "S">, number> = {
   G: 60,
   F: 90,
   E: 140,
@@ -161,11 +179,21 @@ export function purchaseTierUpgrade(state: CampaignState, pilotId: string): Tier
   if (entry.status !== "active") {
     return { ok: false, reason: `${entry.pilot.displayName} is not active — cannot spend points on a lost pilot` };
   }
+  // S-tier is off the ladder entirely (2 Sep 2026, Heirlooms) — granted
+  // with an Heirloom, never purchasable. Checked FIRST and explicitly,
+  // before any index arithmetic: TIER_ORDER.indexOf("S") is -1, so
+  // without this the `idx === length - 1` test below would be false, the
+  // cost lookup would come back undefined, and an S-tier pilot would get
+  // silently "upgraded" to TIER_ORDER[0] — demoted to G, free. A real bug
+  // that would have shipped quietly rather than crashing.
+  if (entry.pilot.tier === "S") {
+    return { ok: false, reason: `${entry.pilot.displayName} carries an Heirloom — S tier is granted, not bought` };
+  }
   const idx = TIER_ORDER.indexOf(entry.pilot.tier);
   if (idx === TIER_ORDER.length - 1) {
     return { ok: false, reason: `${entry.pilot.displayName} is already at tier A — nothing further to buy` };
   }
-  const cost = TIER_UPGRADE_COST[entry.pilot.tier as Exclude<Tier, "A">];
+  const cost = TIER_UPGRADE_COST[entry.pilot.tier as Exclude<Tier, "A" | "S">];
   if (entry.personalPoints < cost) {
     return {
       ok: false,
@@ -274,10 +302,29 @@ export const FABRICATOR_BAY_CAP_BONUS = 1;
  * none built, so every pre-existing call site keeps returning exactly what
  * it always did until it's updated to pass the campaign's real builtBays.
  */
-export function fabricatorMaxSpareParts(mek: { primary: MekTrack; secondary: MekTrack | null }, builtBays: ReservedBayId[] = []): number {
+export function fabricatorMaxSpareParts(
+  mek: { primary: MekTrack; secondary: MekTrack | null },
+  builtBays: ReservedBayId[] = [],
+  builtModules: CarrierModuleId[] = [],
+): number {
   const base = mek.primary === "fabricator" ? 2 : mek.secondary === "fabricator" ? 1 : 0;
+  // A mek with no Fabricator track anywhere holds no spare parts at all,
+  // and neither the bay nor the module changes that — they raise a cap
+  // that exists, they don't grant one. Checked before either bonus so
+  // buying both still gives a Tank mek exactly zero.
   if (base === 0) return 0;
-  return builtBays.includes("fabricator") ? base + FABRICATOR_BAY_CAP_BONUS : base;
+  let max = base;
+  if (builtBays.includes("fabricator")) max += FABRICATOR_BAY_CAP_BONUS;
+  // Fabrication Bay Expansion (2 Sep 2026, data/carrierModules.ts).
+  // Stacks with the bay rather than replacing it — the source design
+  // frames the bay as the room and the module as an expansion OF that
+  // room, and they're bought from the same company pool at separate
+  // prices, so a player who paid for both should get both. Deliberately
+  // NOT gated on the bay being built first: nothing in the design says
+  // so, and a silent dependency that eats 160 points is exactly the kind
+  // of thing a player would rightly call a bug.
+  if (builtModules.includes("fabricationBay")) max += FABRICATION_BAY_CAP_BONUS;
+  return max;
 }
 
 export interface SparePartsPurchaseResult {
@@ -307,7 +354,7 @@ export interface SparePartsPurchaseResult {
 export function purchaseSpareParts(state: CampaignState, mekId: string): SparePartsPurchaseResult {
   const mek = state.meks[mekId];
   if (!mek) return { ok: false, reason: `unknown mek id: ${mekId}` };
-  const max = fabricatorMaxSpareParts(mek, state.builtBays ?? []);
+  const max = fabricatorMaxSpareParts(mek, state.builtBays ?? [], state.builtModules ?? []);
   if (max === 0) {
     return { ok: false, reason: `${mek.displayName} has no Fabricator track (primary or secondary) — cannot hold spare parts` };
   }
@@ -320,6 +367,67 @@ export function purchaseSpareParts(state: CampaignState, mekId: string): SparePa
   state.points -= SPARE_PART_COST;
   mek.spareParts += 1;
   return { ok: true, spareParts: mek.spareParts, cost: SPARE_PART_COST };
+}
+
+// ---- Company points: spending — Carrier Upgrade Modules ---------------
+//
+// The Workshop's own second layer, 2 Sep 2026 (data/carrierModules.ts).
+// Company pool, same as spare parts and bay builds above, per the Weapon
+// Branch Point System doc's own split: modules are squad logistics, not
+// pilot growth.
+
+export interface CarrierModulePurchaseResult {
+  ok: boolean;
+  reason?: string;
+  moduleId?: CarrierModuleId;
+  cost?: number;
+}
+
+/**
+ * Buys `moduleId` for the company — permanent, added to
+ * CampaignState.builtModules, deducted from the COMPANY pool.
+ *
+ * One-time per module: every module in CARRIER_MODULES is a standing
+ * campaign-wide effect (a raised cap, a better recruit tier, a HUD
+ * warning), none of which mean anything bought twice — so a repeat
+ * purchase is refused rather than silently charging for nothing. That's a
+ * deliberate difference from the weapon-branch MODULES in that same source
+ * doc, which are explicitly a consumable stockpile ("you gotta buy each
+ * individual module to have multiple of each"); these are the carrier
+ * upgrades, a different list with different rules.
+ *
+ * Fails cleanly on an unknown id or insufficient points, matching every
+ * other purchase* function in this file — no throwing, the caller decides
+ * how to say so.
+ */
+export function purchaseCarrierModule(state: CampaignState, moduleId: CarrierModuleId): CarrierModulePurchaseResult {
+  const def = CARRIER_MODULES[moduleId];
+  if (!def) return { ok: false, reason: `unknown carrier module: ${moduleId}` };
+  const owned = state.builtModules ?? [];
+  if (owned.includes(moduleId)) {
+    return { ok: false, reason: `${def.displayName} is already installed` };
+  }
+  // Forward Battery is the one module with a prerequisite, and it's a real
+  // one rather than a balance tax: it widens the Fire Support blast, and
+  // the Weapons Bay is what the source design has always framed it as
+  // bolted onto ("heavy, gated behind Weapons Bay"). Checked here rather
+  // than in the data table because this is a rule, and rules live in the
+  // engine — same division every other purchase* function keeps.
+  if (moduleId === "forwardBattery" && !(state.builtBays ?? []).includes("weaponsBay")) {
+    return { ok: false, reason: "Forward Battery needs the Weapons Bay built first" };
+  }
+  if (state.points < def.cost) {
+    return {
+      ok: false,
+      reason: `not enough company points — ${def.displayName} costs ${def.cost}, company has ${state.points}`,
+    };
+  }
+  state.points -= def.cost;
+  // Rebuilt rather than pushed into, so a caller holding the old array
+  // reference can't observe a half-applied purchase — same shape as
+  // Hub.ts's own builtBays write.
+  state.builtModules = [...owned, moduleId];
+  return { ok: true, moduleId, cost: def.cost };
 }
 
 // ---- Personal points: spending — Weapon Branch Point System ------------
@@ -382,7 +490,14 @@ export function purchaseWeaponBranch(state: CampaignState, pilotId: string, bran
     return { ok: false, reason: `${entry.pilot.displayName} already owns the maximum number of weapon branches` };
   }
   const requiredTier = WEAPON_BRANCH_TIER_GATE[purchaseIndex];
-  const tierIdx = TIER_ORDER.indexOf(entry.pilot.tier);
+  // S sits ABOVE A but is deliberately absent from TIER_ORDER (it's the
+  // purchase ladder, and S is never purchasable — see TIER_ORDER's own
+  // comment). indexOf therefore returns -1 for an S-tier pilot, and -1 is
+  // less than every real gate index, so without this an Heirloom pilot
+  // would have been refused every weapon branch in the game and told they
+  // "need gear tier D+" while standing at S. Same -1 trap as
+  // purchaseTierUpgrade and ShopPanel, failing in the opposite direction.
+  const tierIdx = entry.pilot.tier === "S" ? TIER_ORDER.length : TIER_ORDER.indexOf(entry.pilot.tier);
   const requiredIdx = TIER_ORDER.indexOf(requiredTier);
   if (tierIdx < requiredIdx) {
     return {

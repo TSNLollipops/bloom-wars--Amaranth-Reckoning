@@ -9,13 +9,24 @@ import type { BloomArchetype, Coord, TileType } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission, type DeployRosterEntry } from "../engine/mission";
 import type { BattleUnit } from "../engine/units";
-import { coordKey } from "../engine/grid";
+import { coordKey, tileAt } from "../engine/grid";
 import { unitsVisibleToSide } from "../engine/ai";
-import { BLOOM } from "../data/bloom";
+import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen } from "../engine/campaignState";
+// Calendar economy, 2 Sep 2026 — mission time feeds the same campaign clock
+// the Hub does. Maxime: "time spent in the hub and time spent on mission run
+// on the same ckock."
+import { accrueRealMs, creditRealMs, measureRealDelta } from "../engine/calendarClock";
 import { TILES } from "../data/tiles";
 import { tierPipCount } from "../data/combatTables";
+import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry";
+// Cursor-following hover tip, 2 Sep 2026 — see scenes/ui/HoverTip.ts and
+// engine/hoverTipLayout.ts. The CONTENT is hoverLines() below, unchanged
+// and already shipped; this only moves where it's drawn.
+import { HoverTip } from "./ui/HoverTip";
+import { VITAL_SIGNS_WARN_FRACTION } from "../data/carrierModules";
+import { UNIT_ARCHETYPES } from "../data/units";
 
 const TILE_COLORS: Record<TileType, number> = {
   plain: 0x3a4636,
@@ -234,6 +245,17 @@ export class Battle extends Phaser.Scene {
   // once in init(). See that method's own comment and
   // engine/campaignState.ts's "9. Mission real-time clock" section.
   private missionStartedAt = 0;
+  // Calendar economy, 2 Sep 2026 — real play time accumulated in this battle,
+  // in ms, flushed to the campaign calendar once on shutdown (see update()
+  // and the shutdown handler in create()). Deliberately NOT derived from
+  // missionStartedAt above: that's a wall-clock deadline stamp, and the
+  // calendar wants time actually spent playing, not time elapsed while a tab
+  // sat open. See engine/calendarClock.ts's creditRealMs comment for why
+  // that distinction is worth a separate field rather than a subtraction.
+  private calendarMsAccrued = 0;
+  // Calendar economy, 2 Sep 2026 — `Date.now()` at the previous accrual tick;
+  // 0 means no previous frame yet. See calendarClock.ts's measureRealDelta.
+  private lastCalendarTickAt = 0;
   // Commander-down pass (25 Aug 2026) — guards applyCommanderDownAttempt so
   // it runs exactly once. drawOverlayIfNeeded() (below) is called from
   // every full-board redraw, not just the moment outcome first flips, so
@@ -247,8 +269,42 @@ export class Battle extends Phaser.Scene {
   // The contextual action bar's fixed slot pool, plus the options currently
   // bound to them. Whether a slot is usable is Mission's call (canX()),
   // never this scene's.
-  private actionSlots: { btn: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }[] = [];
+  private actionSlots: { btn: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text; key: Phaser.GameObjects.Text }[] = [];
   private actionOptions: ActionOption[] = [];
+  // Legibility pass, 1 Sep 2026 (claude/Bloom_Wars_First_Game_Dev_Feature_
+  // Gap_Report_1Sep2026.md, items A1/A3/A8/C4/C5 — every one verified
+  // absent in this file before being built):
+  //   hoverTile — the board tile under the pointer, tracked by a pointermove
+  //     listener; drives the combat forecast (A1), the hover-to-inspect
+  //     block (C4) and the strike splash preview. Only ever triggers a
+  //     render() when the TILE changes, never per pixel.
+  //   forecastLabels — a fixed pool of Text objects (same accumulate-once
+  //     discipline as actionSlots, see that field's own bug-history comment)
+  //     for the damage number drawn over every attackable enemy while a
+  //     unit is selected — Into the Breach's own "see the number before you
+  //     commit" convention.
+  //   missileTargeting/missileRange — abil_missile's two-click arm-then-tile
+  //     flow (A8: the engine verb shipped 26 Aug with tests, the Reeps
+  //     weapon branch grants it, and no button here ever offered it — a
+  //     player who bought Missiles got nothing). Mirrors fireSupport's own
+  //     pair above exactly; the two are never armed at once.
+  //   endTurnPrompt — the "units still have actions" confirmation (A3).
+  //     Under permadeath-by-default, an accidental Space with the Munti
+  //     unmoved is a run-ender; XCOM's own prompt is the precedent.
+  private hoverTile: Coord | null = null;
+  // Cursor tip, 2 Sep 2026. hoverTile above still gates WHAT the tip says
+  // (and still only re-renders the board on a real tile change); these two
+  // track raw pixels, because the box itself has to follow the pointer
+  // smoothly inside a tile rather than jumping tile-to-tile.
+  private hoverTip: HoverTip | null = null;
+  private pointerX = 0;
+  private pointerY = 0;
+  /** Vital Signs Uplink bought? Snapshotted per mission in init() — see there. */
+  private vitalSignsUplink = false;
+  private forecastLabels: Phaser.GameObjects.Text[] = [];
+  private missileTargeting = false;
+  private missileRange: Coord[] = [];
+  private endTurnPrompt: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super("Battle");
@@ -261,11 +317,24 @@ export class Battle extends Phaser.Scene {
     // constructor call already gets — a bay built mid-mission (it can't be,
     // since the CO build-request flow only runs in the Hub, but even so)
     // wouldn't retroactively arm a bonus charge on an in-progress mission.
+    const campaignForMission = loadCampaignState();
     this.mission = new Mission(
       missionDef,
       this.resolveDeployRoster(missionDef.playerPilotIds, data.selectedPilotIds),
-      loadCampaignState()?.builtBays ?? []
+      campaignForMission?.builtBays ?? [],
+      // Forward Battery (2 Sep 2026) reads this to widen the Fire Support
+      // blast. Snapshotted with builtBays for the same reason, from the
+      // same single load — this used to call loadCampaignState() twice in
+      // this constructor, which was two reads of a store that could in
+      // principle disagree.
+      { builtModules: campaignForMission?.builtModules ?? [] }
     );
+    // Vital Signs Uplink (2 Sep 2026, data/carrierModules.ts) — snapshotted
+    // here for the same reason builtBays is on the line above: this is a
+    // read of campaign state that must not change under a mission already
+    // in progress. HUD-only, so unlike builtBays it isn't handed to the
+    // Mission at all; nothing in the engine needs to know.
+    this.vitalSignsUplink = (campaignForMission?.builtModules ?? []).includes("vitalSigns");
     this.selectedUnitId = null;
     this.clearSelectionHighlights();
     // Mission real-time clock (25 Aug 2026) — the HUD half of "add that
@@ -314,10 +383,83 @@ export class Battle extends Phaser.Scene {
       const pilot = findPilot(pilotId);
       if (pilot) roster.push({ pilotId, pilot, mek: findMek(pilot.mekId) });
     }
+    // Send-Off tactical payoff (2 Sep 2026) — CampaignState.preMissionSendOff
+    // was a real, named hook left intentionally unconsumed by the crew-
+    // interactions pass that added it; this is that consumption. Consumed on
+    // THIS mission launch specifically, whether or not the sent-off pilot
+    // actually made the deployed squad — the ritual happened right before
+    // BEAM DOWN, so "the next mission" means this one, not a standing buff
+    // that waits around for its pilot to eventually deploy. A pilot benched
+    // this time simply loses the blessing, same as skipping a meal you were
+    // handed — no error, no carry-over, matching how every other one-shot
+    // Hub hook in this codebase (the Munti guarantee, bonus objectives)
+    // resolves once against whatever state exists at the moment it fires.
+    if (state.preMissionSendOff) {
+      const target = roster.find((e) => e.pilotId === state.preMissionSendOff!.pilotId);
+      if (target) target.sendOffBonus = true;
+      state.preMissionSendOff = undefined;
+      saveCampaignState(state);
+    }
     return roster;
   }
 
+  /**
+   * Calendar economy, 2 Sep 2026 — accumulate this battle's real play time.
+   * Nothing else happens here; this scene is turn-based and has never needed
+   * a frame loop, so this is the whole method on purpose.
+   *
+   * Accumulating into a field rather than calling tickCalendar directly:
+   * unlike Hub.ts, this scene holds no live CampaignState, so a per-frame
+   * tick would mean a localStorage round trip 60 times a second. Flushed once
+   * in the shutdown handler below.
+   */
+  update() {
+    // Wall-clock, not Phaser's `delta` — same reason as Hub.ts's own tick,
+    // and it matters at least as much here: a battle is the frame-heaviest
+    // scene in the game, so a smoothed delta would under-credit mission time
+    // worst exactly where the player spends it. See calendarClock.ts's
+    // measureRealDelta.
+    const measured = measureRealDelta(this.lastCalendarTickAt, Date.now());
+    this.lastCalendarTickAt = measured.at;
+    this.calendarMsAccrued = accrueRealMs(this.calendarMsAccrued, measured.deltaMs);
+  }
+
+  /**
+   * Calendar economy, 2 Sep 2026 — flush this battle's accumulated play time
+   * into the campaign calendar, once, on the way out.
+   *
+   * On shutdown rather than piggybacking the Debrief handoff, deliberately:
+   * `scene.start("Debrief")` is only ONE of the ways out of a battle (quitting
+   * to the menu is another), and time played is time played regardless of
+   * whether the mission resolved. Hooking the one transition would silently
+   * drop a player's whole session if they backed out — and hooking shutdown
+   * costs a single load/save on scene exit, which is nothing next to a
+   * per-frame write.
+   *
+   * No double-count risk with Debrief: Debrief only ever adds the flat
+   * MISSION_COMPLETION_DAY_COST, never this accrued time.
+   */
+  private flushCalendarTime(): void {
+    if (this.calendarMsAccrued <= 0) return;
+    const ms = this.calendarMsAccrued;
+    // Zeroed before the write, not after: if anything below throws, the
+    // worst case is losing this battle's time, never crediting it twice.
+    this.calendarMsAccrued = 0;
+    const state = loadCampaignState();
+    if (!state) return;
+    creditRealMs(state, ms);
+    saveCampaignState(state);
+  }
+
   create() {
+    // Calendar economy, 2 Sep 2026 — see flushCalendarTime's own comment.
+    // Registered per-create() because Phaser reuses this scene instance across
+    // mission launches; SHUTDOWN's listener list is cleared between runs, so
+    // this re-registers rather than stacking duplicates.
+    this.calendarMsAccrued = 0;
+    this.lastCalendarTickAt = 0;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.flushCalendarTime());
+
     const m = this.mission.map;
     this.tileSize = Math.max(16, Math.min(Math.floor(700 / m.width), Math.floor(560 / m.height)));
 
@@ -360,13 +502,26 @@ export class Battle extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
+    // End turn, with the "units still have actions" check (1 Sep 2026,
+    // feature-gap report A3). First press with unspent units up opens the
+    // prompt; a second press (Space or the END TURN button) while it's open
+    // confirms — so a player who meant it pays one extra keystroke, and a
+    // player who fat-fingered Space with the Munti unmoved gets the turn
+    // back. Nothing to confirm when every unit is spent: ends immediately,
+    // exactly as before this pass.
     const doEndTurn = () => {
       if (this.mission.outcome !== "ongoing") return;
       if (this.isAnimatingMove) return; // board's mid-walk — same "can't act yet" beat as handleBoardClick
-      this.selectedUnitId = null;
-      this.clearSelectionHighlights();
-      this.mission.endPlayerTurn();
-      this.render();
+      if (this.endTurnPrompt) {
+        this.confirmEndTurn();
+        return;
+      }
+      const pending = this.unitsWithActionsLeft();
+      if (pending.length > 0) {
+        this.openEndTurnPrompt(pending);
+        return;
+      }
+      this.confirmEndTurn();
     };
     const endTurnBtn = this.add
       .rectangle(835, 600, 200, 32, 0x2e5c7a)
@@ -380,8 +535,13 @@ export class Battle extends Phaser.Scene {
     // natural one-shot trigger condition and is meant to just sit there as
     // a standing reminder, the same way a real XCOM HUD keeps its own
     // hotkey legend always on screen rather than teaching it once.
+    // 2 Sep 2026 — widened from "[tab] next mech" to the full standing
+    // legend now that there's more than one binding worth advertising.
+    // Deliberately one line and abbreviated: the action digits already
+    // print on their own buttons (drawActionBar), so this only has to
+    // cover the bindings with nothing on screen to hang them off.
     this.add
-      .text(835, 618, "[tab] next mech", { fontFamily: "monospace", fontSize: "11px", color: "#8fb3c9" })
+      .text(835, 618, "[tab] next  [1-6] action  [esc] cancel", { fontFamily: "monospace", fontSize: "10px", color: "#8fb3c9" })
       .setOrigin(0.5);
 
     // Spacebar end-turn (XCOM's own binding — Maxime reached for it before
@@ -404,21 +564,30 @@ export class Battle extends Phaser.Scene {
     // "next/previous soldier who still has actions left." Cycles only
     // units eligible to be selected by a click in the first place (the
     // exact same guard as the click-select branch below: side "player",
-    // not downed/npcIncapacitated/isCivilian, actionsRemaining > 0) — a
-    // unit that's already spent its turn is skipped, same as XCOM greying
-    // out a soldier who's done. Order follows mission.livingUnits()'s own
-    // order, which is deployment order — stable across a turn, not
-    // re-sorted by position, so repeated Tabs step through the squad the
-    // same way every time. No selection yet -> starts at the first
-    // eligible unit; already at the last eligible unit -> wraps around,
-    // same reason a modal loop beats a dead end at either edge.
+    // not downed/npcIncapacitated/isCivilian, actionsRemaining > 0 OR a
+    // ready Field Doctor bonus — see that guard's own comment) — a unit
+    // that's already spent its turn (and has no Field Doctor bonus left)
+    // is skipped, same as XCOM greying out a soldier who's done. Order
+    // follows mission.livingUnits()'s own order, which is deployment
+    // order — stable across a turn, not re-sorted by position, so
+    // repeated Tabs step through the squad the same way every time. No
+    // selection yet -> starts at the first eligible unit; already at the
+    // last eligible unit -> wraps around, same reason a modal loop beats
+    // a dead end at either edge.
     const cycleSelectableUnit = (direction: 1 | -1) => {
       if (this.mission.outcome !== "ongoing") return;
       if (this.mission.phase !== "player") return;
       if (this.isAnimatingMove) return;
       const eligible = this.mission
         .livingUnits()
-        .filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated && !u.isCivilian && u.actionsRemaining > 0);
+        .filter(
+          (u) =>
+            u.side === "player" &&
+            !u.downed &&
+            !u.npcIncapacitated &&
+            !u.isCivilian &&
+            (u.actionsRemaining > 0 || this.mission.fieldDoctorReady(u.instanceId))
+        );
       if (eligible.length === 0) return;
       const currentIndex = this.selectedUnitId ? eligible.findIndex((u) => u.instanceId === this.selectedUnitId) : -1;
       const nextIndex = currentIndex === -1 ? 0 : (currentIndex + direction + eligible.length) % eligible.length;
@@ -483,7 +652,13 @@ export class Battle extends Phaser.Scene {
       // "OVERWATCH"/"INTERDICT" (the longest labels, 9 characters) don't
       // crowd the button edge.
       const label = this.add.text(p.x, p.y, "", { fontFamily: "monospace", fontSize: "10px", color: "#ffffff" }).setOrigin(0.5);
-      this.actionSlots.push({ btn, label });
+      // Hotkey digit (2 Sep 2026) — pinned inside the button's left edge,
+      // vertically centred, in a dimmer blue than the label so it reads as
+      // chrome rather than part of the action's name. See drawActionBar.
+      const key = this.add
+        .text(p.x - ACTION_SLOT_W / 2 + 5, p.y, "", { fontFamily: "monospace", fontSize: "9px", color: "#8ab4d8" })
+        .setOrigin(0, 0.5);
+      this.actionSlots.push({ btn, label, key });
     }
 
     const backBtn = this.add
@@ -495,9 +670,169 @@ export class Battle extends Phaser.Scene {
     void backBtn;
 
     this.overlay = this.add.container(0, 0).setVisible(false);
+    // Per-create() resets for the legibility-pass fields (see their field
+    // comments): the label pool and the prompt are rebuilt from scratch
+    // each mission, same reason actionSlots is above.
+    this.forecastLabels = [];
+    this.endTurnPrompt = null;
+    this.hoverTile = null;
+    // Rebuilt per create() like every other display object here — a scene
+    // restart destroys the old one with the display list, so holding a
+    // stale reference across missions would draw into a dead scene.
+    this.hoverTip = new HoverTip(this);
 
-    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.handleBoardClick(p.x, p.y));
+    // Right-click = cancel (feature-gap report C5), same reflex Esc gets
+    // below. disableContextMenu stops the browser's own menu from opening
+    // over the canvas on that click. Left-click keeps its existing path.
+    this.input.mouse?.disableContextMenu();
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (p.rightButtonDown()) this.cancelCurrent();
+      else this.handleBoardClick(p.x, p.y);
+    });
+    // Hover tracking — the tile under the pointer, re-rendered only when it
+    // actually changes tile (not per pixel), and only when something on
+    // screen depends on it: a selected unit with attackable targets (the
+    // forecast), an armed strike (the splash preview), or a visible unit
+    // to inspect. Cheap either way; render() is already a full redraw on
+    // every click.
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      // Pixel position first, and unconditionally — the tip box follows the
+      // cursor even while it stays inside one tile, which is the whole
+      // point of it being at the cursor rather than in the side panel.
+      this.pointerX = p.x;
+      this.pointerY = p.y;
+      const tile = this.pixelToTile(p.x, p.y);
+      const same = (tile === null && this.hoverTile === null) || (tile !== null && this.hoverTile !== null && tile.x === this.hoverTile.x && tile.y === this.hoverTile.y);
+      if (same) {
+        // Same tile: content can't have changed, so this is a cheap
+        // reposition, not a re-render.
+        this.updateHoverTip();
+        return;
+      }
+      this.hoverTile = tile;
+      if (this.mission.outcome === "ongoing" && !this.isAnimatingMove) this.render();
+      else this.updateHoverTip();
+    });
+    // Esc: close the end-turn prompt, else cancel an armed strike, else
+    // deselect — the same escalation cancelCurrent() applies to right-click.
+    // Explicit off() first for the same scene-reuse reason SPACE/TAB have.
+    this.input.keyboard?.addCapture("ESC");
+    this.input.keyboard?.off("keydown-ESC");
+    this.input.keyboard?.on("keydown-ESC", () => this.cancelCurrent());
 
+    // Action hotkeys, 2 Sep 2026 (Maxime: "add some natural keybinding for
+    // the majority of action"). 1-6 fire the six action-bar slots — the
+    // same runActionSlot() the buttons call, so a key can never do
+    // something a click can't (including the guards runActionSlot already
+    // has for a closed prompt, an unusable action, or an empty slot).
+    //
+    // Digits are the natural choice here for the same reason every tactics
+    // game uses them: the bar is positional and already numbered on screen
+    // now. The off()-before-on() and addCapture() both match the SPACE/TAB/
+    // ESC bindings just above — off() because this scene is restarted
+    // rather than recreated between missions (a missing off() is how you
+    // end up firing an action once per mission played this session), and
+    // addCapture() so the browser never steals the key.
+    const digits = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"];
+    this.input.keyboard?.addCapture(digits.join(","));
+    digits.forEach((name, i) => {
+      this.input.keyboard?.off(`keydown-${name}`);
+      this.input.keyboard?.on(`keydown-${name}`, () => this.runActionSlot(i));
+    });
+
+    this.render();
+  }
+
+  /** Living player units that could still act this turn — the end-turn prompt's own question. */
+  private unitsWithActionsLeft(): BattleUnit[] {
+    return this.mission
+      .livingUnits()
+      .filter(
+        (u) =>
+          u.side === "player" &&
+          !u.downed &&
+          !u.npcIncapacitated &&
+          !u.isCivilian &&
+          (u.actionsRemaining > 0 || this.mission.fieldDoctorReady(u.instanceId))
+      );
+  }
+
+  /**
+   * Cancel whatever is "open" right now, most-transient first: the end-turn
+   * prompt, then an armed Fire Support / Missile strike (back to the unit's
+   * ordinary highlights, still selected), then the selection itself. One
+   * escalation shared by Esc and right-click so the two never disagree.
+   */
+  private cancelCurrent() {
+    if (this.mission.outcome !== "ongoing" || this.isAnimatingMove) return;
+    if (this.endTurnPrompt) {
+      this.closeEndTurnPrompt();
+      this.render();
+      return;
+    }
+    if ((this.fireSupportTargeting || this.missileTargeting) && this.selectedUnitId) {
+      this.fireSupportTargeting = false;
+      this.fireSupportRange = [];
+      this.missileTargeting = false;
+      this.missileRange = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+      this.render();
+      return;
+    }
+    if (this.selectedUnitId) {
+      this.selectedUnitId = null;
+      this.clearSelectionHighlights();
+      this.render();
+    }
+  }
+
+  private openEndTurnPrompt(pending: BattleUnit[]) {
+    if (this.endTurnPrompt) return;
+    // Centred on the board, not the right panel — it has to be impossible
+    // to miss, and the board is where the player's eyes already are. The
+    // backdrop is interactive purely to swallow clicks meant for the board
+    // underneath (Phaser only blocks click-through between interactive
+    // objects, not by draw order — same lesson the Rec Room help panel
+    // recorded); handleBoardClick/runActionSlot also bail while it's open.
+    const cx = this.boardX + (this.mission.map.width * this.tileSize) / 2;
+    const cy = this.boardY + (this.mission.map.height * this.tileSize) / 2;
+    const names = pending.map((u) => u.displayName);
+    const listed = names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
+    const bg = this.add.rectangle(cx, cy, 420, 130, 0x0c0f12, 0.94).setStrokeStyle(2, 0x4a7a9a).setInteractive();
+    const title = this.add
+      .text(cx, cy - 40, `${pending.length} unit${pending.length === 1 ? "" : "s"} can still act this turn`, { fontFamily: "monospace", fontSize: "14px", color: "#facc15" })
+      .setOrigin(0.5);
+    const who = this.add.text(cx, cy - 18, listed, { fontFamily: "monospace", fontSize: "11px", color: "#e8e2d4", wordWrap: { width: 390 }, align: "center" }).setOrigin(0.5);
+    const yes = this.add
+      .rectangle(cx - 90, cy + 32, 160, 30, 0x7a2430)
+      .setStrokeStyle(1, 0xef4444)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.confirmEndTurn());
+    const yesLabel = this.add.text(cx - 90, cy + 32, "END TURN ANYWAY", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+    const no = this.add
+      .rectangle(cx + 90, cy + 32, 160, 30, 0x2e5c7a)
+      .setStrokeStyle(1, 0x4a7a9a)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => {
+        this.closeEndTurnPrompt();
+        this.render();
+      });
+    const noLabel = this.add.text(cx + 90, cy + 32, "KEEP PLAYING  [esc]", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+    const hint = this.add.text(cx, cy + 56, "space again = end turn", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6" }).setOrigin(0.5);
+    this.endTurnPrompt = this.add.container(0, 0, [bg, title, who, yes, yesLabel, no, noLabel, hint]);
+  }
+
+  private closeEndTurnPrompt() {
+    if (!this.endTurnPrompt) return;
+    this.endTurnPrompt.destroy(true);
+    this.endTurnPrompt = null;
+  }
+
+  private confirmEndTurn() {
+    this.closeEndTurnPrompt();
+    this.selectedUnitId = null;
+    this.clearSelectionHighlights();
+    this.mission.endPlayerTurn();
     this.render();
   }
 
@@ -516,10 +851,30 @@ export class Battle extends Phaser.Scene {
     // click is ignored outright — not queued — until the current move
     // finishes playing out. See animatingUnitId's own field comment.
     if (this.isAnimatingMove) return;
+    // End-turn prompt open (1 Sep 2026): the prompt's own buttons handle
+    // themselves; every board click underneath it is swallowed until it's
+    // answered — a modal, not a suggestion.
+    if (this.endTurnPrompt) return;
     const tile = this.pixelToTile(px, py);
     if (!tile) return;
 
     const unitHere = this.mission.livingUnits().find((u) => u.pos.x === tile.x && u.pos.y === tile.y);
+
+    // Missile, armed (1 Sep 2026, feature-gap report A8) — identical shape
+    // to the fire-support branch right below it, checked first for the same
+    // reason: the strike's tile set overlaps every other click target.
+    if (this.selectedUnitId && this.missileTargeting) {
+      if (this.missileRange.some((c) => coordKey(c) === coordKey(tile))) {
+        this.mission.missileStrike(this.selectedUnitId, tile);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      this.missileTargeting = false;
+      this.missileRange = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
 
     // Fire support, armed (25 Aug 2026, Mission 14 "Steel Rain") — checked
     // FIRST, ahead of attack/repair/rescue/move: fireSupportRange overlaps
@@ -636,7 +991,20 @@ export class Battle extends Phaser.Scene {
     // never a click; its actionsRemaining is permanently 0 anyway (see
     // engine/units.ts's createCivilianUnit), so this guard is
     // defense-in-depth rather than the only thing stopping a select here.
-    if (unitHere && unitHere.side === "player" && !unitHere.downed && !unitHere.npcIncapacitated && !unitHere.isCivilian && unitHere.actionsRemaining > 0) {
+    // actionsRemaining > 0 OR mission.fieldDoctorReady(...) (Field Doctor,
+    // 1 Sep 2026): a Munti who's spent both actions still needs to be
+    // selectable when their free Field Doctor Repair is off cooldown —
+    // otherwise the branch's entire reason to exist (repairing after your
+    // normal actions are gone) would be invisible to an actual click,
+    // even though the engine underneath already allows it.
+    if (
+      unitHere &&
+      unitHere.side === "player" &&
+      !unitHere.downed &&
+      !unitHere.npcIncapacitated &&
+      !unitHere.isCivilian &&
+      (unitHere.actionsRemaining > 0 || this.mission.fieldDoctorReady(unitHere.instanceId))
+    ) {
       this.selectedUnitId = unitHere.instanceId;
       this.tutorialHasSelected = true;
       this.recomputeSelectionHighlights(unitHere.instanceId);
@@ -712,6 +1080,8 @@ export class Battle extends Phaser.Scene {
     this.clearableBloom = [];
     this.fireSupportTargeting = false;
     this.fireSupportRange = [];
+    this.missileTargeting = false;
+    this.missileRange = [];
   }
 
   /**
@@ -729,7 +1099,7 @@ export class Battle extends Phaser.Scene {
     // immediately repopulate reachable/attackable/repairable/etc. from the
     // engine again, undoing the suppression that same run() just did and
     // leaving a confusing mix of washes on the board mid-targeting.
-    if (this.fireSupportTargeting) return;
+    if (this.fireSupportTargeting || this.missileTargeting) return;
     const unit = this.mission.unitById(unitId);
     if (!unit) return;
     this.reachable = this.mission.getReachableTiles(unitId);
@@ -748,10 +1118,15 @@ export class Battle extends Phaser.Scene {
    * highlighted options if it still has an action left; otherwise deselect.
    * Attack, Overwatch, Ambush and Interdict all empty actionsRemaining
    * themselves and are handled by runActionSlot/handleBoardClick instead.
+   * actionsRemaining > 0 OR mission.fieldDoctorReady(...) (Field Doctor,
+   * 1 Sep 2026, same reasoning as the two selection guards above): without
+   * this, a Munti who spends their last normal action on a Move would get
+   * silently deselected one action before their free Field Doctor Repair
+   * ever became visible, forcing an extra re-click to reach it.
    */
   private refreshSelectionAfterAction() {
     const unit = this.selectedUnitId ? this.mission.unitById(this.selectedUnitId) : undefined;
-    if (unit && !unit.downed && unit.actionsRemaining > 0) {
+    if (unit && !unit.downed && (unit.actionsRemaining > 0 || this.mission.fieldDoctorReady(unit.instanceId))) {
       this.recomputeSelectionHighlights(unit.instanceId);
     } else {
       this.selectedUnitId = null;
@@ -833,12 +1208,39 @@ export class Battle extends Phaser.Scene {
         },
       });
     }
+    if (unit.abilities.includes("abil_missile")) {
+      // abil_missile (1 Sep 2026, feature-gap report A8) — the Reeps
+      // weapon-branch splash. Per-unit charges (unlike FIRE's shared pool),
+      // and it hits friendlies, which the HUD legend says in as many words
+      // while it's armed. Same arm-then-click-tile flow as FIRE above; the
+      // splash preview on hover (drawHud/render) is where a player sees
+      // exactly who's inside the blast before committing.
+      const charges = m.missileChargesRemaining(id);
+      out.push({
+        label: `MISSILE ×${charges}`,
+        usable: m.canMissileStrike(id),
+        endsTurn: false,
+        run: () => {
+          this.missileTargeting = true;
+          this.missileRange = m.getMissileAreaFrom(id, unit.pos);
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+        },
+      });
+    }
     return out.slice(0, ACTION_SLOTS.length);
   }
 
   private runActionSlot(index: number) {
     if (this.mission.outcome !== "ongoing" || this.mission.phase !== "player") return;
     if (this.isAnimatingMove) return; // same lock as handleBoardClick — see animatingUnitId's field comment
+    if (this.endTurnPrompt) return; // modal — see handleBoardClick's own guard
     const option = this.actionOptions[index];
     if (!option || !option.usable) return;
     option.run();
@@ -982,6 +1384,26 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(FIRE_SUPPORT_COLOR, 0.3);
       g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
+    // Missile targeting (1 Sep 2026) — same wash, same hue as Fire Support
+    // on purpose: it's the same interaction (armed strike, click a tile),
+    // the two are never armed at once, and the HUD legend names which one
+    // is live. A second colour here would be a second thing to learn for
+    // no new information.
+    for (const c of this.missileRange) {
+      g.fillStyle(FIRE_SUPPORT_COLOR, 0.3);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+    }
+    // Splash preview: while a strike is armed and the pointer sits on a
+    // legal target tile, outline the blast footprint so "who's inside"
+    // is visible on the board itself, not only in the HUD's victim list.
+    if (this.hoverTile && (this.fireSupportTargeting || this.missileTargeting)) {
+      const range = this.fireSupportTargeting ? this.fireSupportRange : this.missileRange;
+      if (range.some((c) => coordKey(c) === coordKey(this.hoverTile!))) {
+        const h = this.hoverTile;
+        g.lineStyle(2, 0xffffff, 0.9);
+        g.strokeRect(this.boardX + (h.x - 1) * ts + 1, this.boardY + (h.y - 1) * ts + 1, 3 * ts - 3, 3 * ts - 3);
+      }
+    }
     // Hold Zone marker (30 Aug 2026, Maxime: "i reach turn 16 and it give me
     // mission failed, no unit died, i cleared lot of bloom"). Root cause,
     // traced through engine/mission.ts's checkWinLoss: hold_zone's actual
@@ -1047,10 +1469,50 @@ export class Battle extends Phaser.Scene {
       this.drawUnit(g, unit, ts);
     }
 
+    this.drawForecastLabels(ts);
     this.drawActionBar();
     this.drawHud();
     this.drawOverlayIfNeeded();
     this.updateTutorialHint();
+  }
+
+  /**
+   * Combat forecast on the board (1 Sep 2026, feature-gap report A1): the
+   * damage this selected unit would deal, written over every enemy it can
+   * currently hit — "34", or "KILL" when the engine says the hit downs the
+   * target, with "~" prefixed when the target has a dodge roll. Drawn from
+   * Mission.forecastAttack(), which runs the real resolver read-only, so
+   * these numbers can't disagree with the hit that follows except by a
+   * dodge. Text objects come from a fixed pool (same accumulate-once
+   * discipline as actionSlots) — hidden, not destroyed, when unused.
+   */
+  private drawForecastLabels(ts: number) {
+    const wanted: { x: number; y: number; text: string; color: string }[] = [];
+    if (this.selectedUnitId && !this.isAnimatingMove && this.mission.outcome === "ongoing") {
+      for (const target of this.attackable) {
+        const f = this.mission.forecastAttack(this.selectedUnitId, target.instanceId);
+        if (!f) continue;
+        const dodge = f.dodgeChance > 0 ? "~" : "";
+        wanted.push({
+          x: this.boardX + target.pos.x * ts + ts / 2,
+          y: this.boardY + target.pos.y * ts - 2,
+          text: f.defenderDowned ? `${dodge}KILL` : `${dodge}${f.damage}`,
+          color: f.defenderDowned ? "#fde047" : "#fca5a5",
+        });
+      }
+    }
+    while (this.forecastLabels.length < wanted.length) {
+      const t = this.add.text(0, 0, "", { fontFamily: "monospace", fontSize: "11px", color: "#fca5a5", stroke: "#000000", strokeThickness: 3 }).setOrigin(0.5, 1);
+      this.forecastLabels.push(t);
+    }
+    this.forecastLabels.forEach((label, i) => {
+      const w = wanted[i];
+      if (!w) {
+        label.setVisible(false);
+        return;
+      }
+      label.setPosition(w.x, w.y).setText(w.text).setColor(w.color).setVisible(true);
+    });
   }
 
   /**
@@ -1103,6 +1565,7 @@ export class Battle extends Phaser.Scene {
       if (!option) {
         slot.btn.setVisible(false);
         slot.label.setVisible(false);
+        slot.key.setVisible(false);
         continue;
       }
       slot.btn.setVisible(true);
@@ -1111,6 +1574,20 @@ export class Battle extends Phaser.Scene {
       slot.btn.setStrokeStyle(1, option.usable ? 0x4a7a9a : 0x3a4552);
       slot.label.setText(option.label);
       slot.label.setColor(option.usable ? "#ffffff" : "#5a6572");
+      // Hotkey digit, 2 Sep 2026 (Maxime: "add some natural keybinding for
+      // the majority of action"). A binding nobody can find is worth
+      // nothing, and a legend in the corner is the thing players read once
+      // and forget — the digit belongs ON the button, the way every hotbar
+      // game since Diablo has taught it. Drawn as its own object pinned to
+      // the button's left edge rather than prefixed onto the label: these
+      // buttons are 70px wide and "OVERWATCH" at 10px already crowds them
+      // (see the label's own comment in create()), so a "1 " prefix would
+      // have pushed the longest labels past the edge. Same loop index
+      // drives the digit, the label and the keydown handler, so they can't
+      // drift apart.
+      slot.key.setVisible(true);
+      slot.key.setText(String(i + 1));
+      slot.key.setColor(option.usable ? "#8ab4d8" : "#4a5562");
     }
   }
 
@@ -1715,11 +2192,25 @@ export class Battle extends Phaser.Scene {
     // Index 4 (not 3), since sortieLine above pushed everything down one —
     // splices the briefing+blank in ahead of the "Objective:" line exactly
     // as before, just accounting for the new sortieLine entry at index 2.
+    // 2 Sep 2026 — the hover block moved out of this panel and onto the
+    // cursor (see updateHoverTip below). It used to be computed here so the
+    // briefing could yield to it; with the hover content gone from the
+    // panel entirely there's nothing left to yield to, so the briefing is
+    // simply shown whenever no unit is selected. That also retires the
+    // fitLines-trimming problem the old arrangement caused (both blocks
+    // competing for the same panel budget, caught in the 1 Sep headless
+    // smoke test) rather than working around it.
     if (!this.selectedUnitId) lines.splice(4, 0, m.mission.briefing, "");
     if (this.selectedUnitId) {
       const selected = m.unitById(this.selectedUnitId);
       if (selected) {
         lines.push("", `${selected.displayName}: ${selected.actionsRemaining} action(s) left`);
+        // Field Doctor (1 Sep 2026): the one case where "0 actions left"
+        // alone would read as "nothing more to do here" when it isn't —
+        // this unit can still Repair once, free, if the bonus is off
+        // cooldown. Silent otherwise (branch not equipped, or on cooldown)
+        // so this doesn't clutter the panel for every other Munti.
+        if (m.fieldDoctorReady(selected.instanceId)) lines.push("FIELD DOCTOR — one free Repair ready");
         if (selected.overwatch && selected.concealed) lines.push("AMBUSH — unseen, holding a shot");
         else if (selected.overwatch) lines.push("ON OVERWATCH — holding fire");
         else if (selected.concealed) lines.push("CONCEALED — the Bloom cannot see this unit");
@@ -1739,6 +2230,22 @@ export class Battle extends Phaser.Scene {
         if (selected.carryingRescueId) lines.push("CARRYING — cannot attack until they're out");
       }
     }
+    // Vital Signs Uplink (2 Sep 2026) — the carrier module's whole effect.
+    // Fires only when the Munti you have left is the LAST one and it's
+    // hurt: losing your only field doctor is the quiet way a run ends, and
+    // the existing HUD gives you no reason to look at their HP bar until
+    // it's already too late. Placed above the legends with the other
+    // decision-support lines, since fitLines trims from the bottom and
+    // this is the one line here a player must not miss.
+    if (this.vitalSignsUplink) {
+      const munti = m.livingUnits().filter((u) => u.side === "player" && !u.downed && findPilot(u.pilotId ?? "") && UNIT_ARCHETYPES[findPilot(u.pilotId ?? "")?.archetypeId ?? ""]?.path === "munti");
+      if (munti.length === 1) {
+        const last = munti[0];
+        if (last.currentHp <= last.maxHp * VITAL_SIGNS_WARN_FRACTION) {
+          lines.push("", `!! VITAL SIGNS — ${last.displayName} is your last Munti, at ${last.currentHp}/${last.maxHp}`);
+        }
+      }
+    }
     // Highlight legend — only for the colours actually on the board right
     // now, so the panel doesn't turn into a permanent key.
     if (this.repairable.length) lines.push("", "Cyan tile = Repair target (+HP, instead of attacking)");
@@ -1748,6 +2255,8 @@ export class Battle extends Phaser.Scene {
     if (this.rescuableNpc.length) lines.push("", "Gold tile = Rescue (adjacent, downed pilot)");
     if (this.clearableBloom.length) lines.push("", `Gold tiles = ${this.clearableBloom.length} bloom mat tile(s) Clear would flip`);
     if (this.fireSupportTargeting) lines.push("", `Blue tiles = Fire Support strike center (shared, ${m.fireSupportChargesRemaining} charge(s) left) — click to call it in, or click elsewhere to cancel`);
+    if (this.missileTargeting && this.selectedUnitId)
+      lines.push("", `Blue tiles = MISSILE target (${m.missileChargesRemaining(this.selectedUnitId)} charge(s) left) — splash hits EVERYONE within 1 tile, allies included. Click to fire, Esc/right-click to cancel`);
     // Same legend treatment as every highlight above, for the terrain
     // itself rather than an action preview — green exit tiles are drawn as
     // base terrain (TILE_COLORS.exit) on every extract_unit map already, so
@@ -1779,6 +2288,10 @@ export class Battle extends Phaser.Scene {
     // first (mission, turn, objective, selected unit, then legends, then
     // standing tallies), so a trim only ever loses the tallies.
     this.hudText.setText(this.fitLines(lines, HUD_TOP, LOG_TOP, HUD_LINE_H, HUD_CHARS_PER_LINE).join("\n"));
+    // The cursor tip is refreshed from the same pass that rebuilds the HUD,
+    // so selecting a unit (which changes the forecast) updates the box
+    // under a stationary pointer without waiting for the next mouse move.
+    this.updateHoverTip();
 
     // Fit as many of the most recent log lines as actually fit between the
     // HUD block and the OVERWATCH button, newest last. This used to be a
@@ -1791,6 +2304,132 @@ export class Battle extends Phaser.Scene {
     // Newest-last, so the tail is fitted in reverse and flipped back.
     const tail = this.fitLines([...m.log].reverse(), LOG_TOP, LOG_BOTTOM, LOG_LINE_H, LOG_CHARS_PER_LINE).reverse();
     this.logText.setText(tail.join("\n"));
+  }
+
+  /**
+   * Push the current hover content into the cursor tip (2 Sep 2026).
+   *
+   * hoverLines() is unchanged and still the single source of that content —
+   * this only decides whether to draw it and where. Hidden outright once
+   * the mission is over, since the end-of-mission overlay owns the screen
+   * at that point and a tip floating over it reads as a bug.
+   */
+  private updateHoverTip(): void {
+    if (!this.hoverTip) return;
+    if (this.mission.outcome !== "ongoing") {
+      this.hoverTip.hide();
+      return;
+    }
+    this.hoverTip.show(this.hoverLines(), this.pointerX, this.pointerY);
+  }
+
+  /** The living unit under the pointer, if any — hostiles only when the player side can currently see them (fog of war). */
+  private hoveredUnit(): BattleUnit | undefined {
+    if (!this.hoverTile) return undefined;
+    const h = this.hoverTile;
+    const unit = this.mission.livingUnits().find((u) => u.pos.x === h.x && u.pos.y === h.y);
+    if (!unit) return undefined;
+    if (unit.side === "hostile" && !this.visibleHostileIds().has(unit.instanceId)) return undefined;
+    return unit;
+  }
+
+  /** Plain-words description of a Bloom archetype's on-hit effect, from data/bloom.ts's own table. */
+  private describeOnHit(fxId: string | undefined): string | null {
+    if (!fxId) return null;
+    const fx = BLOOM_ON_HIT_EFFECTS[fxId];
+    if (!fx || fx.kind === "none") return null;
+    if (fx.kind === "acid_dot") return `on hit: acid — ${fx.magnitude} dmg/turn for ${fx.duration} turns, fouls the tile`;
+    if (fx.kind === "debuff_attack") return `on hit: -${Math.round(fx.magnitude * 100)}% attack for ${fx.duration} turns, spreads to nearby allies`;
+    return `on hit: knocks the target back ${fx.magnitude} tile`;
+  }
+
+  /** The HUD's hover block — see drawHud's call site for the priority order. */
+  private hoverLines(): string[] {
+    const m = this.mission;
+    const out: string[] = [];
+    if (!this.hoverTile || m.outcome !== "ongoing") return out;
+    const selectedId = this.selectedUnitId;
+    const h = this.hoverTile;
+
+    // Armed strike over a legal tile: who's in the blast.
+    if (selectedId && (this.fireSupportTargeting || this.missileTargeting)) {
+      const kind = this.fireSupportTargeting ? "fire_support" : "missile";
+      const range = this.fireSupportTargeting ? this.fireSupportRange : this.missileRange;
+      if (range.some((c) => coordKey(c) === coordKey(h))) {
+        const victims = m.forecastSplash(selectedId, h, kind);
+        out.push("", `BLAST at (${h.x},${h.y}): ${victims.length === 0 ? "nobody inside" : ""}`);
+        for (const v of victims) {
+          out.push(`  ${v.displayName}${v.side === "player" ? " [FRIENDLY]" : ""}: ${v.damage} dmg${v.downed ? " — DOWNED" : ""}`);
+        }
+      }
+      return out;
+    }
+
+    const hovered = this.hoveredUnit();
+    // Bare ground (2 Sep 2026): feature-gap report C4's own second half —
+    // "Hover a tile: terrain name and defence stars" — which the 1 Sep pass
+    // never built, because in the side panel a terrain readout for every
+    // idle mouse position would have been noise competing with the log. At
+    // the cursor it costs nothing when you aren't pointing at anything.
+    // Defence stars are the one number here a player genuinely can't infer
+    // from the tile's colour, and cover is what decides where you stand.
+    if (!hovered) {
+      if (h.x < 0 || h.y < 0 || h.x >= m.map.width || h.y >= m.map.height) return out;
+      const def = TILES[tileAt(m.map, h)];
+      if (!def) return out;
+      out.push(`${def.displayName} (${h.x},${h.y})`);
+      out.push(def.defenceStars > 0 ? `Cover: ${"*".repeat(def.defenceStars)} (${def.defenceStars})` : "Cover: none");
+      if (def.turnStartDamage) out.push(`Burns ${def.turnStartDamage} HP at turn start`);
+      if (def.reepsRangeBonus) out.push(`+${def.reepsRangeBonus} range for Reeps standing here`);
+      if (!def.passableGround) out.push("Impassable on the ground");
+      return out;
+    }
+
+    // A target the selected unit can hit: the forecast.
+    if (selectedId && this.attackable.some((a) => a.instanceId === hovered.instanceId)) {
+      const f = m.forecastAttack(selectedId, hovered.instanceId);
+      const attacker = m.unitById(selectedId);
+      if (f && attacker) {
+        const pct = (p: number) => `${Math.round(p * 100)}%`;
+        out.push("", `FORECAST — ${attacker.displayName} → ${hovered.displayName}`);
+        let hit = `Hit: ${f.damage} dmg`;
+        if (f.decloakStrike) hit += " (DECLOAK ×2)";
+        else if (f.charged) hit += " (charge)";
+        if (f.shieldAbsorbed > 0) hit += `, shield eats ${f.shieldAbsorbed}`;
+        if (f.dodgeChance > 0) hit += `, ${pct(f.dodgeChance)} dodge`;
+        out.push(hit);
+        out.push(f.defenderDowned ? `→ ${hovered.displayName} goes DOWN` : `→ ${hovered.displayName} at ${f.defenderHpAfter}/${hovered.maxHp}`);
+        if (f.countered) {
+          let back = `Counter: ${f.counterDamage} dmg back`;
+          if (f.counterDodgeChance > 0) back += `, you dodge ${pct(f.counterDodgeChance)}`;
+          out.push(back, `→ ${attacker.displayName} at ${f.attackerHpAfter}/${attacker.maxHp}${f.attackerHpAfter <= 0 ? " — DOWN" : ""}`);
+        } else {
+          out.push("No counter");
+        }
+        return out;
+      }
+    }
+
+    // Anything else visible: the inspect card.
+    if (hovered.kind === "bloom") {
+      const arch = BLOOM[hovered.archetypeId];
+      out.push("", `${hovered.displayName}${arch ? ` — ${arch.intelligence}` : ""}`);
+      if (hovered.collapsed) out.push(`COLLAPSED — Vitality ${hovered.vitality ?? 0} (a hit of that much kills it)`);
+      else out.push(`Endurance ${hovered.endurance ?? 0}/${hovered.maxEndurance ?? 0}, Vitality ${hovered.vitality ?? 0}`);
+      out.push(`Hits for ${hovered.attackPower ?? "?"}, range ${hovered.attackRange[0]}-${hovered.attackRange[1]}, moves ${hovered.moveRange}, sees ${hovered.vision}`);
+      const fx = this.describeOnHit(arch?.onHit);
+      if (fx) out.push(fx);
+      if (hovered.burrowed) out.push("BURROWED — surfaces to strike at ×1.5");
+    } else {
+      const who = hovered.side === "player" ? hovered.displayName : `${hovered.displayName} (hostile)`;
+      out.push("", `${who} — ${hovered.path ?? "?"}${hovered.tier ? ` tier ${hovered.tier}` : ""}`);
+      const shield = hovered.shield && hovered.shield > 0 ? ` +${hovered.shield} shield` : "";
+      out.push(`HP ${hovered.currentHp}/${hovered.maxHp}${shield}, ATK ${hovered.effectiveAttack} DEF ${hovered.effectiveDefense}`);
+      out.push(`Range ${hovered.attackRange[0]}-${hovered.attackRange[1]}, moves ${hovered.moveRange}, sees ${hovered.vision}${hovered.canCounter ? ", counters" : ""}`);
+      const fx = hovered.statusEffects?.map((s) => (s.kind === "acid_dot" ? `acid ${s.turnsRemaining}t` : `-${Math.round(s.magnitude * 100)}% atk ${s.turnsRemaining}t`)) ?? [];
+      if (fx.length) out.push(`Status: ${fx.join(", ")}`);
+    }
+    return out;
   }
 
   private drawOverlayIfNeeded() {
@@ -1890,6 +2529,19 @@ export class Battle extends Phaser.Scene {
     if (!this.commanderDownAttemptCleared) {
       this.commanderDownAttemptCleared = true;
       const state = loadCampaignState();
+      // Telemetry (1 Sep 2026, Player Telemetry Plan §2): a commander-down
+      // attempt never reaches Debrief, so it's recorded here — the most
+      // interesting failures would otherwise vanish from the stats. Same
+      // single funnel Debrief uses (engine/telemetry.ts). Read startedAt
+      // before applyCommanderDownAttempt clears it.
+      recordHumanMissionSummary(this.mission, state, {
+        outcome: "commander_down",
+        startedAt: state?.activeMissionAttempt?.startedAt ?? this.missionStartedAt,
+        pointsBefore: state?.points,
+        pointsAfter: state?.points,
+        rosterSizeBefore: activeRosterSize(state),
+        rosterSizeAfter: activeRosterSize(state),
+      });
       if (state) {
         applyCommanderDownAttempt(state);
         saveCampaignState(state);

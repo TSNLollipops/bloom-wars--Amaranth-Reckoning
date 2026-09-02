@@ -121,6 +121,18 @@ import type { Catalyst } from "./ambientLines";
 // pass ships the more concrete half (catalyst-flavored win/loss reactions,
 // correctly gated to fire once per mission) and leaves that refinement
 // explicitly open rather than faking it.
+// Seventh kind, 2 Sep 2026 (crew-interaction brainstorm pass, the Insult
+// Tier-2 escalation step — Praise/Insult/Apology Proposal v1 §3). Registered
+// by scenes/Hub.ts's insultNpc the moment a pilot's lifetime insultsGiven
+// crosses socialActions.ts's INSULT_TIER2_COUNT — same "the crew heard
+// about it" framing as every other kind here, voiced as each catalyst's own
+// reaction to hearing the insulted pilot got insulted, not the insult
+// itself repeated back. Deliberately does NOT fire again at Tier 3 (the
+// standoff) — that beat is handled entirely through the CO's own bespoke
+// call-out line (socialActions.ts's CO_CALLOUT_LINES), not through this
+// generic crew-gossip layer, since Tier 3 is a direct CO/player
+// conversation, not ambient news.
+//
 // Sixth kind, 29 Aug 2026 (Mek NPC Introduction Plan v1 §4) — a Mek's
 // retirement to civilian life, triggered strictly by their own matched
 // pilot's permanent loss (engine/campaignState.ts's applyPermadeathCheck) and
@@ -133,7 +145,7 @@ import type { Catalyst } from "./ambientLines";
 // Mek," never spoken on its own), {KID_CLAUSE} is the one new
 // placeholder this kind needs — see HotTopic.childWithMek and
 // renderHotTopicLine below.
-export type HotTopicKind = "promoted" | "gotTogether" | "muntiLost" | "missionWin" | "missionLoss" | "mekRetired";
+export type HotTopicKind = "promoted" | "gotTogether" | "muntiLost" | "missionWin" | "missionLoss" | "mekRetired" | "insulted" | "heirloomRecalled";
 
 export interface HotTopic {
   kind: HotTopicKind;
@@ -155,6 +167,18 @@ export interface HotTopic {
   // not a stub: renderHotTopicLine below substitutes a real {KID_CLAUSE}
   // off this the instant something does set it.
   childWithMek?: boolean;
+  // heirloomRecalled only (2 Sep 2026) — the family that lent the weapon,
+  // the weapon's own grand name, and the half-sentence carrying how that
+  // family took the loss. The clause arrives as a plain, already-resolved
+  // string rather than a verdict this file would have to interpret,
+  // deliberately: data/hotTopics.ts stays free of any dependency on
+  // campaign or Heirloom state, exactly as childWithMek above is a plain
+  // boolean rather than a reference to a CampaignPilotEntry. The clause
+  // text itself lives with the houses, in data/heirlooms.ts's
+  // HOUSE_VERDICT_CLAUSES.
+  houseName?: string;
+  heirloomName?: string;
+  verdictClause?: string;
   at: number; // Date.now() when it happened — same wall-clock convention SocialLogEntry.at already uses
   mentionedBy: string[]; // pilotIds who have already brought this topic up once
 }
@@ -190,6 +214,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "{ABOUT}'s Mek mustered out — gone to build something that isn't a war{KID_CLAUSE}. Good. Someone should get to.",
       "Heard {ABOUT}'s Mek is done, out for civilian life{KID_CLAUSE}. Pack's smaller today. Doesn't make it wrong.",
     ],
+    insulted: [
+      "Heard you were rough on {ABOUT} again. That's not how the formation holds together.",
+      "Word is you tore into {ABOUT}. The pack doesn't hold if we're the ones tearing at each other.",
+    ],
+    heirloomRecalled: [
+      "{HOUSE} came for {HEIRLOOM} the same week we buried {ABOUT}. {VERDICT_CLAUSE}.",
+      "{HEIRLOOM}'s gone home. It was never ours — we were the formation their kid stood in, that's all. {VERDICT_CLAUSE}.",
+    ],
   },
   dog: {
     promoted: [
@@ -215,6 +247,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     mekRetired: [
       "{ABOUT}'s Mek is gone — civilian life, for good{KID_CLAUSE}. I'm glad. I mean that.",
       "So {ABOUT}'s Mek mustered out{KID_CLAUSE}. Wish I'd said a proper goodbye. Glad they got the chance to leave at all.",
+    ],
+    insulted: [
+      "Heard you tore into {ABOUT} again. That's going to cost you more than you think.",
+      "Word is you were hard on {ABOUT}. I don't forget who treats people that way.",
+    ],
+    heirloomRecalled: [
+      "They took {HEIRLOOM} back. {ABOUT} let me stand next to that thing once. {VERDICT_CLAUSE}.",
+      "{HOUSE} wanted {HEIRLOOM} home. I'd have carried it to them myself if anyone had asked me. {VERDICT_CLAUSE}.",
     ],
   },
   cat: {
@@ -242,6 +282,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "{ABOUT}'s Mek is out, civilian life{KID_CLAUSE}. Smart exit. Wish I had one that clean.",
       "Heard {ABOUT}'s Mek left for good{KID_CLAUSE}. Doesn't change my plans. Still — good for them, getting out.",
     ],
+    insulted: [
+      "Heard you went off on {ABOUT}. Not my business, but noted.",
+      "So you laid into {ABOUT}. Doesn't affect my exit plan. Filed away anyway.",
+    ],
+    heirloomRecalled: [
+      "{HEIRLOOM} went back to {HOUSE}. Borrowed things go home. That's what borrowed means. {VERDICT_CLAUSE}.",
+      "So {ABOUT}'s family took their weapon back. Can't say I'd have done any different in their place. {VERDICT_CLAUSE}.",
+    ],
   },
   crow: {
     promoted: [
@@ -267,6 +315,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     mekRetired: [
       "{ABOUT}'s Mek MUSTERED OUT?! Civilian life{KID_CLAUSE}! Okay, that's actually good news for once, I'll take it.",
       "So {ABOUT}'s Mek is really gone, out for civilian life{KID_CLAUSE}. I want the whole story eventually. Not today. Eventually.",
+    ],
+    insulted: [
+      "Ooh, heard you really let {ABOUT} have it. Rough.",
+      "So you went off on {ABOUT}, huh. I want the story, but also — rough.",
+    ],
+    heirloomRecalled: [
+      "{HOUSE} repossessed {HEIRLOOM}. I had a joke about rich people ready and I've decided against it. {VERDICT_CLAUSE}.",
+      "{HEIRLOOM}'s off the ship. Turns out that loan had terms nobody ever read out to us. {VERDICT_CLAUSE}.",
     ],
   },
   raven: {
@@ -294,6 +350,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "{ABOUT}'s Mek retired to civilian life{KID_CLAUSE}. That's the lesson worth teaching — not every ending here has to be a loss.",
       "Heard {ABOUT}'s Mek is out for good{KID_CLAUSE}. Earned, same as anything else earned around here.",
     ],
+    insulted: [
+      "Heard you were harsh with {ABOUT} again. That's a habit worth breaking.",
+      "Word is you were hard on {ABOUT}. There's a lesson in that, if you're willing to hear it.",
+    ],
+    heirloomRecalled: [
+      "{HEIRLOOM} went back to {HOUSE}. I've explained that arrangement to cadets for years without once watching it close. {VERDICT_CLAUSE}.",
+      "They collected {HEIRLOOM}. {ABOUT} was the whole contract — no heir, no weapon. {VERDICT_CLAUSE}.",
+    ],
   },
   bear: {
     promoted: [
@@ -319,6 +383,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     mekRetired: [
       "{ABOUT}'s Mek mustered out{KID_CLAUSE}. Good. Didn't say much when I heard. Still glad for them.",
       "So {ABOUT}'s Mek is gone, civilian life{KID_CLAUSE}. One less person I have to watch the flank for. Good.",
+    ],
+    insulted: [
+      "Heard about {ABOUT}. Didn't say anything. Still heard it.",
+      "So you went at {ABOUT}. Not saying anything else about it.",
+    ],
+    heirloomRecalled: [
+      "{HOUSE} has {HEIRLOOM} back. Fine. It was never ours to keep. {VERDICT_CLAUSE}.",
+      "{HEIRLOOM} left with their people. I'd rather have had {ABOUT}. {VERDICT_CLAUSE}.",
     ],
   },
   fox: {
@@ -346,6 +418,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "{ABOUT}'s Mek is out — civilian life{KID_CLAUSE}. Smartest angle anyone's played all week.",
       "Heard {ABOUT}'s Mek mustered out for good{KID_CLAUSE}. Didn't see that coming. Wouldn't mind seeing it again.",
     ],
+    insulted: [
+      "Heard you went at {ABOUT} again. Careful — people remember that kind of thing.",
+      "Word is you were rough on {ABOUT}. Filing that away, same as everything else.",
+    ],
+    heirloomRecalled: [
+      "{HEIRLOOM} went home to {HOUSE}. There's no angle to work on a clause that's already been invoked. {VERDICT_CLAUSE}.",
+      "They came for {HEIRLOOM} fast. Somebody over there had the paperwork ready before we had the body. {VERDICT_CLAUSE}.",
+    ],
   },
   rabbit: {
     promoted: [
@@ -372,6 +452,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
       "{ABOUT}'s Mek made it out — civilian life{KID_CLAUSE}. That's the ending I want for all of us, honestly.",
       "So {ABOUT}'s Mek is safe now, out for good{KID_CLAUSE}. I needed a story to end like that today.",
     ],
+    insulted: [
+      "Heard you were hard on {ABOUT} again. That's really not okay.",
+      "Word is you went off on {ABOUT}. I hope someone checked on them after.",
+    ],
+    heirloomRecalled: [
+      "{HOUSE} took {HEIRLOOM} back. Now I keep thinking about what else on this ship we're only borrowing. {VERDICT_CLAUSE}.",
+      "{HEIRLOOM}'s gone. {ABOUT} died and the weapon went home the same week, and I can't stop lining those two up. {VERDICT_CLAUSE}.",
+    ],
   },
   shark: {
     promoted: [
@@ -397,6 +485,14 @@ const HOT_TOPIC_LINES: Record<Catalyst, Record<HotTopicKind, string[]>> = {
     mekRetired: [
       "{ABOUT}'s Mek is out for good, civilian life{KID_CLAUSE}. Can't put a number on that one. Don't want to.",
       "Heard {ABOUT}'s Mek mustered out{KID_CLAUSE}. Good exit. Better than most of us get.",
+    ],
+    insulted: [
+      "Heard you tore into {ABOUT}. Doesn't cost me anything, but noted.",
+      "Word is you were rough on {ABOUT}. Doesn't change the standings. Still noted.",
+    ],
+    heirloomRecalled: [
+      "{HEIRLOOM} is off the board. Best gun on this ship and it was never once in our column. {VERDICT_CLAUSE}.",
+      "{HOUSE} pulled {HEIRLOOM}. Every number that weapon put up belongs to them now, not to us. {VERDICT_CLAUSE}.",
     ],
   },
 };
@@ -431,5 +527,10 @@ export function renderHotTopicLine(topic: HotTopic, speakerCatalyst: Catalyst): 
   return template
     .replace("{ABOUT}", topic.aboutName)
     .replace("{WITH}", topic.withName ?? "")
-    .replace("{KID_CLAUSE}", topic.childWithMek ? ", kid in tow" : "");
+    .replace("{KID_CLAUSE}", topic.childWithMek ? ", kid in tow" : "")
+    // heirloomRecalled-only, same one-plain-replace-per-placeholder shape
+    // as {KID_CLAUSE} above and a no-op on every other kind's templates.
+    .replace("{HOUSE}", topic.houseName ?? "")
+    .replace("{HEIRLOOM}", topic.heirloomName ?? "")
+    .replace("{VERDICT_CLAUSE}", topic.verdictClause ?? "");
 }

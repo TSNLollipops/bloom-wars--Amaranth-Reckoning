@@ -12,7 +12,20 @@
 // \b-anchored word-boundary matching before writing this file, so the
 // false-positive cases below are regression tests, not just coverage.
 import { describe, it, expect } from "vitest";
-import { interpretPlayerChat, detectUnbuiltVerbLine, detectVerbRequest, detectHistoryRequest, detectHighlightsRequest, detectBuildRequest } from "../chatIntent";
+import {
+  interpretPlayerChat,
+  detectUnbuiltVerbLine,
+  detectVerbRequest,
+  detectHistoryRequest,
+  detectHighlightsRequest,
+  detectBuildRequest,
+  detectDebriefRequest,
+  detectBriefRequest,
+  mentionsCoByAlias,
+  detectConfideRequest,
+  detectRemovePilotIntent,
+  extractNamedTarget,
+} from "../chatIntent";
 
 describe("interpretPlayerChat — muster recognition", () => {
   it("recognizes the literal word 'muster'", () => {
@@ -59,9 +72,40 @@ describe("interpretPlayerChat — emotion buckets", () => {
     expect(interpretPlayerChat("thanks, good job out there")).toEqual({ kind: "emotion", echo: "love" });
   });
 
-  it("matches multi-word keyword phrases across their internal space ('shut up', 'rough day')", () => {
-    expect(interpretPlayerChat("shut up already")).toEqual({ kind: "emotion", echo: "anger" });
+  it("matches multi-word keyword phrases across their internal space ('screw this', 'rough day')", () => {
+    // "shut up" moved out of this bucket 2 Sep 2026 (crew-interaction pass
+    // — see the reclassification describe block below), so "screw this"
+    // is this bucket's multi-word example now.
+    expect(interpretPlayerChat("screw this already")).toEqual({ kind: "emotion", echo: "anger" });
     expect(interpretPlayerChat("it's been a rough day")).toEqual({ kind: "emotion", echo: "sadness" });
+  });
+});
+
+// Reclassification, 2 Sep 2026 (crew-interaction brainstorm pass) — "well
+// done"/"stupid"/"idiot"/"shut up"/"sorry" moved out of the broadcast
+// emotion buckets above and into the new targeted Praise/Insult/Apology
+// verbs (see the detectVerbRequest describe block further down). This is a
+// deliberate behavior change, not a regression — these five phrases used to
+// resolve here and no longer do, on purpose, since they now mean something
+// more specific (a real Favorability delta against a specific NPC).
+describe("interpretPlayerChat — emotion reclassification, 2 Sep 2026", () => {
+  it("no longer resolves 'well done' as love — it's Praise now", () => {
+    expect(interpretPlayerChat("well done out there")).toBeNull();
+  });
+
+  it("no longer resolves 'stupid'/'idiot'/'shut up' as anger — they're Insult now", () => {
+    expect(interpretPlayerChat("that was so stupid")).toBeNull();
+    expect(interpretPlayerChat("you idiot")).toBeNull();
+    expect(interpretPlayerChat("shut up already")).toBeNull();
+  });
+
+  it("no longer resolves 'sorry' as sadness — it's Apology now", () => {
+    expect(interpretPlayerChat("sorry about that")).toBeNull();
+  });
+
+  it("anger and sadness still resolve via their remaining keywords", () => {
+    expect(interpretPlayerChat("furious and pissed")).toEqual({ kind: "emotion", echo: "anger" });
+    expect(interpretPlayerChat("I miss them so much")).toEqual({ kind: "emotion", echo: "sadness" });
   });
 });
 
@@ -77,7 +121,10 @@ describe("interpretPlayerChat — emotion tie-break order", () => {
   });
 
   it("breaks a genuine sadness/love tie (one hit each) toward sadness", () => {
-    expect(interpretPlayerChat("sorry, thanks")).toEqual({ kind: "emotion", echo: "sadness" });
+    // Was "sorry, thanks" — "sorry" moved out of the sadness bucket 2 Sep
+    // 2026 (it's Apology now, see the reclassification describe block
+    // above), so this uses a different genuine one-hit-each pair.
+    expect(interpretPlayerChat("miss you, thanks")).toEqual({ kind: "emotion", echo: "sadness" });
   });
 
   it("a higher hit count in a later-order bucket still wins over a single earlier-order hit", () => {
@@ -240,6 +287,143 @@ describe("detectVerbRequest — real, actionable verb framework requests", () =>
     expect(detectVerbRequest("")).toBeNull();
     expect(detectVerbRequest("   ")).toBeNull();
   });
+
+  // Crew-interaction brainstorm pass, 2 Sep 2026 — six new single-target
+  // verbs. Gift fills the verb-framework slot data/verbs.ts's own header
+  // named and left empty; Praise/Insult/Apology graduated out of the
+  // broadcast emotion buckets (see the reclassification tests above);
+  // Congratulate/Send-Off are new.
+  it("recognizes a gift request", () => {
+    expect(detectVerbRequest("I got you a gift")).toBe("gift");
+    expect(detectVerbRequest("brought you something")).toBe("gift");
+  });
+
+  it("recognizes a praise request — graduated out of the love emotion bucket", () => {
+    expect(detectVerbRequest("well done out there")).toBe("praise");
+    expect(detectVerbRequest("great job today")).toBe("praise");
+    expect(detectVerbRequest("proud of you")).toBe("praise");
+  });
+
+  it("recognizes an insult request — graduated out of the anger emotion bucket", () => {
+    expect(detectVerbRequest("you're so stupid")).toBe("insult");
+    expect(detectVerbRequest("what an idiot")).toBe("insult");
+    expect(detectVerbRequest("shut up already")).toBe("insult");
+  });
+
+  it("recognizes an apology request — graduated out of the sadness emotion bucket", () => {
+    expect(detectVerbRequest("sorry about that")).toBe("apology");
+    expect(detectVerbRequest("I apologize")).toBe("apology");
+    expect(detectVerbRequest("I take it back")).toBe("apology");
+  });
+
+  it("recognizes a congratulate request", () => {
+    expect(detectVerbRequest("congrats on that")).toBe("congratulate");
+    expect(detectVerbRequest("well earned")).toBe("congratulate");
+  });
+
+  it("recognizes a send-off request", () => {
+    expect(detectVerbRequest("wish me luck")).toBe("sendOff");
+    expect(detectVerbRequest("watch my back out there")).toBe("sendOff");
+  });
+});
+
+describe("extractNamedTarget — named single-target addressing, 2 Sep 2026", () => {
+  const candidates = [
+    { pilotId: "pilot_bosk", displayName: "Bosk Anand — Fire Support" },
+    { pilotId: "pilot_iyari", displayName: "Iyari Cruz — Scout" },
+  ];
+
+  it("finds a candidate by first name", () => {
+    expect(extractNamedTarget("well done, Bosk", candidates)).toBe("pilot_bosk");
+    expect(extractNamedTarget("hey Iyari, congrats", candidates)).toBe("pilot_iyari");
+  });
+
+  it("is case-insensitive", () => {
+    expect(extractNamedTarget("BOSK, great job", candidates)).toBe("pilot_bosk");
+  });
+
+  it("returns undefined when no candidate name appears in the message", () => {
+    expect(extractNamedTarget("well done out there", candidates)).toBeUndefined();
+  });
+
+  it("returns undefined for empty or whitespace-only input", () => {
+    expect(extractNamedTarget("", candidates)).toBeUndefined();
+    expect(extractNamedTarget("   ", candidates)).toBeUndefined();
+  });
+
+  it("does not false-positive on short name fragments (under 3 characters)", () => {
+    const shortName = [{ pilotId: "pilot_jo", displayName: "Jo Lin — Recon" }];
+    // "Jo" is under the 3-character floor — shouldn't match just because
+    // the word "jog" or similar appears nearby.
+    expect(extractNamedTarget("let's jog later", shortName)).toBeUndefined();
+  });
+
+  // Regression, caught in this pass's own live-browser Playwright
+  // verification (tools/verify/checkSocialActions.mjs) — real displayNames
+  // carry a rank prefix ("Spec. Corin Lask — "Patch""), and the first
+  // version of this function stripped punctuation instead of dropping the
+  // whole rank token, so "Spec" (from "Spec.") became a false-positive
+  // match candidate. Two pilots sharing a rank could steal each other's
+  // targeting.
+  it("drops rank-prefix tokens entirely rather than stripping their punctuation into a false match", () => {
+    const rankedCandidates = [
+      { pilotId: "pilot_lask", displayName: 'Spec. Corin Lask — "Patch"' },
+      { pilotId: "pilot_vashti", displayName: 'Spec. Elin Vashti — "Driftwood"' },
+    ];
+    // Neither pilot is named "Spec" — a message that only contains the
+    // shared rank word must not resolve to either of them.
+    expect(extractNamedTarget("well done, Spec", rankedCandidates)).toBeUndefined();
+    // The real given name still resolves correctly to the right pilot.
+    expect(extractNamedTarget("well done, Corin", rankedCandidates)).toBe("pilot_lask");
+    expect(extractNamedTarget("well done, Elin", rankedCandidates)).toBe("pilot_vashti");
+  });
+
+  it("resolves a full rank-prefixed display name to the right pilot by given name or surname", () => {
+    const candidates = [{ pilotId: "pilot_rourke", displayName: '2nd Lt. Dessa Rourke — "Lark"' }];
+    expect(extractNamedTarget("thanks, Dessa", candidates)).toBe("pilot_rourke");
+    expect(extractNamedTarget("thanks, Rourke", candidates)).toBe("pilot_rourke");
+    // "2nd" and "Lt." are rank tokens (contain a digit / a period) — dropped
+    // entirely, not stripped into "nd"/"Lt" and left as match candidates.
+    expect(extractNamedTarget("2nd place today", candidates)).toBeUndefined();
+  });
+});
+
+describe("detectConfideRequest — CO-specific, 2 Sep 2026", () => {
+  it("recognizes confide phrasing", () => {
+    expect(detectConfideRequest("I need to vent")).toBe(true);
+    expect(detectConfideRequest("can we talk")).toBe(true);
+    expect(detectConfideRequest("I need to get this off my chest")).toBe(true);
+  });
+
+  it("returns false for ordinary text and for muster/emotion/verb-request text", () => {
+    expect(detectConfideRequest("what's the weather like today")).toBe(false);
+    expect(detectConfideRequest("muster up")).toBe(false);
+    expect(detectConfideRequest("let's play poker")).toBe(false);
+  });
+
+  it("returns false for empty or whitespace-only input", () => {
+    expect(detectConfideRequest("")).toBe(false);
+    expect(detectConfideRequest("   ")).toBe(false);
+  });
+});
+
+describe("detectRemovePilotIntent — CO-specific, 2 Sep 2026 (Insult Tier-3 resolution)", () => {
+  it("recognizes remove-pilot phrasing", () => {
+    expect(detectRemovePilotIntent("I want to remove them")).toBe(true);
+    expect(detectRemovePilotIntent("reassign them off the ship")).toBe(true);
+    expect(detectRemovePilotIntent("get rid of them")).toBe(true);
+  });
+
+  it("returns false for ordinary text and for muster/emotion/verb-request text", () => {
+    expect(detectRemovePilotIntent("what's the weather like today")).toBe(false);
+    expect(detectRemovePilotIntent("muster up")).toBe(false);
+    expect(detectRemovePilotIntent("let's play poker")).toBe(false);
+  });
+
+  it("returns false for empty or whitespace-only input", () => {
+    expect(detectRemovePilotIntent("")).toBe(false);
+    expect(detectRemovePilotIntent("   ")).toBe(false);
+  });
 });
 
 describe("detectHistoryRequest — Hub polish, 26 Aug 2026", () => {
@@ -248,6 +432,11 @@ describe("detectHistoryRequest — Hub polish, 26 Aug 2026", () => {
     expect(detectHistoryRequest("what's in the log")).toBe(true);
     expect(detectHistoryRequest("give me a recap")).toBe(true);
     expect(detectHistoryRequest("let's catch up")).toBe(true);
+  });
+
+  it("does NOT recognize 'brief'/'debrief' — 2 Sep 2026 correction: these moved to their own CO-specific detectDebriefRequest, see that describe block below", () => {
+    expect(detectHistoryRequest("brief me")).toBe(false);
+    expect(detectHistoryRequest("give me the debrief")).toBe(false);
   });
 
   it("does not false-positive on 'log' as a substring — same bug class this file already caught once (mad/made, cry/cryptic, mission/submission)", () => {
@@ -349,5 +538,69 @@ describe("detectBuildRequest — Antfarm build economy, first slice, 27 Aug 2026
   it("returns null for empty or whitespace-only input", () => {
     expect(detectBuildRequest("")).toBeNull();
     expect(detectBuildRequest("   ")).toBeNull();
+  });
+});
+
+describe("detectDebriefRequest — CO-specific, 2 Sep 2026", () => {
+  it("recognizes 'debrief', not 'brief' — split from a shared bucket same day, playtest tally item 7 (\"brief does the same thing as debrief. it should not.\")", () => {
+    expect(detectDebriefRequest("give me the debrief")).toBe(true);
+    expect(detectDebriefRequest("debrief")).toBe(true);
+    expect(detectDebriefRequest("brief me")).toBe(false);
+    expect(detectDebriefRequest("brief")).toBe(false);
+  });
+
+  it("returns false for ordinary text and for muster/emotion/verb-request/history text — doesn't swallow unrelated messages", () => {
+    expect(detectDebriefRequest("what's the weather like today")).toBe(false);
+    expect(detectDebriefRequest("muster up")).toBe(false);
+    expect(detectDebriefRequest("let's play poker")).toBe(false);
+    expect(detectDebriefRequest("give me a recap")).toBe(false);
+  });
+
+  it("returns false for empty or whitespace-only input", () => {
+    expect(detectDebriefRequest("")).toBe(false);
+    expect(detectDebriefRequest("   ")).toBe(false);
+  });
+});
+
+describe("detectBriefRequest — CO-specific, 2 Sep 2026, split off from Debrief (playtest tally item 7)", () => {
+  it("recognizes 'brief', not 'debrief'", () => {
+    expect(detectBriefRequest("brief me")).toBe(true);
+    expect(detectBriefRequest("brief")).toBe(true);
+    expect(detectBriefRequest("give me the debrief")).toBe(false);
+    expect(detectBriefRequest("debrief")).toBe(false);
+  });
+
+  it("returns false for ordinary text and for muster/emotion/verb-request/history text — doesn't swallow unrelated messages", () => {
+    expect(detectBriefRequest("what's the weather like today")).toBe(false);
+    expect(detectBriefRequest("muster up")).toBe(false);
+    expect(detectBriefRequest("let's play poker")).toBe(false);
+    expect(detectBriefRequest("give me a recap")).toBe(false);
+  });
+
+  it("returns false for empty or whitespace-only input", () => {
+    expect(detectBriefRequest("")).toBe(false);
+    expect(detectBriefRequest("   ")).toBe(false);
+  });
+});
+
+describe("mentionsCoByAlias — CO name-addressing, 2 Sep 2026 (playtest tally item 7 part B, \"aoc, debrief\"/\"aoc, brief\")", () => {
+  it("recognizes 'aoc' as a word, case-insensitively", () => {
+    expect(mentionsCoByAlias("aoc, debrief")).toBe(true);
+    expect(mentionsCoByAlias("AOC, brief")).toBe(true);
+    expect(mentionsCoByAlias("hey aoc")).toBe(true);
+  });
+
+  it("does not false-match 'aoc' as a substring inside a longer word — \\b-anchored, same as every other keyword bucket in this file", () => {
+    expect(mentionsCoByAlias("chaoc debrief")).toBe(false);
+  });
+
+  it("returns false for ordinary text with no CO alias", () => {
+    expect(mentionsCoByAlias("debrief me")).toBe(false);
+    expect(mentionsCoByAlias("hey there")).toBe(false);
+  });
+
+  it("returns false for empty or whitespace-only input", () => {
+    expect(mentionsCoByAlias("")).toBe(false);
+    expect(mentionsCoByAlias("   ")).toBe(false);
   });
 });

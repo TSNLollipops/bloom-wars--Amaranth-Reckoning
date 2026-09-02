@@ -51,13 +51,13 @@ function worstAdjacentAlly(unit: BattleUnit, allUnits: BattleUnit[], belowFracti
 }
 
 /** A same-side ally adjacent to `unit`, hurt badly enough to be a priority — or undefined if `unit` can't repair or nobody adjacent qualifies. */
-export function findCriticalRepairTarget(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit | undefined {
-  return worstAdjacentAlly(unit, allUnits, CRITICAL_ALLY_HP_FRACTION);
+export function findCriticalRepairTarget(unit: BattleUnit, allUnits: BattleUnit[], belowFraction: number = CRITICAL_ALLY_HP_FRACTION): BattleUnit | undefined {
+  return worstAdjacentAlly(unit, allUnits, belowFraction);
 }
 
 /** Same as above at the lower-priority "top someone up" threshold — only meaningful once a kill and a critical repair have both already been ruled out. */
-export function findRoutineRepairTarget(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit | undefined {
-  return worstAdjacentAlly(unit, allUnits, ROUTINE_ALLY_HP_FRACTION);
+export function findRoutineRepairTarget(unit: BattleUnit, allUnits: BattleUnit[], belowFraction: number = ROUTINE_ALLY_HP_FRACTION): BattleUnit | undefined {
+  return worstAdjacentAlly(unit, allUnits, belowFraction);
 }
 
 // ---- Rescue bonus objective (25 Aug 2026, Phase 2 of

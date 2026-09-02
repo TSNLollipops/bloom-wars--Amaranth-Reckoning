@@ -58,11 +58,27 @@ import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THI
 import { HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_MEKS, HOUSE_AMARANTH_SECOND_LANCE_PILOTS, HOUSE_AMARANTH_SECOND_LANCE_MEKS } from "../data/campaignHouseAmaranth";
 import { findPilot } from "../data/pilotRegistry";
 import type { SocialLogEntry } from "../data/verbs";
+import type { CarrierModuleId } from "../data/carrierModules";
+import type { HeirloomCampaignState } from "./heirlooms";
 import type { BattleUnit } from "./units";
 
 // ---- 4. Campaign-persistent roster state ----------------------------
 
-export type PilotStatus = "active" | "permanently_lost";
+// "reassigned" added 2 Sep 2026 — the Insult-system Tier-3 resolution
+// (Praise/Insult/Apology Proposal §3a, resolved by Maxime as "wont fly with
+// you, player will have to ask co to remove them from ship"). Distinct from
+// permanently_lost: the pilot is alive and fine, just off THIS ship, and it
+// only ever gets set by a deliberate CO conversation (scenes/Hub.ts's
+// handleRemovePilotRequest), never automatically. Full-repo audit (2 Sep
+// 2026) confirmed every existing status check is either `=== "active"`
+// (safely excludes this new value) or an exact `=== "permanently_lost"`
+// match — adding this third value can't silently break anything already
+// built, including TransporterPad.ts's own roster filter (which also gets
+// its own explicit `refusesDeployment` check alongside this, see
+// HubPilotSocialState below — belt and suspenders: this status blocks
+// deployment permanently, the flag blocks it the instant Tier 3 is hit,
+// before the player's even talked to the CO).
+export type PilotStatus = "active" | "permanently_lost" | "reassigned";
 
 // Campaign economy pass (22 Aug 2026, engine/campaignEconomy.ts — see that
 // file's own header for the two-pool design this and CampaignState.points
@@ -103,6 +119,42 @@ export function rankDisplayTitle(rank: Rank): string {
 // scope for this pass, flagged separately rather than silently expanded.
 export type ReservedBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom" | "weaponsBay" | "fabricator";
 
+/**
+ * How a permanent loss actually happened, stamped once onto the lost
+ * pilot's own entry at Debrief and never touched again.
+ *
+ * Deliberately the one place in this file that stores rather than derives.
+ * The Mek-retirement comment in applyPermadeathCheck below argues the usual
+ * rule — never mirror a fact the roster can be asked for — and that rule is
+ * about facts whose source outlives the question. This one's source is a
+ * Mission object that ceases to exist at the end of the debrief that writes
+ * this. Ask an hour later and there is nobody left to ask.
+ *
+ * Written by scenes/Debrief.ts (step 1b), from engine/mission.ts's own
+ * PermanentLossRecord plus the mission outcome, which only Debrief knows.
+ * Optional because every entry written before this existed has none, and
+ * because a pilot who is still alive should not carry an empty shape for a
+ * thing that hasn't happened to them.
+ */
+export interface PilotLossContext {
+  /** The mission they were lost on. */
+  missionId: string;
+  /**
+   * What the company got for it. commander_down never reaches here (that
+   * outcome voids the attempt outright and never runs a debrief), so this
+   * is only ever the ordinary win/loss axis.
+   */
+  outcome: "win" | "loss";
+  /** Mission turn they went down on. */
+  turn: number;
+  /** Turns the squad had been operating with no living Munti when they fell. */
+  turnsWithoutMunti: number;
+  /** Munti-path pilots the squad launched with. 1 is legal, and thin. */
+  muntisDeployed: number;
+  /** They were themselves the last Munti. */
+  wasLastMunti: boolean;
+}
+
 export interface CampaignPilotEntry {
   pilot: PilotRecord; // a campaign-owned copy — pilot.tier is this pilot's live, campaign-persistent gear tier (rule 4: "an active pilot's tier can change between missions via existing gear-tier-purchase logic")
   status: PilotStatus;
@@ -130,6 +182,13 @@ export interface CampaignPilotEntry {
   // system does exist, instead of that later system needing to invent a
   // place to put the flag AND retrofit the retirement text to read it.
   hasChildWithMek?: boolean;
+  // Set once, at the debrief that turns this pilot's status to
+  // permanently_lost, and never updated after — see PilotLossContext above
+  // for why this is stored rather than derived. Absent on every living
+  // pilot, on every pilot lost before this field existed, and on any status
+  // flip that doesn't come through Debrief (applyPermadeathCheck's own
+  // mutation half, which has no Mission to read).
+  lostContext?: PilotLossContext;
 }
 
 export interface CampaignState {
@@ -192,6 +251,42 @@ export interface CampaignState {
   // rourkeRank's backfillRourkeRank had to be for a field whose absence
   // meant something different from its default.
   builtBays?: ReservedBayId[];
+  // Carrier Upgrade Modules, 2 Sep 2026 — the Workshop's own purchases
+  // (data/carrierModules.ts). Deliberately a SEPARATE list from builtBays
+  // above rather than more ReservedBayIds: a bay is a physical space on
+  // the Antfarm grid with a rank-gated slot budget (RANK_BAY_SLOTS), a
+  // module is a company-pool upgrade with no slot cost, and the source
+  // design prices and gates them differently. Same `?? []` optional shape
+  // and same no-migration-needed reasoning as builtBays.
+  builtModules?: CarrierModuleId[];
+  // Heirlooms, 2 Sep 2026 — recruited aristocrats, which one is fielded,
+  // and paid-for ability ranks. See engine/heirlooms.ts for the rules and
+  // data/heirlooms.ts for the pool itself. Same optional/`?? default`
+  // shape as builtBays and builtModules above, for the same reason: an
+  // older save simply has none, which means exactly "nothing recruited."
+  heirlooms?: HeirloomCampaignState;
+  // Vault dedication, 2 Sep 2026 (Mission 12 — "The Fallow Line," Act I's
+  // finale) — Antfarm Carrier Hub §8 marks this scene "load-bearing, not
+  // skippable," so it needs a permanent record the moment it resolves, not
+  // just a live re-check. `fallenId` is the ONE piece of this that can't be
+  // re-derived later and has to be stored, same exception `shortlist` above
+  // already uses: CampaignPilotEntry.lostContext tells you SOMEONE died at
+  // Mission 12, but the *pick* among multiple fallen candidates leans on
+  // npcSocial.bonds (see engine/heirlooms.ts's resolveVaultDedication),
+  // which keeps drifting after this scene resolves — re-deriving it on a
+  // later Hub load could point the memorial at a different pilot than the
+  // one actually named the day it happened. Undefined `fallenId` is a real,
+  // distinct outcome (nobody fell at Mission 12 specifically — Gjallar
+  // never changes hands this campaign), not "not yet resolved"; presence of
+  // the whole `vaultDedication` object is what marks resolution done, same
+  // one-shot-via-presence shape as `shortlist`. `seen` is a plain UI
+  // acknowledgement flag with no derivable source, same class as
+  // lastMissionEcho.announced below — starts false, flipped by Hub.ts
+  // itself the moment the Vault overlay actually renders the dedication
+  // panel, same "don't mark it seen before it's actually shown" discipline
+  // ackRankGreeting already follows, not routed through an engine function
+  // (matches markCoCheckedIn/ackRankGreeting, both plain Hub.ts writes).
+  vaultDedication?: { fallenId?: string; seen: boolean };
   // Section 12 below (26 Aug 2026) — persistent NPC-to-NPC bonds and
   // pairing, for the background social-sim harness. Optional for the same
   // reason `social` on CampaignPilotEntry is: every save from before this
@@ -228,6 +323,80 @@ export interface CampaignState {
   // continuously-overwriting key, no manual saves" is the actual behavior
   // every such save has always had, not a feature it should quietly gain.
   ironman?: boolean;
+  // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Set true the
+  // first time any real interaction (ordinary Talk, a build request, or
+  // small talk) reaches Arangement of Content in the grotto — see Hub.ts's
+  // markCoCheckedIn(). Once true, stays true for the rest of this save
+  // (Maxime: "only once heavy nudge" — not a per-mission ritual). Optional,
+  // defaults to falsy for every old save the same way every other flag on
+  // this interface does; canLaunchMission below only starts enforcing this
+  // once state.lastMissionEcho shows the save has actually had a debrief,
+  // so a brand-new campaign's very first mission is never gated by it.
+  hasCheckedInWithCo?: boolean;
+  // Telemetry pass (1 Sep 2026, claude/Bloom_Wars_Player_Telemetry_Plan_v1.md
+  // §3) — a random id minted once per campaign so every mission record in
+  // the stats store (engine/statsStore.ts) can be tied back to one
+  // playthrough, and so "attempt 3 of Mission 12" is countable across
+  // retries. Purely a label — nothing in the game reads it for logic.
+  // Optional so an older save still parses; loadCampaignState backfills
+  // one on first load (backfillCampaignId below).
+  campaignId?: string;
+  // Crew-interaction brainstorm pass, 2 Sep 2026 — the first real slice of
+  // giving the MC (player character) their own persisted state at all.
+  // data/verbs.ts's own header and the Stress & Morale Trigger Proposal's
+  // build notes both flagged the same gap: "the player character has no
+  // walkable, ambient-tracked Stress/Morale state." This isn't the full
+  // fix (no UI, nothing else reads it yet) — just enough real state for the
+  // new CO grotto Confide interaction (Hub.ts's handleConfideRequest) to
+  // actually mean something rather than being pure flavor. Optional,
+  // defaults via socialActions.ts's MC_STRESS_DEFAULT the first time it's
+  // read, same "absence means default, not zero" pattern every other
+  // optional numeric field on this interface already uses.
+  mcStress?: number;
+  // Pre-mission Send-Off ritual, 2 Sep 2026 — records which pilot was most
+  // recently sent off before a mission launch (scenes/Hub.ts's
+  // sendOffNpc). Deliberately UNCONSUMED this pass: the real tactical
+  // payoff (an in-Battle bonus for that pilot) needs a genuine tactical-
+  // design conversation and a combat_sim.py tuning pass before it touches
+  // live sim-tuned numbers, per this project's own standing rule on combat
+  // math. This field exists now so that future pass has something real to
+  // read rather than needing its own plumbing added later; the immediate,
+  // real payoff this pass delivers (Favorability + Stress relief) is
+  // applied directly in Hub.ts and doesn't need this field at all.
+  preMissionSendOff?: { pilotId: string; grantedAt: number };
+  // Calendar economy, 2 Sep 2026 (claude/Bloom_Wars_Calendar_Economy_Build_
+  // Proposal_v2_RealTimeClock.md) — elapsed in-fiction campaign days. Maxime's
+  // own model, and worth stating precisely because it overrides what
+  // claude/Bloom_Wars_Calendar_System_v1.md originally locked: "time spent in
+  // the hub and time spent on mission run on the same ckock... like a
+  // inevitable day night cycle in wow. the calandar run when you play."
+  // The original doc specified advancement "independent of real play speed" —
+  // exactly backwards from what this field actually does now.
+  //
+  // A FLOAT, deliberately, not an integer day counter: the fractional
+  // accumulation IS the mechanism (engine/calendarClock.ts adds
+  // deltaMs / MS_PER_CALENDAR_DAY on every Hub/Battle update tick), so
+  // truncating on write would round every tick to zero and the clock would
+  // never move at all. Every DISPLAY floors it — see currentDay().
+  //
+  // Optional purely for save compatibility, same shape as campaignId above:
+  // a save written before this pass has no field, and backfillCalendarDay
+  // below heals it to day 1 on first load. Nothing should read this directly
+  // anyway — calendarClock.ts's currentDay()/rawCalendarDay() own the
+  // "absent means 1" default in one place.
+  calendarDay?: number;
+}
+
+/**
+ * A random, meaningless id (1 Sep 2026, telemetry pass). crypto.randomUUID
+ * where the platform has it (every modern browser, Node 19+), a
+ * Math.random fallback otherwise — this is a label for grouping records,
+ * not a security token, so the fallback's weaker randomness is fine.
+ */
+export function mintRandomId(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /** One in-flight mission attempt's real-world start time. `startedAt` is a `Date.now()` epoch-ms snapshot — deliberately real, wall-clock time, not a game-turn count (house rule #5 already covers in-mission turn pressure; this is a different axis entirely, "how long has Command been waiting on you," not "how many turns did the fight take"). */
@@ -244,7 +413,10 @@ export interface ActiveMissionAttempt {
  * below is the real entry point for the one campaign this repo currently ships.
  */
 export function createCampaignState(pilots: PilotRecord[], meks: Record<string, MekArchetype>, startingPoints = 0): CampaignState {
-  const state: CampaignState = { points: startingPoints, pilots: {}, meks: {}, nextGeneratedId: 1, rourkeRank: "2nd_lt", ironman: true };
+  // calendarDay: 1 — the calendar epoch is campaign start, not first-mission-
+  // complete (Calendar Economy Proposal v2 §7). "Day 47 — Muster" only reads
+  // right if real days have already elapsed before whatever Muster marks.
+  const state: CampaignState = { points: startingPoints, pilots: {}, meks: {}, nextGeneratedId: 1, rourkeRank: "2nd_lt", ironman: true, campaignId: mintRandomId(), calendarDay: 1 };
   for (const p of pilots) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(meks)) state.meks[id] = { ...m };
   return state;
@@ -337,8 +509,8 @@ export interface CampaignStorage {
   removeItem(key: string): void;
 }
 
-/** Real localStorage when it exists (the browser build), the caller's injected storage (tests), or null (headless Node — npm run sim / npm test) — never throws either way. */
-function resolveStorage(storage?: CampaignStorage): CampaignStorage | null {
+/** Real localStorage when it exists (the browser build), the caller's injected storage (tests), or null (headless Node — npm run sim / npm test) — never throws either way. Exported 1 Sep 2026 so engine/statsStore.ts follows the exact same rule rather than a copy of it. */
+export function resolveStorage(storage?: CampaignStorage): CampaignStorage | null {
   if (storage) return storage;
   if (typeof localStorage !== "undefined") return localStorage;
   return null;
@@ -383,6 +555,8 @@ export function loadCampaignState(storage?: CampaignStorage, key: string = STORA
     const state = JSON.parse(raw) as CampaignState;
     backfillRourkeRank(state);
     backfillIronman(state);
+    backfillCampaignId(state);
+    backfillCalendarDay(state);
     return state;
   } catch {
     return null;
@@ -636,6 +810,53 @@ export function applyPermadeathCheck(state: CampaignState, downedUnit: BattleUni
   return result;
 }
 
+/**
+ * The mutation half of a permanent loss, applied at debrief.
+ *
+ * Extracted out of scenes/Debrief.ts (2 Sep 2026) when the loss-context
+ * stamp was added. Two reasons, both real. It is now four fields of real
+ * campaign consequence rather than two assignments, and a Phaser scene is
+ * the one place in this repo nothing can unit-test — this project's own
+ * rule is that a number only counts once it has been run and passed, and a
+ * rule buried in a scene can't be. Second, it puts the stamp next to
+ * PilotLossContext's own definition, so the two can't drift.
+ *
+ * Deliberately NOT re-running evaluatePermadeathCheck: Mission already
+ * answered that live, at the exact instant of each downing, against the
+ * side roster as it stood then. Re-deciding it here against end-of-mission
+ * state would be wrong for anyone downed while a Munti was still alive.
+ *
+ * Returns the pilotIds actually flipped, so a caller can tell a real loss
+ * from a record naming a pilot this campaign has never heard of.
+ */
+export function applyMissionLosses(
+  state: CampaignState,
+  losses: readonly (Omit<PilotLossContext, "missionId" | "outcome"> & { pilotId: string })[],
+  missionId: string,
+  outcome: "win" | "loss",
+): string[] {
+  const flipped: string[] = [];
+  for (const loss of losses) {
+    const entry = state.pilots[loss.pilotId];
+    if (!entry) continue;
+    entry.status = "permanently_lost";
+    // A lost pilot's banked personal points are discarded, not transferred
+    // — unchanged behaviour, moved here with the rest of it. See
+    // applyPermadeathCheck above for the full reasoning.
+    entry.personalPoints = 0;
+    entry.lostContext = {
+      missionId,
+      outcome,
+      turn: loss.turn,
+      turnsWithoutMunti: loss.turnsWithoutMunti,
+      muntisDeployed: loss.muntisDeployed,
+      wasLastMunti: loss.wasLastMunti,
+    };
+    flipped.push(loss.pilotId);
+  }
+  return flipped;
+}
+
 // ---- 5. The deploy gate -------------------------------------------------
 
 export interface LaunchCheckResult {
@@ -671,6 +892,21 @@ export function canLaunchMission(deployedPilotIds: string[], state: CampaignStat
       reason: "no active Munti-class pilot is in the deploying squad — at least one is required to launch.",
     };
   }
+  // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Maxime:
+  // "cant start a new mission if you havent debrief[ed with the CO]. after
+  // [the debrief]." Deliberately reads state.lastMissionEcho rather than a
+  // new counter — that field is already set the moment Debrief.ts's
+  // create() runs for the first time (see its own doc comment above) and
+  // stays undefined until then, so it's a free "has this save had a real
+  // debrief yet" signal. Without this guard, hasCheckedInWithCo's own
+  // default-false would incorrectly block a brand-new campaign's Mission 1,
+  // before there's any debrief — or any CO interaction — to have happened.
+  if (state.lastMissionEcho !== undefined && !state.hasCheckedInWithCo) {
+    return {
+      ok: false,
+      reason: "The CO hasn't signed off yet — find him in the grotto.",
+    };
+  }
   return { ok: true };
 }
 
@@ -696,10 +932,10 @@ function generateCallsign(n: number): string {
 // of "unassigned"). Rather than pick arbitrarily, this follows the one
 // existing pattern in the data: every named pilot of a given class in
 // PILOTS/WARDEN_PILOTS combined uses a consistent primary track, except
-// Meeps, which is mixed (Nagori/Rourke: Runemaster, Iyari: Armorer, Trav:
+// Meeps, which is mixed (Nagori/Rourke: Runemaster, Iyari: Armorer, Voss:
 // Fabricator) — Armorer is picked there as the flattest, no-special-
 // interaction default for a generic rookie.
-const CLASS_DEFAULT_MEK_TRACK: Record<Path, MekTrack> = {
+export const CLASS_DEFAULT_MEK_TRACK: Record<Path, MekTrack> = {
   munti: "fieldwright", // both named Muntis (Barasj, Lask) — the class's defining support track
   tank: "armorer", // both named Tanks (Thyns, Bosk)
   reeps: "runemaster", // both named Reeps (Tourignie, Anand)
@@ -711,6 +947,10 @@ const CLASS_DEFAULT_MEK_TRACK: Record<Path, MekTrack> = {
 // ("bipedal_vibrissal"), which is why this is its own small type rather
 // than importing Chassis from data/types. Kept local to this file since
 // nothing else needs it.
+// (engine/heirlooms.ts carries its own copy of these three values as
+// HeirloomChassis, since this one is deliberately file-local. If a third
+// consumer ever appears, that is the moment to move the union into
+// data/types.ts rather than write it a third time.)
 type ArchetypeChassisSuffix = "bipedal" | "centauroid" | "vibrissal";
 
 /** Shared by both recruit paths below: mints a brand-new baseline G-tier pilot (and a fresh, unassigned-track-default mek) of the given class and adds both to the campaign state. Never reuses a lost pilot's identity, tier, or mek — a genuinely new record, so there is nothing to carry over by construction (rule 6's own point). `chassisSuffix` defaults to "bipedal" — every existing call site (checkMuntiGuarantee, recruitDiscretionary) is unaffected; only generateRandomRescuedPilot below passes a rolled value. */
@@ -741,7 +981,14 @@ function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: A
     displayName: `Recruit "${callsign}"`,
     archetypeId: `arch_${targetClass}_${chassisSuffix}`,
     mekId,
-    tier: "G",
+    // Combat Medic Cadre (2 Sep 2026, data/carrierModules.ts) — the one
+    // carrier module that changes what a generated pilot IS rather than
+    // what they can carry. Munti only, exactly as the source design words
+    // it ("discretionary Munti recruits enter at F-tier instead of G"): a
+    // medic cadre training up field doctors has no reason to improve a
+    // Tank recruit, and widening it to every class would quietly make this
+    // the strongest module in the game.
+    tier: targetClass === "munti" && (state.builtModules ?? []).includes("combatMedic") ? "F" : "G",
   };
   state.pilots[pilotId] = { pilot, status: "active", personalPoints: 0 };
   return pilot;
@@ -1025,6 +1272,34 @@ function backfillIronman(state: CampaignState): void {
   if (state.ironman === undefined) state.ironman = true;
 }
 
+/** Telemetry pass (1 Sep 2026) — a save from before `campaignId` existed gets one minted on first load, same pure-in-memory shape as the two backfills above. Persists on the next save. */
+function backfillCampaignId(state: CampaignState): void {
+  if (!state.campaignId) state.campaignId = mintRandomId();
+}
+
+/**
+ * Calendar economy pass (2 Sep 2026) — a save written before `calendarDay`
+ * existed heals to day 1 on first load. Same pure-in-memory shape as the
+ * three backfills above.
+ *
+ * Day 1 rather than any attempt to reconstruct elapsed time is the honest
+ * answer, not a shortcut: the clock this field tracks is real time spent in
+ * the Hub and in Battle, and a pre-calendar save recorded none of that
+ * anywhere. There is no signal to reconstruct from, so inventing a plausible
+ * number would be fabricating campaign history. A returning player's old
+ * campaign starts counting from today; the alternative is a made-up figure
+ * that reads authoritative and isn't.
+ *
+ * Guards NaN/negative as well as undefined — calendarDay is arithmetic-
+ * accumulated every frame, so a single corrupt write would otherwise poison
+ * every later tick (NaN + anything is NaN, forever, with no way back).
+ */
+function backfillCalendarDay(state: CampaignState): void {
+  if (typeof state.calendarDay !== "number" || !Number.isFinite(state.calendarDay) || state.calendarDay < 1) {
+    state.calendarDay = 1;
+  }
+}
+
 // ---- 9. Mission real-time clock (25 Aug 2026) ---------------------------
 //
 // Maxime: "add a clock timer to how long you take to do missions. add that
@@ -1222,6 +1497,13 @@ export interface HubPilotSocialState {
   // scenes/Hub.ts's checkMekRetirement() registers the hot topic —
   // mirrors checkMuntiLoss()'s own save-immediately discipline exactly.
   mekRetirementAnnounced?: boolean;
+  // Heirloom recall hot topic, 2 Sep 2026 — same one-shot shape as the two
+  // flags above, and it lives on the aristocrat's own entry for the same
+  // reason mekRetirementAnnounced lives on the dead pilot's: an Heirloom
+  // has no CampaignPilotEntry, and the pilot whose death triggered the
+  // recall is the only party to the event that does. Set the instant
+  // scenes/Hub.ts's checkHeirloomRecall() registers the topic.
+  heirloomRecallAnnounced?: boolean;
   // Real Stage-promotion timestamps, 28 Aug 2026 (Maxime, closing the
   // STAGE_MOMENT gap flagged in the Recall Item 3 delivery: "highlight
   // reel should date itself with calandar. down to the sec."). Distinct
@@ -1236,6 +1518,34 @@ export interface HubPilotSocialState {
   // Highlights reel (data/highlights.ts's buildStagePromotionMilestones)
   // and the {STAGE_MOMENT} recall slot (data/crewBanterSlots.ts).
   stagePromotedAt?: Partial<Record<Stage, number>>;
+  // Insult escalation ladder, 2 Sep 2026 (Praise/Insult/Apology Proposal
+  // v1 §3, socialActions.ts's own INSULT_TIER2_COUNT/INSULT_TIER3_COUNT).
+  // Lifetime count of Insult verb uses against this pilot specifically —
+  // never decremented, not reset by a later Apology (an apology repairs
+  // Favorability, it doesn't erase the fact that the insults happened;
+  // see INSULT_TIER3_FAVORABILITY_CEILING for how genuine amends still
+  // matter — a pilot who's been apologized back up past that ceiling won't
+  // trip Tier 3 even at a high lifetime count).
+  insultsGiven?: number;
+  // Insult Tier 3 — the real standoff. Set true the instant a pilot's
+  // insultsGiven crosses INSULT_TIER3_COUNT while their Favorability is
+  // still at or below INSULT_TIER3_FAVORABILITY_CEILING. Maxime's own
+  // resolution of the proposal doc's §3a fork: "wont fly with you, player
+  // will have to ask co to remove them from ship" — so this flag alone
+  // blocks deployment (TransporterPad.ts's roster filter) immediately,
+  // but never resolves on its own. Only scenes/Hub.ts's
+  // handleRemovePilotRequest (a deliberate CO conversation) clears it, by
+  // setting this pilot's CampaignPilotEntry.status to "reassigned" —
+  // Apology alone can raise Favorability back up but can never clear this
+  // flag once it's set.
+  refusesDeployment?: boolean;
+  // One-shot gate so the CO's Tier-3 call-out line (socialActions.ts's
+  // CO_CALLOUT_LINES) fires exactly once per standoff, the next time the
+  // player talks to him — same shape as muntiLossAnnounced/
+  // mekRetirementAnnounced above, one section up in spirit if not in code
+  // order (this one's new, 2 Sep 2026, added down here since it's part of
+  // the same Insult-ladder cluster as the two fields just above it).
+  coCalloutGiven?: boolean;
 }
 
 /**

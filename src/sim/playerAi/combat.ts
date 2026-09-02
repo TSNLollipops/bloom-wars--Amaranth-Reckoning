@@ -390,7 +390,8 @@ function terrainQuality(map: MapDefinition, pos: Coord): number {
   return score;
 }
 
-export function findLethalTargetFrom(map: MapDefinition, unit: BattleUnit, from: Coord, targets: BattleUnit[], allUnits: BattleUnit[]): BattleUnit | undefined {
+/** `damageMult` (tiers pass, 1 Sep 2026): an ambush-cloaked Meeps' first hit lands at AMBUSH_DECLOAK_DAMAGE_MULTIPLIER — index.ts passes it so a decloak strike that would finish a target reads as the kill it is. */
+export function findLethalTargetFrom(map: MapDefinition, unit: BattleUnit, from: Coord, targets: BattleUnit[], allUnits: BattleUnit[], damageMult = 1): BattleUnit | undefined {
   const [minR, maxR] = unit.attackRange;
   const inRange = targets.filter((t) => {
     const d = chebyshevDistance(from, t.pos);
@@ -398,9 +399,25 @@ export function findLethalTargetFrom(map: MapDefinition, unit: BattleUnit, from:
   });
   const savedPos = unit.pos;
   unit.pos = from; // estimate as if already standing at the candidate tile
-  const lethal = inRange.find((t) => isLethalHit(t, estimateDamage(map, unit, t, allUnits)));
+  const lethal = inRange.find((t) => isLethalHit(t, estimateDamage(map, unit, t, allUnits) * damageMult));
   unit.pos = savedPos;
   return lethal;
+}
+
+/** Easy-tier targeting (tiers pass, 1 Sep 2026): the NEAREST in-range target this unit can actually damage — no squad coordination, no triangle, no VIP awareness. What a newcomer does. */
+export function nearestDamageableInRange(map: MapDefinition, unit: BattleUnit, from: Coord, targets: BattleUnit[], allUnits: BattleUnit[]): BattleUnit | undefined {
+  const [minR, maxR] = unit.attackRange;
+  const inRange = targets.filter((t) => {
+    const d = chebyshevDistance(from, t.pos);
+    return d >= minR && d <= maxR;
+  });
+  if (!inRange.length) return undefined;
+  const savedPos = unit.pos;
+  unit.pos = from;
+  const damageable = inRange.filter((t) => estimateDamage(map, unit, t, allUnits) > 0);
+  unit.pos = savedPos;
+  if (!damageable.length) return undefined;
+  return damageable.reduce((best, t) => (chebyshevDistance(from, t.pos) < chebyshevDistance(from, best.pos) ? t : best));
 }
 
 /** How many enemies could plausibly reach and attack this tile next turn — a cheap proxy (ignores terrain/blocking), used only as a tie-break. */
@@ -769,6 +786,25 @@ export function nearestCoord(from: Coord, coords: Coord[]): Coord {
  * types.ts's PlayerAiMissionContext comment for the one thing that
  * genuinely does (which objective this mission has at all).
  */
+/** Every clean, ground-passable tile cardinally adjacent to a bloom_mat tile — where a Munti stands to clear (1 Sep 2026, see index.ts's "walking to the patch" branch). */
+export function bloomPatchEdgeTiles(map: MapDefinition): Coord[] {
+  const out: Coord[] = [];
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      if (map.tiles[y][x] === "bloom_mat") continue;
+      if (!TILES[map.tiles[y][x]].passableGround) continue;
+      const adjacentBloom = [
+        { x: x + 1, y },
+        { x: x - 1, y },
+        { x, y: y + 1 },
+        { x, y: y - 1 },
+      ].some((n) => n.x >= 0 && n.y >= 0 && n.x < map.width && n.y < map.height && map.tiles[n.y][n.x] === "bloom_mat");
+      if (adjacentBloom) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
 export function hasClearableBloomNearby(map: MapDefinition, pos: Coord): boolean {
   for (let y = Math.max(0, pos.y - BLOOM_CLEAR_RADIUS); y <= Math.min(map.height - 1, pos.y + BLOOM_CLEAR_RADIUS); y++) {
     for (let x = Math.max(0, pos.x - BLOOM_CLEAR_RADIUS); x <= Math.min(map.width - 1, pos.x + BLOOM_CLEAR_RADIUS); x++) {

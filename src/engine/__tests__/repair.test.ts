@@ -8,7 +8,7 @@ import { Mission } from "../mission";
 import { MISSION_1A } from "../../data/campaign";
 import { testUnit } from "./testHelpers";
 import { MAX_ACTIONS_PER_TURN } from "../../data/combatTables";
-import { DEFAULT_REPAIR_RANGE, RAPID_RESPONSE_REPAIR_RANGE } from "../../data/weaponBranches";
+import { DEFAULT_REPAIR_RANGE, RAPID_RESPONSE_REPAIR_RANGE, FIELD_DOCTOR_COOLDOWN_TURNS } from "../../data/weaponBranches";
 
 describe("Mission.repairUnit", () => {
   it("Barasj (Fieldwright primary) heals 38 HP (30 x 1.25, rounded) to an adjacent damaged ally", () => {
@@ -167,5 +167,123 @@ describe("Mission.repairUnit", () => {
     expect(mission.getRepairableFrom(healer.instanceId, healer.pos).map((u) => u.instanceId)).toEqual([atExtendedEdge.instanceId]);
     expect(mission.repairUnit(healer.instanceId, atExtendedEdge.instanceId)).not.toBeNull();
     expect(mission.repairUnit(healer.instanceId, oneBeyond.instanceId)).toBeNull();
+  });
+});
+
+// Field Doctor (Weapon Branch Point System, data/weaponBranches.ts, 1 Sep
+// 2026) — Maxime's own pick ("Free Repair every N turns") once the plan
+// doc's original "cheaper Repair" framing didn't survive contact with the
+// live engine above (Repair already has no cost or charge cap to shrink —
+// see this file's own header, unchanged, plus the addendum doc). Built on
+// BattleUnit.abilityCooldowns via engine/cooldown.ts, the same cooldown
+// shape as the Weapons Bay's bonus Fire Support charge — mirrors
+// weaponsBayFireSupport.test.ts's own "baseline spent first" / "cooldown
+// actually elapses" tests.
+describe("Mission.repairUnit — Field Doctor", () => {
+  it("baseline actions are spent first — the free bonus doesn't fire while a normal action is still available", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.weaponBranchId = "munti_field_doctor";
+    mission.units.push(healer);
+    const target = testUnit("munti", { x: 1, y: 0 });
+    target.currentHp -= 10;
+    mission.units.push(target);
+
+    mission.repairUnit(healer.instanceId, target.instanceId);
+    expect(healer.actionsRemaining).toBe(MAX_ACTIONS_PER_TURN - 1); // spent a normal action, not the bonus
+    expect(mission.fieldDoctorReady(healer.instanceId)).toBe(true); // bonus untouched, still ready
+  });
+
+  it("once actionsRemaining hits 0, a Field Doctor Munti can still Repair once, for free", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.weaponBranchId = "munti_field_doctor";
+    healer.actionsRemaining = 0;
+    mission.units.push(healer);
+    const target = testUnit("munti", { x: 1, y: 0 });
+    target.currentHp -= 10;
+    mission.units.push(target);
+
+    expect(mission.fieldDoctorReady(healer.instanceId)).toBe(true);
+    const result = mission.repairUnit(healer.instanceId, target.instanceId);
+    expect(result).not.toBeNull();
+    expect(result!.amount).toBeGreaterThan(0);
+    expect(healer.actionsRemaining).toBe(0); // the bonus doesn't spend an action — there wasn't one left to spend
+  });
+
+  it("without the branch equipped, 0 actions remaining still refuses Repair — no leak just from abilityCooldowns existing on every unit", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.actionsRemaining = 0; // no weaponBranchId set
+    mission.units.push(healer);
+    const target = testUnit("munti", { x: 1, y: 0 });
+    target.currentHp -= 10;
+    mission.units.push(target);
+
+    expect(mission.fieldDoctorReady(healer.instanceId)).toBe(false);
+    expect(mission.repairUnit(healer.instanceId, target.instanceId)).toBeNull();
+  });
+
+  it("after using the free Repair, the bonus goes on cooldown — refused again immediately even with the branch equipped", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.weaponBranchId = "munti_field_doctor";
+    healer.actionsRemaining = 0;
+    mission.units.push(healer);
+    const targetA = testUnit("munti", { x: 1, y: 0 });
+    targetA.currentHp -= 10;
+    mission.units.push(targetA);
+    const targetB = testUnit("munti", { x: 1, y: 1 });
+    targetB.currentHp -= 10;
+    mission.units.push(targetB);
+
+    expect(mission.repairUnit(healer.instanceId, targetA.instanceId)).not.toBeNull();
+    expect(mission.fieldDoctorReady(healer.instanceId)).toBe(false);
+    expect(mission.repairUnit(healer.instanceId, targetB.instanceId)).toBeNull();
+  });
+
+  it("the bonus's cooldown actually elapses after FIELD_DOCTOR_COOLDOWN_TURNS turns", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.weaponBranchId = "munti_field_doctor";
+    healer.actionsRemaining = 0;
+    mission.units.push(healer);
+    const target = testUnit("munti", { x: 1, y: 0 });
+    target.currentHp -= 10;
+    mission.units.push(target);
+
+    mission.repairUnit(healer.instanceId, target.instanceId); // spends the bonus, starts its cooldown
+    const readyAtTurn = mission.turn + FIELD_DOCTOR_COOLDOWN_TURNS;
+
+    mission.turn = readyAtTurn - 1;
+    expect(mission.fieldDoctorReady(healer.instanceId)).toBe(false);
+
+    mission.turn = readyAtTurn;
+    expect(mission.fieldDoctorReady(healer.instanceId)).toBe(true);
+    target.currentHp -= 10; // needs to be damaged again to be a valid target
+    expect(mission.repairUnit(healer.instanceId, target.instanceId)).not.toBeNull();
+  });
+
+  it("getRepairableFrom offers a target at 0 actions only while the Field Doctor bonus is actually ready", () => {
+    const mission = new Mission(MISSION_1A);
+    const healer = testUnit("munti", { x: 0, y: 0 });
+    healer.abilities = ["abil_repair"];
+    healer.weaponBranchId = "munti_field_doctor";
+    healer.actionsRemaining = 0;
+    mission.units.push(healer);
+    const target = testUnit("munti", { x: 1, y: 0 });
+    target.currentHp -= 10;
+    mission.units.push(target);
+
+    expect(mission.getRepairableFrom(healer.instanceId, healer.pos).map((u) => u.instanceId)).toEqual([target.instanceId]);
+    mission.repairUnit(healer.instanceId, target.instanceId);
+    // Bonus now spent/on cooldown, and actionsRemaining is still 0 — no target offered even though the ally is damaged again.
+    target.currentHp -= 10;
+    expect(mission.getRepairableFrom(healer.instanceId, healer.pos)).toEqual([]);
   });
 });

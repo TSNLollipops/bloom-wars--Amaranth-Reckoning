@@ -57,9 +57,11 @@ import {
   PROTECT_ASSET_TICK_DAMAGE,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
+// Forward Battery, 2 Sep 2026 — the one carrier module the engine reads.
+import { FORWARD_BATTERY_FIRE_SUPPORT_RADIUS, type CarrierModuleId } from "../data/carrierModules";
 import { BLOOM } from "../data/bloom";
 import { applyBloomOnHitEffect, tickStatusEffects } from "./turnManager";
-import { GRINDER_CLAW_HEAL_PCT, RAPID_RESPONSE_REPAIR_RANGE, DEFAULT_REPAIR_RANGE } from "../data/weaponBranches";
+import { GRINDER_CLAW_HEAL_PCT, RAPID_RESPONSE_REPAIR_RANGE, DEFAULT_REPAIR_RANGE, AEGIS_WARD_REGEN_RADIUS, FIELD_DOCTOR_COOLDOWN_TURNS } from "../data/weaponBranches";
 import { decideHostileAction, decideCivilianAction, isVisibleTo } from "./ai";
 import {
   createEventRuntimeState,
@@ -101,6 +103,56 @@ export interface DeployRosterEntry {
   pilotId: string;
   pilot: PilotRecord;
   mek?: MekArchetype;
+  // Send-Off tactical payoff (2 Sep 2026) — set by scenes/Battle.ts's
+  // resolveDeployRoster when this entry is the pilot CampaignState.
+  // preMissionSendOff names. Passed straight through to
+  // createPlayerUnit's overrides; see engine/units.ts's BattleUnit.sentOff
+  // and data/socialActions.ts's SEND_OFF_DEFENSE_BONUS.
+  sendOffBonus?: boolean;
+}
+
+/**
+ * A permanent loss, plus the four facts about HOW the company was standing
+ * when it happened.
+ *
+ * Why these four and not a taxonomy of deaths: there is only one way to die
+ * in this game. evaluatePermadeathCheck (engine/campaignState.ts) has
+ * exactly one branch that returns `permanent` — "no living Munti remains on
+ * this side." Every other downing is a restock. So "how did they die" is
+ * always the same answer and carries no information; what actually varies,
+ * and what an outside party could reasonably hold the company to account
+ * for, is the arrangement the company had in place at that moment. All four
+ * are read off state this object already holds at the instant of the
+ * downing.
+ *
+ * Recorded here rather than derived later because the mission that knows
+ * them is torn down at Debrief. This project's standing rule is derive,
+ * never store (see isReturnedHome in engine/heirlooms.ts, and Mek
+ * retirement in campaignState.ts) — the rule holds when the source of truth
+ * outlives the question. Here the event being recorded is the thing that
+ * destroys its own source, so it has to be written down once, at the one
+ * moment anyone can still see it.
+ */
+export interface PermanentLossRecord {
+  pilotId: string;
+  reason: string;
+  /** Mission turn they went down on. */
+  turn: number;
+  /**
+   * Turns between this side losing its last living Munti and this pilot
+   * going down. 0 means the same turn — nobody was ever left to reach them.
+   * Higher means the company kept fighting with no lifeline on the board
+   * and this pilot was still out there when it caught up with them.
+   */
+  turnsWithoutMunti: number;
+  /**
+   * Munti-path pilots this squad launched with. canLaunchMission
+   * (campaignState.ts) enforces a floor of 1, so 1 is a legal squad and
+   * also the thinnest bet the game allows.
+   */
+  muntisDeployed: number;
+  /** This pilot WAS the Munti — the one who was supposed to bring everyone home. */
+  wasLastMunti: boolean;
 }
 
 export interface AttackOutcome {
@@ -116,6 +168,37 @@ export interface AttackOutcome {
 }
 
 /**
+ * What forecastAttack() reports before a shot is committed — see that
+ * method. Damage numbers are the no-dodge case; the dodge odds are
+ * reported alongside so the UI can say "34 dmg (40% dodge)" rather than
+ * an expected-value blur nobody can act on.
+ */
+export interface AttackForecast {
+  attackerId: string;
+  defenderId: string;
+  damage: number;
+  dodgeChance: number;
+  shieldAbsorbed: number;
+  defenderHpAfter: number;
+  defenderDowned: boolean;
+  countered: boolean;
+  counterDamage: number;
+  counterDodgeChance: number;
+  attackerHpAfter: number;
+  decloakStrike: boolean;
+  charged: boolean;
+}
+
+/** One unit caught in a forecast splash — see forecastSplash(). */
+export interface SplashForecastEntry {
+  unitId: string;
+  displayName: string;
+  side: BattleUnit["side"];
+  damage: number;
+  downed: boolean;
+}
+
+/**
  * Meeps house rule roll — true MEEPS_DODGE_CHANCE of the time, false for
  * every non-Meeps path (or undefined path, e.g. Bloom). `source` is whoever
  * is dealing THIS specific hit (the attacker for a primary hit, the
@@ -125,8 +208,31 @@ export interface AttackOutcome {
  * flying. A Bloom source (attacker.path undefined) is unaffected, same as
  * before this rule existed.
  */
-function rollMeepsDodge(unit: BattleUnit, source: BattleUnit): boolean {
-  return unit.path === "meeps" && source.path !== "tank" && Math.random() < MEEPS_DODGE_CHANCE;
+function rollMeepsDodge(unit: BattleUnit, source: BattleUnit, rng: () => number = Math.random): boolean {
+  return unit.path === "meeps" && source.path !== "tank" && rng() < MEEPS_DODGE_CHANCE;
+}
+
+/** Everything a Mission can be handed beyond its data — see the constructor. */
+export interface MissionOptions {
+  /**
+   * Seeded random source (Player AI Difficulty Tiers Plan §3.3, 1 Sep 2026).
+   * The Meeps dodge roll is the ONLY randomness in a battle (grep-confirmed:
+   * the on-hit-effects engine, Bloom regrowth, spawn placement and the
+   * hostile AI are all deterministic), so injecting this one source makes a
+   * whole run replayable from a seed — the headless harness passes
+   * mulberry32(seed). Default is a late-bound Math.random (not a captured
+   * reference, so a test's vi.spyOn(Math, "random") still takes effect).
+   */
+  rng?: () => number;
+  /**
+   * Carrier Upgrade Modules the company has installed (2 Sep 2026,
+   * data/carrierModules.ts). Deliberately here rather than as a fifth
+   * positional constructor argument next to builtBays: `options` already
+   * exists as the extension point, and threading a fifth positional
+   * through every existing `new Mission(...)` call site would touch far
+   * more code than this one feature earns. Defaults to none installed.
+   */
+  builtModules?: CarrierModuleId[];
 }
 
 export interface RepairOutcome {
@@ -161,6 +267,14 @@ export interface UnitPerformance {
   kills: number; // finishing blows credited — see recordPerformance() below for exactly what counts
   assistCredit: number; // fractional kill-equivalents from assists this mission, summed across events — see recordContribution()/resolveKill()/repairUnit() below
   wasDowned: boolean; // true the instant this pilot is ever downed, latched for the rest of the mission
+  // Telemetry pass (1 Sep 2026, claude/Bloom_Wars_Player_Telemetry_Plan_v1.md
+  // §3) — two counters the end-of-mission record needs that nothing scored
+  // before: damage this pilot TOOK (every hit, counter, splash, tile and
+  // DoT tick that reduced their HP or shield), and a tally of each ability
+  // they used, keyed by ability id ("abil_repair": 3). Neither feeds the
+  // points formula; both are UI/telemetry only, same as damageDealt.
+  damageTaken: number;
+  abilitiesUsed: Record<string, number>;
 }
 
 // Point-formula correction (Maxime, 22 Aug 2026, reading
@@ -259,7 +373,23 @@ export class Mission {
   // field) after the mission ends — this array only records *which*
   // pilots and *why*; it does not itself touch any campaign save data,
   // since Mission has no CampaignState reference and isn't meant to.
-  permanentLosses: { pilotId: string; reason: string }[] = [];
+  permanentLosses: PermanentLossRecord[] = [];
+  /**
+   * Munti-path pilots on the player side at deploy. Latched once in the
+   * constructor rather than counted later, because "how thin did you launch"
+   * is a fact about the decision the player made at the briefing screen, not
+   * about who happened to still be standing when it went wrong.
+   */
+  muntisDeployed = 0;
+  /**
+   * The turn the player side lost its last living Munti, latched the first
+   * time it becomes true and never overwritten. Undefined while a Munti is
+   * still up. A Fabricator redeploy putting one back on the board (not
+   * built) would not clear this: the question it answers is "how long has
+   * this squad been operating without a lifeline," and the first time that
+   * became true is the honest answer to it.
+   */
+  muntiCollapseTurn?: number;
   // Campaign economy pass — see UnitPerformance's own comment above.
   // Seeded with a zeroed entry for every deployed pilot in
   // deployPlayerUnits() below, so a pilot who does nothing all mission
@@ -268,6 +398,8 @@ export class Mission {
   // reads this after the mission ends (engine/campaignEconomy.ts's
   // computeMissionEarnings).
   unitPerformance: Record<string, UnitPerformance> = {};
+  /** Telemetry (1 Sep 2026): hostiles downed this mission, by archetype id — "bloom_crawlmass": 4. Written only in resolveKill(). */
+  hostileKills: Record<string, number> = {};
   // Per-victim damage contribution this mission — victim BattleUnit
   // instanceId -> (pilotId -> total damage that pilot dealt to it so far).
   // Written by recordContribution(), read and cleared by resolveKill() the
@@ -358,6 +490,13 @@ export class Mission {
   // sim, anywhere that doesn't yet pass a third constructor arg) behaves
   // exactly as it did before this field existed.
   private builtBays: ReservedBayId[] = [];
+  // Carrier Upgrade Modules (2 Sep 2026, data/carrierModules.ts) — same
+  // snapshot-at-construction treatment as builtBays directly above, and
+  // same "defaults to none, so every existing call site is unchanged"
+  // guarantee. Only Forward Battery reads this today (see
+  // fireSupportRadius below); the other three modules never reach the
+  // engine at all.
+  private builtModules: CarrierModuleId[] = [];
   // Protect Asset (Mission 22, 25 Aug 2026) — see data/types.ts's
   // CampaignMission.objective comment for the full design. Field-default
   // here is just a safe placeholder; the real per-mission value is set in
@@ -381,9 +520,14 @@ export class Mission {
   // objectiveParams.assetName (data/types.ts).
   assetName: string = "Providence";
 
-  constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[], builtBays: ReservedBayId[] = []) {
+  /** The battle's random source — see MissionOptions.rng. Private; every roll in this class goes through it. */
+  private readonly rng: () => number;
+
+  constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[], builtBays: ReservedBayId[] = [], options: MissionOptions = {}) {
+    this.rng = options.rng ?? (() => Math.random());
     this.mission = mission;
     this.builtBays = builtBays;
+    this.builtModules = options.builtModules ?? [];
     if (mission.objective === "protect_asset") {
       this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
       this.assetHp = this.assetMaxHp;
@@ -407,6 +551,10 @@ export class Mission {
     this.deployRoster = deployRoster;
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
+    // Counted off the real board, not off deployRoster, so a mission built
+    // straight from mission.playerPilotIds (every test, every sim run) gets
+    // the same answer a real deploy does.
+    this.muntisDeployed = this.units.filter((u) => u.side === "player" && u.path === "munti").length;
     this.tagExtractionTarget();
     this.armBonusObjective();
     this.spawnConvoyCivilians();
@@ -488,10 +636,10 @@ export class Mission {
       // recruit.
       this.deployRoster.forEach((entry, i) => {
         const pos = pads[i % pads.length];
-        const unit = createPlayerUnit(entry.pilotId, pos, { pilot: entry.pilot, mek: entry.mek });
+        const unit = createPlayerUnit(entry.pilotId, pos, { pilot: entry.pilot, mek: entry.mek, sendOffBonus: entry.sendOffBonus });
         this.applyBonusAbilityUnlocks(unit);
         this.units.push(unit);
-        this.unitPerformance[entry.pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
+        this.unitPerformance[entry.pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false, damageTaken: 0, abilitiesUsed: {} };
       });
       return;
     }
@@ -503,7 +651,7 @@ export class Mission {
       const unit = createPlayerUnit(pilotId, pos);
       this.applyBonusAbilityUnlocks(unit);
       this.units.push(unit);
-      this.unitPerformance[pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false };
+      this.unitPerformance[pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false, damageTaken: 0, abilitiesUsed: {} };
     });
   }
 
@@ -758,7 +906,13 @@ export class Mission {
    */
   getRepairableFrom(unitId: string, from: Coord): BattleUnit[] {
     const unit = this.unitById(unitId);
-    if (!unit || unit.downed || unit.actionsRemaining <= 0) return [];
+    if (!unit || unit.downed) return [];
+    // Field Doctor (Weapon Branch Point System, data/weaponBranches.ts,
+    // 1 Sep 2026) — a Munti out of actions can still Repair if their
+    // once-per-FIELD_DOCTOR_COOLDOWN_TURNS free bonus is off cooldown.
+    // Mirrors repairUnit()'s own gate exactly, same discipline as the
+    // range-aware fix below it.
+    if (unit.actionsRemaining <= 0 && !this.fieldDoctorBonusReady(unit)) return [];
     if (!unit.abilities.includes("abil_repair")) return [];
     // Range-aware and branch-aware, 28 Aug 2026 — this UI-highlight source
     // used to hardcode adjacent-only (distance === 1) regardless of
@@ -820,6 +974,7 @@ export class Mission {
     const rescuer = this.unitById(rescuerId)!;
     const npc = this.unitById(npcId)!;
     rescuer.actionsRemaining -= 1;
+    this.noteAbilityUse(rescuer, "rescue");
     rescuer.carryingRescueId = npc.instanceId;
     this.units = this.units.filter((u) => u.instanceId !== npc.instanceId);
     this.log.push(`${rescuer.displayName} gets ${npc.displayName} up and starts carrying them toward the exit.`);
@@ -1024,6 +1179,141 @@ export class Mission {
   }
 
   /**
+   * Combat forecast (1 Sep 2026 — feature-gap report A1, the Build Brief's
+   * own step-10 "combat forecast popup" that was never built). The numbers
+   * a player sees BEFORE committing an attack: what this hit would deal,
+   * whether it downs the target, what comes back as a counter, and the
+   * Meeps dodge odds on each direction. Read-only — it runs the exact same
+   * resolver functions resolveAttack() below runs (resolveMechAttack /
+   * resolveAttackOnBloom, both pure), with the two dodge rolls held at
+   * "no dodge" and the chance reported separately, so the forecast can
+   * never disagree with the hit that follows it except by a dodge. Same
+   * guards as resolveAttack (living, opposite sides, in range) and the
+   * same ambush-decloak / charge multipliers, applied the same way.
+   * Deliberately does NOT check actionsRemaining: the UI wants to show a
+   * forecast for a unit the moment it's selected, and "can you actually
+   * fire" is attack()'s question, not this one's.
+   */
+  forecastAttack(attackerId: string, defenderId: string): AttackForecast | null {
+    const attacker = this.unitById(attackerId);
+    const defender = this.unitById(defenderId);
+    if (!attacker || !defender || attacker.downed || defender.downed) return null;
+    if (attacker.side === defender.side) return null;
+    if (attacker.kind === "bloom") return null; // player-side forecasts only — a Bloom is never the selected unit
+    const d = chebyshevDistance(attacker.pos, defender.pos);
+    if (d < attacker.attackRange[0] || d > attacker.attackRange[1]) return null;
+
+    const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
+    const sameSideAsDefender = this.units.filter((u) => u.side === defender.side);
+    const decloakStrike = !!attacker.concealed && attacker.stealthTurnsRemaining !== undefined && attacker.stealthTurnsRemaining > 0;
+    const mult = decloakStrike ? AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : 1;
+    // Mirror rollMeepsDodge's condition exactly (minus the roll itself).
+    const dodgeChanceFor = (unit: BattleUnit, source: BattleUnit) => (unit.path === "meeps" && source.path !== "tank" ? MEEPS_DODGE_CHANCE : 0);
+
+    if (defender.kind !== "bloom") {
+      const r = resolveMechAttack(this.map, attacker, defender, sameSideAsDefender, sameSideAsAttacker, attacker.chargedThisMove, false, false);
+      const damage = r.damage * mult;
+      const shieldAbsorbed = Math.min(defender.shield ?? 0, damage);
+      const defenderHpAfter = Math.max(0, defender.currentHp - (damage - shieldAbsorbed));
+      const counterDamage = r.countered && r.counterDamage !== undefined ? r.counterDamage : 0;
+      const attackerShield = Math.min(attacker.shield ?? 0, counterDamage);
+      const attackerHpAfter = Math.max(0, attacker.currentHp - (counterDamage - attackerShield));
+      return {
+        attackerId,
+        defenderId,
+        damage,
+        dodgeChance: dodgeChanceFor(defender, attacker),
+        shieldAbsorbed,
+        defenderHpAfter,
+        defenderDowned: defenderHpAfter <= 0,
+        countered: r.countered,
+        counterDamage,
+        counterDodgeChance: r.countered ? dodgeChanceFor(attacker, defender) : 0,
+        attackerHpAfter,
+        decloakStrike,
+        charged: attacker.chargedThisMove,
+      };
+    }
+
+    // Bloom defender — Data Pack §8.3's two-pool Collapse rule, mirrored
+    // from combat.ts's applyBloomDamage without mutating anything:
+    // Endurance soaks first and overflow does NOT carry, so a shelled
+    // creature can never die to one hit; once collapsed, a hit of at least
+    // Vitality kills outright, a smaller one chips.
+    const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove);
+    const damage = r.damage * mult;
+    const endurance = defender.endurance ?? 0;
+    const vitality = defender.vitality ?? 0;
+    let defenderHpAfter: number;
+    let defenderDowned = false;
+    if (endurance > 0) {
+      defenderHpAfter = Math.max(0, endurance - damage) + vitality;
+    } else if (damage >= vitality) {
+      defenderHpAfter = 0;
+      defenderDowned = true;
+    } else {
+      defenderHpAfter = vitality - damage;
+    }
+    return {
+      attackerId,
+      defenderId,
+      damage,
+      dodgeChance: 0,
+      shieldAbsorbed: 0,
+      defenderHpAfter,
+      defenderDowned,
+      countered: false,
+      counterDamage: 0,
+      counterDodgeChance: 0,
+      attackerHpAfter: attacker.currentHp,
+      decloakStrike,
+      charged: attacker.chargedThisMove,
+    };
+  }
+
+  /**
+   * Splash forecast for the two tile-targeted strikes (Fire Support and
+   * Missiles), same read-only discipline as forecastAttack: who's inside
+   * the blast centred on `target`, and what each would take. Fire Support
+   * is a flat FIRE_SUPPORT_DAMAGE to hostiles only (see fireSupport());
+   * a Missile runs the per-victim combat formula on EVERY living unit but
+   * the caster, friendlies included, with no dodge (see missileStrike()).
+   * Returns an empty list for a tile the strike couldn't legally target,
+   * so the UI can call it on any hovered tile without pre-checking.
+   */
+  forecastSplash(unitId: string, target: Coord, kind: "fire_support" | "missile"): SplashForecastEntry[] {
+    const attacker = this.unitById(unitId);
+    if (!attacker || attacker.downed) return [];
+    const inArea = (kind === "fire_support" ? this.getFireSupportAreaFrom(unitId, attacker.pos) : this.getMissileAreaFrom(unitId, attacker.pos)).some(
+      (c) => c.x === target.x && c.y === target.y
+    );
+    if (!inArea) return [];
+    const radius = kind === "fire_support" ? this.fireSupportRadius : MISSILE_SPLASH_RADIUS;
+    const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
+    const out: SplashForecastEntry[] = [];
+    for (const victim of this.livingUnits()) {
+      if (victim.instanceId === attacker.instanceId) continue;
+      if (chebyshevDistance(victim.pos, target) > radius) continue;
+      if (kind === "fire_support" && victim.side !== "hostile") continue;
+      const sameSideAsVictim = this.units.filter((u) => u.side === victim.side);
+      let damage: number;
+      if (kind === "fire_support") damage = FIRE_SUPPORT_DAMAGE;
+      else if (victim.kind !== "bloom")
+        damage = resolveMechAttack(this.map, attacker, victim, sameSideAsVictim, sameSideAsAttacker, attacker.chargedThisMove, false, false).damage;
+      else damage = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove).damage;
+      let downed: boolean;
+      if (victim.kind !== "bloom") {
+        const absorbed = Math.min(victim.shield ?? 0, damage);
+        downed = victim.currentHp - (damage - absorbed) <= 0;
+      } else {
+        downed = (victim.endurance ?? 0) <= 0 && damage >= (victim.vitality ?? 0);
+      }
+      out.push({ unitId: victim.instanceId, displayName: victim.displayName, side: victim.side, damage, downed });
+    }
+    return out;
+  }
+
+  /**
    * Every rule an attack has, minus the "do you have an action right now"
    * question: range, side, terrain/overshield/dodge/Collapse math,
    * performance + contribution bookkeeping, the log line, and downing.
@@ -1068,8 +1358,8 @@ export class Mission {
 
     let outcome: AttackOutcome;
     if (attacker.kind !== "bloom" && defender.kind !== "bloom") {
-      const defenderDodged = rollMeepsDodge(defender, attacker);
-      const attackerDodgedCounter = rollMeepsDodge(attacker, defender);
+      const defenderDodged = rollMeepsDodge(defender, attacker, this.rng);
+      const attackerDodgedCounter = rollMeepsDodge(attacker, defender, this.rng);
       const r = resolveMechAttack(
         this.map,
         attacker,
@@ -1105,7 +1395,7 @@ export class Mission {
       // Bloom attacking a mech-shape defender.
       const surfaced = !!attacker.burrowed; // a burrowed unit that is attacking has just surfaced this turn
       if (attacker.burrowed) attacker.burrowed = false;
-      const defenderDodged = rollMeepsDodge(defender, attacker);
+      const defenderDodged = rollMeepsDodge(defender, attacker, this.rng);
       const dmg = bloomDamage(attacker, defender, this.map, sameSideAsDefender, surfaced, defenderDodged);
       applyMechDamage(defender, dmg);
       outcome = { attackerId, defenderId, damage: dmg, countered: false, defenderDowned: defender.downed, defenderDodged };
@@ -1211,6 +1501,8 @@ export class Mission {
    */
   private recordPerformance(attacker: BattleUnit, defender: BattleUnit, outcome: AttackOutcome): void {
     this.creditDamage(attacker.pilotId, outcome.damage);
+    this.creditDamageTaken(defender.pilotId, outcome.damage);
+    if (outcome.countered && outcome.counterDamage) this.creditDamageTaken(attacker.pilotId, outcome.counterDamage);
     if (defender.side === "hostile") {
       this.recordContribution(defender.instanceId, attacker.pilotId, outcome.damage);
       if (outcome.defenderDowned) this.resolveKill(defender.instanceId, attacker.pilotId);
@@ -1235,6 +1527,21 @@ export class Mission {
     if (!pilotId) return;
     const perf = this.unitPerformance[pilotId];
     if (perf) perf.kills += 1;
+  }
+
+  /** Telemetry (1 Sep 2026) — see UnitPerformance.damageTaken. Silent for non-pilots (hostiles, NPCs, civilians). */
+  private creditDamageTaken(pilotId: string | undefined, amount: number): void {
+    if (!pilotId || amount <= 0) return;
+    const perf = this.unitPerformance[pilotId];
+    if (perf) perf.damageTaken += amount;
+  }
+
+  /** Telemetry (1 Sep 2026) — see UnitPerformance.abilitiesUsed. Called once per successful ability verb, at the verb's own commit point. */
+  private noteAbilityUse(unit: BattleUnit, abilityId: string): void {
+    if (!unit.pilotId) return;
+    const perf = this.unitPerformance[unit.pilotId];
+    if (!perf) return;
+    perf.abilitiesUsed[abilityId] = (perf.abilitiesUsed[abilityId] ?? 0) + 1;
   }
 
   private creditAssist(pilotId: string | undefined, fraction: number): void {
@@ -1262,6 +1569,8 @@ export class Mission {
    */
   private resolveKill(victimInstanceId: string, finisherPilotId: string | undefined): void {
     this.creditKill(finisherPilotId);
+    const victim = this.unitById(victimInstanceId);
+    if (victim && victim.side === "hostile") this.hostileKills[victim.archetypeId] = (this.hostileKills[victim.archetypeId] ?? 0) + 1;
     const bucket = this.victimContributions[victimInstanceId];
     if (bucket) {
       const total = Object.values(bucket).reduce((sum, v) => sum + v, 0);
@@ -1278,18 +1587,59 @@ export class Mission {
   }
 
   /**
+   * Field Doctor (Weapon Branch Point System, data/weaponBranches.ts,
+   * 1 Sep 2026) — true when `unit` has the branch equipped AND its once-
+   * per-FIELD_DOCTOR_COOLDOWN_TURNS bonus is off cooldown. Reuses the
+   * generic per-unit `BattleUnit.abilityCooldowns` map (engine/cooldown.ts)
+   * under the real "abil_repair" ability id, rather than a synthetic key —
+   * per that map's own header comment, the first ability to actually write
+   * to it since it was scaffolded 28 Aug 2026. Shared by getRepairableFrom
+   * (the UI highlight source) and repairUnit (the verb) so the two can't
+   * fall out of sync the way DEFAULT_REPAIR_RANGE's own history already
+   * warns against.
+   */
+  private fieldDoctorBonusReady(unit: BattleUnit): boolean {
+    return unit.weaponBranchId === "munti_field_doctor" && isCooldownReady(this.cooldownReadyTurn(unit, "abil_repair"), this.turn);
+  }
+
+  /**
+   * Public wrapper around fieldDoctorBonusReady, by unit id — exposed for
+   * the UI. scenes/Battle.ts gates both unit-selection paths (Tab-cycle and
+   * click-select) on `actionsRemaining > 0`; without this, a Munti who's
+   * already spent both actions this turn would be unselectable the moment
+   * Field Doctor is the only reason left to interact with them, making the
+   * whole branch unreachable through real play even though
+   * repairUnit()/getRepairableFrom() already support it correctly. Both
+   * selection guards below now read this alongside their existing
+   * actionsRemaining check.
+   */
+  fieldDoctorReady(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit) return false;
+    return this.fieldDoctorBonusReady(unit);
+  }
+
+  /**
    * Repair, instead of attacking: restore HP to one adjacent friendly unit.
    * Costs 1 action and does not end the turn (two-action house rule,
    * Maxime, 22 Aug 2026) — a healer with two actions free can Repair twice
    * in the same turn, on two different allies, same as an XCOM Specialist's
    * Medikit. No separate once-per-turn cap any more; actionsRemaining is
-   * the only limit.
+   * the only limit — EXCEPT for Field Doctor (1 Sep 2026, see
+   * fieldDoctorBonusReady above): a Munti with that branch equipped and
+   * its bonus off cooldown can still Repair with zero actions left, once,
+   * for free, then the bonus goes on cooldown for FIELD_DOCTOR_COOLDOWN_TURNS.
+   * Baseline actions are always spent first — the free bonus only ever
+   * fires once actionsRemaining is already 0, same "baseline pool spent
+   * first" shape as the Weapons Bay's own bonus Fire Support charge
+   * (fireSupport() below).
    */
   repairUnit(healerId: string, targetId: string): RepairOutcome | null {
     const healer = this.unitById(healerId);
     const target = this.unitById(targetId);
     if (!healer || !target || healer.downed || target.downed) return null;
-    if (healer.actionsRemaining <= 0) return null;
+    const usingFieldDoctorBonus = healer.actionsRemaining <= 0 && this.fieldDoctorBonusReady(healer);
+    if (healer.actionsRemaining <= 0 && !usingFieldDoctorBonus) return null;
     if (!healer.abilities.includes("abil_repair")) return null;
     if (healer.side !== target.side || healer.instanceId === target.instanceId) return null;
     // Rapid Response (Weapon Branch Point System, data/weaponBranches.ts,
@@ -1303,7 +1653,13 @@ export class Mission {
     const healAmount = repairHealAmount(healer);
     const amount = Math.max(0, Math.min(healAmount, target.maxHp - target.currentHp));
     target.currentHp += amount;
-    healer.actionsRemaining -= 1;
+    if (usingFieldDoctorBonus) {
+      healer.abilityCooldowns = healer.abilityCooldowns ?? {};
+      healer.abilityCooldowns["abil_repair"] = startCooldown(this.turn, FIELD_DOCTOR_COOLDOWN_TURNS);
+    } else {
+      healer.actionsRemaining -= 1;
+    }
+    this.noteAbilityUse(healer, "abil_repair");
     // Campaign economy pass, point-formula correction (22 Aug 2026):
     // Qiraki_Weapons_And_Progression.md's locked scoring rule names
     // "healing/repair actions" as an assist in their own right — see
@@ -1311,7 +1667,11 @@ export class Mission {
     // repair that actually restored HP counts (amount > 0), same
     // "did-it-actually-do-anything" guard creditDamage already uses.
     if (amount > 0) this.creditAssist(healer.pilotId, REPAIR_ASSIST_FRACTION);
-    this.log.push(`${healer.displayName} repairs ${target.displayName} for ${amount} HP`);
+    this.log.push(
+      `${healer.displayName} repairs ${target.displayName} for ${amount} HP${
+        usingFieldDoctorBonus ? ` (Field Doctor — free, ready again in ${FIELD_DOCTOR_COOLDOWN_TURNS} turns)` : ""
+      }`
+    );
     return { healerId, targetId, amount };
   }
 
@@ -1401,6 +1761,7 @@ export class Mission {
     const unit = this.unitById(unitId)!;
     unit.overwatch = true;
     unit.actionsRemaining = 0;
+    this.noteAbilityUse(unit, "overwatch");
     this.log.push(`${unit.displayName} holds overwatch.`);
     return true;
   }
@@ -1553,6 +1914,7 @@ export class Mission {
       revealedIds.push(target.instanceId);
     }
     unit.actionsRemaining -= 1;
+    this.noteAbilityUse(unit, "abil_sensor_sweep");
     const chargesLeft = this.sensorSweepChargesRemaining(unitId) - 1;
     unit.sensorSweepUsesRemaining = chargesLeft;
     this.log.push(
@@ -1605,6 +1967,7 @@ export class Mission {
     unit.concealed = true;
     unit.stealthTurnsRemaining = AMBUSH_STEALTH_DURATION;
     unit.actionsRemaining = 0;
+    this.noteAbilityUse(unit, "abil_ambush");
     this.log.push(`${unit.displayName} vanishes — cloaked for ${AMBUSH_STEALTH_DURATION} turns.`);
     return true;
   }
@@ -1638,6 +2001,7 @@ export class Mission {
     const unit = this.unitById(unitId)!;
     unit.taunting = true;
     unit.actionsRemaining = 0;
+    this.noteAbilityUse(unit, "abil_taunt");
     this.log.push(`${unit.displayName} draws every eye — taunting.`);
     return true;
   }
@@ -1664,6 +2028,7 @@ export class Mission {
     const unit = this.unitById(unitId)!;
     unit.braced = true;
     unit.actionsRemaining = 0;
+    this.noteAbilityUse(unit, "abil_interdict");
     this.log.push(`${unit.displayName} braces — interdicting the ground around it.`);
     return true;
   }
@@ -1732,6 +2097,7 @@ export class Mission {
     for (const u of covered) u.concealed = true;
     unit.actionsRemaining -= 1;
     unit.usedScreenThisMission = true;
+    this.noteAbilityUse(unit, "abil_screen");
     this.log.push(`${unit.displayName} puts up a screen — ${covered.length} unit(s) concealed.`);
     return { muntiId: unitId, concealedIds: covered.map((u) => u.instanceId) };
   }
@@ -1754,6 +2120,22 @@ export class Mission {
   // path it always has.
 
   /** True if this campaign save has the Weapons Bay built (engine/campaignState.ts's ReservedBayId) — gates the bonus Fire Support charge below. */
+  /**
+   * Fire Support's blast radius for THIS mission (Chebyshev, so radius 1 is
+   * a 3x3 box and radius 2 a 5x5).
+   *
+   * Forward Battery (2 Sep 2026) is the only thing that moves it. Read
+   * through a getter rather than captured into a field at construction so
+   * there's exactly one place the rule lives — both the real resolver
+   * (fireSupport) and the hover forecast (forecastSplash) go through it,
+   * which is what keeps the preview honest. That preview-vs-reality
+   * agreement is the specific desync the Build Brief's step 10 warns about
+   * by name, and forecast.test.ts already pins it.
+   */
+  private get fireSupportRadius(): number {
+    return this.builtModules.includes("forwardBattery") ? FORWARD_BATTERY_FIRE_SUPPORT_RADIUS : FIRE_SUPPORT_RADIUS;
+  }
+
   private get weaponsBayBuilt(): boolean {
     return this.builtBays.includes("weaponsBay");
   }
@@ -1800,7 +2182,7 @@ export class Mission {
 
   /**
    * Call in a strike on `target`: every living hostile within
-   * FIRE_SUPPORT_RADIUS (Chebyshev) of that tile takes FIRE_SUPPORT_DAMAGE
+   * fireSupportRadius (Chebyshev) of that tile takes FIRE_SUPPORT_DAMAGE
    * flat — no defense/cover mitigation, no retaliation, applied directly
    * rather than through resolveMechAttack/resolveAttackOnBloom (this is an
    * off-board strike, not a mech's own weapon). `target` must be within the
@@ -1821,7 +2203,7 @@ export class Mission {
     const unit = this.unitById(unitId)!;
     if (chebyshevDistance(unit.pos, target) > unit.vision) return null;
 
-    const hit = this.livingUnits().filter((u) => u.side === "hostile" && chebyshevDistance(u.pos, target) <= FIRE_SUPPORT_RADIUS);
+    const hit = this.livingUnits().filter((u) => u.side === "hostile" && chebyshevDistance(u.pos, target) <= this.fireSupportRadius);
     const killedIds: string[] = [];
     for (const victim of hit) {
       if (victim.kind === "bloom") applyBloomDamage(victim, FIRE_SUPPORT_DAMAGE);
@@ -1843,6 +2225,7 @@ export class Mission {
       this.fireSupportBonusReadyTurn = startCooldown(this.turn, WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS);
     }
     unit.actionsRemaining = 0;
+    this.noteAbilityUse(unit, "abil_fire_support");
     this.log.push(
       usedBonusCharge
         ? `${unit.displayName} calls in fire support on (${target.x},${target.y}) via the Weapons Bay's reserve line — ${hit.length} hit, ${killedIds.length} downed (bonus charge on cooldown for ${WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS} turn(s)).`
@@ -1964,7 +2347,7 @@ export class Mission {
         // splash, so the attacker can still juke it same as any other
         // counter.
         const victimDodged = false;
-        const attackerDodgedCounter = rollMeepsDodge(attacker, victim);
+        const attackerDodgedCounter = rollMeepsDodge(attacker, victim, this.rng);
         const r = resolveMechAttack(
           this.map,
           attacker,
@@ -2016,6 +2399,7 @@ export class Mission {
 
     const chargesLeft = this.missileChargesRemaining(unitId) - 1;
     attacker.missileUsesRemaining = chargesLeft;
+    this.noteAbilityUse(attacker, "abil_missile");
     attacker.actionsRemaining = 0;
     // Firing gives your position away, same as any other attack (see
     // resolveAttack's identical line) — a missile launch is not stealthy.
@@ -2078,6 +2462,7 @@ export class Mission {
     const tiles = this.clearableBloomTiles(unit.pos);
     for (const c of tiles) this.map.tiles[c.y][c.x] = "plain";
     unit.actionsRemaining -= 1;
+    this.noteAbilityUse(unit, "abil_clear_bloom");
     this.log.push(`${unit.displayName} clears ${tiles.length} bloom mat tile(s).`);
     return { unitId, tilesCleared: tiles.length };
   }
@@ -2201,6 +2586,21 @@ export class Mission {
     // are campaign-tracked; hostile mechs/Bloom are no-ops inside the
     // check itself, but skipped here too so this never runs on every
     // Bloom kill for nothing.
+    // Latch the turn this side stopped having a lifeline on the board.
+    // Deliberately OUTSIDE the pilotId guard below and checked before the
+    // permadeath call: by the time handleDowned runs, engine/combat.ts has
+    // already set unit.downed, so this filter correctly excludes the unit
+    // currently going down — meaning a Munti's own downing is the moment
+    // that latches this, and a Munti who is also the last one gets
+    // turnsWithoutMunti 0, which is right. A squad that never had a Munti
+    // at all (possible in a directly-constructed test Mission, never in
+    // live play — canLaunchMission blocks it) latches on its first loss,
+    // which reads as "there was never one," also right.
+    if (unit.side === "player" && this.muntiCollapseTurn === undefined) {
+      const livingMuntis = this.units.filter((u) => u.side === "player" && u.path === "munti" && !u.downed);
+      if (livingMuntis.length === 0) this.muntiCollapseTurn = this.turn;
+    }
+
     if (unit.side === "player" && unit.pilotId) {
       // Campaign economy pass: survivalBonus tracking. This method is the
       // one place a player unit's `.downed` flag ever flips true (see
@@ -2216,7 +2616,22 @@ export class Mission {
       const sameSide = this.units.filter((u) => u.side === unit.side);
       const check = evaluatePermadeathCheck(unit, sameSide);
       this.log.push(`Permadeath check — ${unit.displayName}: ${check.reason}`);
-      if (check.permanent) this.permanentLosses.push({ pilotId: unit.pilotId, reason: check.reason });
+      if (check.permanent) {
+        // The four "how was the company standing" facts, captured at the
+        // only moment they are still knowable — see PermanentLossRecord's
+        // own comment above for why these are stored rather than derived.
+        // mission.outcome is deliberately NOT among them: it isn't decided
+        // yet at a mid-mission downing, and Debrief already has it when it
+        // applies this record (see scenes/Debrief.ts step 1b).
+        this.permanentLosses.push({
+          pilotId: unit.pilotId,
+          reason: check.reason,
+          turn: this.turn,
+          turnsWithoutMunti: this.turn - (this.muntiCollapseTurn ?? this.turn),
+          muntisDeployed: this.muntisDeployed,
+          wasLastMunti: unit.path === "munti",
+        });
+      }
     }
 
     const fired = evaluateUnitDowned(this.mission.events, unit.instanceId, this.turn, this.eventState);
@@ -2483,7 +2898,10 @@ export class Mission {
       const def = TILES[tile];
       if (def.turnStartDamage) {
         if (unit.kind === "bloom") applyBloomDamage(unit, def.turnStartDamage);
-        else applyMechDamage(unit, def.turnStartDamage);
+        else {
+          applyMechDamage(unit, def.turnStartDamage);
+          this.creditDamageTaken(unit.pilotId, def.turnStartDamage);
+        }
         if (unit.downed) this.handleDowned(unit);
       }
       if (def.turnStartRepair && !unit.downed && unit.kind !== "bloom") {
@@ -2504,7 +2922,10 @@ export class Mission {
       const dotDamage = tickStatusEffects(unit);
       if (dotDamage && !unit.downed) {
         if (unit.kind === "bloom") applyBloomDamage(unit, dotDamage);
-        else applyMechDamage(unit, dotDamage);
+        else {
+          applyMechDamage(unit, dotDamage);
+          this.creditDamageTaken(unit.pilotId, dotDamage);
+        }
         if (unit.downed) this.handleDowned(unit);
       }
     }
@@ -2584,6 +3005,14 @@ export class Mission {
    * at maxHp. Doesn't consume any unit's action — it's a passive aura, on
    * top of whatever the Munti's active Repair does that turn. Multiple
    * Muntis in range don't stack.
+   *
+   * Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
+   * 1 Sep 2026) — a Munti who's bought and equipped this branch projects
+   * the aura at AEGIS_WARD_REGEN_RADIUS instead of the plain
+   * MUNTI_REGEN_RADIUS. Per-Munti, not squad-wide: same convention as
+   * Rapid Response's per-healer repair range above — a squad with more
+   * than one Munti only gets the wider radius from whichever one actually
+   * has the branch equipped, the other(s) still project the base radius.
    */
   private tickMuntiRegen(): void {
     const muntisBySide = new Map<string, BattleUnit[]>();
@@ -2599,7 +3028,10 @@ export class Mission {
       if (unit.kind === "bloom" || unit.currentHp >= unit.maxHp) continue;
       const muntis = muntisBySide.get(unit.side);
       if (!muntis) continue;
-      const inRange = muntis.some((m) => chebyshevDistance(m.pos, unit.pos) <= MUNTI_REGEN_RADIUS);
+      const inRange = muntis.some((m) => {
+        const radius = m.weaponBranchId === "munti_aegis_ward" ? AEGIS_WARD_REGEN_RADIUS : MUNTI_REGEN_RADIUS;
+        return chebyshevDistance(m.pos, unit.pos) <= radius;
+      });
       if (inRange) unit.currentHp = Math.min(unit.maxHp, unit.currentHp + MUNTI_REGEN_PER_TURN);
     }
   }

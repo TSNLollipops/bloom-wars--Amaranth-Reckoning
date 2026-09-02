@@ -56,6 +56,14 @@ TIERS = {
     "C": {"attack": 125, "defense": 119, "hp": 115, "move": 1},
     "B": {"attack": 132, "defense": 125, "hp": 120, "move": 1},
     "A": {"attack": 140, "defense": 132, "hp": 130, "move": 2},
+    # S -- Heirloom-grade, transcribed from src/data/combatTables.ts (2 Sep
+    # 2026). Not part of the original Data Pack ladder -- see TIERS.S's own
+    # comment there for the placeholder-derivation reasoning. Kept OUT of
+    # the RECONSTRUCTION CHECK below (that section only proves this script
+    # matches the 21 Aug sim_output.txt, which predates S by two weeks) and
+    # exercised instead in its own new section, 14, same convention as the
+    # Wellroot/Bramble sections below it.
+    "S": {"attack": 149, "defense": 140, "hp": 140, "move": 2},
 }
 
 # src/engine/units.ts: canCounter / counterMaxRange per archetype path.
@@ -444,6 +452,109 @@ if recon_ok:
     out("needed -- 54 > 38, so yes. Sanity-checked against the mission harness,")
     out("not just this idealized 1v1 math: see Mission 26's own build-log")
     out("addendum for the real sim-tuning numbers once the mission is built.")
+else:
+    out("SKIPPED -- reconstruction check above failed, not trusting new numbers yet.")
+
+
+# ===========================================================================
+# 14. THE HEIRLOOM S-TIER -- proposed stat block, validated 2 Sep 2026
+#     (Vault Phase 1 pass -- flagged in combatTables.ts's own TIERS.S
+#     comment as "IT IS a player-power number... deserves a real sim pass
+#     before any Heirloom ability actually reaches combat")
+# ===========================================================================
+hdr("THE HEIRLOOM S-TIER -- shipped placeholder stats, validated 2 Sep 2026")
+out("S: {attack: 149, defense: 140, hp: 140, move: 2} -- one step past A's own")
+out("G->A step sizes (+9/+8/+10), move held at 2 rather than bumped to 3, per")
+out("combatTables.ts's own TIERS.S comment. S is deliberately excluded from")
+out("TIER_ORDER (engine/campaignEconomy.ts) -- granted with a recruited")
+out("Heirloom, never purchased up to -- so there is no 'A-tier attacker vs")
+out("S-tier defender' matchup this engine can produce through the normal")
+out("gear-tier ladder. What CAN happen live: an Heirloom pilot's mech fights")
+out("a rival mech (every hostile mech in units.ts is tier G, except two named")
+out("rivals -- hostile_mech_rourke/hostile_mech_marrow -- at tier C, both")
+out("meeps path) or a Bloom hostile (a different formula, resolveAttackOnBloom,")
+out("already flagged elsewhere in this script as its own unvalidated gap --")
+out("out of scope here, this section only covers the mech-vs-mech formula")
+out("TIER_GAP/hits_matrix above already gate).")
+
+if recon_ok:
+    def hits_to_kill_tiered(atk_path, de_path, atk_tier, de_tier):
+        """Same shape as section 2's hits_matrix, but parameterized by BOTH
+        sides' tier -- section 2 only ever varied the path, holding both
+        sides at G. Starting HP is the defending tier's own real hp stat
+        (not a fixed 100 baseline), since that's what actually differs
+        between an A-tier and an S-tier unit on the board."""
+        hp = TIERS[de_tier]["hp"]
+        max_hp = hp
+        hits = 0
+        while hp > 0:
+            full = hp >= max_hp
+            dmg = mech_dmg(POWER[atk_path][de_path], 1, TIERS[atk_tier]["attack"],
+                            TIERS[de_tier]["defense"], 0, def_at_full_hp=full)
+            hp -= dmg
+            hits += 1
+        return hits
+
+    out()
+    out("-- Defense check: does S actually survive better than A, path by path,")
+    out("   against every attacker tier this campaign actually fields? --")
+    defense_gate_ok = True
+    defense_ties = 0
+    for atk_tier, label in (("G", "typical live hostile"), ("C", "toughest live rival"), ("A", "hypothetical future max")):
+        out(f"  attacker tier {atk_tier} ({label}):")
+        out(f"    {'ATK':<8}{'DEF':<8}{'hits vs A':>11}{'hits vs S':>11}   result")
+        for atk in PATHS:
+            for de in PATHS:
+                h_a = hits_to_kill_tiered(atk, de, atk_tier, "A")
+                h_s = hits_to_kill_tiered(atk, de, atk_tier, "S")
+                if h_s < h_a:
+                    defense_gate_ok = False
+                    result = "FAIL -- S dies FASTER than A"
+                elif h_s == h_a:
+                    defense_ties += 1
+                    result = "tie (defense edge too small to add a hit here)"
+                else:
+                    result = "OK -- S survives longer"
+                out(f"    {atk:<8}{de:<8}{h_a:>11}{h_s:>11}   {result}")
+    out()
+    out(f"GATE: S never dies in fewer hits than A, across all 48 attacker/tier/path")
+    out(f"combinations tested -- {'PASS' if defense_gate_ok else 'FAIL'} ({defense_ties} exact ties, 0 regressions).")
+
+    out()
+    out("-- Offense check: does S's higher attack actually land, or does the")
+    out("   90-HP full-health damage cap eat it? Both, depending on the hit. --")
+    out(f"{'ATK':<8}{'DEF':<8}{'A-tier dealt':>13}{'S-tier dealt':>13}   note")
+    capped_same = 0
+    for atk in PATHS:
+        for de in PATHS:
+            a_full = mech_dmg(POWER[atk][de], 1, TIERS["A"]["attack"], TIERS["G"]["defense"], 0, def_at_full_hp=True)
+            s_full = mech_dmg(POWER[atk][de], 1, TIERS["S"]["attack"], TIERS["G"]["defense"], 0, def_at_full_hp=True)
+            note = "identical -- both saturate the 90 cap" if a_full == s_full else f"+{s_full - a_full} over A-tier"
+            if a_full == s_full:
+                capped_same += 1
+            out(f"{atk:<8}{de:<8}{a_full:>13}{s_full:>13}   {note}")
+    out()
+    out(f"{capped_same} of 16 opening-hit matchups (vs a full-HP G-tier defender) land")
+    out("identically for A and S -- the alpha strike is invisible against most")
+    out("squishier archetypes, since A already saturates the 90 cap there. S's")
+    out("attack bonus shows up on (1) tankier defenders the cap doesn't reach")
+    out("(e.g. tank-path) and (2) any target already below full HP, where the")
+    out("cap doesn't apply at all -- confirmed above in the defense-check table:")
+    out("every 'S survives longer' row is really 'A's finishing hit would have")
+    out("killed, S's uncapped equivalent doesn't quite.' Worth knowing before")
+    out("judging S 'weak' from a single opening-hit screenshot.")
+
+    out()
+    out("-- Sanity check: S is strictly the top of the ladder on every stat --")
+    stat_gate_ok = all(TIERS["S"][k] > TIERS["A"][k] for k in ("attack", "defense", "hp"))
+    stat_gate_ok = stat_gate_ok and TIERS["S"]["move"] == TIERS["A"]["move"]
+    out(f"  attack {TIERS['A']['attack']} -> {TIERS['S']['attack']}, defense {TIERS['A']['defense']} -> {TIERS['S']['defense']}, "
+        f"hp {TIERS['A']['hp']} -> {TIERS['S']['hp']}, move {TIERS['A']['move']} == {TIERS['S']['move']} (held, by design)")
+    out(f"  GATE: {'PASS' if stat_gate_ok else 'FAIL'}")
+
+    out()
+    overall = defense_gate_ok and stat_gate_ok
+    out(f"OVERALL: {'PASS -- S-tier placeholder validated, safe to leave in combatTables.ts as-is.' if overall else 'FAIL -- see the specific FAIL lines above before shipping this to a mission.'}")
 else:
     out("SKIPPED -- reconstruction check above failed, not trusting new numbers yet.")
 

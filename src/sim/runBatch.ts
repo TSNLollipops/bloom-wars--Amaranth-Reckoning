@@ -1,93 +1,105 @@
 // src/sim/runBatch.ts
-// Batch balance harness — Tier 0 (Consolidated Build Plan, 30 Aug 2026):
-// "once [the Player AI fix] lands, re-run npm run sim across all 36
-// existing Warden Company missions... treat the whole campaign's sim
-// baseline as provisional until it's re-run post-fix." `npm run sim`
-// (run.ts) only ever runs one mission once — there was no existing way to
-// get an actual win-RATE across many runs, which is what a provisional
-// baseline needs (MEEPS_DODGE_CHANCE and the Bloom on-hit-effects engine
-// both roll real randomness, so a single run is one sample, not a rate).
-// This is that harness: the exact same per-unit action loop run.ts uses
-// (kept in sync by eye, not by import, since run.ts also prints a live
-// per-mission log this doesn't need), run N times per mission, tallied by
-// outcome. `npm run sim:batch -- 20` runs all 40 missions 20x each;
-// `npm run sim:batch -- 20 mission_amaranth_6 mission_amaranth_20` scopes
-// it to specific ids.
+// Batch balance harness — Tier 0 (Consolidated Build Plan, 30 Aug 2026)
+// gave the project its first win-RATE tool; the tiers pass (1 Sep 2026,
+// claude/Bloom_Wars_Player_AI_Difficulty_Tiers_Plan_v1.md §3.4, §6) turns
+// it into the difficulty-fingerprint tool the tuning job runs:
 //
-// First real use, same day this was built: verifying the Tier 0
-// class-triangle target-selection fix (src/sim/playerAi/combat.ts) — see
-// that file's own header and
-// design/Bloom_Wars_Build_Log_Addendum_Tier0PlayerAIClassTriangle_30Aug2026.md
-// for the actual before/after numbers this harness produced, including the
-// one that mattered: an early version of the fix looked fine per-mission at
-// n=10 and was actually a real aggregate regression (73.25% -> 67% at
-// n=400), only visible once this existed to run that many samples.
+//   npm run sim:batch -- 20                          every mission, 20x, moderate
+//   npm run sim:batch -- 200 mission_amaranth_8      one mission
+//   npm run sim:batch -- 100 --tier=hard             one tier
+//   npm run sim:batch -- 100 --all-tiers             easy / moderate / hard side by side
+//   npm run sim:batch -- 100 --seed=1000             seeded: run i uses seed 1000+i, so any loss is replayable with `npm run sim -- <id> --seed=N`
+//   npm run sim:batch -- 100 --json=out.json         also dump every run's MissionSummary record (the shape Debrief writes for humans)
+//
+// Per mission and tier it prints WIN/LOSS/COMMANDER_DOWN/TIMEOUT counts,
+// the win %, and the two numbers Maxime's "XCOM is the benchmark" framing
+// (1 Sep 2026) actually turns on: how many pilots go DOWN per run, and
+// how many are permanently LOST per run — a mission that's won 80% of the
+// time with nobody ever downed is not XCOM-hard, whatever the win rate says.
+// The loop itself is driveMission.ts, shared with run.ts by import, not by
+// eye.
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
-import { Mission, type MissionOutcome } from "../engine/mission";
-import { decidePlayerAiAction, resetPlayerAiLog } from "./playerAi";
+import { profileForTier, type PlayerAiTier } from "./playerAi";
+import { driveMission, type DriveResult } from "./driveMission";
+import type { MissionSummary } from "../engine/missionSummary";
+import { writeFileSync } from "node:fs";
 
-const N = Number(process.argv[2] ?? 10);
-const onlyIds = process.argv.slice(3);
+const args = process.argv.slice(2);
+const positional = args.filter((a) => !a.startsWith("--"));
+const flag = (name: string): string | undefined => {
+  const hit = args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  if (!hit) return undefined;
+  return hit.includes("=") ? hit.split("=").slice(1).join("=") : "";
+};
+
+const N = Number(positional[0] ?? 10);
+const onlyIds = positional.slice(1);
 const ids = onlyIds.length ? onlyIds : Object.keys(MISSIONS_BY_ID);
+const tiers: PlayerAiTier[] = flag("all-tiers") !== undefined ? ["easy", "moderate", "hard"] : [((flag("tier") || "moderate") as PlayerAiTier)];
+const seedBase = flag("seed") ? Number(flag("seed")) : undefined;
+const jsonPath = flag("json") || null;
 
-type BatchOutcome = MissionOutcome | "ongoing_timeout";
-
-function runOnce(missionId: string): BatchOutcome {
-  const mission = MISSIONS_BY_ID[missionId];
-  resetPlayerAiLog();
-  const m = new Mission(mission);
-  let guard = 0;
-  while (m.outcome === "ongoing" && guard < 500) {
-    guard += 1;
-    for (const unit of m.livingUnits().filter((u) => u.side === "player")) {
-      if (unit.downed || unit.actionsRemaining <= 0) continue;
-      let subGuard = 0;
-      while (unit.actionsRemaining > 0 && subGuard < 4) {
-        subGuard += 1;
-        const decision = decidePlayerAiAction(m.map, unit, m.units, m.turn, m);
-        if (decision.path && decision.path.length > 1) {
-          m.moveUnit(unit.instanceId, decision.path[decision.path.length - 1]);
-        }
-        const repeatable = Boolean(decision.repairTargetId) || Boolean(decision.action);
-        if (decision.repairTargetId) m.repairUnit(unit.instanceId, decision.repairTargetId);
-        if (decision.attackTargetId) m.attack(unit.instanceId, decision.attackTargetId);
-        if (decision.action === "clear_bloom") m.clearBloom(unit.instanceId);
-        if (decision.action === "rescue") {
-          // Same "exactly one rescuable NPC at a time" assumption run.ts's
-          // own dispatch makes — see that file's own comment.
-          const npc = m.units.find((u) => u.npcIncapacitated);
-          if (npc) m.rescueUnit(unit.instanceId, npc.instanceId);
-        }
-        if (decision.action === "screen") m.screenAllies(unit.instanceId);
-        if (decision.action === "taunt") m.taunt(unit.instanceId);
-        if (m.outcome !== "ongoing" || unit.downed) break;
-        if (!repeatable) break;
-      }
-      if (m.outcome !== "ongoing") break;
-    }
-    if (m.outcome !== "ongoing") break;
-    m.endPlayerTurn();
-  }
-  return m.outcome === "ongoing" ? "ongoing_timeout" : m.outcome;
+interface Tally {
+  win: number;
+  loss: number;
+  commander_down: number;
+  ongoing_timeout: number;
+  turnsOnWin: number[];
+  downed: number;
+  lost: number;
 }
 
-let grandWins = 0;
-let grandTotal = 0;
+function runOnce(missionId: string, tier: PlayerAiTier, seed: number | undefined): DriveResult {
+  return driveMission(MISSIONS_BY_ID[missionId], { profile: profileForTier(tier), seed, resetLog: true });
+}
+
+const records: MissionSummary[] = [];
+const aggregate: Record<PlayerAiTier, { wins: number; total: number; downed: number; lost: number }> = {
+  easy: { wins: 0, total: 0, downed: 0, lost: 0 },
+  moderate: { wins: 0, total: 0, downed: 0, lost: 0 },
+  hard: { wins: 0, total: 0, downed: 0, lost: 0 },
+  legacy: { wins: 0, total: 0, downed: 0, lost: 0 },
+};
+
+const pct = (n: number, d: number) => (d === 0 ? "  0%" : `${String(Math.round((n / d) * 100)).padStart(3)}%`);
+
 for (const id of ids) {
   if (!MISSIONS_BY_ID[id]) {
     console.error(`Unknown mission id: ${id}. Known: ${Object.keys(MISSIONS_BY_ID).join(", ")}`);
     continue;
   }
-  const tally: Record<BatchOutcome, number> = { win: 0, loss: 0, commander_down: 0, ongoing: 0, ongoing_timeout: 0 };
-  for (let i = 0; i < N; i++) tally[runOnce(id)] += 1;
-  grandWins += tally.win;
-  grandTotal += N;
-  const winPct = Math.round((tally.win / N) * 100);
-  console.log(
-    `${id.padEnd(20)} WIN=${tally.win}/${N} (${winPct}%)  LOSS=${tally.loss}  COMMANDER_DOWN=${tally.commander_down}  TIMEOUT=${tally.ongoing_timeout}`
-  );
+  for (const tier of tiers) {
+    const t: Tally = { win: 0, loss: 0, commander_down: 0, ongoing_timeout: 0, turnsOnWin: [], downed: 0, lost: 0 };
+    for (let i = 0; i < N; i++) {
+      const r = runOnce(id, tier, seedBase !== undefined ? seedBase + i : undefined);
+      t[r.outcome === "ongoing" ? "ongoing_timeout" : r.outcome] += 1;
+      if (r.outcome === "win") t.turnsOnWin.push(r.mission.turn);
+      t.downed += r.summary.squad.filter((p) => p.downed).length;
+      t.lost += r.summary.squad.filter((p) => p.permanentlyLost).length;
+      if (jsonPath) records.push(r.summary);
+    }
+    const agg = aggregate[tier];
+    agg.wins += t.win;
+    agg.total += N;
+    agg.downed += t.downed;
+    agg.lost += t.lost;
+    const meanTurns = t.turnsOnWin.length ? (t.turnsOnWin.reduce((a, b) => a + b, 0) / t.turnsOnWin.length).toFixed(1) : "-";
+    console.log(
+      `${id.padEnd(26)} ${tier.padEnd(8)} WIN=${String(t.win).padStart(3)}/${N} (${pct(t.win, N)})  LOSS=${String(t.loss).padStart(3)}  CMD_DOWN=${String(t.commander_down).padStart(3)}  TIMEOUT=${String(t.ongoing_timeout).padStart(3)}  turns/win=${meanTurns.padStart(5)}  downed/run=${(t.downed / N).toFixed(2)}  lost/run=${(t.lost / N).toFixed(2)}`
+    );
+  }
 }
-if (ids.length > 1) {
+
+if (ids.length > 1 || tiers.length > 1) {
   console.log("");
-  console.log(`AGGREGATE: ${grandWins}/${grandTotal} (${Math.round((grandWins / grandTotal) * 100)}%) across ${ids.length} missions`);
+  for (const tier of tiers) {
+    const a = aggregate[tier];
+    if (a.total === 0) continue;
+    console.log(`AGGREGATE ${tier.padEnd(8)} ${a.wins}/${a.total} (${pct(a.wins, a.total)}) across ${ids.length} mission(s)  downed/run=${(a.downed / a.total).toFixed(2)}  lost/run=${(a.lost / a.total).toFixed(2)}`);
+  }
+}
+
+if (jsonPath) {
+  writeFileSync(jsonPath, JSON.stringify(records, null, 2));
+  console.log(`\n${records.length} MissionSummary record(s) written to ${jsonPath}`);
 }

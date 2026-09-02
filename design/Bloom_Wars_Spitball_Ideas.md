@@ -73,7 +73,7 @@ staying test-build-only.
   add the social part of the game." Two decisions, not one:
   1. **Scope.** The Amaranth Reckoning becomes the game — not a second
      campaign alongside the book-canon 4-mission vertical slice, the only
-     one. Team One's slice (`src/data/campaign.ts` — Trav's squad, missions
+     one. Team One's slice (`src/data/campaign.ts` — Marcus Voss's squad, missions
      1a/1b/2/3, the Mission 3 wipe) is **archived, not deleted**, per
      Maxime's own words: "archive the old mission. we might reuse them
      later." Done the same day: `src/data/allCampaigns.ts` no longer lists

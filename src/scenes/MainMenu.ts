@@ -91,6 +91,18 @@ export class MainMenu extends Phaser.Scene {
     this.add
       .text(480, 194, "an advance-war-lite for the browser", { fontFamily: "monospace", fontSize: "13px", color: "#6b7a8a" })
       .setOrigin(0.5);
+    // Version + build stamp (1 Sep 2026, feature-gap report A7) — bottom
+    // right, dim, always on. Both constants are baked in at build time by
+    // vite.config.ts's `define`; see src/buildInfo.d.ts. This is what a
+    // tester quotes in a bug report, so it has to be on the one screen
+    // everyone passes through.
+    this.add
+      .text(this.cameras.main.width - 10, this.cameras.main.height - 8, `v${__APP_VERSION__}  build ${__BUILD_TIME__}`, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#4a5563",
+      })
+      .setOrigin(1, 1);
   }
 
   private drawButtons() {
@@ -128,10 +140,18 @@ export class MainMenu extends Phaser.Scene {
     makeShopButton(this, layer, cx, y, w, h, "OPTIONS", true, () => {
       this.scene.start("Options", { returnScene: "MainMenu" });
     });
+    y += spacing;
+
+    // Forgotten Plans Audit, 1 Sep 2026 — the field-manual codex, reachable
+    // from the title screen too (not just the in-play pause menu) so a
+    // brand-new player who hasn't started a campaign yet can still find it.
+    makeShopButton(this, layer, cx, y, w, h, "CODEX", true, () => {
+      this.scene.start("Codex", { returnScene: "MainMenu" });
+    });
 
     if (!hasLiveSave) {
       this.add
-        .text(cx, y + 50, "no saved campaign yet — start with NEW CAMPAIGN", { fontFamily: "monospace", fontSize: "10px", color: "#5a6472" })
+        .text(cx, y + 46, "no saved campaign yet — start with NEW CAMPAIGN", { fontFamily: "monospace", fontSize: "10px", color: "#5a6472" })
         .setOrigin(0.5);
     }
   }

@@ -4,6 +4,7 @@
 // directory. Broken out so combat.ts/support.ts don't need to import from
 // index.ts and risk a cycle.
 import type { Coord } from "../../data/types";
+import type { ThreatMap } from "../../engine/threat";
 
 export interface PlayerAiDecision {
   path?: Coord[]; // full path incl. start; last element is the move destination
@@ -39,7 +40,63 @@ export interface PlayerAiDecision {
    * Same "run.ts/runBatch.ts call the matching real Mission verb" contract
    * as the three above — dispatched to Mission.taunt(unitId).
    */
-  action?: "clear_bloom" | "rescue" | "screen" | "taunt";
+  action?: PlayerAiAction;
+  /** For "fire_support" / "missile": the tile to strike. */
+  targetTile?: Coord;
+}
+
+/**
+ * Every verb the driver (sim/driveMission.ts) can dispatch. The first four
+ * predate the tiers pass; the rest landed 1 Sep 2026 with the Player AI
+ * Difficulty Tiers Plan §4 — each maps 1:1 onto an existing Mission verb
+ * (ambush → Mission.ambush, and so on).
+ */
+export type PlayerAiAction =
+  | "clear_bloom"
+  | "rescue"
+  | "screen"
+  | "taunt"
+  | "sensor_sweep"
+  | "interdict"
+  | "overwatch"
+  | "ambush"
+  | "fire_support"
+  | "missile";
+
+export type PlayerAiTier = "easy" | "moderate" | "hard" | "legacy";
+
+/**
+ * Per-run scratch memory (1 Sep 2026, tiers pass) — the one thing a pure
+ * per-decision function can't carry: "did I already sweep two turns ago,"
+ * "where did that Undertow burrow." Created once per mission by the
+ * driver and handed to every decision; never persisted. `rng` is the
+ * run's seeded random source (sim/rng.ts) so an Easy bot's deliberate
+ * mistakes replay identically for the same seed.
+ */
+export interface PlayerAiMemory {
+  rng: () => number;
+  lastSweepTurn: Map<string, number>;
+  lastTauntTurn: Map<string, number>;
+  lastStrikeTurn: number;
+  /** Hard only: last known position of a hostile that is not currently visible, keyed by instanceId. */
+  lastSeen: Map<string, Coord>;
+  /** Hard only: the squad planner's committed positions for allies that have already decided this turn. */
+  plannedPositions: Map<string, Coord>;
+  /** Hard only: this turn's threat map (engine/threat.ts), rebuilt when `threatStamp` no longer matches the board — see hard.ts's threatMapFor. */
+  threat?: ThreatMap;
+  threatStamp?: string;
+  /** Hard only: consecutive turns a unit's threat-trimmed advance made no progress — after two, it commits (hard.ts's stalemate breaker). */
+  stalledTurns: Map<string, number>;
+  /** Hard only (driveMission.ts): VIPs (commander / Munti) that have NOT yet decided this turn. A unit deciding before them assumes they will get out of reach (they retreat past their bar), so their current tiles don't count as fire-drawing positions in its own estimate — the first-cut Hard bot's Munti died in Mission 12 to exactly that: the commander decided last, retreated, and every hostile she'd been "absorbing" in the Munti's estimate turned on the Munti. */
+  pendingVips: Set<string>;
+  /** Squad stall breaker (driveMission.ts): consecutive turns the board didn't change at all — nobody moved, nothing took damage. */
+  squadStallTurns: number;
+  /** Set by the driver for the turn after squadStallTurns reaches its limit: caution and hold-in-place postures (overwatch / interdict / ambush, Hard's bars) are suspended so the squad engages. Any tier can stall on a hostile line that doesn't see it. */
+  commitThisTurn: boolean;
+}
+
+export function createPlayerAiMemory(rng: () => number = Math.random): PlayerAiMemory {
+  return { rng, lastSweepTurn: new Map(), lastTauntTurn: new Map(), lastStrikeTurn: -99, lastSeen: new Map(), plannedPositions: new Map(), stalledTurns: new Map(), pendingVips: new Set(), squadStallTurns: 0, commitThisTurn: false };
 }
 
 /**
@@ -76,10 +133,14 @@ export interface PlayerAiMissionContext {
   // typing.
   readonly mission: {
     readonly objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing" | "protect_asset";
-    readonly objectiveParams: { extractUnitId?: string };
+    readonly objectiveParams: { extractUnitId?: string; holdUntilTurn?: number };
     readonly bonusObjective?: { kind: "rescue_pilot" } | { kind: "clear_bloom_patch" };
   };
   readonly map: { holdZone?: Coord[]; exitTiles?: Coord[] };
+  /** Squad-shared Fire Support charges (tiers pass, 1 Sep 2026) — Mission's own public field; optional so hand-built test contexts still type-check. */
+  readonly fireSupportChargesRemaining?: number;
+  /** Mission.fireSupportBonusChargeReady — the Weapons Bay's reserve line. Optional for the same reason. */
+  readonly fireSupportBonusChargeReady?: () => boolean;
 }
 
 export type PlayerAiReason =
@@ -102,7 +163,18 @@ export type PlayerAiReason =
   | "retreat_low_hp" // below RETREAT_HP_FRACTION with no kill available — fell back
   | "retreat_gang_up" // front-line-protected (commander/Munti), still above the HP threshold, but GANG_UP_THRESHOLD+ visible enemies could reach and attack next turn — fell back pre-emptively rather than waiting to actually get hit first, see combat.ts's own "Gang-up retreat" section
   | "hold_cornered" // wanted to retreat but nowhere safer was reachable — fought anyway
-  | "hold_no_target"; // no living enemies at all
+  | "hold_no_target" // no living enemies at all
+  // ---- tiers pass, 1 Sep 2026 (Player AI Difficulty Tiers Plan §4/§5) ----
+  | "sensor_sweep" // a hidden or unseen hostile is in sweep reach and no target is otherwise in anyone's range — painted it
+  | "interdict" // Tank with nothing to shoot and a hostile able to close to adjacency next turn — braced
+  | "overwatch" // nothing to shoot, a hostile can end its move inside my range next turn — held a reaction shot
+  | "ambush" // Meeps, unseen, an enemy within striking distance next turn — cloaked for the 2x decloak strike
+  | "fire_support" // a cluster (or a boss / a VIP threat) inside one 3x3 in vision — called it in
+  | "missile" // same, with the Reeps' own splash, no friendly in the blast
+  | "repair_move" // Munti walked into repair range of a hurt ally and healed (repairPathing)
+  | "explore" // fog-honest and nothing visible — moved toward the nearest enemy spawn seam / deploy zone
+  | "preempt_retreat" // Hard: predicted incoming on my tile was lethal-ish — moved before it landed
+  | "mistake"; // Easy: took the second-best option on purpose (mistakeChance)
 
 export interface PlayerAiLogEntry {
   turn: number;

@@ -5,8 +5,8 @@
 //
 // ev_extraction_failure.action.unitIds was a deliberate placeholder in the
 // Data Pack ("the one field you have to fill in yourself"). Filled per
-// Canon Pass v1 §C: Trav is the sole survivor; Thyns, Barasj, Nagori and
-// Tourignie are lost. Per Canon Pass §C.3 (Maxime, 21 Aug 2026): points
+// Canon Pass v1 §C: Marcus Voss is the sole survivor; Thyns, Barasj, Nagori
+// and Tourignie are lost. Per Canon Pass §C.3 (Maxime, 21 Aug 2026): points
 // invested in a lost pilot are NOT carried forward — see engine/campaign
 // state handling, which simply drops the PilotRecord (and its tier) along
 // with the roster entry. No special-case debrief refund logic.
@@ -24,7 +24,7 @@ export const MISSION_1A: CampaignMission = {
     "Sector's been quiet four days. Command wants it walked. Standard sweep pattern, five up. Anything that moves and isn't us, you put it down.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 12 },
-  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_trav"],
+  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_voss"],
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: "enemy_deploy" },
@@ -81,7 +81,7 @@ export const MISSION_1B: CampaignMission = {
   briefing: "Hold the site until the survey team clears out. Six turns. Nothing complicated.",
   objective: "hold_zone",
   objectiveParams: { turnLimit: 10, holdUntilTurn: 6 },
-  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_trav"],
+  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_voss"],
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_crawlmass", count: 4, atTurn: 2, spawnAt: "enemy_deploy" },
@@ -101,7 +101,7 @@ export const MISSION_2: CampaignMission = {
   briefing: "Heavier concentration than the scans showed. Nothing to be clever about — go through it.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 14 },
-  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_trav"],
+  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_voss"],
   enemyWaves: [
     { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: "enemy_deploy" },
@@ -119,8 +119,8 @@ export const MISSION_3: CampaignMission = {
   mapId: "map_sessile_tomb",
   briefing: "Deep structure, sessile growth, no movement on any sweep we've run. Survey wants a look inside. In, confirm, out.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 16, extractUnitId: "pilot_trav" },
-  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_trav"],
+  objectiveParams: { turnLimit: 16, extractUnitId: "pilot_voss" },
+  playerPilotIds: ["pilot_thyns", "pilot_barasj", "pilot_nagori", "pilot_tourignie", "pilot_voss"],
   enemyWaves: [
     { archetypeId: "bloom_heartwood", count: 1, atTurn: 1, spawnAt: [{ x: 9, y: 5 }] },
     { archetypeId: "bloom_undertow", count: 4, atTurn: 1, spawnAt: [{ x: 7, y: 3 }, { x: 12, y: 3 }, { x: 7, y: 7 }, { x: 12, y: 7 }], burrowed: true },

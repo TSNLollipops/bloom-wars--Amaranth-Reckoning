@@ -10,5 +10,5 @@ const state = createWardenCampaignState(500);
 integrateSecondLance(state);
 integrateThirdLance(state);
 state.npcSocial = ensureNpcSocialState(state);
-writeFileSync("/home/claude/bloomwars/tools/verify/save.json", JSON.stringify(state));
+writeFileSync("/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/save.json", JSON.stringify(state));
 console.log("pilots:", Object.keys(state.pilots).length);
