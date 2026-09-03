@@ -26,7 +26,7 @@
 import { chromium } from "playwright";
 import { readFileSync, writeFileSync } from "fs";
 
-const DIR = "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify";
+const DIR = new URL(".", import.meta.url).pathname.replace(/\/$/, ""); // this script's own folder — was a hardcoded sandbox path (fixed 3 Sep 2026)
 const save = readFileSync(`${DIR}/save.json`, "utf8");
 
 // Must match engine/calendarClock.ts. Duplicated rather than imported: this

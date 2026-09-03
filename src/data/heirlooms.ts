@@ -20,13 +20,113 @@
 //
 // WHAT THIS FILE IS AND ISN'T. This is the data layer and the campaign
 // rules layer's source of truth: identities, kits, rank text, cooldowns.
-// The ABILITIES ARE NOT IMPLEMENTED IN COMBAT YET — nothing in
-// engine/mission.ts reads an Heirloom ability, and no Battle action bar
-// offers one. That is deliberate and is the honest state of this pass:
-// ~30 distinct abilities, several of which need genuinely new engine
-// mechanics (burning tiles that damage both sides, a unit that cannot drop
-// below 1 HP with deferred damage, a move-through-and-strike line), are a
-// separate build from the recruitment/progression economy this pass ships.
+//
+// VAULT PHASE 2, SLICE 1 (2 Sep 2026): five of these ~28 abilities are now
+// real in combat — oath_iron_word, lastword_field_triage, farsight_signature,
+// salt_root_salt, ledger_overextended (engine/mission.ts, engine/combat.ts,
+// engine/ai.ts, scenes/Battle.ts). See claude/Bloom_Wars_Build_Log_Addendum_
+// VaultPhase2Slice1_02Sep2026.md for what shipped, the interpretation calls
+// made turning prose rank text into real numbers, and what's still open.
+//
+// VAULT PHASE 2, SLICE 2 (3 Sep 2026): three more, this time all three
+// SIGNATURE abilities — ledger_entry, oath_oathkeeper, deadfall_strike
+// (engine/mission.ts, engine/combat.ts, scenes/Battle.ts). Eight of ~28 real
+// now. Everything else, Requiem included, is still exactly what the
+// paragraph below always said: kit data with no engine behind it yet. See
+// claude/Bloom_Wars_Build_Log_Addendum_VaultPhase2Slice2_03Sep2026.md for
+// what shipped, the interpretation calls made turning prose rank text into
+// real numbers (deadfall_strike's "reveal" clause especially — this
+// codebase has no general "make a unit more visible" concept beyond
+// breaking an existing ambush/screen cloak, flagged plainly rather than
+// faked), and what's still open.
+//
+// VAULT PHASE 2, SLICE 3 (3 Sep 2026): Surtr's full 3-ability kit —
+// cinder_line_signature, cinder_firebreak, cinder_draft (engine/mission.ts,
+// scenes/Battle.ts). Eleven of ~28 real now. The first genuinely NEW hazard
+// mechanic this pass has needed (every prior ability reused existing
+// state — postures, HP floors, a doubled attack) — see engine/mission.ts's
+// own SurtrLine interface comment for the full design and why it's a
+// separate tracked hazard rather than a reuse of data/bloom.ts's bloom_mat.
+// The line-targeting UI itself has no precedent to transcribe (Requiem, the
+// one other "line" this codebase's own vocabulary names, is still unbuilt)
+// — a straight 8-directional line from the wielder, one click sets both
+// direction and length, is a judgment call flagged at its own definition
+// (engine/mission.ts's CINDER_LINE_DIRECTIONS comment), not a transcription
+// of spec.
+//
+// VAULT PHASE 2, SLICE 4 (3 Sep 2026): Zanretsu's full 3-ability kit —
+// cutting_room_charge, cutting_room_momentum, cutting_room_sure_footing
+// (engine/mission.ts, scenes/Battle.ts). Twelve of ~28 real now. (This
+// header paragraph was missed when slice 4 shipped — added retroactively
+// here rather than left silently absent, since every other slice gets one.)
+//
+// VAULT PHASE 2, SLICE 5 (3 Sep 2026): Migawari's remaining 2 of 3
+// abilities — lastword_signature, lastword_last_rites (engine/mission.ts,
+// engine/units.ts, engine/campaignState.ts, scenes/Battle.ts).
+// lastword_field_triage was already live since slice 1 and is untouched.
+// Fourteen of ~28 real now. lastword_signature is the first ability in the
+// whole kit whose cost is permanent and cross-mission rather than a
+// mission-time cooldown/resource: it writes a multiplicative max-HP
+// penalty onto the wielder's own persistent PilotRecord (data/types.ts's
+// permanentMaxHpMultiplier), following the exact Mission-records/
+// Debrief-applies split this codebase already uses for permadeath
+// (PermanentLossRecord/applyMissionLosses) — see engine/mission.ts's
+// LastWordSignatureCostRecord and engine/campaignState.ts's
+// applyLastWordSignatureCosts for the two halves. lastword_last_rites is
+// the first ability that lets an already-downed unit act again
+// mid-mission, on borrowed time that unconditionally expires at that same
+// player turn's own end (engine/mission.ts's resolveLastRitesBorrowedTime)
+// — a temporary, non-persistent effect, unlike its signature sibling.
+//
+// VAULT PHASE 2, SLICE 6 (3 Sep 2026): Simulacrum's full 3-ability kit —
+// seal_borrowed_authority, seal_ledgerhall_static, seal_inherited_weight
+// (engine/mission.ts, engine/units.ts, engine/turnManager.ts,
+// engine/campaignState.ts, scenes/Battle.ts). Seventeen of ~28 real now.
+// stolen_seal is this pass's first ABERRATION (no aristocrat pilot — see
+// this file's own header above); who actually ends up holding it in combat
+// is a pre-existing, out-of-scope gap (nothing anywhere calls
+// engine/heirlooms.ts's acquireAberration for "stolen_seal" specifically —
+// checked, not assumed), this slice only makes the kit work once someone
+// does. seal_borrowed_authority is the first ability whose draw pool is
+// campaign-persistent, cross-mission tracked state of a NEW kind
+// (CampaignState.foughtOnHitEffectKinds, engine/campaignState.ts's
+// recordFoughtOnHitEffectKinds) rather than reusing an existing pattern —
+// see that field's own comment for the full design, including the honest
+// finding that House Amaranth hostile mechs ARE reachable inside Warden
+// Company's own campaign but currently carry no on-hit-effect data at all
+// to contribute. seal_ledgerhall_static's jam state is real and tested but
+// has a stated, honest limitation: engine/ai.ts's decideHostileAction has
+// no per-ability dispatch to actually gate against (see
+// BattleUnit.jammedAbilityId's own comment).
+//
+// VAULT PHASE 2, SLICE 7 (3 Sep 2026): requiem_severance (Gjallar) —
+// engine/mission.ts's "Vault Phase 2, slice 7" section, engine/combat.ts's
+// applyRequiemBloomDamage, scenes/Battle.ts's GJALLAR button/targeting.
+// Eighteen of ~28 real now, and the LAST of this build-out's ten Heirlooms
+// to get any ability wired at all — this is genuinely the final slice,
+// unlike every prior one. The one ability this file's own header above
+// calls "the worst candidate to build first... the one fixed point in the
+// pool," built last on purpose. Deliberately NOT added to
+// HEIRLOOM_ABILITIES_LIVE_IN_COMBAT below despite being fully wired and
+// tested — see that constant's own inline comment for why (the set's real
+// job is "is a rank-up purchase honest to offer," and Requiem's own rank5
+// text is "Unchanged... does not rank up"). Two flagged, unresolved
+// assumptions worth Maxime's own read, both spelled out in full in
+// engine/mission.ts's own section header rather than repeated here: (1)
+// GDD §8.2's "any own unit" origin is implemented as "the ordinary selected
+// acting unit," not a literal two-unit-selection flow; (2) an active
+// Oathkeeper floor or Tank shield still mitigates a Requiem hit, since
+// mech-shape damage routes through the same applyMechDamage every other
+// source in the game uses.
+//
+// THE ABILITIES ARE NOT ALL IMPLEMENTED IN COMBAT — nothing in
+// engine/mission.ts reads most of an Heirloom's kit, and no Battle action
+// bar offers most of them. That was deliberate at the time this file was
+// first written, and is still the honest state for everything outside the
+// slice above: ~30 distinct abilities, several of which need genuinely new
+// engine mechanics (burning tiles that damage both sides, a unit that cannot
+// drop below 1 HP with deferred damage, a move-through-and-strike line), are
+// a separate build from the recruitment/progression economy this pass ships.
 // Recording the kits as real, typed data now means that build is
 // transcription rather than re-derivation, and means the Vault and the
 // shortlist have something true to show.
@@ -166,6 +266,75 @@ export const HEIRLOOM_ABILITY_RANK_COST: Record<number, number> = {
 };
 
 /**
+ * Vault Phase 2, slices 1 and 2 (2-3 Sep 2026) — which ability ids are
+ * actually real in combat right now. Single source of truth for the one fact
+ * `engine/mission.ts`'s canX()/verb() pairs and this file's own header
+ * comment both already state in prose (oath_iron_word, lastword_field_triage,
+ * farsight_signature, salt_root_salt, ledger_overextended from slice 1;
+ * ledger_entry, oath_oathkeeper, deadfall_strike from slice 2 — see
+ * `claude/Bloom_Wars_Build_Log_Addendum_VaultPhase2Slice1_02Sep2026.md` and
+ * `claude/Bloom_Wars_Build_Log_Addendum_VaultPhase2Slice2_03Sep2026.md`),
+ * exported once so a UI that needs the answer (the Vault's ability shelf)
+ * doesn't hand-copy a second list that can drift out of sync with
+ * engine/mission.ts as more abilities get wired.
+ *
+ * Deliberately NOT read by engine/mission.ts itself — every ability's own
+ * canX() there already gates on `unit.abilities.includes(<id>)` and its own
+ * cooldown, which is the real, load-bearing gate; this set exists purely so
+ * a shop screen can decide whether "rank this up" is honest to offer, same
+ * spirit as recruitHeirloom's own refusal-is-free rule: don't let a player
+ * spend real personal points on a rank that changes nothing in play.
+ */
+export const HEIRLOOM_ABILITIES_LIVE_IN_COMBAT: ReadonlySet<string> = new Set([
+  "oath_iron_word",
+  "lastword_field_triage",
+  "farsight_signature",
+  "salt_root_salt",
+  "ledger_overextended",
+  "ledger_entry",
+  "oath_oathkeeper",
+  "deadfall_strike",
+  "cinder_line_signature",
+  "cinder_firebreak",
+  "cinder_draft",
+  // Vault Phase 2, slice 4 (3 Sep 2026) — Zanretsu's full 3-ability kit.
+  "cutting_room_charge",
+  "cutting_room_momentum",
+  "cutting_room_sure_footing",
+  // Vault Phase 2, slice 5 (3 Sep 2026) — Migawari's remaining 2 of 3
+  // abilities (lastword_field_triage was already live, slice 1).
+  "lastword_signature",
+  "lastword_last_rites",
+  // Vault Phase 2, slice 6 (3 Sep 2026) — Simulacrum's full 3-ability kit.
+  "seal_borrowed_authority",
+  "seal_ledgerhall_static",
+  "seal_inherited_weight",
+  // Vault Phase 2, slice 7 (3 Sep 2026) — requiem_severance (Gjallar) is now
+  // genuinely wired end-to-end in combat (engine/mission.ts's
+  // canRequiemSeverance/requiemSeverance, tested in
+  // engine/__tests__/gjallarRequiem.test.ts) but is DELIBERATELY NOT added
+  // here, unlike every other ability above. Read this set's own header
+  // comment again: its real, load-bearing job isn't "is this ability
+  // implemented," it's "is a RANK UP purchase honest to offer" — and for
+  // Requiem the answer is no, on the ability's own record: "rank5:
+  // 'Unchanged — Requiem does not rank up. It is the one fixed point in the
+  // pool.'" Nothing in requiemSeverance() ever reads heirloomRank/
+  // heirloomAbilityRanks["requiem_severance"] — adding this id here would
+  // let the Vault (scenes/Hub.ts) show a real "[ rank up ]" button that
+  // takes a wielder's personal points and changes literally nothing in
+  // play, exactly the failure mode this set's own comment says it exists
+  // to prevent. FLAGGED for Maxime: the alternative is special-casing
+  // Hub.ts's own rendering to suppress a buy button for this one ability
+  // while still marking it "live," which is more invasive for the same
+  // observable outcome (no dishonest purchase) — this pass took the
+  // smaller, single-line fix over touching Hub.ts's UI logic, at the cost
+  // of the Vault showing Requiem's status text as "(not implemented in
+  // combat yet)" even though it now is. That status LABEL being
+  // technically stale is judged the lesser problem versus letting a real
+  // purchase go through for nothing — worth Maxime's own call either way.
+]);
+
+/**
  * Personal points an aristocrat is minted WITH, decided 2 Sep 2026 —
  * "the house sends them with money," the option taken over cutting the
  * rank-cost ladder itself.
@@ -282,9 +451,61 @@ export const HEIRLOOMS: Record<HeirloomId, HeirloomDef> = {
     // Deliberately ONE ability, not three. The plan doc leaves the
     // retrofit an open question (§6.3) and leans "stays as-is, since the
     // flagship should look mechanically different from the rest of the
-    // shelf." Keeping it as-is is also the conservative choice: Requiem is
-    // shipped, tested and sim-validated content (Data Pack §11.5), and
-    // this pass has no mandate to touch its numbers.
+    // shelf." Keeping it as-is is also the conservative choice: Requiem's
+    // NUMBERS are locked, reviewed design (Data Pack §11.5), and this pass
+    // has no mandate to touch them.
+    //
+    // CORRECTION, 2 Sep 2026 (Vault Phase 2 slice 1 pass): this entry used
+    // to claim Requiem was "shipped, tested and sim-validated content" —
+    // checked against the actual code rather than taken on memory or an
+    // older plan, per this project's own standing rule, and that line was
+    // wrong. abil_severance exists as a spec (data/abilities.ts's SEVERANCE
+    // constant) and gets one comment-reference in engine/combat.ts ("the
+    // second thing in the game that can delete a full-HP unit... Severance
+    // is meant to be the only one") — it has never been wired into
+    // engine/mission.ts, engine/ai.ts, or a Battle action bar. Requiem has
+    // never fired in a mission. What's actually locked is the Data Pack
+    // §11.5 DESIGN — the numbers, the friend-or-foe exception, the collapse
+    // check — not an implementation of it. Left unbuilt on purpose this
+    // pass regardless (see this file's own header): it's the one ability
+    // allowed to break every other safety rule here, which makes it the
+    // worst candidate to build first rather than the safest.
+    //
+    // UPDATE, 3 Sep 2026 (Vault Phase 2 slice 7): built. The paragraph
+    // above is kept rather than deleted — it was true when written, and
+    // this project's convention is to date-stamp corrections in place, not
+    // quietly erase the record of what was still missing. As of this pass,
+    // requiem_severance IS wired into engine/mission.ts (canRequiemSeverance
+    // / getRequiemDirectionTargets / previewRequiemSeverance /
+    // requiemSeverance, plus a shared requiemCharge meter accrued off of
+    // resolveAttack) and into the GJALLAR action-bar button, targeting
+    // flow, and hover-tip in scenes/Battle.ts, with a dedicated
+    // engine/combat.ts choke point (applyRequiemBloomDamage) so the
+    // Bloom-side Endurance bypass doesn't leak into the ordinary
+    // applyBloomDamage path everything else uses. Covered by 20 new tests
+    // in engine/__tests__/gjallarRequiem.test.ts (geometry, cap-bypass,
+    // friend-or-foe, charge gating, Bloom collapse-check, and interaction
+    // with Oathkeeper/shields/on-hit effects). Two points were genuinely
+    // ambiguous in the source docs and were resolved by conservative
+    // reading rather than guessed silently — flagged for Maxime to
+    // confirm or correct, not treated as settled:
+    //   1. "Any own unit" as the line's origin (GDD phrasing) was read as
+    //      the acting/selected unit, since nothing else in this codebase
+    //      has a two-unit-selection UI flow to reuse, and inventing one
+    //      would be new scope this pass had no mandate for.
+    //   2. Oathkeeper's HP floor and shield absorption were left ACTIVE
+    //      against a Requiem hit — "ignores the full-HP damage cap" and
+    //      "hits friend and foe alike" were read as specific, named
+    //      exceptions, not a blanket "ignores all mitigation" grant.
+    // Also worth naming plainly rather than burying: under the current
+    // locked SEVERANCE.damage value (80), the full-HP-cap bypass is
+    // mechanically inert against mech-shape targets, since 80 is already
+    // under FULL_HP_DAMAGE_CAP (90) — the cap bypass only does real work
+    // against Bloom targets, where it skips the Endurance layer entirely
+    // and checks Vitality straight. Tested and documented, not silently
+    // glossed over. requiem_severance is deliberately NOT added to
+    // HEIRLOOM_ABILITIES_LIVE_IN_COMBAT below despite being fully wired —
+    // see that set's own comment for why.
     abilities: [
       {
         id: "requiem_severance",
@@ -521,7 +742,16 @@ export const HEIRLOOMS: Record<HeirloomId, HeirloomDef> = {
     pilot: {
       displayName: "Thessaly Amaranth",
       house: "House Amaranth",
-      hook: "Halcyon's cousin and the house black sheep — left home to study the Bloom, an unglamorous specialty by Amaranth standards, and insists (often, maybe too often) that her house doesn't matter to her anymore. Mission 28 is built to test that claim directly.",
+      // SPOILER FIX, 2 Sep 2026 — Maxime, screenshot: this line named
+      // Mission 28 by number and said flat-out "is built to test that
+      // claim," which is designer's-note phrasing that leaked into
+      // player-facing copy, not in-universe voice, and it's shown on the
+      // Vault shortlist from Act II onward — well before a player is
+      // anywhere near Act III. Every sibling hook in this file (Ichigeki,
+      // Vindex, Igawari) foreshadows without citing a mission number or
+      // breaking voice; matched that here instead of just trimming the
+      // reference.
+      hook: "Halcyon's cousin and the house black sheep — left home to study the Bloom, an unglamorous specialty by Amaranth standards, and insists (often, maybe too often) that her house doesn't matter to her anymore. She's never actually had to find out if that's true.",
     },
     abilities: [
       {

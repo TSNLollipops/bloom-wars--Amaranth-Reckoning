@@ -1842,14 +1842,16 @@ export const AMARANTH_MISSION_22: CampaignMission = {
   // headcount — this file's own tools can't fix a single-chokepoint
   // problem by adding more bodies to the same chokepoint.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
-    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
-    { archetypeId: "bloom_crawlmass", count: 2, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
-    { archetypeId: "bloom_splitfang", count: 1, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
-    { archetypeId: "bloom_splitfang", count: 1, atTurn: 8, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 5, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 8, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 3, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 6, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
     { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 9, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 12, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 10 }] },
   ],
   events: [
     {

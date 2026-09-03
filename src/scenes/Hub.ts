@@ -62,21 +62,30 @@
 //
 // Architecture call: room-to-room movement is a discrete swap (same
 // paradigm classic 2D RPGs use for interiors), not a scrolling camera
-// following the player through one big contiguous world. A scrolling
-// camera would force scrollFactor handling onto every existing
-// fixed-position UI element (the instructions text, the interact prompt,
-// the chat DOM input, the footer buttons) — real new-engineering risk for
-// a placeholder pass. A room swap reuses Phase 1's existing single-room
-// collision model unchanged: every room shares the exact same rectangle
-// footprint (ROOM_BOUNDS), doors are proximity-triggered exactly like
-// piece #4's bay (E to enter, same interact prompt), and switching rooms
-// just swaps which room's doors/NPCs are active and repositions the
-// player at the entry point. Zero changes needed to any fixed-position UI.
+// following the player through one big contiguous world. A room swap
+// reuses Phase 1's existing single-room collision model unchanged: every
+// room shares the exact same rectangle footprint (ROOM_BOUNDS), doors are
+// proximity-triggered exactly like piece #4's bay (E to enter, same
+// interact prompt), and switching rooms just swaps which room's doors/
+// NPCs are active and repositions the player at the entry point.
+//
+// Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — the scrolling camera
+// this comment originally argued against DID end up getting built (see
+// startFollow/deckCameraBounds below), once Upper deck's overcrowding made
+// "more floor per deck" worth that engineering cost. What this comment got
+// right stands unchanged, though: the discrete swap BETWEEN decks (stairs/
+// doors) is untouched — only the space WITHIN a deck now scrolls. Every
+// fixed-position UI element this comment used to warn about
+// (instructions text, interact prompt, chat DOM input, footer buttons —
+// plus everything added since) got an explicit .setScrollFactor(0) as
+// part of this pass, exactly the audit this paragraph once predicted would
+// be needed if a scrolling camera ever shipped.
 import Phaser from "phaser";
 import { WARDEN_PILOTS, AMARANTH_MISSIONS_BY_ID } from "../data/campaignAmaranth";
 import { PATH_COLORS, pilotInitials } from "./TransporterPad";
 import {
   pickLineForMessage,
+  pickMusterDeclineLine,
   distortMessage,
   stageFromTier,
   detectStagePromotion,
@@ -192,8 +201,22 @@ import {
   returnedHeirlooms,
   resolveVaultDedication,
   heirloomState,
+  fieldedHeirloom,
+  fieldHeirloom,
+  unfieldHeirloom,
+  abilityRank,
+  purchaseAbilityRank,
 } from "../engine/heirlooms";
-import { HEIRLOOMS, HOUSE_VERDICT_CLAUSES, heirloomRecruitCost, HEIRLOOM_RECRUIT_BUDGET, type HeirloomId } from "../data/heirlooms";
+import {
+  HEIRLOOMS,
+  HOUSE_VERDICT_CLAUSES,
+  heirloomRecruitCost,
+  HEIRLOOM_RECRUIT_BUDGET,
+  HEIRLOOM_MAX_ABILITY_RANK,
+  HEIRLOOM_ABILITY_RANK_COST,
+  HEIRLOOM_ABILITIES_LIVE_IN_COMBAT,
+  type HeirloomId,
+} from "../data/heirlooms";
 import { createPegGame, applyMove as applyPegBoardMove, legalMovesForTurn as pegLegalMoves, pickAiMove as pickPegAiMove, type PegGameState, type PegMove } from "../engine/pegBoard";
 import { createHoldemGame, applyHoldemAction, startNextHand as startNextHoldemHand, legalActionsFor as pokerLegalActions, potTotal as pokerPotTotal, pickAiAction as pickPokerAiAction, type HoldemGameState } from "../engine/holdem";
 import type { BettingAction } from "../engine/cardTable/bettingEngine";
@@ -207,7 +230,10 @@ import {
   ensureHubSocialState,
   ensureNpcSocialState,
   rankDisplayTitle,
+  lanceOfMek,
+  lanceOfPilot,
   type CampaignState,
+  type LanceId,
   type NpcSocialState,
   type Rank,
   type ReservedBayId,
@@ -253,11 +279,42 @@ import { simulateEncounter, resolveSparEncounter, isCommitted, type SocialSimPil
 // The egg hull, 27 Aug 2026 — kept in its own Phaser-free module so its
 // math is directly unit-testable; see hubGeometry.ts's own header for why.
 import { clampToEllipse } from "../engine/hubGeometry";
+// The ship's floor plan, 3 Sep 2026 — walls, corridors, rooms, furniture,
+// stairs and every landmark coordinate, as data in one Phaser-free module
+// (see its header). Hub.ts draws it, clamps against it, and paths through
+// it (engine/hubNav.ts); it no longer owns any of the geometry itself.
+import {
+  type DeckId,
+  type RoomId,
+  type Rect,
+  type Decor,
+  DECK_LAYOUTS,
+  layoutOf,
+  roomAt,
+  resolveAgainstSolids,
+  STAIRS,
+  MUSTER_POINT,
+  RECROOM_TABLE_POINT,
+  RECROOM_SEATS,
+  MEK_SPOTS,
+  HANGAR_SHOP_POINT,
+  WORKSHOP_BENCH_POINT,
+  VAULT_PLINTH_POINT,
+  CO_POINT,
+  PLAYER_SPAWN,
+  BAY_MARKERS,
+  WALL_T,
+  C as PAL,
+} from "../engine/hubLayout";
+import { findPath } from "../engine/hubNav";
 
-// Every room reuses this exact footprint — placeholder-stage simplicity,
-// GDD §12.2 style. Only which doors/NPCs are active changes between rooms;
-// the box itself never resizes, so none of the fixed-position UI below
-// (interact prompt, chat box, footer) ever needs to move.
+// The 700x444 box every overlay (poker, darts, peg board, workshop, vault,
+// history, highlights, help) draws itself inside, in SCREEN space. This
+// used to be every room's world footprint too, back when the four decks
+// were screen-locked; since the 3 Sep 2026 floor-plan pass no world
+// geometry reads it any more — every world coordinate comes from
+// engine/hubLayout.ts. Kept under its old name so the ~40 overlay call
+// sites below stay untouched; it is an overlay box now, nothing else.
 const ROOM_BOUNDS = { left: 130, right: 830, top: 108, bottom: 552 };
 const PLAYER_SPEED = 190; // px/sec
 const PLAYER_R = 15;
@@ -325,6 +382,25 @@ const CLIQUE_APPROACH_CHANCE = 0.6;
 // updateNpcRoaming's own body for why it has to come first rather than
 // after the "nobody else here" bail-out.
 const EXPLORE_CHANCE = 0.15;
+// Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — the Plan doc's own
+// assumption ("a bigger deck bound is more likely to just mean NPCs have
+// more room to wander") turned out to only be half true: the explore
+// branch below has only ever picked a named room (pickExploreTarget, then
+// a point inside that room's own small ROOM_ZONE_BOUNDS), and the mingle/
+// clique/rival branches only ever walk toward another NPC's live position
+// — so without this, a bigger deck floor changes what the PLAYER can walk
+// on and what the camera can see, but changes nothing about where NPCs
+// themselves ever actually go. That's a real gap against Maxime's own
+// playtest complaint this whole pass exists to answer ("the 3rd lvl is
+// way too overcroawed") — more empty floor around a crowd doesn't relieve
+// the crowd. This is that fix: a fraction of explore rolls send an NPC to
+// a random point on their own deck's full open floor (pickOpenFloorPoint
+// below) instead of to a named room. Kept a minority of explore rolls, not
+// a majority — 0.3 is a placeholder like DECK_FLOOR_RIGHT/BOTTOM above,
+// not measured against a live playtest, but the intent is idle pilots
+// visibly spreading out sometimes, not the Rec Room/Workshop emptying out
+// or every actual need (hunger/thirst/sleep/boredom) losing its pull.
+const EXPLORE_OPEN_FLOOR_CHANCE = 0.3;
 // A door's own (toX, toY) is one fixed point; landing NPCs a real distance
 // away from it, in a random direction (completeDoorHop's own comment has
 // the full deadlock story this fixes), spreads simultaneous arrivals out
@@ -374,11 +450,15 @@ const NEEDS_ROAM_WEIGHT_BONUS = 3;
 // more for `biasRoom` if one's passed. A plain weighted-bag approach rather
 // than a probability table: cheap, obviously correct, and consistent with
 // how small this room count is (six candidates, tops).
-function pickExploreTarget(fromRoom: RoomId, biasRoom?: RoomId): RoomId {
-  const otherRooms = (Object.keys(ROOM_TITLES) as RoomId[]).filter((r) => r !== fromRoom);
+// 3 Sep 2026 — candidates are ROAMABLE_ROOMS (corridors excluded), and
+// with one berth room per lance the BERTHS_EXPLORE_WEIGHT bump goes to the
+// NPC's OWN lance's berths (`homeBerths`); the other lances' bunks stay at
+// the baseline 1 — you drift toward your own quarters, not any bunk room.
+function pickExploreTarget(fromRoom: RoomId, biasRoom?: RoomId, homeBerths?: RoomId): RoomId {
+  const otherRooms = ROAMABLE_ROOMS.filter((r) => r !== fromRoom);
   const weighted: RoomId[] = [];
   for (const r of otherRooms) {
-    let weight = r === "berths" ? BERTHS_EXPLORE_WEIGHT : 1;
+    let weight = r === homeBerths ? BERTHS_EXPLORE_WEIGHT : 1;
     if (r === biasRoom) weight += NEEDS_ROAM_WEIGHT_BONUS;
     for (let i = 0; i < weight; i++) weighted.push(r);
   }
@@ -659,15 +739,47 @@ function dartsAccuracyFromPos(pos: number): number {
 // assumed done), it's built now as a real walkable destination so it
 // exists before anything needs it, same "build the room, wire the
 // mechanic later" order the other six rooms already established.
-type RoomId = "recroom" | "hangarDeck" | "workshop" | "vault" | "berths" | "cic" | "grotto" | "sparRoom";
+// workshopB/workshopC — Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026. One
+// Mek workshop per lance (that doc's §2, resolving the "one per lance or
+// one per pilot-mek pair" question left open since 26 Aug in
+// Bloom_Wars_Mek_Workshop_And_Weapon_Progression_v1.md §6). The existing
+// `workshop` is Lance A's and keeps its id, title, notes, bench, codex
+// entries and chat keywords exactly as they are — renaming the one room
+// that half this file already references by name would be pure churn for
+// a cosmetic gain, and the Plan doc itself left that call open rather than
+// requiring it.
+// RoomId/DeckId now live in engine/hubLayout.ts (3 Sep 2026, floor-plan
+// pass) alongside the geometry they index, so hubLayout.test.ts can name
+// rooms without importing this Phaser-bound file. Imported at the top.
+//
+// New this pass: berthsB/berthsC (one berth per lance, mirroring the
+// per-lance workshops that shipped earlier the same day), heads (the ship's
+// bathrooms — naval "heads," with stalls, sinks and showers), engineering
+// (the room the lower deck's reserved-bay markers now stand in, instead of
+// floating in a margin), forwardBays (same for the upper deck's three), and
+// lowerHall/upperHall — the spine corridor on each rectangular deck, a
+// real zone so the title bar and every "which room is this body in" check
+// has an honest answer while someone's walking between rooms. Corridors
+// are deliberately NOT roaming destinations or spawn rooms (see
+// ROAMABLE_ROOMS below): you pass through a hallway, you don't hang out
+// in it.
 
 const ROOM_TITLES: Record<RoomId, string> = {
   recroom: "REC ROOM",
   hangarDeck: "HANGAR DECK",
+  berths: "BERTHS — 1ST LANCE",
+  berthsB: "BERTHS — 2ND LANCE",
+  berthsC: "BERTHS — 3RD LANCE",
+  heads: "HEADS",
+  engineering: "ENGINEERING",
+  lowerHall: "MAIN CORRIDOR",
   workshop: "THE WORKSHOP",
+  workshopB: "2ND LANCE WORKSHOP",
+  workshopC: "3RD LANCE WORKSHOP",
   vault: "THE VAULT",
-  berths: "BERTHS",
   cic: "CIC / BRIDGE",
+  forwardBays: "FORWARD BAYS",
+  upperHall: "MAIN CORRIDOR",
   grotto: "THE GROTTO",
   sparRoom: "THE SPAR ROOM",
 };
@@ -684,7 +796,9 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   // Tier 4, 30 Aug 2026 (Consolidated Build Plan — Hangar Deck roster/
   // stats panel) — this used to say "still lives in the Campaign Shop for
   // now"; it doesn't anymore, see HANGAR_SHOP_POINT/openHangarShop below.
-  hangarDeck: "Walk to the terminal and press E to manage roster, gear, and recruiting.",
+  // 3 Sep 2026: the launch BAY lives here now too (MUSTER_POINT), not in
+  // the Rec Room — see MUSTER_ROOM's own comment.
+  hangarDeck: "Terminal for roster, gear and recruiting. The BAY pad is where the crew musters to deploy.",
   // 2 Sep 2026 — this used to read "Gear, loadout upgrades, carrier
   // modules — still in the Campaign Shop," which is now half stale: the
   // carrier modules live here for real (WORKSHOP_BENCH_POINT/
@@ -695,6 +809,18 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   // this names the machine's gear system they'd otherwise be confused
   // with.)
   workshop: "Walk to the bench and press E for carrier modules. Gear and tiers are at the Hangar Deck console.",
+  // Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026. Deliberately honest
+  // about the empty case rather than gating the rooms out of existence:
+  // an unassigned maintenance bay standing ready is what a real carrier
+  // with room for three lances would actually look like, it matches this
+  // deck's own "(reserved)" bay markers, and it means the moment Second
+  // Lance integrates at Mission 12 their Meks have somewhere of their own
+  // to stand — instead of the overcrowding this whole plan exists to fix
+  // just reappearing in Lance A's workshop. The carrier-module bench is
+  // NOT duplicated here: it buys ship-wide upgrades and stays one
+  // ship-wide fixture (the Plan doc's own decision 1).
+  workshopB: "Second Lance's own maintenance bay. Empty until they come aboard.",
+  workshopC: "Third Lance's own maintenance bay. Empty until they come aboard.",
   // 2 Sep 2026 (Vault Build Plan v1, Phase 1 + 3) — used to say "Heirloom
   // dedications belong here eventually. Nothing built yet." The dedication
   // scene itself (Phase 4) is real now too, but it isn't something you walk
@@ -702,7 +828,12 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
   // the plinth surfaces it the moment it has, so this note only ever needs
   // to describe the one thing you actually DO here at the plinth.
   vault: "Walk to the plinth and press E for house offers, holdings, and standing.",
-  berths: "Recruitment, romance, one-on-one scenes — not wired in yet.",
+  berths: "Warden Company's bunks. Recruitment, romance, one-on-one scenes — not wired in yet.",
+  berthsB: "Second Lance's bunks. Empty until they come aboard.",
+  berthsC: "Third Lance's bunks. Empty until they come aboard.",
+  heads: "Stalls, sinks, showers. Nothing to do here but the obvious.",
+  engineering: "Generator, Fabricator, Restock — ask the CO to build one.",
+  forwardBays: "Sensor Array, Weapons Bay, Beacon Control — ask the CO to build one.",
   cic: "Fire-support config, Energy allocation — not wired in yet.",
   sparRoom: "Where crew work things out with their fists, once there's a real reason to. Nothing wired in yet.",
 };
@@ -713,34 +844,37 @@ const ROOM_NOTES: Partial<Record<RoomId, string>> = {
 // player-placement economy (tile costs, footprint upgrades, the tutorial
 // that lets a player lay out their own starter set) explicitly unresolved
 // ("im planing this out," Maxime's own words) — none of that is built here.
-// What IS resolved and built: §3/§3a (top-down, bounded per-deck grid, no
-// camera-follow rework — reuses ROOM_BOUNDS's existing single-box footprint
-// for every deck, unchanged), §3c (three fixed decks, the grotto alone on
-// the middle one), and §3f (within a deck, only stairs — and the bay,
-// unchanged — are real press-E portals; everything else is one open,
-// walkable floor, no door-per-room).
+// §3c (three fixed decks, the grotto alone on the middle one) and §3f
+// (within a deck, only stairs are real press-E portals) still hold.
 //
-// Room-to-deck assignment below is MY placeholder split, not Maxime's
-// design call — the doc leaves "which deck the other six rooms occupy" an
-// open question (§3c). Easy to redraw once the real placement system
-// exists, same "recommendation, not load-bearing" status the doc's own
-// §11.1 bay-to-room mapping already carries. Recroom/Hangar Deck/Berths
-// (the everyday crew spaces) went to the lower deck; Workshop/Vault/CIC
-// (the more operational rooms) went to the upper deck — arbitrary but
-// legible, and it keeps recroom's existing NPC seats and the bay/muster
-// point exactly where they already are (see ROOM_ZONE_BOUNDS.recroom).
+// Room-to-deck assignment is still a hand-authored split, now the one in
+// engine/hubLayout.ts: crew spaces (Rec Room, Hangar Deck, the three
+// lance berths, Heads, Engineering) on the lower deck; operations (the
+// three workshops, Vault, CIC, the forward bays) on the upper deck.
 // sparRoom, 28 Aug 2026 — same "deck named after its one room" pattern
 // grotto already established, not a new pattern invented for this.
-type DeckId = "lower" | "grotto" | "upper" | "sparRoom";
-
 const ROOM_DECK: Record<RoomId, DeckId> = {
   recroom: "lower",
   hangarDeck: "lower",
   berths: "lower",
+  berthsB: "lower",
+  berthsC: "lower",
+  heads: "lower",
+  engineering: "lower",
+  lowerHall: "lower",
   grotto: "grotto",
   workshop: "upper",
+  // Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026 — same deck as Lance A's
+  // workshop, which is both thematically right (one workshop wing) and
+  // the whole reason Phase 1 had to land first: Upper was tiled
+  // wall-to-wall with its three existing rooms, so there was physically
+  // nowhere to put these until the deck got bigger.
+  workshopB: "upper",
+  workshopC: "upper",
   vault: "upper",
   cic: "upper",
+  forwardBays: "upper",
+  upperHall: "upper",
   sparRoom: "sparRoom",
 };
 
@@ -751,102 +885,37 @@ const DECK_TITLES: Record<DeckId, string> = {
   sparRoom: "SPAR DECK",
 };
 
-// Every room used to reuse the exact same ROOM_BOUNDS box as its own,
-// private, discretely-swapped space (Phase 2's whole model). An open floor
-// needs same-deck rooms to occupy genuinely distinct regions of ONE shared
-// coordinate space instead — these are those regions. Lower and upper decks
-// each tile ROOM_BOUNDS into a left column (the deck's "main" room, full
-// height) and a right column split top/bottom between its other two rooms.
-// The grotto deck has exactly one room, so it just gets the whole box —
-// matching §3c's "insulated... middle deck to itself" framing. Recroom's
-// existing NPC seats (buildNpcs) and MUSTER_POINT already sit inside
-// recroom's own slice here without needing to move.
-const ZONE_SPLIT_X = 550;
-const ZONE_SPLIT_Y = 330;
+// Rooms an idle NPC may pick as a destination, or spawn in. Everything
+// except the two corridors — a hallway is somewhere you walk THROUGH (the
+// pathfinder routes people along it constantly), not somewhere the roster
+// should decide to stand around in, and "spawned in the corridor" would
+// read as a bug to anyone loading a save.
+const ROAMABLE_ROOMS: RoomId[] = (Object.keys(ROOM_TITLES) as RoomId[]).filter((r) => r !== "lowerHall" && r !== "upperHall");
 
-// The egg hull, first pass — 27 Aug 2026. Maxime: "lets build us an egg
-// shape 3 layered cake of a ship with preplaned space for each buildable
-// room and more room to expand," then, asked to choose between an
-// outline-only version and the real thing: "have fun take your take. do
-// everything." This first pass gave that treatment to ONE of the three
-// decks — see the comment on LOWER_BOUNDS/UPPER_BOUNDS below for the
-// second pass, same day, that gives the other two real (if more modest)
-// new floor too, without touching their existing rooms at all.
-//
-// Why the grotto got the dramatic version and the other two didn't:
-// Upper and Lower's three rooms already tile ROOM_BOUNDS corner-to-corner
-// with zero spare pixels (see ROOM_ZONE_BOUNDS just below — the left
-// column plus the two right rows add up to the exact same box, nothing
-// left over). Swapping their movement clamp from that rectangle to a
-// same-size ellipse would cut off those rooms' own corners — real,
-// already-shipped, already-tested floor the player can stand on today — a
-// regression, not a redesign. The grotto has no such conflict: its "zone"
-// has only ever BEEN the whole box, and Bloom_Wars_Antfarm_Grid_v1.md §3c
-// already frames it as the deck "insulated... to itself," the one the
-// design docs themselves point to as where the ship has room to grow. So
-// the grotto gets pushed out into genuinely empty screen margin and
-// reshaped into a real ellipse; Upper and Lower's existing 700×444
-// rectangles are never resized or reshaped — see below for how they still
-// get real new floor without touching that rectangle at all.
-const GROTTO_BOUNDS = {
-  // Right stays at ROOM_BOUNDS.right (830) — CHAT_LOG_X sits 8px past it,
-  // so there's no free margin on that side without relocating the chat
-  // panel, a separate change this pass doesn't make.
-  left: 40, // clear of both fixed-position corner texts (16,20)/(16,80) at y<=85, well above this deck's own top below
-  right: ROOM_BOUNDS.right,
-  // deckIndicatorText sits at (16, 80); this deck's zone doesn't start
-  // until x=40, but the text's own 10px height (y 75-85) is the real
-  // constraint on how far up ANY deck's floor can safely reach. 100 leaves
-  // it clear with room to spare.
-  top: 100,
-  // interactPrompt is fixed at (480, ROOM_BOUNDS.bottom + 20) = (480, 572)
-  // regardless of deck; 566 keeps this deck's floor a clean 6px short of
-  // it. BACK TO HANGAR's footer button starts at y=588 — well clear either
-  // way.
-  bottom: 566,
-};
-const GROTTO_ELLIPSE = {
-  cx: (GROTTO_BOUNDS.left + GROTTO_BOUNDS.right) / 2,
-  cy: (GROTTO_BOUNDS.top + GROTTO_BOUNDS.bottom) / 2,
-  rx: (GROTTO_BOUNDS.right - GROTTO_BOUNDS.left) / 2,
-  ry: (GROTTO_BOUNDS.bottom - GROTTO_BOUNDS.top) / 2,
+// One berth per lance, 3 Sep 2026 (Maxime: "individual lance berth"),
+// mirroring LANCE_WORKSHOP below. Sleep restores in ANY berth room (a
+// forgiving rule — a pilot dozing on the next lance's bunk is fine), but
+// a sleepy NPC is BIASED toward their own lance's room (see
+// needRoomFor), so the berths actually read as belonging to someone.
+const LANCE_BERTHS: Record<LanceId, RoomId> = {
+  a: "berths",
+  b: "berthsB",
+  c: "berthsC",
 };
 
-// The egg hull, second pass, same day — 27 Aug 2026. Maxime, asked whether
-// to stop at the grotto or keep going and give Upper/Lower the reserved-bay
-// space from the hull proposal too: "keep going now." The key realization
-// that makes this safe, unlike the ellipse swap above: Upper and Lower's
-// screen-margin constraints are IDENTICAL to the grotto's (all three decks
-// reuse the same on-screen region, one at a time) — what made an ellipse
-// unsafe there was RESHAPING their existing rectangle, not the idea of
-// having more space at all. So this doesn't touch ROOM_ZONE_BOUNDS or
-// either deck's three existing rooms in any way — it only makes the
-// OUTER walkable box each deck's rectangle sits inside strictly BIGGER,
-// bolting new floor onto the left/top/bottom (the same margin the grotto
-// used), for the two reserved-bay markers below to stand on. A bigger
-// superset can never make an already-reachable point unreachable, so
-// there's no version of the corner-cutting problem here — confirmed by
-// the full pre-existing suite passing unchanged (checked again after this
-// second pass, not just the first).
-//
-// Left edges differ slightly per deck (40/50/60) to keep a little of the
-// egg's own taper — grotto (middle, widest) got the most margin, Lower
-// (base) a bit less, Upper (crown, narrowest) the least — though with only
-// ~90px of real slack on screen to work with, the visible difference is
-// modest, not dramatic; said plainly rather than oversold.
-const LOWER_BOUNDS = { left: 50, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
-const UPPER_BOUNDS = { left: 60, right: ROOM_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom };
+function isBerths(room: RoomId): boolean {
+  return room === "berths" || room === "berthsB" || room === "berthsC";
+}
 
-// sparRoom, 28 Aug 2026 — Groups 3-5 batch rebuild. Deliberately NOT given
-// the egg-hull treatment the three original decks got (no margin strip, no
-// ellipse) — this pass's job is the functional plumbing (a real deck that
-// exists, is reachable, and clamps movement correctly), not another visual
-// pass. Reuses ROOM_BOUNDS's own plain rectangle outright rather than
-// inventing a fourth bespoke shape; a hull pass can widen this later
-// exactly the way it widened Lower/Upper's own margin, without touching
-// anything below.
-const SPAR_ROOM_BOUNDS = { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom };
-
+// The egg hull (27 Aug 2026), the Carrier Scale-Up (2-3 Sep 2026) and every
+// per-deck bound that used to be declared here (ROOM_ZONE_BOUNDS,
+// GROTTO_BOUNDS/GROTTO_ELLIPSE, LOWER/UPPER/SPAR_ROOM_BOUNDS,
+// DECK_FLOOR_RIGHT/BOTTOM, ZONE_SPLIT_X/Y) were replaced wholesale by
+// engine/hubLayout.ts's DECK_LAYOUTS on 3 Sep 2026. The history those
+// comments carried — why the grotto is an oval, why the decks grew, why
+// the old rooms tiled one box — is summarised in that module's header and
+// in the build-log addendum for this pass rather than kept here as dead
+// text next to constants that no longer exist.
 // Antfarm build economy, first slice, 27 Aug 2026 — Arangement of
 // Content's own pilotId, hoisted here from buildNpcs() (where it's set
 // when he's actually seated) so submitChat can gate build requests on
@@ -918,13 +987,18 @@ interface ReservedBayDef {
 // two aren't purely visual — see engine/mission.ts's weaponsBayBuilt and
 // engine/campaignEconomy.ts's fabricatorMaxSpareParts for the real effects
 // building them now has.
+// 3 Sep 2026, floor-plan pass — the "margin strip" above is gone. The
+// markers now stand inside two real rooms, Engineering (lower deck) and
+// the Forward Bays (upper deck), at positions hubLayout.ts's BAY_MARKERS
+// owns (and hubLayout.test.ts checks are free floor). Sensor -> Weapons
+// -> Beacon and Generator -> Fabricator -> Restock, top to bottom.
 const RESERVED_BAYS: ReservedBayDef[] = [
-  { id: "sensorArray", deck: "upper", label: "SENSOR\nARRAY\n(reserved)", x: 95, y: 200 },
-  { id: "beaconControl", deck: "upper", label: "BEACON\nCONTROL\n(reserved)", x: 95, y: 450 },
-  { id: "weaponsBay", deck: "upper", label: "WEAPONS\nBAY\n(reserved)", x: 95, y: 325 },
-  { id: "generator", deck: "lower", label: "GENERATOR\n(reserved)", x: 90, y: 200 },
-  { id: "restockRoom", deck: "lower", label: "RESTOCK\nROOM\n(reserved)", x: 90, y: 450 },
-  { id: "fabricator", deck: "lower", label: "FABRICATOR\n(reserved)", x: 90, y: 325 },
+  { id: "sensorArray", deck: "upper", label: "SENSOR\nARRAY\n(reserved)", x: BAY_MARKERS.upper.x, y: BAY_MARKERS.upper.ys[0] },
+  { id: "weaponsBay", deck: "upper", label: "WEAPONS\nBAY\n(reserved)", x: BAY_MARKERS.upper.x, y: BAY_MARKERS.upper.ys[1] },
+  { id: "beaconControl", deck: "upper", label: "BEACON\nCONTROL\n(reserved)", x: BAY_MARKERS.upper.x, y: BAY_MARKERS.upper.ys[2] },
+  { id: "generator", deck: "lower", label: "GENERATOR\n(reserved)", x: BAY_MARKERS.lower.x, y: BAY_MARKERS.lower.ys[0] },
+  { id: "fabricator", deck: "lower", label: "FABRICATOR\n(reserved)", x: BAY_MARKERS.lower.x, y: BAY_MARKERS.lower.ys[1] },
+  { id: "restockRoom", deck: "lower", label: "RESTOCK\nROOM\n(reserved)", x: BAY_MARKERS.lower.x, y: BAY_MARKERS.lower.ys[2] },
 ];
 
 // Antfarm build economy, first slice, 27 Aug 2026 — the reserved markers
@@ -976,78 +1050,95 @@ const RANK_BAY_SLOTS: Record<Rank, number> = {
   maj: 6,
 };
 
-const ROOM_ZONE_BOUNDS: Record<RoomId, { left: number; right: number; top: number; bottom: number }> = {
-  recroom: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
-  hangarDeck: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
-  berths: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
-  // The egg hull, 27 Aug 2026 — GROTTO_BOUNDS, not ROOM_BOUNDS: this deck's
-  // real floor is now bigger than (and off-center from) the shared box
-  // every other room still uses. zoneAt only needs this as a bounding-box
-  // membership test (see its own comment on the rectangle-vs-ellipse
-  // distinction not mattering there), so the rectangle here being a loose
-  // superset of the true elliptical floor is fine — nothing can actually
-  // stand in the rectangle's corners, since movement is clamped to the
-  // ellipse, not this rect.
-  grotto: { left: GROTTO_BOUNDS.left, right: GROTTO_BOUNDS.right, top: GROTTO_BOUNDS.top, bottom: GROTTO_BOUNDS.bottom },
-  workshop: { left: ROOM_BOUNDS.left, right: ZONE_SPLIT_X, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
-  vault: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ZONE_SPLIT_Y },
-  cic: { left: ZONE_SPLIT_X, right: ROOM_BOUNDS.right, top: ZONE_SPLIT_Y, bottom: ROOM_BOUNDS.bottom },
-  // Alone on its own deck, same as grotto — the whole SPAR_ROOM_BOUNDS box
-  // is its zone, no split needed.
-  sparRoom: { left: SPAR_ROOM_BOUNDS.left, right: SPAR_ROOM_BOUNDS.right, top: SPAR_ROOM_BOUNDS.top, bottom: SPAR_ROOM_BOUNDS.bottom },
-};
+// Every room's walkable interior, straight off the floor plan. Kept under
+// the old name because ~10 sites below (spawn picks, roam picks, the room
+// note's position) index it by RoomId and had no reason to change.
+const ROOM_ZONE_BOUNDS: Record<RoomId, Rect> = Object.fromEntries(
+  (Object.keys(ROOM_DECK) as RoomId[]).map((id) => {
+    const rect = DECK_LAYOUTS[ROOM_DECK[id]].rooms[id];
+    if (!rect) throw new Error(`hubLayout has no interior for room ${id} on deck ${ROOM_DECK[id]}`);
+    return [id, rect];
+  }),
+) as Record<RoomId, Rect>;
 
 function sameDeck(a: RoomId, b: RoomId): boolean {
   return ROOM_DECK[a] === ROOM_DECK[b];
 }
 
+// Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026 — which workshop a given
+// lance's Meks live in. The lance itself is decided by
+// campaignState.ts's own lanceOfMek (one exported, unit-tested function
+// that knows about BOTH campaigns' rosters, including House Amaranth
+// having only two lances); this is just the room mapping, kept here
+// because nothing outside this file should have to know that "b" means
+// workshopB.
+const LANCE_WORKSHOP: Record<LanceId, RoomId> = {
+  a: "workshop",
+  b: "workshopB",
+  c: "workshopC",
+};
+
 // Which of this deck's rooms a raw (x, y) currently sits over — used to keep
 // currentRoomId / npc.room live as a position label while walking a shared
-// open floor, instead of only ever changing on a door press. Falls back to
-// the deck's own "main" room (the first RoomId found on that deck, which is
-// always the left/full-height column per ROOM_ZONE_BOUNDS above) if a point
-// somehow lands outside every zone rect — shouldn't happen since the rects
-// above fully tile each deck's box, but a live-recomputed label needs
-// somewhere safe to fall back to rather than throwing.
+// floor. A point in a doorway or wall band (no room's interior) resolves to
+// the NEAREST room, so a body halfway through a door never flickers to an
+// arbitrary fallback — see hubLayout.ts's roomAt.
 function zoneAt(deck: DeckId, x: number, y: number): RoomId {
-  for (const id of Object.keys(ROOM_ZONE_BOUNDS) as RoomId[]) {
-    if (ROOM_DECK[id] !== deck) continue;
-    const b = ROOM_ZONE_BOUNDS[id];
-    if (x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) return id;
-  }
-  return (Object.keys(ROOM_DECK) as RoomId[]).find((id) => ROOM_DECK[id] === deck)!;
+  return roomAt(deck, x, y);
 }
 
-// The one place player/NPC movement decides which floor shape/size actually
-// applies for the deck they're on — grotto gets the real ellipse
-// (GROTTO_BOUNDS/GROTTO_ELLIPSE), Lower and Upper get their own bigger
-// rectangle (LOWER_BOUNDS/UPPER_BOUNDS, a strict superset of the old shared
-// ROOM_BOUNDS both decks' three existing rooms still use unchanged — see
-// the egg-hull comments above for why a bigger rectangle is safe where a
-// same-size ellipse wasn't). Every one of tryMove/tryMoveNpc/
-// completeDoorHop's landing clamp/updateNpcRoaming's two target-clamp
-// sites goes through this now instead of inlining Phaser.Math.Clamp
-// against ROOM_BOUNDS directly, so there's exactly one place that ever
-// needs to change if a deck's floor shape changes again later.
+// The one place player/NPC movement decides which floor a body is allowed
+// to occupy on the deck it's on. Two steps, in order: the deck's outer
+// floor shape (a rectangle, or the grotto's ellipse — the same
+// clampToEllipse the egg hull shipped with), then every wall and every
+// piece of blocking furniture on that deck (hubLayout's
+// resolveAgainstSolids, which pushes the circle out of anything it
+// overlaps). Every site that produces a world position — tryMove,
+// tryMoveNpc, door landings, spawn picks, roam targets, the muster pad,
+// pickClearPoint — already flowed through here before this pass, which is
+// exactly why walls only needed adding in ONE place to apply everywhere.
+//
+// Axis-separated movement (handleMovement/updateNpcMovement move x then y
+// as two calls) turns the push-out into wall SLIDING for free: the x-step
+// into a wall is pushed straight back, the y-step still lands, and the
+// body slides along the wall face rather than sticking to it.
 function clampToDeckFloor(deck: DeckId, x: number, y: number, radius: number): { x: number; y: number } {
-  if (deck === "grotto") {
-    const rectClamped = {
-      x: Phaser.Math.Clamp(x, GROTTO_BOUNDS.left + radius, GROTTO_BOUNDS.right - radius),
-      y: Phaser.Math.Clamp(y, GROTTO_BOUNDS.top + radius, GROTTO_BOUNDS.bottom - radius),
-    };
-    return clampToEllipse(rectClamped.x, rectClamped.y, GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx, GROTTO_ELLIPSE.ry, radius);
+  const layout = layoutOf(deck);
+  const b = layout.bounds;
+  let px = Phaser.Math.Clamp(x, b.left + radius, b.right - radius);
+  let py = Phaser.Math.Clamp(y, b.top + radius, b.bottom - radius);
+  if (layout.ellipse) {
+    const e = layout.ellipse;
+    const c = clampToEllipse(px, py, e.cx, e.cy, e.rx, e.ry, radius);
+    px = c.x;
+    py = c.y;
   }
-  // sparRoom, 28 Aug 2026 — was a binary `deck === "lower" ? LOWER_BOUNDS :
-  // UPPER_BOUNDS` ternary, written back when grotto/lower/upper were the
-  // only three decks that could ever reach here. Adding a 4th deck without
-  // touching this would have silently clamped sparRoom's own movement to
-  // UPPER_BOUNDS instead — caught before it ever ran, not after — so this
-  // is now one explicit branch per deck instead of an either/or that
-  // assumed there could only ever be two remaining options.
-  const bounds = deck === "lower" ? LOWER_BOUNDS : deck === "upper" ? UPPER_BOUNDS : SPAR_ROOM_BOUNDS;
+  return resolveAgainstSolids(deck, px, py, radius);
+}
+
+// Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — the camera's own version
+// of clampToDeckFloor just above: one place per deck that says how far the
+// camera is allowed to pan, called from refreshRoomVisibility() every time
+// the active deck changes (a stair crossing or the initial create() call).
+// The grotto's bounds are its ellipse's bounding box — Phaser's camera
+// bounds are axis-aligned rectangles only, so the camera may look at the
+// oval's rectangular corners (background beyond the drawn floor). Nothing
+// stands there; clampToDeckFloor keeps every body on the ellipse itself.
+function deckCameraBounds(deck: DeckId): Rect {
+  return layoutOf(deck).bounds;
+}
+
+// Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — see EXPLORE_OPEN_FLOOR_
+// CHANCE's own comment for why this exists. A random point inside the
+// deck's rectangle can land inside a wall, a bunk, or (grotto) outside the
+// ellipse — expected, not a bug, and harmless: every caller runs the
+// result through clampToDeckFloor immediately after, which pushes it onto
+// real floor, and the pathfinder takes it from there.
+function pickOpenFloorPoint(deck: DeckId): { x: number; y: number } {
+  const bounds = deckCameraBounds(deck);
   return {
-    x: Phaser.Math.Clamp(x, bounds.left + radius, bounds.right - radius),
-    y: Phaser.Math.Clamp(y, bounds.top + radius, bounds.bottom - radius),
+    x: bounds.left + Math.random() * (bounds.right - bounds.left),
+    y: bounds.top + Math.random() * (bounds.bottom - bounds.top),
   };
 }
 
@@ -1084,7 +1175,12 @@ const PROPAGATION_HOP_DELAY_MS = 700;
 // uses (tryMove) rather than inventing a second movement model. Rec-Room-
 // only, same as every NPC in this pass — see the file header's own note on
 // not moving/reassigning named pilots as part of the map growth below.
-const MUSTER_POINT = { x: 480, y: ROOM_BOUNDS.bottom - 50 };
+// 3 Sep 2026, floor-plan pass — MUSTER_POINT is now hubLayout.ts's, and it
+// sits in the HANGAR DECK, not the Rec Room. The pad had been a
+// "placeholder stand-in for an actual bay/door" in the one room the game
+// had on 26 Aug 2026; with a real hangar on the same deck, a launch pad in
+// the lounge was the leftover, not a design. Every consumer already read
+// MUSTER_POINT/MUSTER_ROOM rather than a literal, so the move is two lines.
 // Tier 1, 30 Aug 2026 (Consolidated Build Plan — "muster call fails to
 // route cross-deck") — single source of truth for which room MUSTER_POINT
 // actually sits in, read by sendToMuster below and by isNearBay's own
@@ -1094,7 +1190,7 @@ const MUSTER_POINT = { x: 480, y: ROOM_BOUNDS.bottom - 50 };
 // NPC was Rec-Room-only) — nothing about it was ever revisited when decks
 // were added 27 Aug, which is exactly the bug this constant's new use
 // fixes.
-const MUSTER_ROOM: RoomId = "recroom";
+const MUSTER_ROOM: RoomId = "hangarDeck";
 
 // The Rec Room table, 30 Aug 2026 (Maxime: "ther eshould be a table in the
 // rec room they can go around. assign sport around the table, if full the
@@ -1110,10 +1206,19 @@ const MUSTER_ROOM: RoomId = "recroom";
 // "at the table" comment) only needs to know how many NPCs already count
 // as "at the table" (within RECROOM_TABLE_RADIUS) to decide whether
 // there's room for one more; it doesn't need to reserve a specific chair.
-const RECROOM_TABLE = { x: 340, y: 340 };
+// 3 Sep 2026 — the table is a real solid now (hubLayout.ts's roundTable):
+// bodies can't stand ON it any more, only around it, so "at the table"
+// below means within RECROOM_TABLE_RADIUS + a body's own radius + a little
+// slack of the rim rather than inside the disc.
+const RECROOM_TABLE = RECROOM_TABLE_POINT;
 const RECROOM_TABLE_RADIUS = 46;
 const RECROOM_TABLE_SEATS = 4;
 
+// 3 Sep 2026 — how close an NPC has to get to a hubNav waypoint before it
+// steers for the next one. Bigger than NPC_ARRIVE_THRESHOLD on purpose:
+// waypoints are corners to cut past, not spots to stand on, and a tight
+// reach makes a body wobble at every doorway.
+const NAV_WAYPOINT_REACH = 12;
 const NPC_WALK_SPEED = 90; // px/sec — slower than the player's 190; this is "heading to muster," not urgent
 const NPC_ARRIVE_THRESHOLD = 5;
 // 26 Aug 2026 — found verifying the new live encounters (updateNpcEncounters
@@ -1178,7 +1283,7 @@ const BAY_RADIUS = 60; // how close the player has to be to trigger the E-to-dep
 // [550,830]x[108,330]) with real clearance on every side — hangarDeck has
 // no door of its own (DOORS only connects recroom/grotto/workshop/
 // sparRoom), so there's nothing else in this zone to collide with.
-const HANGAR_SHOP_POINT = { x: 690, y: 200 };
+// (3 Sep 2026: position now owned by hubLayout.ts, imported above.)
 const HANGAR_SHOP_RADIUS = 60; // same magnitude as BAY_RADIUS — same "a real console you walk up to" interaction shape
 
 // The Workshop bench, 2 Sep 2026 — Maxime: "finish the workshop add all
@@ -1201,7 +1306,7 @@ const HANGAR_SHOP_RADIUS = 60; // same magnitude as BAY_RADIUS — same "a real 
 // 100px from the workshop-to-grotto stair at (480, 130) — comfortably more
 // than WORKSHOP_BENCH_RADIUS + DOOR_RADIUS (105), so a player standing at
 // the bench can never be "at" both at once and get the wrong E action.
-const WORKSHOP_BENCH_POINT = { x: 340, y: 230 };
+// (3 Sep 2026: position now owned by hubLayout.ts, imported above.)
 const WORKSHOP_BENCH_RADIUS = 60;
 
 // The Vault plinth, 2 Sep 2026 (Bloom_Wars_Vault_Build_Plan_v1.md §2) — same
@@ -1222,7 +1327,7 @@ const WORKSHOP_BENCH_RADIUS = 60;
 // of its own, and vault's zone has none either), so this reuses it exactly
 // rather than picking a fresh point and re-deriving the same clearance
 // checks HANGAR_SHOP_POINT already did.
-const VAULT_PLINTH_POINT = { x: 690, y: 200 };
+// (3 Sep 2026: position now owned by hubLayout.ts, imported above.)
 const VAULT_PLINTH_RADIUS = 60;
 
 // Antfarm Grid v0, 27 Aug 2026 — DOORS used to hold twelve entries, a door
@@ -1273,30 +1378,23 @@ type DoorDef = {
 // DOOR_RADIUS (45) plus DOOR_LANDING_JITTER_DIST (30). Landing points
 // offset ~100px from each door, same margin convention as the grotto's
 // own door pairs.
+// 3 Sep 2026, floor-plan pass — every stair is now positioned by
+// hubLayout.ts's STAIRS table (marker + far-side landing), checked walkable
+// by hubLayout.test.ts, and hosted in the room whose interior the marker
+// actually sits in (isAtDoor filters by exact room): the two rectangular
+// decks host theirs in the spine corridor (lowerHall/upperHall — the
+// stairs sit at the corridor's ends, the grotto stair at the west end on
+// both decks so they stack), the grotto and the spar deck in their one
+// room. The old hand-derived coordinates above are gone with the
+// geometry they were derived from; tools/verify/checkHubDoorReachability
+// still walks every entry here live.
 const DOORS: DoorDef[] = [
-  { id: "recroom-to-grotto", room: "recroom", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 470, label: "THE GROTTO" },
-  { id: "grotto-to-recroom", room: "grotto", x: 480, y: ROOM_BOUNDS.bottom - 22, toRoom: "recroom", toX: 480, toY: 170, label: "LOWER DECK" },
-  // Hotfix, 30 Aug 2026 (Maxime: "at the top deck they spawn on the botton
-  // while the door at the top, thats pretty wier") — toY was 470 (the
-  // bottom of workshop's own zone, y:[108,552]), landing the player at the
-  // opposite end of the room from workshop's own return door
-  // (workshop-to-grotto, below, hosted at y: ROOM_BOUNDS.top + 22 = 130).
-  // Every other same-shape pair in this table lands you near the door
-  // you'd use to go back (see recroom-to-grotto/grotto-to-recroom just
-  // above: arriving from below lands near grotto's OWN down-stair) — this
-  // one just never followed that rule. 470 was very likely copy-pasted
-  // from recroom-to-grotto's own toY, one line up, without re-deriving it
-  // for workshop's door actually sitting at the opposite (top) edge of its
-  // zone. Fixed to the same "~100px offset from the destination's own
-  // stair marker" convention this file's own header above already
-  // documents — pickPointNearDoor (switchRoom) still jitters off this
-  // anchor and rejects overlap with whichever NPCs/Meks are actually
-  // standing in workshop at the time, so this only has to be a sane point
-  // near the right door, not a hand-cleared exact spot.
-  { id: "grotto-to-workshop", room: "grotto", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "workshop", toX: 480, toY: 230, label: "UPPER DECK" },
-  { id: "workshop-to-grotto", room: "workshop", x: 480, y: ROOM_BOUNDS.top + 22, toRoom: "grotto", toX: 480, toY: 300, label: "THE GROTTO" },
-  { id: "recroom-to-sparRoom", room: "recroom", x: 160, y: 150, toRoom: "sparRoom", toX: 480, toY: 208, label: "THE SPAR ROOM" },
-  { id: "sparRoom-to-recroom", room: "sparRoom", x: 480, y: 300, toRoom: "recroom", toX: 260, toY: 150, label: "LOWER DECK" },
+  { id: "recroom-to-grotto", room: "lowerHall", x: STAIRS.lowerToGrotto.x, y: STAIRS.lowerToGrotto.y, toRoom: "grotto", toX: STAIRS.grottoToLower.landing.x, toY: STAIRS.grottoToLower.landing.y, label: "THE GROTTO" },
+  { id: "grotto-to-recroom", room: "grotto", x: STAIRS.grottoToLower.x, y: STAIRS.grottoToLower.y, toRoom: "lowerHall", toX: STAIRS.lowerToGrotto.landing.x, toY: STAIRS.lowerToGrotto.landing.y, label: "LOWER DECK" },
+  { id: "grotto-to-workshop", room: "grotto", x: STAIRS.grottoToUpper.x, y: STAIRS.grottoToUpper.y, toRoom: "upperHall", toX: STAIRS.upperToGrotto.landing.x, toY: STAIRS.upperToGrotto.landing.y, label: "UPPER DECK" },
+  { id: "workshop-to-grotto", room: "upperHall", x: STAIRS.upperToGrotto.x, y: STAIRS.upperToGrotto.y, toRoom: "grotto", toX: STAIRS.grottoToUpper.landing.x, toY: STAIRS.grottoToUpper.landing.y, label: "THE GROTTO" },
+  { id: "recroom-to-sparRoom", room: "lowerHall", x: STAIRS.lowerToSpar.x, y: STAIRS.lowerToSpar.y, toRoom: "sparRoom", toX: STAIRS.sparToLower.landing.x, toY: STAIRS.sparToLower.landing.y, label: "THE SPAR ROOM" },
+  { id: "sparRoom-to-recroom", room: "sparRoom", x: STAIRS.sparToLower.x, y: STAIRS.sparToLower.y, toRoom: "lowerHall", toX: STAIRS.lowerToSpar.landing.x, toY: STAIRS.lowerToSpar.landing.y, label: "LOWER DECK" },
 ];
 
 // DECK_ORDER, 28 Aug 2026 — the three original decks were always a
@@ -1559,8 +1657,6 @@ function isMissionWorrySignal(state: CampaignState): boolean {
 // means concretely: this scene only ever calls interpretPlayerChat(text),
 // never touches how the answer was produced, so swapping rule-matching for
 // a real model later never touches this file.
-const CHAT_BOX_Y = ROOM_BOUNDS.bottom + 44; // clear of both the interact prompt (ROOM_BOUNDS.bottom+20) and the far-left BACK TO HANGAR button
-
 // Comms log panel — Hub polish, 26 Aug 2026. Maxime: "put a chat window to
 // the side so player can read what they hear if they haven't caught it yet
 // in game." Docked in the right-hand gutter — the strip between
@@ -1578,12 +1674,73 @@ const CHAT_BOX_Y = ROOM_BOUNDS.bottom + 44; // clear of both the interact prompt
 // was already using every pixel of free space it had (full room height,
 // out to the old canvas edge) — there was nowhere left to grow it without
 // widening the game window itself, so main.ts's own width grew by exactly
-// this panel's old width (114px), doubling CHAT_LOG_WIDTH to 228. See
-// main.ts's own header for the other scenes that needed a matching fix so
-// nothing shows a gap on the new strip of canvas.
-const CHAT_LOG_X = ROOM_BOUNDS.right + 8;
-const CHAT_LOG_WIDTH = 1074 - 8 - CHAT_LOG_X;
-const CHAT_LOG_CENTER_X = CHAT_LOG_X + CHAT_LOG_WIDTH / 2;
+// this panel's old width (114px), doubling this panel's own width to 228.
+// See main.ts's own header for the other scenes that needed a matching fix
+// so nothing shows a gap on the new strip of canvas.
+//
+// The OVERHEARD sidebar dock / UI camera split, Carrier Scale-Up Plan v1
+// Phase 2, 3 Sep 2026 — Maxime noticed real map content (floor, walls,
+// NPCs) scrolling underneath this panel and getting hidden behind its own
+// opaque background once the Hub's world got a scrolling camera (Phase 1,
+// 2 Sep 2026): this panel was sized and positioned for a small, screen-
+// locked single room, back when ROOM_BOUNDS WAS the whole world — see that
+// constant's own header. Once the floor grew into a real 1500+px-wide,
+// camera-scrolled deck, nothing stopped the world from scrolling directly
+// underneath this screen-fixed strip; the panel just happened to always be
+// drawn on top, silently painting over whatever real, walkable content had
+// scrolled into that same screen region. Fixed with the standard Phaser
+// two-camera UI pattern: a second, static camera (`this.uiCamera`, created
+// in create()) owns this screen region exclusively, and the main/world
+// camera's own viewport is narrowed so it is PHYSICALLY INCAPABLE of
+// drawing into it — not just usually covered by something opaque on top,
+// which is what silently broke here once the world grew past this panel's
+// old assumptions.
+//
+// DOCK_SPLIT_X is the screen x (canvas pixels) where that split happens —
+// kept at the exact same value this panel's old left edge (CHAT_LOG_X) already
+// used, so the dock's own footprint on screen doesn't move an inch, only
+// which camera owns each side of that line changes:
+//   - the main/world camera's own viewport becomes (0, 0, DOCK_SPLIT_X, 640)
+//   - this.uiCamera's own viewport becomes (DOCK_SPLIT_X, 0, DOCK_WIDTH, 640)
+// Every object inside the dock (this panel, the OVERHEARD label, the log
+// text, its geometry mask, the T-activated chat input DOM element, and the
+// corner MENU button — see this.uiCameraObjects) is now positioned in
+// DOCK-LOCAL coordinates: x=0 is DOCK_SPLIT_X on screen, not the canvas's
+// own x=0. See finalizeDockCameraSplit() (called once, at the very end of
+// create()) for how each camera is told to ignore the other's half.
+const DOCK_SPLIT_X = ROOM_BOUNDS.right + 8; // 838 — unchanged from the old CHAT_LOG_X
+const DOCK_WIDTH = 1074 - DOCK_SPLIT_X; // 236 — the dock's own full screen width, canvas edge to canvas edge
+const DOCK_HEIGHT = 640; // full canvas height — the UI camera is a static, full-height strip, not confined to old ROOM_BOUNDS.top/bottom
+// This panel's own on-screen footprint within the dock, dock-local — same
+// width this panel always used (flush against the dock's own left edge,
+// 8px shy of the dock's own right edge), same height ROOM_BOUNDS.bottom -
+// ROOM_BOUNDS.top always gave it, which keeps CHAT_LOG_VISIBLE_LINES' own
+// hand-tuned wrapped-line estimate (see that constant's own header) valid
+// without re-measuring it. Only the vertical START moved: up from the old
+// ROOM_BOUNDS.top (108, back when this shared the same fixed row every
+// modal overlay used) to DOCK_PANEL_TOP (48), the dock's own new full
+// height leaving real room above it to clear the corner MENU button
+// without needing that shared row at all.
+const DOCK_LOG_WIDTH = DOCK_WIDTH - 8; // 228
+const DOCK_LOG_CENTER_X = DOCK_LOG_WIDTH / 2; // 114
+const DOCK_PANEL_TOP = 48;
+const DOCK_PANEL_HEIGHT = ROOM_BOUNDS.bottom - ROOM_BOUNDS.top; // 444, unchanged
+const DOCK_PANEL_BOTTOM = DOCK_PANEL_TOP + DOCK_PANEL_HEIGHT; // 492
+const DOCK_PANEL_CENTER_Y = DOCK_PANEL_TOP + DOCK_PANEL_HEIGHT / 2; // 270
+// The T-activated chat input DOM box, moved from its old spot (centered
+// under the main play area, below ROOM_BOUNDS.bottom) to sit directly
+// under this panel, inside the same dock strip — same "+44" clearance
+// convention the old CHAT_BOX_Y used below ROOM_BOUNDS.bottom, just
+// measured off this panel's own new bottom edge instead.
+const DOCK_INPUT_Y = DOCK_PANEL_BOTTOM + 44; // 536
+// The corner MENU button (see create()'s own addMenuOverlayButton call) —
+// dock-local coordinates chosen so it lands at the exact same absolute
+// screen pixel (900, 20) it always has; only which camera draws it changed,
+// not where it visually sits. DOCK_SPLIT_X's own header above explains why
+// it has to move cameras at all: at x=900 it sits past DOCK_SPLIT_X (838),
+// so the narrowed main camera can no longer reach it.
+const DOCK_MENU_X = 900 - DOCK_SPLIT_X; // 62
+const DOCK_MENU_Y = 20;
 // Memory bound only, not a display cap — see chatLog's own field comment.
 const CHAT_LOG_MAX_STORED = 40;
 // Display cap — how many of the most recent entries actually get rendered.
@@ -1628,6 +1785,15 @@ type HubNpc = {
   bubbleContainer: Phaser.GameObjects.Container;
   bubbleUntil: number;
   targetX?: number; // set = walking toward this point (piece #2); undefined = idle in place
+  // 3 Sep 2026, floor-plan pass — the waypoints (engine/hubNav.ts) this NPC
+  // is following toward targetX/targetY, computed lazily the first frame a
+  // target is set and dropped the moment it's cleared or changed. Empty
+  // array = straight line is clear, walk directly. undefined = not
+  // computed yet for the current target. Every one of the ~10 sites that
+  // set targetX stays untouched: updateNpcMovement notices the target
+  // changed (pathTarget) and re-paths on its own.
+  path?: { x: number; y: number }[];
+  pathTarget?: { x: number; y: number };
   targetY?: number;
   // 26 Aug 2026 — updateNpcMovement's own stuck-timeout tracking (see
   // STUCK_TIMEOUT_MS's own comment for why this exists). Accumulated ms of
@@ -1833,6 +1999,18 @@ export class Hub extends Phaser.Scene {
   private hoverTip: HoverTip | null = null;
   private pointerX = 0;
   private pointerY = 0;
+  // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — pointerX/Y above are raw
+  // screen/canvas coordinates (Phaser.Input.Pointer.x/y), which is exactly
+  // what HoverTip.show() needs (it positions a box on screen, next to the
+  // cursor). But hoveredNpc() and hubHoverLines() compare the pointer
+  // against NPC/room positions, which live in WORLD space — the two were
+  // silently the same numbers as long as the camera never moved, which is
+  // exactly what stops being true the moment startFollow (below) starts
+  // panning the camera per deck. These are that: the pointer's own worldX/
+  // worldY, captured alongside pointerX/Y in the same pointermove handler,
+  // for every comparison that isn't "where does the tip box render."
+  private pointerWorldX = 0;
+  private pointerWorldY = 0;
   private eKey?: Phaser.Input.Keyboard.Key;
   private mKey?: Phaser.Input.Keyboard.Key; // debug: test muster-call propagation (Build Plan §9 piece #1)
   // 27 Aug 2026 — tracks whether the debug M key's own muster is currently
@@ -2018,15 +2196,32 @@ export class Hub extends Phaser.Scene {
   // (nothing about it ever differed between rooms before this pass). Now
   // every deck draws its own floor at its own size/shape, and exactly one
   // of these three is visible at a time — see refreshRoomVisibility.
-  private lowerFloor!: Phaser.GameObjects.Graphics;
-  private upperFloor!: Phaser.GameObjects.Graphics;
-  private grottoFloor!: Phaser.GameObjects.Graphics;
-  // sparRoom, 28 Aug 2026 — 4th floor, same "exactly one of these visible
-  // at a time" contract as the three above (see refreshRoomVisibility).
-  private sparRoomFloor!: Phaser.GameObjects.Graphics;
+  // 3 Sep 2026, floor-plan pass — each of those per-deck floors is now a
+  // whole Container (floor plating, room tints, walls, doorframes,
+  // furniture, room name labels) drawn from engine/hubLayout.ts by
+  // drawDeckLayout(), still exactly one visible at a time.
+  private lowerFloor!: Phaser.GameObjects.Container;
+  private upperFloor!: Phaser.GameObjects.Container;
+  private grottoFloor!: Phaser.GameObjects.Container;
+  private sparRoomFloor!: Phaser.GameObjects.Container;
   // The egg hull, second pass, 27 Aug 2026 — one marker per RESERVED_BAYS
   // entry, same "built once, toggled by deck" pattern as doorMarkers above.
   private reservedBayMarkers: { def: ReservedBayDef; outline: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text }[] = [];
+
+  // The OVERHEARD/chat UI-camera dock, Carrier Scale-Up Plan v1 Phase 2, 3
+  // Sep 2026 — see DOCK_SPLIT_X's own header for the full mechanism. A
+  // second, static camera that owns the dock strip exclusively; the main
+  // camera's own viewport is narrowed in create() so it can never draw
+  // there. uiCameraObjects tracks every game object meant to render
+  // EXCLUSIVELY through this camera (the OVERHEARD panel, its label, its
+  // log text, the corner MENU button, and the T-activated chat input DOM
+  // element — DOM Elements use this exact same cameraFilter/ignore
+  // mechanism for which camera's transform positions them, see
+  // buildChatBox's own comment for why that matters here) — appended to as
+  // each is built, then consumed once by finalizeDockCameraSplit() at the
+  // very end of create() to set up both cameras' ignore-lists in one pass.
+  private uiCamera!: Phaser.Cameras.Scene2D.Camera;
+  private uiCameraObjects: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super("Hub");
@@ -2044,9 +2239,43 @@ export class Hub extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#0c0f12");
 
+    // OVERHEARD/chat UI-camera dock, Carrier Scale-Up Plan v1 Phase 2, 3
+    // Sep 2026 — see DOCK_SPLIT_X's own header (this file, above) for the
+    // full mechanism and why this became necessary. Set up before anything
+    // else in create() so nothing built below can accidentally rely on the
+    // main camera's default full-canvas viewport for even one frame.
+    //
+    // Narrowing the main/world camera's own viewport is the actual fix:
+    // Phaser clips a camera's rendering to its own viewport rectangle no
+    // matter what's inside it or how far the world scrolls underneath, so
+    // this makes it PHYSICALLY IMPOSSIBLE for any world content (floor,
+    // walls, NPCs, the player) to ever be drawn into the dock strip again,
+    // on any deck, regardless of scroll position — not just usually
+    // covered by something opaque on top of it, which is what silently
+    // broke here once the world outgrew that assumption (see this scene's
+    // own build-log addendum for the regression this fixes).
+    this.cameras.main.setViewport(0, 0, DOCK_SPLIT_X, DOCK_HEIGHT);
+    // this.cameras.add(x, y, width, height) — a second camera, added (not
+    // replacing main), viewing the exact strip the narrowed main camera can
+    // no longer reach. makeMain:false (the 4th positional arg after
+    // width/height in Phaser's own signature — see CameraManager#add) keeps
+    // this.cameras.main pointing at the original camera, not this one.
+    this.uiCamera = this.cameras.add(DOCK_SPLIT_X, 0, DOCK_WIDTH, DOCK_HEIGHT, false, "hubDock");
+    // No .startFollow(), no scroll — "static" is the entire point: this
+    // camera shows the dock's own screen-fixed content in dock-local
+    // coordinates (x=0 here IS screen x=DOCK_SPLIT_X) regardless of
+    // wherever the main camera's own follow target has scrolled to.
+    this.uiCamera.setBackgroundColor("#0c0f12");
+    // Player/HUD-only overlays (MenuOverlay's pause backdrop, etc.) still
+    // need to darken this camera's own viewport too when they're open —
+    // handled generically in MenuOverlay.ts's own showMenuOverlay, not
+    // here; nothing about this camera's own setup needs to know about
+    // those overlays.
+
     this.roomTitleText = this.add
       .text(480, 20, `THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]}`, { fontFamily: "monospace", fontSize: "16px", color: TEXT_MAIN })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
     // wordWrap added this pass — caught in Playwright verification, not by
     // eye: this line measured 1232px wide (checked via the Text object's
     // own .width) against a 960px-wide canvas, overflowing ~136px off
@@ -2056,6 +2285,20 @@ export class Hub extends Phaser.Scene {
     // because a screenshot alone doesn't tell you the text is clipped
     // versus just tight. A straightforward render bug, not a wording or
     // layout decision, so fixed directly rather than flagged.
+    //
+    // OVERHEARD dock / UI-camera split, 3 Sep 2026 — narrowed again, from
+    // 900 to 700. This text sat centered at x=480 using the FULL old
+    // 1074-wide canvas as its safe margin (900/2=450 either side, reaching
+    // x=30..930) — harmless back when the single camera spanning that
+    // whole canvas drew it. Now that the main/world camera's own viewport
+    // stops at DOCK_SPLIT_X (838, see that constant's own header), a
+    // 900-wide wrap could still center a line whose own right edge reaches
+    // x=930, past where that camera can draw at all — caught the same way
+    // the original bug was, in a live Playwright screenshot, not by eye:
+    // the wrapped second line was visibly clipped mid-word at the dock
+    // split. 700 keeps every line's own worst-case edge (480±350 = 130..830)
+    // safely inside the narrowed viewport with an 8px margin to spare,
+    // matching the same clearance DOCK_SPLIT_X itself already uses.
     this.add
       .text(
         480,
@@ -2071,22 +2314,30 @@ export class Hub extends Phaser.Scene {
           fontSize: "11px",
           color: TEXT_DIM,
           align: "center",
-          wordWrap: { width: 900 },
+          wordWrap: { width: 700 },
         }
       )
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     // Locked in Build Plan §4: "shipping it with zero signal... would read
     // as a rug-pull later." Cosmetic/inert here, on purpose — Phase 4 is
     // where a hub-goes-hot system actually reads this.
     this.add
       .text(818, 20, "THREAT: DISTANT", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
-      .setOrigin(1, 0.5);
+      .setOrigin(1, 0.5)
+      .setScrollFactor(0);
 
     // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1
     // §2) — clear of THREAT's own right edge (818) with room to the canvas
-    // edge (960) either side.
-    addMenuOverlayButton(this, 900, 20, 100, 22, () => this.campaignState);
+    // edge (960) either side. DOCK_MENU_X/Y (dock-local) rather than the
+    // absolute screen (900, 20) this always visually sat at: that absolute
+    // x is past DOCK_SPLIT_X (838), so the narrowed main camera above can
+    // no longer reach it — see DOCK_MENU_X's own header. Registered into
+    // uiCameraObjects so finalizeDockCameraSplit() (end of create()) routes
+    // it through this.uiCamera exclusively, landing it right back at that
+    // same screen pixel.
+    this.uiCameraObjects.push(addMenuOverlayButton(this, DOCK_MENU_X, DOCK_MENU_Y, 100, 22, () => this.campaignState));
 
     // Rourke's own rank readout, 27 Aug 2026 (later pass) — Social Sim
     // Roadmap #5's own follow-on note: now that CampaignState.rourkeRank
@@ -2117,7 +2368,8 @@ export class Hub extends Phaser.Scene {
         fontSize: "10px",
         color: "#6b7d8a",
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0);
 
     // Calendar economy, 2 Sep 2026 — the campaign-day readout, sharing the
     // top HUD row with the rank line (left, x=16) and THREAT (right-aligned
@@ -2133,7 +2385,8 @@ export class Hub extends Phaser.Scene {
         fontSize: "10px",
         color: "#6b7d8a",
       })
-      .setOrigin(1, 0.5);
+      .setOrigin(1, 0.5)
+      .setScrollFactor(0);
 
     // Antfarm Grid v0, 27 Aug 2026 — set once here, kept live by
     // refreshRoomVisibility below every time the deck actually changes.
@@ -2143,12 +2396,13 @@ export class Hub extends Phaser.Scene {
     // with it — caught by eye in the smoke-test screenshot, not a guess.
     this.deckIndicatorText = this.add
       .text(16, 80, "", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0);
 
-    this.lowerFloor = this.drawDeckFloor(LOWER_BOUNDS);
-    this.upperFloor = this.drawDeckFloor(UPPER_BOUNDS);
-    this.sparRoomFloor = this.drawDeckFloor(SPAR_ROOM_BOUNDS);
-    this.drawGrottoFloor();
+    this.lowerFloor = this.drawDeckLayout("lower");
+    this.upperFloor = this.drawDeckLayout("upper");
+    this.sparRoomFloor = this.drawDeckLayout("sparRoom");
+    this.grottoFloor = this.drawDeckLayout("grotto");
     this.drawMusterPoint();
     this.drawRecroomTable();
     this.drawHangarShopPoint();
@@ -2157,12 +2411,31 @@ export class Hub extends Phaser.Scene {
     this.buildDoors();
     this.buildZoneDecor();
     this.buildReservedBays();
+    // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — deliberately NOT
+    // given .setScrollFactor(0) in this pass's otherwise-blanket audit.
+    // refreshRoomVisibility repositions this every room change to
+    // ((zone.left+right)/2, (zone.top+bottom)/2) — a real WORLD-space
+    // point, the physical center of that room's own floor — not a fixed
+    // HUD line like the ones above it. Pinning it to the screen would
+    // detach it from the room it's supposed to be labeling the moment the
+    // camera scrolls away from wherever it happened to be when the text
+    // was last positioned.
     this.roomNoteText = this.add.text(480, 330, "", { fontFamily: "monospace", fontSize: "12px", color: TEXT_DIM, align: "center", wordWrap: { width: 460 } }).setOrigin(0.5);
     this.buildNpcs();
     this.buildPlayer();
     this.refreshRoomVisibility();
 
-    this.interactPrompt = this.add.text(480, ROOM_BOUNDS.bottom + 20, "", { fontFamily: "monospace", fontSize: "11px", color: ACCENT }).setOrigin(0.5);
+    // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — the actual camera
+    // scroll this whole pass is for. Called once, here, after both the
+    // player exists (startFollow needs a real target) and
+    // refreshRoomVisibility has already set this deck's bounds (so the
+    // camera never gets a frame of being unclamped). A soft lerp rather
+    // than a hard snap-to-player — this is a slow-walk social space, not a
+    // twitch shooter, so a camera that eases in reads calmer than one that
+    // rigidly pins the player to the exact center every frame.
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+
+    this.interactPrompt = this.add.text(480, ROOM_BOUNDS.bottom + 20, "", { fontFamily: "monospace", fontSize: "11px", color: ACCENT }).setOrigin(0.5).setScrollFactor(0);
 
     // Cursor tip, 2 Sep 2026 — the Hub half of the same feature Battle got
     // this pass (scenes/ui/HoverTip.ts). Built here after interactPrompt so
@@ -2172,11 +2445,18 @@ export class Hub extends Phaser.Scene {
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       this.pointerX = p.x;
       this.pointerY = p.y;
+      this.pointerWorldX = p.worldX;
+      this.pointerWorldY = p.worldY;
       this.updateHoverTip();
     });
 
-    const footer = this.add.container(0, 0);
-    makeShopButton(this, footer, 90, 604, 140, 32, "BACK TO HANGAR", true, () => this.scene.start("Hangar"));
+    const footer = this.add.container(0, 0).setScrollFactor(0);
+    // Renamed from "BACK TO HANGAR" (3 Sep 2026, Maxime's call) — this button
+    // jumps to the separate Hangar SCENE (the "CAMPAIGN SHOP" screen), not
+    // the Hub's own internal "Hangar Deck" ROOM, and the old label read as
+    // if it meant the latter. Widened 140 -> 165 to keep the longer label
+    // clear of makeShopButton's own wordWrap at this font size.
+    makeShopButton(this, footer, 95, 604, 165, 32, "BACK TO THE CARRIER", true, () => this.scene.start("Hangar"));
 
     // Explicit per-key binding rather than addKeys("W,A,S,D") — that batch
     // form keys its returned object by the exact string tokens passed in
@@ -2294,6 +2574,59 @@ export class Hub extends Phaser.Scene {
       else if (this.isAtVaultPlinth()) this.openVault();
       else this.speak();
     });
+
+    // Must run LAST in create(), after every object this scene will ever
+    // build during create() actually exists (including everything the
+    // overlay builders above just added) — see this method's own header.
+    this.finalizeDockCameraSplit();
+  }
+
+  // OVERHEARD/chat UI-camera dock, Carrier Scale-Up Plan v1 Phase 2, 3 Sep
+  // 2026 — the other half of the split this.uiCamera's own creation-time
+  // comment (top of create()) describes. Splits the scene's own top-level
+  // display list into two halves and tells each camera to ignore the
+  // other's: this.uiCamera ignores everything EXCEPT uiCameraObjects (the
+  // dock content — OVERHEARD panel, its label, its log text, the corner
+  // MENU button, the T-activated chat input DOM element), and the main
+  // camera ignores uiCameraObjects itself.
+  //
+  // Why "everything except uiCameraObjects" rather than a hand-picked list
+  // of world objects: this scene builds well over a hundred individually
+  // top-level game objects across create() (every HUD text line, every
+  // deck floor container, every door/decor/reserved-bay marker, every NPC
+  // root/bubble/favLabel, the player, every minigame overlay container,
+  // the hover tip) — hand-enumerating "every one of those that must never
+  // render via the dock camera" would be exactly the kind of list that
+  // silently goes stale the next time someone adds a new HUD element or
+  // overlay to this file and never thinks to touch this method. Reading
+  // this.children.list instead — the scene's own actual display list, at
+  // the one moment (end of create()) it's known to hold everything except
+  // what create() builds after this call (nothing does) — can't go stale
+  // the same way: it's authoritative by construction, not a second list
+  // someone has to remember to keep in sync with the first.
+  //
+  // Why this doesn't need to run again later: everything created AFTER
+  // create() finishes (NPC speech bubbles via showBubble, minigame row
+  // objects, etc.) is added as a CHILD of a container that already exists
+  // in this snapshot (npc.bubbleContainer, this.pegOverlay, and so on) —
+  // Phaser's own per-camera ignore check happens on whichever object is
+  // actually walked by the renderer's display-list traversal, and for a
+  // Container that's the container itself first: if a camera is already
+  // ignoring that container, the renderer never even looks at its children
+  // for that camera, no matter when they were added (see
+  // ContainerWebGLRenderer.js's own per-child willRender(camera) check,
+  // which only runs at all once the container's OWN willRender(camera) has
+  // already passed). The one place this project creates genuinely NEW
+  // top-level objects after create() is MenuOverlay.ts's own
+  // showMenuOverlay — handled directly in that shared file instead, since
+  // it already has to loop over every camera generically for its own
+  // full-screen backdrop (see that file's own comment).
+  private finalizeDockCameraSplit() {
+    const dockObjects = this.uiCameraObjects;
+    const dockSet = new Set<Phaser.GameObjects.GameObject>(dockObjects);
+    const worldObjects = this.children.list.filter((obj) => !dockSet.has(obj));
+    this.uiCamera.ignore(worldObjects);
+    this.cameras.main.ignore(dockObjects);
   }
 
   // Piece #3, 26 Aug 2026 — the real typed-chat box, a Phaser DOM Element
@@ -2305,17 +2638,38 @@ export class Hub extends Phaser.Scene {
   // gets suspended (via removeCapture, see openChat/closeChat) while this
   // box has focus, precisely so typed letters that happen to match a game
   // hotkey (w/a/s/d/e/m/r/t) don't get eaten by the game instead of typed.
+  //
+  // OVERHEARD dock, Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026 — moved
+  // from centered under the main play area (below ROOM_BOUNDS.bottom) to
+  // sit directly under the OVERHEARD panel, inside the dock strip — see
+  // DOCK_INPUT_Y's own header. Positioned in DOCK-LOCAL coordinates
+  // (DOCK_LOG_CENTER_X, not an absolute screen x) and registered into
+  // uiCameraObjects for finalizeDockCameraSplit() to route exclusively
+  // through this.uiCamera, same as every other dock object — a Phaser DOM
+  // Element uses this exact same cameraFilter/ignore mechanism to decide
+  // which camera's transform positions it (Phaser's own docs: "you should
+  // only have DOM Elements in a Scene with a single Camera... if you
+  // require multiple cameras, use parallel scenes" — this project can't
+  // take that advice, the dock and the world genuinely need to coexist in
+  // one scene, so this ignore-list is what makes a second camera safe here:
+  // without it, whichever of the two cameras happens to render last each
+  // frame would silently win the DOM element's own CSS transform, an
+  // order-dependent race rather than a real guarantee). Width shrunk from
+  // 320px to fit the dock's own DOCK_LOG_WIDTH (228px) rather than
+  // overflowing it.
   private buildChatBox() {
     this.chatInput = this.add
       .dom(
-        480,
-        CHAT_BOX_Y,
+        DOCK_LOG_CENTER_X,
+        DOCK_INPUT_Y,
         "input",
-        "width: 320px; padding: 6px 8px; font-family: monospace; font-size: 13px; " +
+        "width: 200px; padding: 6px 8px; font-family: monospace; font-size: 13px; " +
           "background: #1a2028; color: #e8e2d4; border: 1px solid #4a7a9a; outline: none;"
       )
       .setOrigin(0.5)
-      .setVisible(false);
+      .setVisible(false)
+      .setScrollFactor(0);
+    this.uiCameraObjects.push(this.chatInput);
 
     const node = this.chatInput.node as HTMLInputElement;
     node.placeholder = "Type something — Enter to say it, Esc to cancel";
@@ -2332,23 +2686,33 @@ export class Hub extends Phaser.Scene {
     });
   }
 
-  // See CHAT_LOG_* constants' own header for placement reasoning. Built
-  // once, never rebuilt on room switch — same idiom as roomTitleText/the
-  // interact prompt, both fixed HUD elements outside ROOM_BOUNDS.
+  // See DOCK_SPLIT_X's own header for placement reasoning. Built once,
+  // never rebuilt on room switch — same idiom as roomTitleText/the interact
+  // prompt, both fixed HUD elements outside ROOM_BOUNDS. Every object here
+  // is positioned in DOCK-LOCAL coordinates and registered into
+  // uiCameraObjects so finalizeDockCameraSplit() (end of create()) routes
+  // it exclusively through this.uiCamera — see that constant's own header
+  // for why this panel needs its own camera at all now.
   private buildChatLogPanel() {
-    this.add
-      .rectangle(CHAT_LOG_CENTER_X, 330, CHAT_LOG_WIDTH, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.9)
-      .setStrokeStyle(1, PANEL_BORDER);
-    this.add.text(CHAT_LOG_CENTER_X, ROOM_BOUNDS.top + 14, "OVERHEARD", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM }).setOrigin(0.5);
+    const bg = this.add
+      .rectangle(DOCK_LOG_CENTER_X, DOCK_PANEL_CENTER_Y, DOCK_LOG_WIDTH, DOCK_PANEL_HEIGHT, PANEL_BG, 0.9)
+      .setStrokeStyle(1, PANEL_BORDER)
+      .setScrollFactor(0);
+    const label = this.add
+      .text(DOCK_LOG_CENTER_X, DOCK_PANEL_TOP + 14, "OVERHEARD", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
     this.chatLogText = this.add
-      .text(CHAT_LOG_X + 8, ROOM_BOUNDS.top + 32, "Quiet so far.", {
+      .text(8, DOCK_PANEL_TOP + 32, "Quiet so far.", {
         fontFamily: "monospace",
         fontSize: "9px",
         color: TEXT_MAIN,
-        wordWrap: { width: CHAT_LOG_WIDTH - 16 },
+        wordWrap: { width: DOCK_LOG_WIDTH - 16 },
         lineSpacing: 4,
       })
-      .setOrigin(0, 0);
+      .setOrigin(0, 0)
+      .setScrollFactor(0);
+    this.uiCameraObjects.push(bg, label, this.chatLogText);
 
     // Tier 6 hotfix, 30 Aug 2026 — see CHAT_LOG_VISIBLE_LINES's own header.
     // CHAT_LOG_VISIBLE_LINES was doubled based on a real (if approximate)
@@ -2357,8 +2721,28 @@ export class Hub extends Phaser.Scene {
     // guarantee: whatever renderChatLog puts in chatLogText, anything past
     // the panel's own bottom edge clips there instead of spilling out onto
     // the game board underneath it.
+    //
+    // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — the Plan doc's own
+    // "every persistent UI element needs a setScrollFactor(0) audit" note
+    // flagged this exact mask as a real risk area, and it is one: a
+    // GeometryMask is itself a GameObject with its own scrollFactor
+    // (default 1, i.e. world-space), independent of whatever it's masking.
+    // chatLogText above is now screen-fixed (scrollFactor 0); if this
+    // shape stayed world-space, the mask would drift away from the text it
+    // clips the instant the camera pans, clipping the wrong region (or
+    // none at all). Pinned here defensively so the two stay locked
+    // together regardless of camera position.
+    //
+    // Not pushed to uiCameraObjects: created via this.make.graphics({}),
+    // never this.add — deliberately never added to the scene's own display
+    // list (see Phaser's own this.make vs this.add distinction), so it
+    // isn't camera-filtered independently at all; it just rides along with
+    // whichever single camera ends up rendering chatLogText itself (only
+    // this.uiCamera, once finalizeDockCameraSplit runs), which is exactly
+    // where its own dock-local coordinates below already assume it lands.
     const maskShape = this.make.graphics({});
-    maskShape.fillRect(CHAT_LOG_X, ROOM_BOUNDS.top + 30, CHAT_LOG_WIDTH, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top - 34);
+    maskShape.setScrollFactor(0);
+    maskShape.fillRect(0, DOCK_PANEL_TOP + 30, DOCK_LOG_WIDTH, DOCK_PANEL_HEIGHT - 34);
     this.chatLogText.setMask(maskShape.createGeometryMask());
   }
 
@@ -2523,7 +2907,7 @@ export class Hub extends Phaser.Scene {
       return;
     }
     if (verbId === "askOut") {
-      if (this.currentRoomId !== "berths") {
+      if (!isBerths(this.currentRoomId)) {
         this.showFallback("Not the place to ask that. Try the berths.");
         return;
       }
@@ -2531,7 +2915,7 @@ export class Hub extends Phaser.Scene {
       // nearestNpcInRange's own header — berths shares its deck with
       // recroom/hangarDeck too, so this needed the identical requireRoom
       // narrowing the three minigames and Share a Drink got.
-      const target = this.nearestNpcInRange(APPROACH_RADIUS, "berths");
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, this.currentRoomId);
       if (!target) {
         this.showFallback("Nobody's close enough to ask.");
         return;
@@ -3378,10 +3762,16 @@ export class Hub extends Phaser.Scene {
   // fabricator GRADUATED out of this bank 28 Aug 2026 once real deck space
   // (RESERVED_BAYS above) and real effects existed for them — see
   // chatIntent.ts's own BuildableBayId comment for the same graduation
-  // noted from that file's side.
+  // noted from that file's side. heads/berths joined 3 Sep 2026 for the
+  // opposite reason recRoom is here: not "not built yet," but "already
+  // built, nothing to build" — the ship interior pass gave both a real
+  // room with no economy meaning at all, so there's no bayId/RESERVED_BAYS
+  // entry for either and never will be.
   private readonly BUILD_UNAVAILABLE_LINES: Record<KnownUnbuildableId, string[]> = {
     recRoom: ["Rec Room's already up and running — you'll find it on the lower deck."],
     mekWorkshop: ["A proper workshop for the Meks — I like it. Nobody's drawn that one up yet, though."],
+    heads: ["Heads are already standing — forward row, lower deck. Nothing to build there."],
+    berths: ["Every lance already has its own berths, Commander — forward row, lower deck, one bunk room each."],
   };
 
   private handleBuildRequest(request: BuildRequest) {
@@ -3547,7 +3937,22 @@ export class Hub extends Phaser.Scene {
   // rather than written once — a purchase changes what every other row can
   // afford, so there is no partial redraw that would be correct.
   private buildWorkshopOverlay() {
-    this.workshopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    // STANDING RULE for every overlay in this file, learned the hard way on
+    // 3 Sep 2026 — pinning the CONTAINER (below) is only half of it. Phaser
+    // renders a container's children using the container's scroll factor,
+    // but hit-tests each child using only that CHILD's own (see
+    // InputManager.hitTest's `px = worldX + csx * gameObject.scrollFactorX
+    // - csx` against ContainerWebGLRenderer's `child.setScrollFactor(
+    // childSF * containerSF)`). So an interactive child left at the default
+    // factor of 1 inside a pinned container DRAWS in the right place and
+    // takes clicks somewhere else — off by exactly the camera's scroll.
+    // Every .setInteractive() in this file that lives inside one of these
+    // overlays therefore carries its own .setScrollFactor(0) right next to
+    // it. Add one to any new interactive overlay element too; tsc, eslint
+    // and the whole unit suite all pass clean either way, so nothing but a
+    // live click-test catches it (tools/verify/
+    // checkHubInteractionAfterScroll.mjs is that test).
+    this.workshopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
       .setStrokeStyle(1, PANEL_BORDER);
@@ -3556,7 +3961,7 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeWorkshop());
     this.workshopOverlay.add(closeBtn);
   }
@@ -3622,7 +4027,13 @@ export class Hub extends Phaser.Scene {
         .text(200, y, `${def.displayName}  —  ${suffix}`, { fontFamily: "monospace", fontSize: "12px", color })
         .setOrigin(0, 0);
       if (!isOwned && affordable) {
-        row.setInteractive({ useHandCursor: true });
+        // .setScrollFactor(0) alongside .setInteractive, 3 Sep 2026 — see
+        // buildWorkshopOverlay's own close button for the full reasoning.
+        // These rows are rebuilt on every render, so pinning them here, at
+        // creation, is what keeps them clickable across rebuilds; a
+        // one-time sweep over the container would only ever fix whichever
+        // batch happened to exist when it ran.
+        row.setInteractive({ useHandCursor: true }).setScrollFactor(0);
         row.on("pointerdown", () => this.buyCarrierModule(id));
       }
       add(row);
@@ -3679,12 +4090,22 @@ export class Hub extends Phaser.Scene {
   // AND the holdings list all at once — a targeted update would touch
   // nearly everything anyway).
   //
-  // Phase 2 (the shelf — fielding, ability ranks) is deliberately NOT here.
-  // Locked in the build plan: the ~30 Heirloom combat abilities don't fire
-  // in combat yet, so a shop for ranking them up would read as broken
-  // rather than finished. That's real, tracked scope, not an oversight.
+  // Phase 2 (the shelf — fielding, ability ranks), slice 2, 3 Sep 2026. The
+  // original call above stands for most of the pool: 23 of ~28 abilities
+  // still don't fire in combat, so a rank-up shop for those would read as
+  // broken rather than finished. What changed is Vault Phase 2 Slice 1
+  // (2 Sep 2026) wired exactly 5 abilities — one apiece on Widow's Ledger,
+  // The Iron Oath, The Last Word, Delenda and Farsight's Reckoning — into
+  // real combat effects (engine/mission.ts, engine/combat.ts). Building a
+  // shop that only ever offers those 5 as purchasable, with everything else
+  // shown but explicitly marked "not implemented in combat yet" (same
+  // refusal-is-honest discipline recruitHeirloom's own sentences already
+  // use), is a real, truthful Phase 2 rather than the all-or-nothing version
+  // the plan doc originally weighed. HEIRLOOM_ABILITIES_LIVE_IN_COMBAT
+  // (data/heirlooms.ts) is the single source of truth for which 5 those
+  // are — never a second hand-copied list here.
   private buildVaultOverlay() {
-    this.vaultOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.vaultOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
       .setStrokeStyle(1, PANEL_BORDER);
@@ -3693,7 +4114,7 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeVault());
     this.vaultOverlay.add(closeBtn);
   }
@@ -3851,28 +4272,40 @@ export class Hub extends Phaser.Scene {
             .text(212, y, `${title} — ${def.pilot?.displayName ?? "?"}, House ${def.pilot?.house ?? "?"}  —  ${cost ?? "—"} pts`, { fontFamily: "monospace", fontSize: "12px", color })
             .setOrigin(0, 0);
           if (affordable) {
-            row.setInteractive({ useHandCursor: true });
+            // Pinned for the same reason the Workshop's own module rows
+            // are — rebuilt per render, so it has to happen at creation.
+            row.setInteractive({ useHandCursor: true }).setScrollFactor(0);
             row.on("pointerdown", () => this.recruitFromVault(heirloomId));
           }
           add(row);
-          add(
-            this.add
-              .text(224, y + 16, def.pilot?.hook ?? "", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 500 } })
-              .setOrigin(0, 0),
-          );
-          y += 44;
+          // CLUSTERING FIX, 2 Sep 2026 — Maxime, screenshot: a long pilot
+          // hook (Ichigeki/Dunmoor's especially) wraps to 3-4 lines at this
+          // 500px width, but the old fixed `y += 44` assumed one short
+          // line, so the next house's title started rendering while this
+          // one's wrapped hook text was still going — Zanretsu's row
+          // landing on top of Ichigeki's own description. hookText.height
+          // already reflects the real wrapped line count (Phaser measures
+          // it from wordWrap at construction), so read it back instead of
+          // guessing a constant.
+          const hookText = this.add
+            .text(224, y + 16, def.pilot?.hook ?? "", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 500 } })
+            .setOrigin(0, 0);
+          add(hookText);
+          y += 16 + hookText.height + 12;
         }
       }
     }
 
     y += 8;
 
-    // Section C — the wall (Phase 3). What's actually with the company,
-    // what's gone home, and why — the grievance system's only visible
-    // surface anywhere in the game.
+    // Section C — the wall (Phase 3) + the shelf (Phase 2, slice 2). What's
+    // actually with the company, who's carrying it, what's fielded, and
+    // what its abilities are ranked to — the grievance system's only
+    // visible surface anywhere in the game, plus the first real spend
+    // target for an aristocrat's own personal points.
     add(
       this.add
-        .text(200, y, "HOLDINGS & HOUSE STANDING", { fontFamily: "monospace", fontSize: "12px", color: "#d7b46a" })
+        .text(200, y, "HOLDINGS & THE SHELF", { fontFamily: "monospace", fontSize: "12px", color: "#d7b46a" })
         .setOrigin(0, 0),
     );
     y += 18;
@@ -3880,6 +4313,7 @@ export class Hub extends Phaser.Scene {
     const hs = heirloomState(state);
     const homeSet = new Set(returnedHeirlooms(state));
     const held = hs.recruited.filter((id) => !homeSet.has(id));
+    const currentlyFielded = fieldedHeirloom(state);
     if (held.length === 0) {
       add(
         this.add
@@ -3892,13 +4326,71 @@ export class Hub extends Phaser.Scene {
         const def = HEIRLOOMS[heirloomId];
         const holderId = hs.assignedPilotId[heirloomId];
         const holderEntry = holderId ? state.pilots[holderId] : undefined;
+        const holderActive = holderEntry?.status === "active";
         const holderName = holderEntry ? holderEntry.pilot.displayName.split("—")[0].trim() : "unassigned";
-        add(
-          this.add
-            .text(212, y, `${def.displayName} — carried by ${holderName}`, { fontFamily: "monospace", fontSize: "11px", color: TEXT_MAIN })
-            .setOrigin(0, 0),
-        );
+        const isFielded = currentlyFielded === heirloomId;
+
+        // Title + field/unfield toggle. Only offered when the holder is
+        // actually alive and active — fieldHeirloom() already refuses
+        // otherwise, but showing a dead-end button reads worse than not
+        // showing one, same discipline the shortlist rows above already
+        // follow (no button at all when a recruit isn't affordable).
+        const titleRow = this.add
+          .text(212, y, `${def.displayName} — carried by ${holderName}${isFielded ? "  [FIELDED]" : ""}`, {
+            fontFamily: "monospace",
+            fontSize: "11px",
+            color: isFielded ? "#d7b46a" : TEXT_MAIN,
+          })
+          .setOrigin(0, 0);
+        add(titleRow);
+        if (holderActive) {
+          const toggleLabel = isFielded ? "[ unfield ]" : "[ field ]";
+          const toggleBtn = this.add
+            .text(212 + titleRow.width + 12, y, toggleLabel, { fontFamily: "monospace", fontSize: "11px", color: "#8fb3c9" })
+            .setOrigin(0, 0)
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(0);
+          toggleBtn.on("pointerdown", () => (isFielded ? this.unfieldFromVault() : this.fieldFromVault(heirloomId)));
+          add(toggleBtn);
+        }
         y += 18;
+
+        // The shelf itself — all three abilities, always shown (the same
+        // "show the refusal, don't hide the option" discipline the rest of
+        // this panel already follows), but only the ones actually wired
+        // into combat (HEIRLOOM_ABILITIES_LIVE_IN_COMBAT) ever get a buy
+        // button. The other two per Heirloom are real content, honestly
+        // labeled, not a placeholder pretending to be a feature.
+        for (const ability of def.abilities) {
+          const rank = abilityRank(state, heirloomId, ability.id);
+          const live = HEIRLOOM_ABILITIES_LIVE_IN_COMBAT.has(ability.id);
+          const atMax = rank >= HEIRLOOM_MAX_ABILITY_RANK;
+          const nextCost = HEIRLOOM_ABILITY_RANK_COST[rank + 1];
+          const personalPoints = holderEntry?.personalPoints ?? 0;
+          const affordable = holderActive && live && !atMax && nextCost !== undefined && personalPoints >= nextCost;
+
+          let status: string;
+          if (!live) status = "(not implemented in combat yet)";
+          else if (atMax) status = `rank ${rank}/${HEIRLOOM_MAX_ABILITY_RANK} (max)`;
+          else status = `rank ${rank}/${HEIRLOOM_MAX_ABILITY_RANK} — next rank ${nextCost ?? "—"} pts`;
+
+          const abilityColor = live ? (affordable ? TEXT_MAIN : TEXT_DIM) : "#5a6572";
+          const abilityRow = this.add
+            .text(224, y, `${ability.displayName} — ${status}`, { fontFamily: "monospace", fontSize: "10px", color: abilityColor })
+            .setOrigin(0, 0);
+          add(abilityRow);
+          if (affordable) {
+            const buyBtn = this.add
+              .text(224 + abilityRow.width + 10, y, "[ rank up ]", { fontFamily: "monospace", fontSize: "10px", color: "#8fb3c9" })
+              .setOrigin(0, 0)
+              .setInteractive({ useHandCursor: true })
+              .setScrollFactor(0);
+            buyBtn.on("pointerdown", () => this.rankUpFromVault(heirloomId, ability.id, holderId!));
+            add(buyBtn);
+          }
+          y += 14;
+        }
+        y += 6;
       }
     }
 
@@ -3943,8 +4435,49 @@ export class Hub extends Phaser.Scene {
     this.renderVault();
   }
 
+  /**
+   * Vault Phase 2, slice 2 — field one Heirloom, benching whatever was out.
+   * All the one-at-a-time enforcement lives in engine/heirlooms.ts's
+   * fieldHeirloom (replacement, not refusal, per that function's own
+   * comment); this scene only reports the outcome and redraws, same
+   * division every other Vault/Workshop action in this file keeps.
+   */
+  private fieldFromVault(heirloomId: HeirloomId) {
+    const result = fieldHeirloom(this.campaignState, heirloomId);
+    if (!result.ok) {
+      this.showFallback(result.reason ?? "That Heirloom can't be fielded right now.");
+      return;
+    }
+    saveCampaignState(this.campaignState);
+    this.renderVault();
+  }
+
+  /** Bench the fielded Heirloom. unfieldHeirloom() is idempotent, so this never fails in a way worth showing the player. */
+  private unfieldFromVault() {
+    unfieldHeirloom(this.campaignState);
+    saveCampaignState(this.campaignState);
+    this.renderVault();
+  }
+
+  /**
+   * Raise one ability by one rank, spending the wielding pilot's PERSONAL
+   * points. The row that calls this already gated the button on
+   * affordability/live-in-combat/not-maxed, so a refusal here would mean
+   * campaign state moved between render and click (e.g. the holder died) —
+   * shown the same honest way any other late refusal in this file is.
+   */
+  private rankUpFromVault(heirloomId: HeirloomId, abilityId: string, pilotId: string) {
+    const result = purchaseAbilityRank(this.campaignState, heirloomId, abilityId, pilotId);
+    if (!result.ok) {
+      this.showFallback(result.reason ?? "That ability can't be ranked up right now.");
+      return;
+    }
+    saveCampaignState(this.campaignState);
+    this.renderVault();
+  }
+
   private buildHistoryOverlay() {
-    this.historyOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.historyOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
@@ -3966,7 +4499,7 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeHistory());
     this.historyOverlay.add(closeBtn);
   }
@@ -4009,7 +4542,7 @@ export class Hub extends Phaser.Scene {
   // are siblings, not variants of each other, so this is its own
   // container/text pair rather than a second mode bolted onto History's.
   private buildHighlightsOverlay() {
-    this.highlightsOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.highlightsOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
@@ -4031,7 +4564,7 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeHighlights());
     this.highlightsOverlay.add(closeBtn);
   }
@@ -4059,7 +4592,7 @@ export class Hub extends Phaser.Scene {
   // to visible (Debrief.ts/Hangar.ts each dedicate their whole scene to
   // it, so neither has ever needed it to start hidden).
   private buildHangarShopOverlay() {
-    this.hangarShopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.hangarShopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
     const bg = this.add.rectangle(480, 320, SHOP_CARD_W, 600, PANEL_BG, 0.97).setStrokeStyle(1, PANEL_BORDER);
     this.hangarShopOverlay.add(bg);
@@ -4069,7 +4602,7 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(SHOP_CARD_R - 10, 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeHangarShop());
     this.hangarShopOverlay.add(closeBtn);
 
@@ -4101,6 +4634,12 @@ export class Hub extends Phaser.Scene {
     // comment for the full mechanism. 61 (one above the overlay's own
     // depth) is enough to clear it.
     this.hangarShop.setDepth(61);
+    // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — same reasoning as
+    // hangarShopOverlay's own .setScrollFactor(0) just above it in
+    // create(): this Hub is the one ShopPanel host whose camera actually
+    // scrolls, so its two internal layers need the new passthrough method
+    // this pass added to ShopPanel (see that class's own comment on it).
+    this.hangarShop.setScrollFactor(0);
   }
 
   private openHangarShop() {
@@ -4182,7 +4721,7 @@ export class Hub extends Phaser.Scene {
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left - 32, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top - 32, PANEL_BG, 0.98)
       .setStrokeStyle(1, 0x4a7a9a) // == ACCENT — Graphics/shape strokes take a numeric color, not the CSS hex string, same distinction DARTS_INNER_RING_COLOR's own comment already makes
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     bg.on("pointerdown", onDismiss);
     panel.add(bg);
 
@@ -4216,7 +4755,7 @@ export class Hub extends Phaser.Scene {
   // real rules live in src/engine/pegBoard.ts; everything below is purely
   // "turn engine state into pixels and clicks."
   private buildPegBoardOverlay() {
-    this.pegOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.pegOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
@@ -4236,7 +4775,7 @@ export class Hub extends Phaser.Scene {
 
     for (let id = 0; id < 9; id++) {
       const p = pegDotPixel(id);
-      const zone = this.add.circle(p.x, p.y, PEG_ZONE_RADIUS, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      const zone = this.add.circle(p.x, p.y, PEG_ZONE_RADIUS, 0xffffff, 0).setInteractive({ useHandCursor: true }).setScrollFactor(0);
       zone.on("pointerdown", () => this.onPegDotClicked(id));
       this.pegOverlay.add(zone);
     }
@@ -4244,14 +4783,14 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ leave — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closePegBoard());
     this.pegOverlay.add(closeBtn);
 
     const helpBtn = this.add
       .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ ? ]", { fontFamily: "monospace", fontSize: "11px", color: ACCENT })
       .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     helpBtn.on("pointerdown", () => this.togglePegHelp());
     this.pegOverlay.add(helpBtn);
 
@@ -4458,14 +4997,14 @@ export class Hub extends Phaser.Scene {
   }
 
   private makeActionButton(x: number, y: number, label: string, onClick: () => void): Phaser.GameObjects.Text {
-    const btn = this.add.text(x, y, label, { fontFamily: "monospace", fontSize: "12px", color: ACCENT }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const btn = this.add.text(x, y, label, { fontFamily: "monospace", fontSize: "12px", color: ACCENT }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
     btn.on("pointerdown", onClick);
     this.pokerOverlay.add(btn);
     return btn;
   }
 
   private buildPokerOverlay() {
-    this.pokerOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.pokerOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
@@ -4508,14 +5047,14 @@ export class Hub extends Phaser.Scene {
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ leave — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closePoker());
     this.pokerOverlay.add(closeBtn);
 
     const helpBtn = this.add
       .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ ? ]", { fontFamily: "monospace", fontSize: "11px", color: ACCENT })
       .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     helpBtn.on("pointerdown", () => this.togglePokerHelp());
     this.pokerOverlay.add(helpBtn);
 
@@ -4723,7 +5262,7 @@ export class Hub extends Phaser.Scene {
   // is true, dartsMeterPos()/dartsAccuracyFromPos() (module-level
   // functions, above) turn that into the value a throw actually locks in.
   private buildDartsOverlay() {
-    this.dartsOverlay = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.dartsOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
     const bg = this.add
       .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
@@ -4771,21 +5310,21 @@ export class Hub extends Phaser.Scene {
     // Not reusing makeActionButton here — it hardcodes adding to
     // pokerOverlay (fine for Poker's own four buttons, wrong parent for
     // this one), so this button is built the same way inline instead.
-    this.dartsThrowBtn = this.add.text(480, DARTS_THROW_BUTTON_Y, "[ THROW ]", { fontFamily: "monospace", fontSize: "13px", color: ACCENT }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    this.dartsThrowBtn = this.add.text(480, DARTS_THROW_BUTTON_Y, "[ THROW ]", { fontFamily: "monospace", fontSize: "13px", color: ACCENT }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
     this.dartsThrowBtn.on("pointerdown", () => this.onDartsThrow());
     this.dartsOverlay.add(this.dartsThrowBtn);
 
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ leave — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeDarts());
     this.dartsOverlay.add(closeBtn);
 
     const helpBtn = this.add
       .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ ? ]", { fontFamily: "monospace", fontSize: "11px", color: ACCENT })
       .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     helpBtn.on("pointerdown", () => this.toggleDartsHelp());
     this.dartsOverlay.add(helpBtn);
 
@@ -5137,37 +5676,215 @@ export class Hub extends Phaser.Scene {
     }
   }
 
-  // Every deck draws its own floor rectangle/ellipse now — Lower and Upper
-  // each at their own (bigger, since the egg-hull second pass) box, the
-  // grotto as a real ellipse (drawGrottoFloor, right below). Built once
-  // per deck, not per room-switch, since nothing about any of their
-  // positions/sizes changes between rooms sharing a deck. Exactly one of
-  // lowerFloor/upperFloor/grottoFloor is visible at a time —
-  // refreshRoomVisibility toggles by current deck, since drawing more than
-  // one at once would show overlapping straight-edged rectangles (or a
-  // rectangle poking out past the grotto's curve).
-  private drawDeckFloor(bounds: { left: number; right: number; top: number; bottom: number }): Phaser.GameObjects.Graphics {
+  // The ship interior, 3 Sep 2026 — one Container per deck, drawn once from
+  // engine/hubLayout.ts's DECK_LAYOUTS and toggled by refreshRoomVisibility
+  // (exactly one visible at a time, same contract the four plain floor
+  // rectangles this replaces had). Everything is Phaser Graphics
+  // primitives — there is no tileset or sprite art in this project yet
+  // (assets/tiles and assets/sprites are both .gitkeep-only), so the look
+  // comes from layering: a hull shell, deck plating, per-room floor tints,
+  // furniture, doorway thresholds, then bevelled walls on top. Layer order
+  // matters: walls are drawn LAST so a bunk pushed against a wall never
+  // paints over it.
+  private drawDeckLayout(deck: DeckId): Phaser.GameObjects.Container {
+    const layout = layoutOf(deck);
+    const b = layout.bounds;
+    const container = this.add.container(0, 0);
     const g = this.add.graphics();
-    g.fillStyle(0x14181c, 1);
-    g.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-    g.lineStyle(2, PANEL_BORDER, 1);
-    g.strokeRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-    return g;
+    container.add(g);
+
+    // Hull shell: a WALL_T-thick band just outside the walkable floor.
+    const shell = WALL_T;
+    if (layout.ellipse) {
+      const e = layout.ellipse;
+      g.fillStyle(PAL.wallDark, 1);
+      g.fillEllipse(e.cx, e.cy, (e.rx + shell + 6) * 2, (e.ry + shell + 6) * 2);
+      g.fillStyle(PAL.wall, 1);
+      g.fillEllipse(e.cx, e.cy, (e.rx + shell) * 2, (e.ry + shell) * 2);
+      g.fillStyle(layout.roomTint.grotto ?? PAL.floor, 1);
+      g.fillEllipse(e.cx, e.cy, e.rx * 2, e.ry * 2);
+      // Terraced rings instead of plating — this deck is a garden, not a
+      // machine space.
+      for (const k of [0.82, 0.62, 0.42]) {
+        g.lineStyle(1, PAL.leafDark, 0.25);
+        g.strokeEllipse(e.cx, e.cy, e.rx * 2 * k, e.ry * 2 * k);
+      }
+      g.lineStyle(2, PAL.wallLight, 0.5);
+      g.strokeEllipse(e.cx, e.cy, e.rx * 2, e.ry * 2);
+    } else {
+      g.fillStyle(PAL.wallDark, 1);
+      g.fillRect(b.left - shell - 6, b.top - shell - 6, b.right - b.left + (shell + 6) * 2, b.bottom - b.top + (shell + 6) * 2);
+      g.fillStyle(PAL.wall, 1);
+      g.fillRect(b.left - shell, b.top - shell, b.right - b.left + shell * 2, b.bottom - b.top + shell * 2);
+      g.fillStyle(PAL.floor, 1);
+      g.fillRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
+      // Room floor tints.
+      for (const id of Object.keys(layout.rooms) as RoomId[]) {
+        const r = layout.rooms[id]!;
+        g.fillStyle(layout.roomTint[id] ?? PAL.floor, 1);
+        g.fillRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
+      }
+      // Deck plating — a faint 48px grid over the whole floor.
+      g.lineStyle(1, PAL.plating, 0.45);
+      for (let x = b.left + 48; x < b.right; x += 48) g.lineBetween(x, b.top, x, b.bottom);
+      for (let y = b.top + 48; y < b.bottom; y += 48) g.lineBetween(b.left, y, b.right, y);
+      // Corridor guide line: dashed amber down the spine's centre, and
+      // thin edge stripes, so the hallway reads as a hallway even where
+      // no wall happens to be in frame.
+      const hall = layout.rooms[deck === "lower" ? "lowerHall" : "upperHall"];
+      if (hall) {
+        const cy = (hall.top + hall.bottom) / 2;
+        g.lineStyle(2, PAL.amber, 0.22);
+        for (let x = hall.left + 20; x < hall.right - 20; x += 28) g.lineBetween(x, cy, Math.min(x + 14, hall.right - 20), cy);
+        g.lineStyle(1, PAL.wallLight, 0.18);
+        g.lineBetween(hall.left, hall.top + 12, hall.right, hall.top + 12);
+        g.lineBetween(hall.left, hall.bottom - 12, hall.right, hall.bottom - 12);
+      }
+    }
+
+    // Furniture and details.
+    for (const d of layout.decor) this.drawDecor(g, container, d);
+
+    // Doorways: a threshold strip over the gap, frame ticks at both jambs.
+    for (const d of layout.doorways) {
+      const r = d.rect;
+      g.fillStyle(PAL.door, 1);
+      g.fillRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
+      g.fillStyle(PAL.doorFrame, 0.55);
+      const horizontal = d.side === "top" || d.side === "bottom";
+      if (horizontal) {
+        g.fillRect(r.left - 3, r.top - 2, 6, WALL_T + 4);
+        g.fillRect(r.right - 3, r.top - 2, 6, WALL_T + 4);
+        g.lineStyle(1, PAL.doorFrame, 0.25);
+        g.lineBetween(r.left + 6, (r.top + r.bottom) / 2, r.right - 6, (r.top + r.bottom) / 2);
+      } else {
+        g.fillRect(r.left - 2, r.top - 3, WALL_T + 4, 6);
+        g.fillRect(r.left - 2, r.bottom - 3, WALL_T + 4, 6);
+        g.lineStyle(1, PAL.doorFrame, 0.25);
+        g.lineBetween((r.left + r.right) / 2, r.top + 6, (r.left + r.right) / 2, r.bottom - 6);
+      }
+    }
+
+    // Walls, bevelled: fill, light edge on top/left, dark edge on bottom/right.
+    for (const w of layout.walls) {
+      g.fillStyle(PAL.wall, 1);
+      g.fillRect(w.left, w.top, w.right - w.left, w.bottom - w.top);
+      g.lineStyle(2, PAL.wallLight, 0.7);
+      g.lineBetween(w.left, w.top + 1, w.right, w.top + 1);
+      g.lineBetween(w.left + 1, w.top, w.left + 1, w.bottom);
+      g.lineStyle(2, PAL.wallDark, 0.9);
+      g.lineBetween(w.left, w.bottom - 1, w.right, w.bottom - 1);
+      g.lineBetween(w.right - 1, w.top, w.right - 1, w.bottom);
+    }
+    // Hull edge highlight.
+    if (!layout.ellipse) {
+      g.lineStyle(2, PAL.wallLight, 0.6);
+      g.strokeRect(b.left - shell, b.top - shell, b.right - b.left + shell * 2, b.bottom - b.top + shell * 2);
+      g.lineStyle(1, PAL.wallLight, 0.35);
+      g.strokeRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
+    }
+
+    // Room name labels — every walled room, top-centre of its interior.
+    // The corridors and the single-room decks skip it: the title bar
+    // already names those the instant you're standing in them.
+    for (const id of Object.keys(layout.rooms) as RoomId[]) {
+      if (id === "lowerHall" || id === "upperHall" || id === "grotto" || id === "sparRoom") continue;
+      const r = layout.rooms[id]!;
+      // Centred ON the bow wall band (a sign over the room), not inside
+      // the room, so the plate never competes with furniture flush to
+      // that wall.
+      const t = this.add
+        .text((r.left + r.right) / 2, r.top - WALL_T / 2, ROOM_TITLES[id], { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM })
+        .setOrigin(0.5)
+        .setAlpha(0.9);
+      // A name plate behind the text so it stays legible over whatever
+      // furniture hugs that wall.
+      const plate = this.add.graphics();
+      plate.fillStyle(PAL.wallDark, 0.85);
+      plate.fillRect(t.x - t.width / 2 - 6, t.y - t.height / 2 - 2, t.width + 12, t.height + 4);
+      plate.lineStyle(1, PAL.wallLight, 0.4);
+      plate.strokeRect(t.x - t.width / 2 - 6, t.y - t.height / 2 - 2, t.width + 12, t.height + 4);
+      container.add(plate);
+      container.add(t);
+    }
+    return container;
   }
 
-  // The egg hull, 27 Aug 2026 — the grotto's real oval floor, drawn as its
-  // own layer rather than reshaping drawRoom() itself, since Upper/Lower
-  // still need the plain rectangle unchanged. Phaser's fillEllipse/
-  // strokeEllipse both take a CENTER point plus full width/height (not a
-  // corner + size, like fillRect above) — GROTTO_ELLIPSE already stores
-  // radii, hence the *2 below.
-  private drawGrottoFloor() {
-    const g = this.add.graphics();
-    g.fillStyle(0x14181c, 1);
-    g.fillEllipse(GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx * 2, GROTTO_ELLIPSE.ry * 2);
-    g.lineStyle(2, PANEL_BORDER, 1);
-    g.strokeEllipse(GROTTO_ELLIPSE.cx, GROTTO_ELLIPSE.cy, GROTTO_ELLIPSE.rx * 2, GROTTO_ELLIPSE.ry * 2);
-    this.grottoFloor = g;
+  private drawDecor(g: Phaser.GameObjects.Graphics, container: Phaser.GameObjects.Container, d: Decor) {
+    switch (d.kind) {
+      case "rect":
+        g.fillStyle(d.fill, d.alpha ?? 1);
+        g.fillRect(d.x, d.y, d.w, d.h);
+        if (d.stroke !== undefined) {
+          g.lineStyle(1, d.stroke, d.strokeAlpha ?? 1);
+          g.strokeRect(d.x, d.y, d.w, d.h);
+        }
+        return;
+      case "circle":
+        g.fillStyle(d.fill, d.alpha ?? 1);
+        g.fillCircle(d.x, d.y, d.r);
+        if (d.stroke !== undefined) {
+          g.lineStyle(1, d.stroke, d.strokeAlpha ?? 1);
+          g.strokeCircle(d.x, d.y, d.r);
+        }
+        return;
+      case "ellipse":
+        g.fillStyle(d.fill, d.alpha ?? 1);
+        g.fillEllipse(d.x, d.y, d.rx * 2, d.ry * 2);
+        if (d.stroke !== undefined) {
+          g.lineStyle(1, d.stroke, d.strokeAlpha ?? 1);
+          g.strokeEllipse(d.x, d.y, d.rx * 2, d.ry * 2);
+        }
+        return;
+      case "line":
+        g.lineStyle(d.width ?? 1, d.color, d.alpha ?? 1);
+        g.lineBetween(d.x1, d.y1, d.x2, d.y2);
+        return;
+      case "stripes": {
+        // Diagonal hazard stripes clipped to the box by drawing them as
+        // short parallelograms that never leave it.
+        g.fillStyle(d.color, d.alpha ?? 1);
+        const step = 16;
+        for (let x = d.x - d.h; x < d.x + d.w; x += step) {
+          const x0 = Math.max(d.x, x);
+          const x1 = Math.min(d.x + d.w, x + 7);
+          const x2 = Math.min(d.x + d.w, x + 7 + d.h);
+          const x3 = Math.max(d.x, x + d.h);
+          if (x1 <= x0 && x2 <= x3) continue;
+          g.fillPoints(
+            [
+              { x: x0, y: d.y },
+              { x: x1, y: d.y },
+              { x: x2, y: d.y + d.h },
+              { x: x3, y: d.y + d.h },
+            ],
+            true,
+          );
+        }
+        return;
+      }
+      case "dashrect": {
+        g.lineStyle(1, d.color, d.alpha ?? 1);
+        const dash = 6;
+        for (let dx = 0; dx < d.w; dx += dash * 2) {
+          g.lineBetween(d.x + dx, d.y, d.x + Math.min(dx + dash, d.w), d.y);
+          g.lineBetween(d.x + dx, d.y + d.h, d.x + Math.min(dx + dash, d.w), d.y + d.h);
+        }
+        for (let dy = 0; dy < d.h; dy += dash * 2) {
+          g.lineBetween(d.x, d.y + dy, d.x, d.y + Math.min(dy + dash, d.h));
+          g.lineBetween(d.x + d.w, d.y + dy, d.x + d.w, d.y + Math.min(dy + dash, d.h));
+        }
+        return;
+      }
+      case "label": {
+        const t = this.add
+          .text(d.x, d.y, d.text, { fontFamily: "monospace", fontSize: `${d.size ?? 9}px`, color: d.color ?? PAL.label })
+          .setOrigin(0.5)
+          .setAlpha(d.alpha ?? 1);
+        container.add(t);
+        return;
+      }
+    }
   }
 
   // Where a mustered NPC walks to (piece #2) — a placeholder stand-in for
@@ -5306,55 +6023,37 @@ export class Hub extends Phaser.Scene {
   // bay's dashed one, same GDD §12.2 placeholder spirit either way.
   private buildDoors() {
     for (const d of DOORS) {
-      const w = 90;
-      const h = 20;
+      // 3 Sep 2026 — a stair, drawn as a stair: a recessed well with four
+      // treads, the destination on a plate beside it. The trigger point
+      // (d.x, d.y) is the well's centre; DOOR_RADIUS reaches past the plate.
+      const w = 56;
+      const h = 40;
       const g = this.add.graphics();
-      g.lineStyle(1, 0x6b7d8a, 0.9);
+      g.fillStyle(PAL.wallDark, 1);
+      g.fillRect(d.x - w / 2, d.y - h / 2, w, h);
+      g.lineStyle(1, PAL.wallLight, 0.8);
       g.strokeRect(d.x - w / 2, d.y - h / 2, w, h);
-      const label = this.add.text(d.x, d.y, `> ${d.label}`, { fontFamily: "monospace", fontSize: "9px", color: "#6b7d8a" }).setOrigin(0.5);
+      g.lineStyle(2, PAL.metalLight, 0.9);
+      for (let i = 1; i <= 4; i++) {
+        const y = d.y - h / 2 + (h / 5) * i;
+        g.lineBetween(d.x - w / 2 + 6, y, d.x + w / 2 - 6, y);
+      }
+      g.fillStyle(PAL.amber, 0.8);
+      g.fillTriangle(d.x - 5, d.y + h / 2 - 6, d.x + 5, d.y + h / 2 - 6, d.x, d.y + h / 2 - 12);
+      const label = this.add
+        .text(d.x, d.y + h / 2 + 10, `▲ ${d.label}`, { fontFamily: "monospace", fontSize: "9px", color: "#8fd0ff" })
+        .setOrigin(0.5)
+        .setAlpha(0.9);
       this.doorMarkers.push({ def: d, outline: g, label });
     }
   }
 
-  // Antfarm Grid v0, 27 Aug 2026 — §3f's open floor: a deck with more than
-  // one room needs its OTHER rooms to read as real places even before the
-  // player's walked into them, since there's no door forcing a discrete
-  // "you have arrived" moment anymore. Two things per non-grotto room: a
-  // thin dashed divider along its own zone rect's edges (reusing the exact
-  // dash-drawing loop drawMusterPoint already uses, so this reads as the
-  // same placeholder visual language rather than a new one) and a floating
-  // name label near the top of its own zone. Built once, toggled by DECK
-  // (not exact zone) in refreshRoomVisibility — you can see the rest of an
-  // open deck from anywhere on it, same as the stairs/bay markers.
-  private buildZoneDecor() {
-    const dash = 6;
-    const dashedRect = (b: { left: number; right: number; top: number; bottom: number }) => {
-      const g = this.add.graphics();
-      g.lineStyle(1, PANEL_BORDER, 0.8);
-      for (let dx = b.left; dx < b.right; dx += dash * 2) {
-        g.lineBetween(dx, b.top, Math.min(dx + dash, b.right), b.top);
-        g.lineBetween(dx, b.bottom, Math.min(dx + dash, b.right), b.bottom);
-      }
-      for (let dy = b.top; dy < b.bottom; dy += dash * 2) {
-        g.lineBetween(b.left, dy, b.left, Math.min(dy + dash, b.bottom));
-        g.lineBetween(b.right, dy, b.right, Math.min(dy + dash, b.bottom));
-      }
-      return g;
-    };
-    for (const id of Object.keys(ROOM_ZONE_BOUNDS) as RoomId[]) {
-      if (id === "grotto" || id === "sparRoom") continue; // both alone on their own deck — the deck-wide box already reads as its one room, no divider/second label needed
-      const b = ROOM_ZONE_BOUNDS[id];
-      const nodes: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] = [dashedRect(b)];
-      // Only the two smaller right-column rooms per deck (hangarDeck/
-      // berths/vault/cic) get a floating label — recroom and workshop are
-      // each their deck's own full-height "main" room and already read
-      // via the title bar the instant you're standing in them.
-      if (b.right - b.left < ROOM_BOUNDS.right - ROOM_BOUNDS.left) {
-        nodes.push(this.add.text((b.left + b.right) / 2, b.top + 16, ROOM_TITLES[id], { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM }).setOrigin(0.5));
-      }
-      this.zoneDecor.push({ room: id, nodes });
-    }
-  }
+  // Antfarm Grid v0's dashed room dividers and floating labels (27 Aug
+  // 2026) are gone as of the 3 Sep 2026 floor-plan pass — real walls and
+  // per-room labels are drawn by drawDeckLayout() now, inside each deck's
+  // own container. zoneDecor stays as an (empty) list so
+  // refreshRoomVisibility's toggle loop needs no change.
+  private buildZoneDecor() {}
 
   // The egg hull, second pass, 27 Aug 2026 — one dashed marker + label per
   // RESERVED_BAYS entry (see its own header for what "reserved" means
@@ -5468,17 +6167,12 @@ export class Hub extends Phaser.Scene {
     // updateNpcMovement/sendToMuster). All three stay in Rec Room — see
     // the file header's own note on why the Phase 2 map growth doesn't
     // move or reassign them.
-    const positions = [
-      // Antfarm Grid v0, 27 Aug 2026 — these three used to be spread across
-      // the FULL ROOM_BOUNDS width (130-830); recroom is now only the
-      // left-hand slice of that box (130-550, see ROOM_ZONE_BOUNDS above),
-      // shared with Hangar Deck and Berths on the rest of the lower deck's
-      // open floor. Re-centered within recroom's own narrower zone so
-      // nobody's still sitting in what's now Hangar Deck's floor space.
-      { x: ROOM_ZONE_BOUNDS.recroom.left + 90, y: ROOM_BOUNDS.top + 160 },
-      { x: ROOM_ZONE_BOUNDS.recroom.right - 90, y: ROOM_BOUNDS.top + 160 },
-      { x: (ROOM_ZONE_BOUNDS.recroom.left + ROOM_ZONE_BOUNDS.recroom.right) / 2, y: ROOM_BOUNDS.bottom - 90 },
-    ];
+    // 3 Sep 2026, floor-plan pass — the three seats are now literally at
+    // the Rec Room table (hubLayout.ts's RECROOM_SEATS: three chairs around
+    // the round table's rim), the same table the mingle branch gathers
+    // everyone else around, instead of three points spread across the
+    // old open box.
+    const positions = RECROOM_SEATS;
 
     // Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven
     // by the real roster). This used to be `NPC_SEED.map(...)` — the
@@ -5506,7 +6200,9 @@ export class Hub extends Phaser.Scene {
     // newly-populated pilot's starting spot too, not just Rec Room —
     // reads as an actual crew going about the ship rather than everyone
     // freshly spawned in one place and slowly filtering out over time.
-    const roomChoices = Object.keys(ROOM_TITLES) as RoomId[];
+    // 3 Sep 2026 — ROAMABLE_ROOMS, not every RoomId: nobody spawns standing
+    // in a corridor.
+    const roomChoices = ROAMABLE_ROOMS;
     this.npcs = [];
     for (const pilotId of activePilotIds) {
       const namedSeed = NPC_SEED.find((s) => s.pilotId === pilotId);
@@ -5710,7 +6406,9 @@ export class Hub extends Phaser.Scene {
     // Grotto's open floor, off the x=480 line both stair markers sit on
     // (recroom/workshop hops land at (480,130)/(480,530) — see DOORS) so he
     // doesn't block the direct walking line between them.
-    const coPos = { x: 350, y: 330 };
+    // 3 Sep 2026 — on the dais at the grotto's centre (hubLayout.ts's
+    // CO_POINT), where the floor plan draws it.
+    const coPos = CO_POINT;
     const coCircle = this.add.circle(0, 0, NPC_R, CO_COLOR, 1).setStrokeStyle(2, 0xffffff, 0.25);
     const coLabel = this.add.text(0, 0, coInitials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
     const coNameTag = this.add
@@ -5835,11 +6533,14 @@ export class Hub extends Phaser.Scene {
     // carry — chosen for voice variety across the five, not tied to any
     // MekTrack specialization.
     const mekSeeds: { mekId: string; pilotId: string; catalyst: Catalyst; x: number; y: number }[] = [
-      { mekId: "mek_rourke", pilotId: "pilot_rourke", catalyst: "raven", x: 200, y: 250 },
-      { mekId: "mek_bosk", pilotId: "pilot_bosk", catalyst: "bear", x: 330, y: 250 },
-      { mekId: "mek_iyari", pilotId: "pilot_iyari", catalyst: "fox", x: 460, y: 250 },
-      { mekId: "mek_anand", pilotId: "pilot_anand", catalyst: "dog", x: 265, y: 420 },
-      { mekId: "mek_lask", pilotId: "pilot_lask", catalyst: "rabbit", x: 395, y: 420 },
+      // 3 Sep 2026 — each in front of their own cradle along the
+      // workshop's aft wall (hubLayout.ts's MEK_SPOTS), one cradle per
+      // Act I Mek, instead of the old two-row spread across an open box.
+      { mekId: "mek_rourke", pilotId: "pilot_rourke", catalyst: "raven", ...MEK_SPOTS.workshop[0] },
+      { mekId: "mek_bosk", pilotId: "pilot_bosk", catalyst: "bear", ...MEK_SPOTS.workshop[1] },
+      { mekId: "mek_iyari", pilotId: "pilot_iyari", catalyst: "fox", ...MEK_SPOTS.workshop[2] },
+      { mekId: "mek_anand", pilotId: "pilot_anand", catalyst: "dog", ...MEK_SPOTS.workshop[3] },
+      { mekId: "mek_lask", pilotId: "pilot_lask", catalyst: "rabbit", ...MEK_SPOTS.workshop[4] },
     ];
 
     // Mek scope decision follow-through, 1 Sep 2026
@@ -6009,11 +6710,29 @@ export class Hub extends Phaser.Scene {
         this.npcSocial.relationships.push(matchKey);
       }
 
-      // Workshop, same as every named Mek — thematically Meks stay tied to
-      // their maintenance bay even though (unlike pilots, scattered
+      // A workshop, same as every named Mek — thematically Meks stay tied
+      // to their maintenance bay even though (unlike pilots, scattered
       // ship-wide by the loop above) they don't otherwise roam the whole
       // ship on their own errands.
-      const pos = this.pickInitialNpcSpot("workshop", this.npcs);
+      //
+      // Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026 — WHICH workshop is
+      // now this Mek's own lance's, not a single shared room. This is the
+      // actual crowding fix the Plan doc is about: at the 15-pilot midgame
+      // this seeding loop was built for (Tier 3, 30 Aug), every one of
+      // those Meks used to stand in the same 420x444 room as Lance A's
+      // five. The five hand-placed Act I Meks above keep their own
+      // hand-picked spots in Lance A's workshop unchanged — they ARE
+      // Warden Company, so their lance and their coordinates already
+      // agree, and re-deriving a room for them would only risk moving a
+      // deliberately-placed body somewhere it wasn't drawn for.
+      const workshopRoom = LANCE_WORKSHOP[lanceOfMek(mekId)];
+      // 3 Sep 2026 — the first free cradle in that workshop (hubLayout.ts's
+      // MEK_SPOTS, five per room), else a random clear spot. A cradle is
+      // "free" if no Mek already stands within a body's width of it.
+      const cradle = (MEK_SPOTS[workshopRoom as keyof typeof MEK_SPOTS] ?? []).find(
+        (spot) => !this.npcs.some((n) => n.room === workshopRoom && Phaser.Math.Distance.Between(spot.x, spot.y, n.x, n.y) < NPC_R * 2),
+      );
+      const pos = cradle ?? this.pickInitialNpcSpot(workshopRoom, this.npcs);
       const circle = this.add.circle(0, 0, NPC_R, color, 1).setStrokeStyle(2, 0xffffff, 0.25);
       const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
       const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
@@ -6026,8 +6745,8 @@ export class Hub extends Phaser.Scene {
         displayName,
         initials,
         color,
-        room: "workshop",
-        homeRoom: "workshop",
+        room: workshopRoom,
+        homeRoom: workshopRoom,
         x: pos.x,
         y: pos.y,
         // catalystForPilot works off any string id via its deterministic
@@ -6272,6 +6991,16 @@ export class Hub extends Phaser.Scene {
     const rourke = WARDEN_PILOTS.find((p) => p.id === "pilot_rourke");
     const initials = rourke ? pilotInitials(rourke.displayName) : "??";
 
+    // 3 Sep 2026, floor-plan pass — spawn on the Rec Room's open floor
+    // (hubLayout.ts's PLAYER_SPAWN), clear of whoever's already standing
+    // there, instead of the old fixed (480,330), which the new plan puts
+    // inside Second Lance's berths. buildNpcs has already run, so
+    // pickClearPoint sees the real crowd.
+    const spawn = pickClearPoint("lower", PLAYER_SPAWN, this.npcs.filter((n) => sameDeck(n.room, "recroom")), PLAYER_R, DOOR_LANDING_JITTER_DIST, DOOR_LANDING_MAX_ATTEMPTS);
+    this.playerX = spawn.x;
+    this.playerY = spawn.y;
+    this.currentRoomId = zoneAt("lower", spawn.x, spawn.y);
+
     const circle = this.add.circle(0, 0, PLAYER_R, PATH_COLORS.meeps, 1).setStrokeStyle(2, 0xffd166, 0.9);
     const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
     this.player = this.add.container(this.playerX, this.playerY, [circle, label]);
@@ -6313,7 +7042,7 @@ export class Hub extends Phaser.Scene {
     let bestD = NPC_R + 6;
     for (const npc of this.npcs) {
       if (ROOM_DECK[npc.room] !== deck) continue;
-      const d = Phaser.Math.Distance.Between(this.pointerX, this.pointerY, npc.x, npc.y);
+      const d = Phaser.Math.Distance.Between(this.pointerWorldX, this.pointerWorldY, npc.x, npc.y);
       if (d < bestD) {
         bestD = d;
         best = npc;
@@ -6360,11 +7089,38 @@ export class Hub extends Phaser.Scene {
     // the centre of the screen already shows, so an unbuilt room reads the
     // same way here as it does there rather than promising anything.
     const deck = ROOM_DECK[this.currentRoomId];
-    const roomId = zoneAt(deck, this.pointerX, this.pointerY);
+    const roomId = zoneAt(deck, this.pointerWorldX, this.pointerWorldY);
     const out = [ROOM_TITLES[roomId]];
-    const note = ROOM_NOTES[roomId];
+    const note = this.roomNote(roomId);
     if (note) out.push(...wrapTipText(note, 44));
     return out;
+  }
+
+  /**
+   * The note to show for a room right now — ROOM_NOTES, minus the one case
+   * where a static string would be visibly untrue.
+   *
+   * Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026. The two new lance
+   * workshops' notes say "Empty until they come aboard," which is honest
+   * for a campaign that hasn't reached Mission 12/24 yet and a plain lie
+   * afterward — caught in a verification screenshot showing that sentence
+   * printed across the middle of a room with five Meks standing in it.
+   * Once the lance is actually aboard the room needs no note at all: it
+   * has no bench to explain and nothing unbuilt to apologise for, same as
+   * the Rec Room, which has never had one.
+   *
+   * Read off the live NPC list rather than campaignState's roster, on
+   * purpose — what the note is describing is literally "is anyone standing
+   * in here," and this.npcs IS that, already filtered to active pilots by
+   * buildNpcs. A roster check could disagree with what the player can see.
+   */
+  private roomNote(roomId: RoomId): string | undefined {
+    const note = ROOM_NOTES[roomId];
+    if (!note) return undefined;
+    if (roomId === "workshopB" || roomId === "workshopC") {
+      if (this.npcs.some((n) => n.homeRoom === roomId)) return undefined;
+    }
+    return note;
   }
 
   /**
@@ -6801,7 +7557,7 @@ export class Hub extends Phaser.Scene {
 
       npc.hunger = tickNeed(npc.hunger, npc.room === "recroom");
       npc.thirst = tickNeed(npc.thirst, npc.room === "recroom");
-      npc.sleep = tickNeed(npc.sleep, npc.room === "berths");
+      npc.sleep = tickNeed(npc.sleep, isBerths(npc.room)); // any lance's bunks restore sleep — see LANCE_BERTHS
       // Boredom, 30 Aug 2026 — see this field's own comment (HubNpc) for why
       // its restore condition is "currently in a live encounter bubble"
       // rather than a fixed room the way the three needs just above are.
@@ -6849,6 +7605,7 @@ export class Hub extends Phaser.Scene {
       if (dist <= arriveThreshold) {
         npc.targetX = undefined;
         npc.targetY = undefined;
+        npc.path = undefined;
         npc.stuckMs = 0;
         // A genuine arrival, not a give-up. Only here, never in the
         // stuckMs give-up branch below: a stuck NPC that gave up short of
@@ -6862,8 +7619,24 @@ export class Hub extends Phaser.Scene {
         continue;
       }
 
-      const dx = npc.targetX - npc.x;
-      const dy = npc.targetY - npc.y;
+      // 3 Sep 2026 — walls. Path once per target (hubNav.findPath, on the
+      // deck the NPC is standing on), then steer at the next waypoint
+      // instead of the target itself. A waypoint counts as reached inside
+      // NAV_WAYPOINT_REACH; the real arrival check above is still against
+      // the true target, so nothing about "did I get there" changed. A
+      // null path (no route at all — a layout bug hubLayout.test.ts is
+      // meant to catch first) falls back to the straight line and lets the
+      // stuck timeout below do what it always did.
+      if (npc.path === undefined || npc.pathTarget === undefined || npc.pathTarget.x !== npc.targetX || npc.pathTarget.y !== npc.targetY) {
+        npc.path = findPath(ROOM_DECK[npc.room], npc.x, npc.y, npc.targetX, npc.targetY, NPC_R) ?? [];
+        npc.pathTarget = { x: npc.targetX, y: npc.targetY };
+      }
+      while (npc.path.length > 1 && Phaser.Math.Distance.Between(npc.x, npc.y, npc.path[0].x, npc.path[0].y) <= NAV_WAYPOINT_REACH) {
+        npc.path.shift();
+      }
+      const aim = npc.path.length > 0 ? npc.path[0] : { x: npc.targetX, y: npc.targetY };
+      const dx = aim.x - npc.x;
+      const dy = aim.y - npc.y;
       const len = Math.hypot(dx, dy) || 1;
       const stepX = (dx / len) * NPC_WALK_SPEED * dt;
       const stepY = (dy / len) * NPC_WALK_SPEED * dt;
@@ -6881,6 +7654,7 @@ export class Hub extends Phaser.Scene {
         if (npc.stuckMs >= STUCK_TIMEOUT_MS) {
           npc.targetX = undefined;
           npc.targetY = undefined;
+          npc.path = undefined;
           npc.stuckMs = 0;
           // 26 Aug 2026, Build Plan §24 — a real gap caught by the final,
           // long natural-run pass: giving up alone never moves the NPC even
@@ -7087,6 +7861,62 @@ export class Hub extends Phaser.Scene {
   // this.npcSocial.bonds now (the same live object runNpcEncounter
   // mutates), so where an NPC chooses to walk always reflects where the
   // relationship actually stands right now.
+  /**
+   * Send `npc` toward `room`, by whichever means that room actually needs —
+   * Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026.
+   *
+   * Same deck: a direct walk to a random point inside that room's own zone,
+   * no door involved. This is the identical shape the same-deck explore
+   * branch below already uses (pick inside ROOM_ZONE_BOUNDS, then run it
+   * through clampToDeckFloor so a grotto pick lands on the real ellipse
+   * rather than its bounding rectangle's corner) — deliberately the same
+   * code shape rather than a second way of doing it.
+   *
+   * Different deck: the existing travelTargetRoom/nextHopDoor machinery,
+   * unchanged.
+   *
+   * Extracted because the Mek-confinement branch in updateNpcRoaming needs
+   * both cases now and had only ever needed the second one. A no-op change
+   * for every pre-Phase-2 caller: every trip a confined Mek used to take
+   * (workshop <-> recroom/berths) was cross-deck and still goes through
+   * exactly the same door path it always did.
+   */
+  private walkToRoomTarget(npc: HubNpc, room: RoomId): void {
+    if (sameDeck(npc.room, room)) {
+      const zone = ROOM_ZONE_BOUNDS[room];
+      const pick = clampToDeckFloor(
+        ROOM_DECK[room],
+        zone.left + Math.random() * (zone.right - zone.left),
+        zone.top + Math.random() * (zone.bottom - zone.top),
+        NPC_R,
+      );
+      npc.targetX = pick.x;
+      npc.targetY = pick.y;
+      return;
+    }
+    const door = nextHopDoor(npc.room, room);
+    if (!door) return; // no route on this map — fail safe rather than stranding a target nothing can reach
+    npc.travelTargetRoom = room;
+    const approach = this.approachDoorTarget(npc, door);
+    npc.targetX = approach.x;
+    npc.targetY = approach.y;
+  }
+
+  // 3 Sep 2026 — which lance an NPC belongs to, for the per-lance berths.
+  // A Mek NPC's pilotId IS the mek's own id (see buildNpcs), hence the
+  // prefix check; both resolvers know both campaigns' rosters.
+  private lanceOf(npc: HubNpc): LanceId {
+    return npc.pilotId.startsWith("mek_") ? lanceOfMek(npc.pilotId) : lanceOfPilot(npc.pilotId);
+  }
+
+  // NEED_ROOM says "sleep restores in berths" without knowing there are
+  // three berth rooms now; this resolves that one entry to the NPC's own
+  // lance's bunks and passes every other need's room through untouched.
+  private needRoomFor(npc: HubNpc, need: keyof typeof NEED_ROOM): RoomId {
+    const base = NEED_ROOM[need];
+    return base === "berths" ? LANCE_BERTHS[this.lanceOf(npc)] : base;
+  }
+
   private updateNpcRoaming(now: number) {
     for (const npc of this.npcs) {
       if (npc.targetX !== undefined) continue;
@@ -7164,27 +7994,31 @@ export class Hub extends Phaser.Scene {
       // fall through to the same-room mingle logic at the bottom of this
       // loop unchanged, so a Mek still chats or games with whoever's
       // actually standing next to them, at home or in the Rec Room/Berths.
+      //
+      // Carrier Scale-Up Plan v1 Phase 2, 3 Sep 2026 — both branches below
+      // used to reach for nextHopDoor() unconditionally, which was exactly
+      // right while every Mek in the game shared one homeRoom ("workshop")
+      // and every trip they ever made was therefore cross-deck. Phase 2
+      // breaks that assumption: a Second Lance Mek's home is workshopB,
+      // which sits on the SAME deck as Lance A's workshop, and nextHopDoor
+      // deliberately returns undefined for a same-deck pair (there's no
+      // door — it's one open floor). Left alone, a Lance B Mek walking home
+      // from the Rec Room would come up the stairs, land inside Lance A's
+      // workshop (where the upper-deck stair landing point is), find no
+      // door to its own room, and simply stop there forever — permanently
+      // parked in another lance's bay, which is both the wrong room and a
+      // fresh little crowd in the exact room this plan is trying to thin
+      // out. walkToRoomTarget handles both cases: a direct walk when the
+      // target shares this deck, the existing door hop when it doesn't.
       if (npc.homeRoom !== undefined) {
         const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep);
-        const needRoom = worstOfNeeds ? NEED_ROOM[worstOfNeeds] : undefined;
+        const needRoom = worstOfNeeds ? this.needRoomFor(npc, worstOfNeeds) : undefined;
         if (npc.room !== npc.homeRoom && needRoom === undefined) {
-          const door = nextHopDoor(npc.room, npc.homeRoom);
-          if (door) {
-            npc.travelTargetRoom = npc.homeRoom;
-            const approach = this.approachDoorTarget(npc, door);
-            npc.targetX = approach.x;
-            npc.targetY = approach.y;
-          }
+          this.walkToRoomTarget(npc, npc.homeRoom);
           continue;
         }
         if (npc.room === npc.homeRoom && needRoom !== undefined && needRoom !== npc.homeRoom) {
-          const door = nextHopDoor(npc.room, needRoom);
-          if (door) {
-            npc.travelTargetRoom = needRoom;
-            const approach = this.approachDoorTarget(npc, door);
-            npc.targetX = approach.x;
-            npc.targetY = approach.y;
-          }
+          this.walkToRoomTarget(npc, needRoom);
           continue;
         }
       }
@@ -7209,6 +8043,31 @@ export class Hub extends Phaser.Scene {
       // runs now for npc.homeRoom === undefined (every ordinary pilot),
       // exactly as before this pass.
       if (npc.homeRoom === undefined && Math.random() < EXPLORE_CHANCE) {
+        // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — see EXPLORE_OPEN_
+        // FLOOR_CHANCE's own header for the full reasoning. Rolled first,
+        // ahead of the needs-biased named-room pick below: this NPC has
+        // already committed to "leave and go somewhere" by reaching this
+        // branch at all (the outer EXPLORE_CHANCE roll above), so this is
+        // just deciding WHERE — a plain point on the open floor, or a named
+        // room the way this branch has always worked. Worth being honest
+        // about the one real trade-off: this CAN fire even when a real
+        // need (hunger/thirst/sleep/boredom) is pulling the NPC toward a
+        // specific room below, sending them to empty floor instead just
+        // this once. Not a new problem this introduces, though — biasRoom
+        // below was already only a weighted NUDGE (pickExploreTarget's own
+        // header), never a guarantee, so a needy NPC could already roll a
+        // different room entirely; this just adds one more possible miss
+        // at roughly the same order of magnitude (EXPLORE_CHANCE 0.15 ×
+        // EXPLORE_OPEN_FLOOR_CHANCE 0.3 ≈ 4-5% of idle ticks), not a
+        // meaningfully bigger one.
+        if (Math.random() < EXPLORE_OPEN_FLOOR_CHANCE) {
+          const deck = ROOM_DECK[npc.room];
+          const openPoint = pickOpenFloorPoint(deck);
+          const pick = clampToDeckFloor(deck, openPoint.x, openPoint.y, NPC_R);
+          npc.targetX = pick.x;
+          npc.targetY = pick.y;
+          continue;
+        }
         // Needs Counter roaming bias, 28 Aug 2026 — see NEEDS_ROAM_WEIGHT_BONUS's
         // own comment. worstNeed reads straight off this NPC's live
         // hunger/thirst/sleep/boredom; NEED_ROOM maps whichever one's worst
@@ -7220,8 +8079,8 @@ export class Hub extends Phaser.Scene {
         // NEEDS_FLAVOR_BANK to return) — this is the one call site an idle
         // ordinary pilot's own roaming actually goes through.
         const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep, npc.boredom);
-        const biasRoom = worstOfNeeds ? NEED_ROOM[worstOfNeeds] : undefined;
-        const target = pickExploreTarget(npc.room, biasRoom);
+        const biasRoom = worstOfNeeds ? this.needRoomFor(npc, worstOfNeeds) : undefined;
+        const target = pickExploreTarget(npc.room, biasRoom, LANCE_BERTHS[this.lanceOf(npc)]);
         if (sameDeck(npc.room, target)) {
           // ROOM_ZONE_BOUNDS[target] is grotto's own (bigger, off-center)
           // bounding rect for that deck (see its own comment) — picking a
@@ -7306,9 +8165,14 @@ export class Hub extends Phaser.Scene {
       // system, same "cheap enough at today's roster size" ethos every
       // other O(n) scan in this file already runs on.
       if (npc.room === "recroom" && wantsCompany) {
-        const atTable = roommates.filter((n) => n.room === "recroom" && Phaser.Math.Distance.Between(n.x, n.y, RECROOM_TABLE.x, RECROOM_TABLE.y) <= RECROOM_TABLE_RADIUS).length;
+        // 3 Sep 2026 — the table is solid now, so "at the table" is "at the
+        // rim": within the table's radius plus a body's, plus a little slack.
+        const atTable = roommates.filter((n) => n.room === "recroom" && Phaser.Math.Distance.Between(n.x, n.y, RECROOM_TABLE.x, RECROOM_TABLE.y) <= RECROOM_TABLE_RADIUS + NPC_R + 14).length;
         if (atTable < RECROOM_TABLE_SEATS) {
-          dest = pointNear(RECROOM_TABLE, RECROOM_TABLE_RADIUS * 0.6);
+          // A point on the rim at a random angle; clampToDeckFloor below
+          // pushes it the last few px clear of the table's own solid.
+          const seatAngle = Math.random() * Math.PI * 2;
+          dest = { x: RECROOM_TABLE.x + Math.cos(seatAngle) * (RECROOM_TABLE_RADIUS + NPC_R + 2), y: RECROOM_TABLE.y + Math.sin(seatAngle) * (RECROOM_TABLE_RADIUS + NPC_R + 2) };
         }
       }
 
@@ -7845,7 +8709,7 @@ export class Hub extends Phaser.Scene {
         }
       }
 
-      if (npc.room === "berths") {
+      if (isBerths(npc.room)) {
         // "committed partner (player or NPC)" — the spec's own wording
         // applies "committed" symmetrically to both cases (Social Sim
         // Roadmap #16: "once the pilot has a committed partner AND that
@@ -7853,9 +8717,9 @@ export class Hub extends Phaser.Scene {
         // deriveRelationshipStage the same way findCommittedPartner does
         // for the NPC case, not just the flatter inRelationship boolean.
         const withPlayer =
-          (npc.inRelationship ?? false) && deriveRelationshipStage(npc.favorability) === "committed" && this.currentRoomId === "berths";
+          (npc.inRelationship ?? false) && deriveRelationshipStage(npc.favorability) === "committed" && this.currentRoomId === npc.room;
         const partner = this.findCommittedPartner(npc);
-        const withNpcPartner = partner !== undefined && partner.room === "berths" && partner.targetX === undefined;
+        const withNpcPartner = partner !== undefined && partner.room === npc.room && partner.targetX === undefined;
         if (withPlayer || withNpcPartner) {
           this.resolveBreakdown(npc, "intimacy", withPlayer ? "player" : partner, now);
           continue;
@@ -7963,6 +8827,13 @@ export class Hub extends Phaser.Scene {
   // DOOR_RADIUS, or null. Doors in other rooms are irrelevant by
   // construction (DOORS is filtered by d.room), same shape as every other
   // room-scoped check in this file.
+  // 3 Sep 2026 — tiny public accessor for tools/verify scripts, which read
+  // the live scene and have no other way to reach the module-level
+  // ROOM_DECK table. Not used by gameplay code.
+  roomDeckOf(room: RoomId): DeckId {
+    return ROOM_DECK[room];
+  }
+
   private isAtDoor(): DoorDef | null {
     for (const d of DOORS) {
       if (d.room !== this.currentRoomId) continue;
@@ -8029,6 +8900,14 @@ export class Hub extends Phaser.Scene {
     this.roomTitleText.setText(`THE ANTFARM — ${ROOM_TITLES[this.currentRoomId]}`);
     this.deckIndicatorText.setText(`DECK: ${DECK_TITLES[deck]}`);
 
+    // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — re-pin the camera to
+    // whichever deck is now active every time this runs (a real stair
+    // crossing, or the one-time create() call that sets up the starting
+    // Rec Room state). setBounds is cheap and idempotent, so no dirty-
+    // check against the previous deck is needed — just always set it.
+    const camBounds = deckCameraBounds(deck);
+    this.cameras.main.setBounds(camBounds.left, camBounds.top, camBounds.right - camBounds.left, camBounds.bottom - camBounds.top);
+
     // The egg hull, 27 Aug 2026 (both passes) — exactly one of the three
     // floors is ever visible: each deck's own. See drawDeckFloor/
     // drawGrottoFloor's own headers.
@@ -8083,7 +8962,7 @@ export class Hub extends Phaser.Scene {
     this.vaultPlinthOutline?.setVisible(onUpperDeck);
     this.vaultPlinthLabel?.setVisible(onUpperDeck);
 
-    const note = ROOM_NOTES[this.currentRoomId];
+    const note = this.roomNote(this.currentRoomId);
     const zone = ROOM_ZONE_BOUNDS[this.currentRoomId];
     this.roomNoteText.setPosition((zone.left + zone.right) / 2, (zone.top + zone.bottom) / 2);
     this.roomNoteText.setWordWrapWidth(Math.max(160, zone.right - zone.left - 60));
@@ -8296,6 +9175,28 @@ export class Hub extends Phaser.Scene {
       if (!sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
       if (dist > TALK_RADIUS) continue;
+      // Bug fix, 2 Sep 2026 (Bloom_Wars_Bug_MusterCrossDeckNoMove_02Sep2026.md)
+      // — this used to show every in-range NPC an identical "aye, heading
+      // out" bubble before even checking whether sendToMuster would
+      // actually do anything. A Mek or the CO always fails sendToMuster's
+      // own `campaignState.pilots[npc.pilotId]` guard (see its header —
+      // neither has a mission slot to head toward), so standing near a Mek
+      // in the Workshop and calling muster produced exactly the reported
+      // symptom: a cheerful acknowledgment bubble, then no movement at
+      // all, forever — not a routing failure (nextHopDoor is verified
+      // complete for every room pair, including every upper-deck room to
+      // MUSTER_ROOM), just an unconditional reply hiding a silent no-op.
+      // Follow-up, same day (addendum's own flagged open question,
+      // Maxime: "yes") — dead silence read as its own bug, so these NPCs
+      // now get a real in-voice decline instead of either the fake
+      // "on my way" or nothing at all. Still no sendToMuster call, still no
+      // relay scheduled below — a decline doesn't spread the call onward
+      // any more than a real acknowledgment always did before this fix.
+      if (message.kind === "muster" && !this.campaignState.pilots[npc.pilotId]) {
+        const declineLine = pickMusterDeclineLine(npc.pilotId === CO_PILOT_ID ? "co" : "mek");
+        this.showBubble(npc, declineLine, now);
+        continue;
+      }
       const line = pickLineForMessage(npc.ambient, message);
       this.showBubble(npc, line, now);
       if (message.kind === "muster") this.sendToMuster(npc);
@@ -8355,6 +9256,24 @@ export class Hub extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(source.x, source.y, npc.x, npc.y);
       if (dist > PROPAGATION_RADIUS) continue;
       if (Math.random() > catchChance) continue; // heard about it, didn't actually react
+      // Same muster exclusion as broadcastMessage's direct case, above —
+      // see that comment for the full account. A relayed muster call must
+      // not let a Mek or the CO catch it either, for the identical reason:
+      // sendToMuster would silently refuse them regardless. Same follow-up
+      // too: a decline line instead of silence, staggered by hop like the
+      // ordinary reaction below so it doesn't pop in ahead of the wave
+      // that's supposedly still travelling toward them. Marked visited so a
+      // second relay path reaching the same NPC doesn't repeat the bubble;
+      // deliberately not added to its own outward propagate — a decline
+      // doesn't carry the call any further, same as before this pass.
+      if (incoming.kind === "muster" && !this.campaignState.pilots[npc.pilotId]) {
+        visited.add(npc.pilotId);
+        const declineLine = pickMusterDeclineLine(npc.pilotId === CO_PILOT_ID ? "co" : "mek");
+        this.time.delayedCall(hop * PROPAGATION_HOP_DELAY_MS, () => {
+          this.showBubble(npc, declineLine, this.time.now);
+        });
+        continue;
+      }
 
       visited.add(npc.pilotId);
       // Adjustment, 25 Aug 2026, revised same day per Maxime: first pass

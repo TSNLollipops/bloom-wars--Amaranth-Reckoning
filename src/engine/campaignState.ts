@@ -60,7 +60,7 @@ import { findPilot } from "../data/pilotRegistry";
 import type { SocialLogEntry } from "../data/verbs";
 import type { CarrierModuleId } from "../data/carrierModules";
 import type { HeirloomCampaignState } from "./heirlooms";
-import type { BattleUnit } from "./units";
+import type { BattleUnit, OnHitEffectKind } from "./units";
 
 // ---- 4. Campaign-persistent roster state ----------------------------
 
@@ -265,6 +265,27 @@ export interface CampaignState {
   // shape as builtBays and builtModules above, for the same reason: an
   // older save simply has none, which means exactly "nothing recruited."
   heirlooms?: HeirloomCampaignState;
+  /**
+   * seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2 slice
+   * 6, 3 Sep 2026) — which on-hit-effect KINDS (OnHitEffectKind,
+   * engine/units.ts — not which archetypes; see recordFoughtOnHitEffectKinds'
+   * own comment for why kind rather than archetype id was the chosen
+   * granularity) the player's squad has fought anywhere in this campaign so
+   * far. "Fought" means a hostile carrying that kind appeared on the same
+   * mission's own board, win or lose, kill or no kill — see
+   * Mission.getFoughtOnHitEffectKindsThisMission()'s own comment for the
+   * exact bar. Populated at Debrief (recordFoughtOnHitEffectKinds, below),
+   * read once per mission at Mission construction
+   * (MissionOptions.foughtOnHitEffectKinds) as an immutable snapshot for
+   * that mission's own lifetime — same "campaign state doesn't change under
+   * an in-progress mission" rule builtBays/builtModules above already
+   * follow. Undefined/empty on every save from before this pass (needs no
+   * migration, same `?? []` optional shape as every other array on this
+   * interface) and on a fresh campaign that hasn't fought anything yet —
+   * seal_borrowed_authority refuses cleanly in that case rather than
+   * drawing from nothing (see sealBorrowedAuthority()'s own header).
+   */
+  foughtOnHitEffectKinds?: OnHitEffectKind[];
   // Vault dedication, 2 Sep 2026 (Mission 12 — "The Fallow Line," Act I's
   // finale) — Antfarm Carrier Hub §8 marks this scene "load-bearing, not
   // skippable," so it needs a permanent record the moment it resolves, not
@@ -857,6 +878,73 @@ export function applyMissionLosses(
   return flipped;
 }
 
+/**
+ * The mutation half of lastword_signature's (Migawari/The Last Word) own
+ * permanent cost, applied at debrief — same evaluate-live/apply-later split
+ * as applyMissionLosses just above, and for the identical reason: the
+ * Mission object that recorded each use is torn down at Debrief, so the
+ * fact has to be written down once, live, at the moment it happened
+ * (engine/mission.ts's Mission.signatureHpCosts / LastWordSignatureCostRecord)
+ * and only landed on the persistent PilotRecord here.
+ *
+ * Multiplicative, and deliberately walked in array order rather than
+ * collapsed into one combined factor first: `costs` can hold more than one
+ * entry for the SAME pilotId (a long mission where the 6-turn cooldown
+ * comes back around twice), and multiplying each into
+ * `entry.pilot.permanentMaxHpMultiplier` in the order they were recorded is
+ * exactly the same compounding LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1's
+ * own comment (data/combatTables.ts) documents for the cross-mission case
+ * — there is nothing special about two uses landing in the same debrief
+ * versus two different debriefs one campaign-week apart; it's the same
+ * multiplication, applied in the same order, either way.
+ *
+ * No-op for a pilotId this campaign doesn't recognize (defense in depth,
+ * matching applyMissionLosses' own `if (!entry) continue` just above) —
+ * should never happen in live play (the wielder recording a use is always
+ * a currently fielded, campaign-tracked pilot), but a directly-constructed
+ * test Mission could hand this a synthetic id.
+ *
+ * Deliberately does NOT touch currentHp/maxHp on any live BattleUnit —
+ * there is no live BattleUnit here, only the persistent PilotRecord. The
+ * CURRENT mission's own wielder already had their in-mission maxHp/currentHp
+ * shrunk directly, at the instant of each use, by
+ * engine/mission.ts's lastWordSignature() itself (see that method's own
+ * header comment for why the reduction is read as applying immediately,
+ * not deferred to next deployment) — this function only carries the SAME
+ * multiplier forward onto every future mission that pilot ever deploys
+ * into again.
+ */
+export function applyLastWordSignatureCosts(
+  state: CampaignState,
+  costs: readonly { pilotId: string; hpMultiplier: number }[],
+): void {
+  for (const cost of costs) {
+    const entry = state.pilots[cost.pilotId];
+    if (!entry) continue;
+    entry.pilot.permanentMaxHpMultiplier = (entry.pilot.permanentMaxHpMultiplier ?? 1) * cost.hpMultiplier;
+  }
+}
+
+/**
+ * seal_borrowed_authority's (Simulacrum/The Stolen Seal, Vault Phase 2
+ * slice 6, 3 Sep 2026) own persistence half — see
+ * CampaignState.foughtOnHitEffectKinds' own comment for the full design.
+ * Called once per Debrief with
+ * Mission.getFoughtOnHitEffectKindsThisMission() (engine/mission.ts): every
+ * on-hit-effect kind any hostile on THIS mission's own board ever carried,
+ * unioned into the campaign-wide set. Idempotent — a kind already recorded
+ * from an earlier mission is simply a no-op, never a duplicate entry, since
+ * this always rebuilds from a Set — and safe to call with an empty array
+ * (every mission with no Bloom hostiles at all, if one is ever authored;
+ * every mission today has at least one). Mutates `state` directly, same
+ * void/mutate shape as applyLastWordSignatureCosts right above.
+ */
+export function recordFoughtOnHitEffectKinds(state: CampaignState, kinds: readonly OnHitEffectKind[]): void {
+  const seen = new Set<OnHitEffectKind>(state.foughtOnHitEffectKinds ?? []);
+  for (const kind of kinds) seen.add(kind);
+  state.foughtOnHitEffectKinds = Array.from(seen);
+}
+
 // ---- 5. The deploy gate -------------------------------------------------
 
 export interface LaunchCheckResult {
@@ -1243,6 +1331,57 @@ export function deriveRourkeRank(state: CampaignState): Rank {
   if (state.pilots[THIRD_LANCE_PILOTS[0].id]) return "maj";
   if (state.pilots[SECOND_LANCE_PILOTS[0].id]) return "capt";
   return "2nd_lt";
+}
+
+/**
+ * Which lance a pilot belongs to — Carrier Scale-Up Plan v1 Phase 2, 3 Sep
+ * 2026 (per-lance Mek Workshops). "a" is the starting company, "b" the
+ * lance that integrates at Mission 12, "c" the one at Mission 24.
+ *
+ * Lives here, in one exported pure function, rather than as an id check
+ * inlined into Hub.ts, for three reasons this project's own history keeps
+ * proving out:
+ *  - It has to answer for BOTH campaigns. Warden Company has three lances
+ *    (WARDEN/SECOND_LANCE/THIRD_LANCE_PILOTS); House Amaranth has two
+ *    (HOUSE_AMARANTH_PILOTS + its own second lance) and no third at all.
+ *    A caller that only knew about Warden's three lists would silently
+ *    file every House Amaranth pilot under the wrong lance.
+ *  - It's the same "extract before duplicating" call ShopPanel.ts and
+ *    MenuOverlay.ts already set; the Hangar roster panel's own lance tabs
+ *    are an obvious second consumer if they ever want to stop deriving
+ *    this themselves.
+ *  - It's unit-testable without Phaser, localStorage, or a live scene,
+ *    same as every other pure check in this file.
+ *
+ * A pilot in none of the six static lists — a shop recruit, most obviously
+ * — reads as "a". That's a real judgment call, not a fallback that can't
+ * happen: recruits genuinely have no lance of their own on record, and the
+ * starting company is the one the player themselves flies with, so a new
+ * hire standing in Lance A's workshop is the least surprising answer.
+ * Revisit if recruiting ever gets its own lance assignment.
+ */
+export type LanceId = "a" | "b" | "c";
+
+export function lanceOfPilot(pilotId: string): LanceId {
+  if (THIRD_LANCE_PILOTS.some((p) => p.id === pilotId)) return "c";
+  if (SECOND_LANCE_PILOTS.some((p) => p.id === pilotId)) return "b";
+  if (HOUSE_AMARANTH_SECOND_LANCE_PILOTS.some((p) => p.id === pilotId)) return "b";
+  return "a";
+}
+
+/**
+ * The same answer for a pilot's MEK, by that mek's own id — which is what
+ * Hub.ts actually holds when it seeds the Workshop rooms (a Mek NPC's
+ * `pilotId` field is the MEK's id, not its pilot's; see Hub.ts's own
+ * comment on that deliberate reuse). Walks the same six static lists by
+ * `mekId` instead of `id`, so it stays correct for both campaigns without
+ * the caller needing to resolve mek -> pilot first.
+ */
+export function lanceOfMek(mekId: string): LanceId {
+  if (THIRD_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "c";
+  if (SECOND_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "b";
+  if (HOUSE_AMARANTH_SECOND_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "b";
+  return "a";
 }
 
 /**

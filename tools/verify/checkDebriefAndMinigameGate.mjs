@@ -20,7 +20,7 @@
 import { chromium } from "playwright";
 import { readFileSync, writeFileSync } from "fs";
 
-const save = readFileSync("/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/save.json", "utf8");
+const save = readFileSync(new URL("./save.json", import.meta.url).pathname, "utf8");
 
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const page = await browser.newPage({ viewport: { width: 1074, height: 640 } });
@@ -52,7 +52,7 @@ const sceneReady = await page.evaluate(() => {
   return hub.scene.isActive() ? "active" : "inactive:" + hub.scene.settings.status;
 });
 console.log("Hub scene status:", sceneReady);
-await page.screenshot({ path: "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/debrief_start.png" });
+await page.screenshot({ path: new URL("./debrief_start.png", import.meta.url).pathname });
 
 // Teleport is a direct poke at the private field, same "any scene's private
 // fields are reachable the same way" convention the README already
@@ -96,7 +96,10 @@ async function lastChatLogEntry() {
 const results = {};
 
 // --- Case 1: no mission flown yet, ask the CO for a debrief ---
-await teleportTo(350, 330, "grotto"); // CO's own coPos, see Hub.ts's buildNpcs()
+// 3 Sep 2026 — the CO stands on the grotto dais (hubLayout.ts's CO_POINT);
+// read it live rather than hand-copying the coordinate.
+const CO = await page.evaluate(async () => (await import("/src/engine/hubLayout.ts")).CO_POINT);
+await teleportTo(CO.x, CO.y + 40, "grotto");
 await setLastMissionEcho(undefined);
 await sayInChat("debrief");
 results.noMissionYet = await lastChatLogEntry();
@@ -122,7 +125,7 @@ await teleportTo(otherNpcPos.x, otherNpcPos.y, "recroom");
 await sayInChat("debrief");
 results.redirectFromOtherNpc = await lastChatLogEntry();
 
-await page.screenshot({ path: "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/debrief_end.png" });
+await page.screenshot({ path: new URL("./debrief_end.png", import.meta.url).pathname });
 
 // --- Case 5: ambient minigame room-gate — 300 real runNpcEncounter() calls
 // against two NPCs forced into Hangar Deck, checking the actual committed
@@ -152,7 +155,7 @@ console.log("\n=== Page errors/console errors during the whole run ===");
 console.log(pageErrors.length ? pageErrors : "none");
 
 writeFileSync(
-  "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/debrief_report.json",
+  new URL("./debrief_report.json", import.meta.url).pathname,
   JSON.stringify({ sceneReady, results, minigameGateResult, pageErrors }, null, 2)
 );
 

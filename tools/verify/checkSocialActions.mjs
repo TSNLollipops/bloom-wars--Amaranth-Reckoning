@@ -24,7 +24,7 @@
 import { chromium } from "playwright";
 import { readFileSync, writeFileSync } from "fs";
 
-const save = readFileSync("/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/save.json", "utf8");
+const save = readFileSync(new URL("./save.json", import.meta.url).pathname, "utf8");
 
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const page = await browser.newPage({ viewport: { width: 1074, height: 640 } });
@@ -55,7 +55,7 @@ const sceneReady = await page.evaluate(() => {
   return hub.scene.isActive() ? "active" : "inactive:" + hub.scene.settings.status;
 });
 console.log("Hub scene status:", sceneReady);
-await page.screenshot({ path: "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/social_start.png" });
+await page.screenshot({ path: new URL("./social_start.png", import.meta.url).pathname });
 
 async function teleportTo(x, y, roomId) {
   await page.evaluate(({ x, y, roomId }) => {
@@ -180,7 +180,7 @@ const npcApology = nonCo[4] ?? nonCo[0];
 const npcCongrats = nonCo[5] ?? nonCo[1];
 const npcSendOff = nonCo[6] ?? nonCo[2];
 
-await teleportTo(400, 300, "recroom");
+await teleportTo(480, 760, "recroom"); // 3 Sep 2026: the Rec Room is aft-west on the new plan; (480,760) is its open floor
 
 // --- 1. Named targeting: praise npcNamed while npcBystander stands right next to them ---
 await page.evaluate(
@@ -299,7 +299,7 @@ results.mcStressBefore = mcStressBefore;
 results.mcStressAfter = mcStressAfter;
 results.mcStressDelta = (mcStressAfter ?? 0) - (mcStressBefore ?? 40);
 
-await page.screenshot({ path: "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/social_end.png" });
+await page.screenshot({ path: new URL("./social_end.png", import.meta.url).pathname });
 
 console.log("\n=== Social actions verification results ===");
 console.log(JSON.stringify(results, null, 2));
@@ -307,7 +307,7 @@ console.log("\n=== Page errors/console errors during the whole run ===");
 console.log(pageErrors.length ? pageErrors : "none");
 
 writeFileSync(
-  "/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/social_report.json",
+  new URL("./social_report.json", import.meta.url).pathname,
   JSON.stringify({ sceneReady, results, pageErrors }, null, 2)
 );
 

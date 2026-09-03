@@ -7,14 +7,33 @@ import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
 import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION } from "../data/combatTables";
-import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, type WeaponBranchId } from "../data/weaponBranches";
+import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, SCATTERSHOT_PISTOLS_ATTACK_RANGE, type WeaponBranchId } from "../data/weaponBranches";
 import { SEND_OFF_DEFENSE_BONUS } from "../data/socialActions";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
 export type Side = "player" | "hostile";
 
+/**
+ * seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2 slice
+ * 6, 3 Sep 2026) — every on-hit-effect KIND this engine has, across BOTH
+ * tables: data/bloom.ts's BLOOM_ON_HIT_EFFECTS (acid_dot, debuff_attack,
+ * knockback — "none" excluded, it isn't a real effect to copy) and
+ * data/weaponBranches.ts's MECH_ON_HIT_EFFECTS (stun). Deliberately its own
+ * union rather than reusing StatusEffect['kind'] below: that one excludes
+ * "knockback" on purpose (knockback is instant repositioning, not a ticking
+ * status with a magnitude/turnsRemaining the way acid_dot/debuff_attack/
+ * stun are — see StatusEffect's own comment), but Simulacrum's ability can
+ * copy knockback too, so it needs the broader four-kind set.
+ */
+export type OnHitEffectKind = "acid_dot" | "debuff_attack" | "knockback" | "stun";
+
 export interface StatusEffect {
-  kind: "acid_dot" | "debuff_attack";
+  // "stun" added 3 Sep 2026 alongside the mech->Bloom on-hit effects engine
+  // (engine/turnManager.ts's applyMechOnHitEffect) — Shock Claws' own
+  // effect, magnitude unused (there's no "how much" for a stun the way
+  // acid_dot/debuff_attack have one; kept on the shared shape rather than
+  // making it optional so every StatusEffect literal stays uniform).
+  kind: "acid_dot" | "debuff_attack" | "stun";
   turnsRemaining: number;
   magnitude: number;
 }
@@ -196,6 +215,244 @@ export interface BattleUnit {
    */
   missileUsesRemaining?: number;
 
+  // ---- Vault Phase 2, slice 1 (2 Sep 2026) — see data/heirlooms.ts's own
+  // "VAULT PHASE 2, SLICE 1" header note and claude/Bloom_Wars_Build_Log_
+  // Addendum_VaultPhase2Slice1_02Sep2026.md for the full account.
+
+  /**
+   * Which Heirloom ability ids this unit's wielder currently has unlocked,
+   * and at what rank (1-5). Resolved ONCE at deploy time from the wielding
+   * pilot's CampaignState.heirlooms.abilityRanks (engine/heirlooms.ts's
+   * abilityRank) — same "baked in at creation, doesn't change mid-mission"
+   * treatment as tier/mek/weaponBranchId above, and for the identical
+   * reason: ability ranks are bought with personal points between missions,
+   * never mid-battle, so there is nothing to re-read live. The ability ids
+   * themselves are ALSO pushed onto `abilities` at the same deploy step
+   * (engine/units.ts's createPlayerUnit) so every existing
+   * `unit.abilities.includes(...)` check keeps working unmodified; this map
+   * exists only to answer "at what rank," which `abilities` alone can't.
+   * Undefined/empty for every unit not currently wielding a fielded
+   * Heirloom — hostile mechs, Bloom, and every ordinary pilot included.
+   */
+  heirloomAbilityRanks?: Record<string, number>;
+  /**
+   * oath_iron_word (Vindex/The Iron Oath). Set by Mission.ironWord() the
+   * same turn abil_taunt's own `taunting` is set, alongside it — Iron Word
+   * IS a taunt, just a radius-gated one rather than the vision-gated-only
+   * shape abil_taunt grants. engine/ai.ts's four taunting-check sites read
+   * this alongside `taunting` and additionally require the hostile to be
+   * within `tauntRadius` of this unit at decision time. Undefined means
+   * "no radius limit" — the plain abil_taunt case, completely unchanged —
+   * so this field is purely additive and every existing Taunt user (who
+   * never sets it) sees zero behavior change. Cleared in the exact same
+   * start-of-own-next-turn loop that clears `taunting` itself, so the two
+   * can never drift out of sync.
+   */
+  tauntRadius?: number;
+  /**
+   * ledger_overextended (Skuld/Widow's Ledger). "Trade defense for one
+   * turn: 0 DEF, +40% ATK." Set by Mission.ledgerOverextended(), read by
+   * engine/combat.ts's overextendedAttackMultiplier/overextendedDefense to
+   * apply both halves of the trade at the point each stat is actually used
+   * in the damage formula — mirrors how `taunting`/`braced`/`concealed` are
+   * simple booleans read live by the code that cares, not stats mutated in
+   * place. Cleared in the same start-of-own-next-turn loop as those three:
+   * "one turn" here means "survives through the intervening hostile phase,
+   * clears when your own next turn begins," identical to how Interdict's
+   * `braced` already reads, and the real risk (0 DEF through a whole
+   * hostile phase) is the point of the trade, not an oversight.
+   */
+  overextended?: boolean;
+  /**
+   * ledger_overextended's clock at rank 5, mirroring stealthTurnsRemaining's
+   * exact shape (engine/units.ts, above): undefined/0 means "the plain
+   * 1-turn version" — `overextended` clears unconditionally in the
+   * start-of-own-turn loop, same as every rank 1-4 use. Set to
+   * LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS - 1 (the extra turn beyond the
+   * baseline) only when the ability is cast at rank 5, and counted down in
+   * that same loop; `overextended` survives until this hits 0.
+   */
+  overextendedTurnsRemaining?: number;
+
+  // ---- Vault Phase 2, slice 2 (3 Sep 2026) — see data/heirlooms.ts's own
+  // "VAULT PHASE 2, SLICE 2" header note and claude/Bloom_Wars_Build_Log_
+  // Addendum_VaultPhase2Slice2_03Sep2026.md for the full account.
+
+  /**
+   * ledger_entry (Skuld/Widow's Ledger) rank 5's one-time move-range bonus
+   * ("the bonus also applies to move range past 3 stacks"). Guards
+   * engine/mission.ts's resolveKill from adding LEDGER_ENTRY_MOVE_BONUS_AMOUNT
+   * to `moveRange` more than once per mission — kills only ever increase, so
+   * without this guard every kill past the threshold would silently re-add
+   * the bonus. Undefined/false for every unit, cleared to true the instant
+   * the bonus is granted; never reset mid-mission.
+   */
+  ledgerEntryMoveBonusApplied?: boolean;
+  /**
+   * oath_oathkeeper (Vindex/The Iron Oath). True for exactly
+   * OATHKEEPER_DURATION_TURNS (rank 1-4) or OATHKEEPER_RANK5_DURATION_TURNS
+   * (rank 5) hostile phases after Mission.oathkeeper() is used — while true,
+   * engine/combat.ts's applyMechDamage floors this unit's currentHp at
+   * OATHKEEPER_HP_FLOOR instead of letting it reach 0, banking the
+   * difference in oathkeeperDeferredDamage below rather than discarding it.
+   * Mirrors `overextended`'s own live-read-by-combat.ts shape.
+   */
+  oathkeeperActive?: boolean;
+  /**
+   * oathkeeper's own duration clock, mirroring overextendedTurnsRemaining's
+   * exact shape (set at cast time, decremented once per hostile-phase-end in
+   * the same start-of-own-next-turn loop that clock uses) rather than a
+   * second, differently-shaped timer. Undefined once the window has closed.
+   */
+  oathkeeperTurnsLeft?: number;
+  /**
+   * Running total of damage applyMechDamage has spared this unit while
+   * oathkeeperActive was true — "all spared damage lands the instant it
+   * ends." Landed (rank 5: halved) and reset to 0 the moment
+   * oathkeeperTurnsLeft reaches 0, via a second, ordinary applyMechDamage
+   * call made with oathkeeperActive already cleared, so a landing hit that
+   * would down this unit goes through the exact same handleDowned path any
+   * other downing does — no separate "deferred-death" code path.
+   */
+  oathkeeperDeferredDamage?: number;
+
+  // ---- Vault Phase 2, slice 4 (3 Sep 2026) — Zanretsu's full 3-ability kit:
+  // cutting_room_charge, cutting_room_momentum, cutting_room_sure_footing
+  // (Vann Rethwick, House Rethwick, centauroid chassis, Meeps path). See
+  // data/heirlooms.ts's own "cutting_room" entry and engine/mission.ts's
+  // cuttingRoomCharge() for the full design.
+
+  /**
+   * cutting_room_momentum — set true the INSTANT cuttingRoomCharge()
+   * resolves (any use, hit or whiff), consumed at the start of THIS
+   * wielder's own next round (the same "start of own next turn" reset loop
+   * that clears overextended/oathkeeperActive/etc.), which is when the
+   * actual +2 move (rank 5: also +10% ATK) bonus is granted for that one
+   * round. Two-step on purpose — "pending" vs. "active" — because the
+   * ability's own prose is "on the turn immediately FOLLOWING any Zanretsu
+   * use," not the same turn the charge itself happens on.
+   */
+  momentumPending?: boolean;
+  /**
+   * The flat move-range bonus a currently-active Momentum window added to
+   * `moveRange`, so the reset loop can revert EXACTLY that amount next time
+   * rather than guessing — mirrors resolveKill's own ledger_entry moveRange
+   * grant (data/combatTables.ts's LEDGER_ENTRY_MOVE_BONUS_AMOUNT), except
+   * that one is a permanent one-time add and this one has to come back off
+   * a round later. Undefined/0 when no window is open.
+   */
+  momentumMoveBonusActive?: number;
+  /**
+   * Whether the CURRENT round's Momentum window also grants rank 5's +10%
+   * ATK — read by engine/turnManager.ts's momentumAttackMultiplier at every
+   * point combat.ts already reads an attack-multiplier flag (mirrors
+   * `overextended`'s own live-read-by-combat.ts shape, not a mutated stat).
+   * Unlike the move bonus, this needs no separate "amount granted" field to
+   * revert: the reset loop just sets it back to false, and
+   * momentumAttackMultiplier reads a plain 1 the instant that happens.
+   */
+  momentumAtkBoostActive?: boolean;
+
+  /**
+   * cutting_room_sure_footing — true while an active knockback/forced-
+   * movement immunity window is open. Read by engine/turnManager.ts's
+   * isKnockbackImmune, which applyBloomOnHitEffect's own knockback branch
+   * checks before ever computing a push destination. Mirrors
+   * `oathkeeperActive`'s exact shape (a live-read boolean, not a mutated
+   * stat) — set by Mission.cuttingRoomSureFooting(), cleared by the same
+   * start-of-own-next-turn reset loop as every other timed posture above.
+   */
+  sureFootingActive?: boolean;
+  /**
+   * Sure Footing's own duration clock, mirroring overextendedTurnsRemaining/
+   * oathkeeperTurnsLeft's identical shape: set at cast time
+   * (CUTTING_ROOM_SURE_FOOTING_DURATION_TURNS, or the rank-5 duration),
+   * decremented once per pass through the reset loop, `sureFootingActive`
+   * clears the instant this reaches 0.
+   */
+  sureFootingTurnsLeft?: number;
+
+  // ---- Vault Phase 2, slice 5 (3 Sep 2026) — Migawari's remaining 2 of 3
+  // abilities: lastword_signature, lastword_last_rites (Osric Ferrow, House
+  // Ferrow, Munti path). See data/heirlooms.ts's own "last_word" entry and
+  // engine/mission.ts's lastWordSignature()/lastRites() for the full
+  // design.
+
+  /**
+   * The Mission.turn value at the instant this unit's `downed` flag was set
+   * true, latched once by handleDowned() and never touched again by
+   * anything else — lastword_last_rites' own "this turn" gate reads this
+   * against the CURRENT Mission.turn to decide whether a downing is still
+   * fresh enough to act on (see getLastRitesTargetsFrom's own comment for
+   * why Mission.turn, not phase, is the right clock here). Undefined for
+   * every unit that has never been downed at all.
+   */
+  downedOnTurn?: number;
+  /**
+   * lastword_last_rites — set to the CURRENT Mission.turn the instant a
+   * downed ally is granted their one borrowed action, cleared by
+   * resolveLastRitesBorrowedTime() at the end of that same player turn
+   * (which also forces `downed` back to true if this unit is still alive
+   * and un-downed at that point — see that method's own comment for the
+   * full "goes down again as normal" close-out, including why it does NOT
+   * re-run handleDowned). Undefined outside that one-turn window.
+   */
+  lastRitesBorrowedTurn?: number;
+
+  // ---- Vault Phase 2, slice 6 (3 Sep 2026) — Simulacrum's full 3-ability
+  // kit (stolen_seal, ABERRATION track, no aristocrat pilot — see
+  // data/heirlooms.ts's own header for what that distinction means). See
+  // engine/mission.ts's sealBorrowedAuthority()/ledgerhallStatic()/
+  // rollInheritedWeight() for the full design of each field below.
+
+  /**
+   * seal_borrowed_authority — set the instant the ability is cast, to
+   * whichever OnHitEffectKind was drawn (see engine/mission.ts's
+   * sealBorrowedAuthority() for the draw/reroll mechanics). Consumed by
+   * this SAME unit's own next successful attack that lands on a Bloom-shape
+   * defender (resolveAttack's mech-attacks-Bloom branch, the same branch
+   * Shock Claws' own on-hit effect already fires from) — cleared the
+   * instant that attack resolves, whether or not the defender survived to
+   * receive the copied effect. No stated duration in rank1/rank5's own
+   * prose (unlike Ledgerhall Static's explicit "2 turns"), so this is read
+   * as persisting indefinitely until consumed, not expiring on a clock —
+   * flagged as a judgment call in sealBorrowedAuthority()'s own header.
+   * Undefined whenever no draw is currently primed.
+   */
+  borrowedAuthorityFxKind?: OnHitEffectKind;
+  /**
+   * seal_ledgerhall_static — the ability id (from the JAMMED unit's own
+   * `abilities` array) this unit currently cannot use, and how many more
+   * passes through the start-of-own-next-turn reset loop the jam survives
+   * before clearing — same TurnsRemaining-shaped decrement as
+   * sureFootingTurnsLeft above. HONEST LIMITATION, stated plainly rather
+   * than glossed over (see ledgerhallStatic()'s own header comment for the
+   * full account): engine/ai.ts's decideHostileAction has no per-ability
+   * dispatch at all today — a hostile mech's own `abilities` array (a
+   * leftover of sharing UnitArchetype records with player units) is never
+   * read by the hostile decision code, grep-confirmed. This field is real,
+   * set, and correctly expiring — but nothing in this engine currently
+   * reads it to actually change what a jammed hostile does, because there
+   * is no ability-choice AI to gate in the first place. isAbilityJammed()
+   * exists for the day that changes.
+   */
+  jammedAbilityId?: string;
+  jammedAbilityTurnsRemaining?: number;
+  /**
+   * seal_inherited_weight — rolled exactly once, at mission construction,
+   * for whichever player unit is fielded holding this ability (see
+   * Mission's own rollInheritedWeight()). Purely informational: the roll is
+   * baked directly into this unit's own `effectiveDefense` the instant it's
+   * rolled (nothing in engine/combat.ts needs a second "is there a bonus
+   * active" branch — it already reads effectiveDefense at every damage
+   * calculation), so this field is never itself read by any damage-
+   * resolution code. Kept anyway so a test or a future HUD line can report
+   * the exact roll without having to reverse-engineer it back out of
+   * effectiveDefense against the unit's own base archetype numbers.
+   * Undefined for every unit that doesn't carry seal_inherited_weight.
+   */
+  inheritedWeightDefBonus?: number;
+
   // ---- Mission 5 rescue-and-recruit pass (Maxime, 23 Aug 2026: "mission 5
   // is rescue the downed pilot... giving us a free new pilot") — see
   // createRescuableNpcUnit below and engine/mission.ts's canRescue/
@@ -329,6 +586,22 @@ function weaponBranchAttackBonus(branchId: WeaponBranchId | undefined): number {
   return 0;
 }
 
+/**
+ * Scattershot Pistols (Weapon Branch Point System, data/weaponBranches.ts,
+ * 3 Sep 2026) — the first branch in this pass to touch the attackRange
+ * TUPLE itself rather than a stat/targeting condition, so it gets its own
+ * function rather than folding into weaponBranchAttackBonus's plain-number
+ * return above. Returns `archetypeRange` unchanged for every other branch
+ * (including no branch at all) — copied, not the same reference, so
+ * nothing downstream can mutate the shared archetype's own tuple through a
+ * unit's `attackRange` field the way archetype.attackRange was already
+ * being handed out directly before this branch existed.
+ */
+function weaponBranchAttackRange(branchId: WeaponBranchId | undefined, archetypeRange: [number, number]): [number, number] {
+  if (branchId === "meeps_scattershot_pistols") return [SCATTERSHOT_PISTOLS_ATTACK_RANGE[0], SCATTERSHOT_PISTOLS_ATTACK_RANGE[1]];
+  return [archetypeRange[0], archetypeRange[1]];
+}
+
 /** The ability id a branch grants on top of the archetype's own list, if any — currently only Missiles (abil_missile, see data/weaponBranches.ts's own header for why the engine side of that ability already existed and just needed a real owner). */
 function weaponBranchGrantedAbility(branchId: WeaponBranchId | undefined): string | undefined {
   if (branchId === "reeps_missiles") return MISSILE_GRANT_ABILITY;
@@ -353,7 +626,19 @@ function weaponBranchGrantedAbility(branchId: WeaponBranchId | undefined): strin
 export function createPlayerUnit(
   pilotId: string,
   pos: Coord,
-  overrides?: { pilot?: PilotRecord; mek?: MekArchetype; sendOffBonus?: boolean }
+  overrides?: {
+    pilot?: PilotRecord;
+    mek?: MekArchetype;
+    sendOffBonus?: boolean;
+    // Vault Phase 2, slice 1 (2 Sep 2026) — ability id -> rank (1-5) for
+    // whichever Heirloom this pilot is fielding this mission, resolved by
+    // the caller (scenes/Battle.ts's resolveDeployRoster) from
+    // CampaignState the exact same way sendOffBonus is: a boolean/map
+    // computed once from campaign state, not a live reference threaded
+    // through. Absent/empty for every pilot not currently wielding a
+    // fielded Heirloom. See BattleUnit.heirloomAbilityRanks's own comment.
+    heirloomAbilityRanks?: Record<string, number>;
+  }
 ): BattleUnit {
   const pilot = overrides?.pilot ?? findPilot(pilotId);
   if (!pilot) throw new Error(`Unknown pilot id: ${pilotId}`);
@@ -382,14 +667,34 @@ export function createPlayerUnit(
 
   const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack + branchAttackBonus;
   const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense + sendOffDefenseBonus;
-  const maxHp = archetype.baseHp + (tier.hp - 100) + mekBonus.hp;
+  // Vault Phase 2, slice 5 (3 Sep 2026) — lastword_signature's own
+  // permanent cost (data/types.ts's PilotRecord.permanentMaxHpMultiplier,
+  // see that field's own comment) lands here: every fresh BattleUnit this
+  // pilot is ever built into, in any future mission, is built off their
+  // CURRENT (possibly already-shrunk-by-Migawari) max HP, not the
+  // tier/mek baseline alone. `?? 1` makes this a complete no-op for every
+  // pilot who has never paid the cost — which is every pilot in the game
+  // except a Migawari wielder who's actually used their signature.
+  // Rounded for the same reason mekStatBonus/tier deltas above are already
+  // whole numbers — HP is never fractional anywhere else in this file.
+  const maxHp = Math.round((archetype.baseHp + (tier.hp - 100) + mekBonus.hp) * (pilot.permanentMaxHpMultiplier ?? 1));
   const vision = archetype.vision + mekBonus.vision;
   const moveRange = archetype.moveRange + tier.move;
   // Never mutate the shared archetype.abilities array — copy, then append
   // if this branch grants one (Missiles). Every other unit factory in this
   // file still assigns archetype.abilities directly since none of them
   // ever need to add to it.
-  const abilities = grantedAbility ? [...archetype.abilities, grantedAbility] : archetype.abilities;
+  let abilities = grantedAbility ? [...archetype.abilities, grantedAbility] : archetype.abilities;
+  // Vault Phase 2, slice 1 (2 Sep 2026) — same append-not-mutate treatment
+  // as the weapon-branch-granted ability just above, for the exact same
+  // reason: the Heirloom's kit ids get pushed onto this unit's own
+  // `abilities` copy so every `unit.abilities.includes("oath_iron_word")`
+  // style check works unmodified, with heirloomAbilityRanks (below) as the
+  // only place "at what rank" lives.
+  const heirloomAbilityRanks = overrides?.heirloomAbilityRanks;
+  if (heirloomAbilityRanks && Object.keys(heirloomAbilityRanks).length > 0) {
+    abilities = [...abilities, ...Object.keys(heirloomAbilityRanks)];
+  }
 
   return {
     instanceId: pilot.id, // pilots keep their stable roster id on the board
@@ -405,7 +710,7 @@ export function createPlayerUnit(
     effectiveAttack,
     effectiveDefense,
     moveRange,
-    attackRange: archetype.attackRange,
+    attackRange: weaponBranchAttackRange(weaponBranchId, archetype.attackRange),
     vision,
     canCounter: archetype.canCounter,
     counterMaxRange: archetype.counterMaxRange,
@@ -427,6 +732,7 @@ export function createPlayerUnit(
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
+    heirloomAbilityRanks,
   };
 }
 

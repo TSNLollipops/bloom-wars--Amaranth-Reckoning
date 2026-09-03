@@ -525,6 +525,18 @@ describe("detectBuildRequest — Antfarm build economy, first slice, 27 Aug 2026
     expect(detectBuildRequest("build a rec room")).toEqual({ kind: "unbuildable", id: "recRoom" });
   });
 
+  // 3 Sep 2026, same day as the ship interior pass (walls/corridors/rooms/
+  // pathfinding). Heads and the per-lance berths are real rooms now, same
+  // "already standing" shape as recRoom above — never a BuildableBayId,
+  // since neither has (or will have) a RESERVED_BAYS marker or an economy
+  // cost, unlike weaponsBay/fabricator's graduation above.
+  it("recognizes heads and berths as unbuildable — real rooms with no economy meaning, not bays", () => {
+    expect(detectBuildRequest("can you build a bathroom")).toEqual({ kind: "unbuildable", id: "heads" });
+    expect(detectBuildRequest("build the heads")).toEqual({ kind: "unbuildable", id: "heads" });
+    expect(detectBuildRequest("build us some berths")).toEqual({ kind: "unbuildable", id: "berths" });
+    expect(detectBuildRequest("can we get bunks built")).toEqual({ kind: "unbuildable", id: "berths" });
+  });
+
   it("returns null for ordinary text and for muster/emotion/verb-request text — doesn't swallow unrelated messages", () => {
     expect(detectBuildRequest("what's the weather like today")).toBeNull();
     expect(detectBuildRequest("muster up")).toBeNull();

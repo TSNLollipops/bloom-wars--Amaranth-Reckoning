@@ -32,6 +32,8 @@ import {
   integrateHouseAmaranthSecondLance,
   baseSceneKeyFor,
   applyMissionLosses,
+  applyLastWordSignatureCosts,
+  recordFoughtOnHitEffectKinds,
   type CampaignState,
 } from "../engine/campaignState";
 import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
@@ -176,6 +178,41 @@ export class Debrief extends Phaser.Scene {
     for (const loss of this.mission.permanentLosses) {
       this.griefResults.push(runGriefCatalyst(this.state, this.mission.deployedPilotIds, loss.pilotId));
     }
+
+    // ---- 1b-iii. lastword_signature's own permanent cost (Vault Phase 2, --
+    // slice 5, 3 Sep 2026) — Mission.signatureHpCosts (engine/mission.ts)
+    // was already computed LIVE, at the exact instant of each use this
+    // mission, exactly the same "Mission records, Debrief applies" split
+    // step 1b above just used for permadeath — see
+    // engine/campaignState.ts's applyLastWordSignatureCosts for where the
+    // rule actually lives and where a test can reach it. Order relative to
+    // 1b doesn't matter (a wielder's own permanent-loss status, if they
+    // somehow also died this same mission, and their HP multiplier are
+    // independent facts about two different things), and order relative
+    // to earnings/calendar below doesn't matter either — this only ever
+    // touches CampaignPilotEntry.pilot.permanentMaxHpMultiplier, a field
+    // nothing else in this screen reads or writes. Reached only on a real
+    // win/loss debrief, same as every other step here — a commander_down
+    // attempt never starts this scene at all (see Battle.ts's own overlay
+    // branch), so a signature use inside a voided attempt correctly never
+    // reaches this call, matching permadeath's own "nothing about that
+    // attempt resolves" rule.
+    applyLastWordSignatureCosts(this.state, this.mission.signatureHpCosts);
+
+    // ---- 1b-iv. seal_borrowed_authority's own "fought this campaign" -----
+    // tracking (Simulacrum/The Stolen Seal, Vault Phase 2 slice 6, 3 Sep
+    // 2026) — every on-hit-effect kind any hostile on THIS mission's own
+    // board carried (Mission.getFoughtOnHitEffectKindsThisMission(),
+    // engine/mission.ts), unioned into the campaign-wide persisted set
+    // (engine/campaignState.ts's recordFoughtOnHitEffectKinds — see that
+    // field/function's own comments for the full design). Same "Mission
+    // records the live fact, Debrief applies it to CampaignState" split as
+    // 1b/1b-iii above, and order relative to every other step here doesn't
+    // matter: this only ever touches CampaignState.foughtOnHitEffectKinds,
+    // a field nothing else in this screen reads or writes. Reached on every
+    // real win/loss debrief — harmless on a mission with zero Bloom
+    // hostiles fought (an empty array in, a no-op union).
+    recordFoughtOnHitEffectKinds(this.state, this.mission.getFoughtOnHitEffectKindsThisMission());
 
     // ---- 1c. Debrief-side echo, 27 Aug 2026 (Social Sim Roadmap #9) ------
     // Records this mission's outcome for the Hub to react to on the

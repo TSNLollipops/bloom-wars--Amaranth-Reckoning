@@ -328,7 +328,12 @@ export function detectHighlightsRequest(raw: string): boolean {
 // why" instead of either silently ignoring the request or fabricating a
 // room nobody designed.
 export type BuildableBayId = "sensorArray" | "beaconControl" | "generator" | "restockRoom" | "weaponsBay" | "fabricator";
-export type KnownUnbuildableId = "recRoom" | "mekWorkshop";
+// "heads"/"berths" joined this list 3 Sep 2026, the same day the ship
+// interior pass (walls/corridors/rooms/pathfinding — see that build log
+// addendum) gave both a real room with no economy meaning, same shape as
+// Rec Room below: nothing to build, no bay, no cost, just a CO who can say
+// so honestly instead of staying silent on the request.
+export type KnownUnbuildableId = "recRoom" | "mekWorkshop" | "heads" | "berths";
 export type BuildRequest = { kind: "buildable"; id: BuildableBayId } | { kind: "unbuildable"; id: KnownUnbuildableId };
 
 const BUILDABLE_BAY_KEYWORDS: Record<BuildableBayId, string[]> = {
@@ -345,9 +350,18 @@ const BUILDABLE_BAY_KEYWORDS: Record<BuildableBayId, string[]> = {
 // the CO is almost certainly asking about the still-unbuilt lance
 // workshop this pass is surfacing honestly, not asking to build a room
 // that's already standing on the upper deck.
+//
+// heads/berths (3 Sep 2026): berths is deliberately one shared bucket, not
+// per-lance ("Lance B's berths") — chatIntent has no notion of which
+// lance the speaking player belongs to, and Hub.ts's own isBerths()
+// already treats every lance's berth room as one interchangeable answer
+// to "is this a bedroom," so a single honest "already built" response
+// covers all three without pretending this layer can be lance-specific.
 const UNBUILDABLE_KEYWORDS: Record<KnownUnbuildableId, string[]> = {
   recRoom: ["rec room", "recroom", "mess hall", "mess deck"],
   mekWorkshop: ["mek workshop", "mech workshop", "workshop"],
+  heads: ["heads", "bathroom", "bathrooms", "shower", "showers", "toilet", "toilets"],
+  berths: ["berths", "berth", "bunk room", "bunks", "crew quarters"],
 };
 
 // Buildable bays checked first — if a message somehow hits both buckets

@@ -14,7 +14,7 @@ import type {
   TileType,
 } from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
-import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, createCivilianUnit, type BattleUnit } from "./units";
+import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, createCivilianUnit, type BattleUnit, type OnHitEffectKind, type Side } from "./units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import {
@@ -28,8 +28,14 @@ import {
   isStraightLineCharge,
   neighbors4,
   inBounds,
+  isPassable,
 } from "./grid";
-import { resolveMechAttack, resolveAttackOnBloom, bloomDamage, applyMechDamage, applyBloomDamage, tankShieldEligible } from "./combat";
+import { resolveMechAttack, resolveAttackOnBloom, bloomDamage, applyMechDamage, applyBloomDamage, applyRequiemBloomDamage, tankShieldEligible } from "./combat";
+// requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — Data Pack
+// §11.5's own locked numbers (damage, shape, charge rate), reused rather
+// than re-declared as new placeholder constants. See this file's own
+// "Vault Phase 2, slice 7" section for the full design.
+import { SEVERANCE } from "../data/abilities";
 import {
   MEEPS_DODGE_CHANCE,
   TANK_SHIELD_CAPACITY,
@@ -55,14 +61,69 @@ import {
   MISSILE_CHARGES_PER_MISSION,
   PROTECT_ASSET_DEFAULT_MAX_HP,
   PROTECT_ASSET_TICK_DAMAGE,
+  IRON_WORD_RADIUS,
+  IRON_WORD_RANK5_RADIUS,
+  IRON_WORD_COOLDOWN_TURNS,
+  FIELD_TRIAGE_RADIUS,
+  FIELD_TRIAGE_RANK5_RADIUS,
+  FIELD_TRIAGE_MAX_TARGETS,
+  FIELD_TRIAGE_COOLDOWN_TURNS,
+  FARSIGHT_SIGNATURE_COOLDOWN_TURNS,
+  LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS,
+  LEDGER_OVEREXTENDED_COOLDOWN_TURNS,
+  LEDGER_ENTRY_MOVE_BONUS_THRESHOLD,
+  LEDGER_ENTRY_MOVE_BONUS_AMOUNT,
+  OATHKEEPER_DURATION_TURNS,
+  OATHKEEPER_RANK5_DURATION_TURNS,
+  OATHKEEPER_RANK5_DEFERRED_MULTIPLIER,
+  OATHKEEPER_COOLDOWN_TURNS,
+  DEADFALL_STRIKE_DAMAGE_MULTIPLIER,
+  DEADFALL_STRIKE_COOLDOWN_TURNS,
+  CINDER_LINE_MAX_TILES,
+  CINDER_LINE_DAMAGE_PER_TURN,
+  CINDER_LINE_DURATION_TURNS,
+  CINDER_LINE_RANK5_DURATION_TURNS,
+  CINDER_LINE_SIGNATURE_COOLDOWN_TURNS,
+  CINDER_FIREBREAK_COOLDOWN_TURNS,
+  CINDER_DRAFT_DURATION_TURNS,
+  CINDER_DRAFT_RANK5_DURATION_TURNS,
+  CINDER_DRAFT_COOLDOWN_TURNS,
+  CUTTING_ROOM_CHARGE_MAX_LINE_TILES,
+  CUTTING_ROOM_CHARGE_FALLOFF_MULTIPLIER,
+  CUTTING_ROOM_CHARGE_COOLDOWN_TURNS,
+  CUTTING_ROOM_MOMENTUM_MOVE_BONUS,
+  CUTTING_ROOM_SURE_FOOTING_DURATION_TURNS,
+  CUTTING_ROOM_SURE_FOOTING_RANK5_DURATION_TURNS,
+  CUTTING_ROOM_SURE_FOOTING_COOLDOWN_TURNS,
+  LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1,
+  LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK5,
+  LAST_WORD_SIGNATURE_COOLDOWN_TURNS,
+  LAST_RITES_ACTIONS_GRANTED,
+  LAST_RITES_COOLDOWN_TURNS,
+  SEAL_BORROWED_AUTHORITY_COOLDOWN_TURNS,
+  SEAL_LEDGERHALL_STATIC_COOLDOWN_TURNS,
+  SEAL_LEDGERHALL_STATIC_JAM_DURATION_TURNS,
+  SEAL_LEDGERHALL_STATIC_ABILITY_PRIORITY,
+  SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK1,
+  SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK1,
+  SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK5,
+  SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK5,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 // Forward Battery, 2 Sep 2026 — the one carrier module the engine reads.
 import { FORWARD_BATTERY_FIRE_SUPPORT_RADIUS, type CarrierModuleId } from "../data/carrierModules";
-import { BLOOM } from "../data/bloom";
-import { applyBloomOnHitEffect, tickStatusEffects } from "./turnManager";
-import { GRINDER_CLAW_HEAL_PCT, RAPID_RESPONSE_REPAIR_RANGE, DEFAULT_REPAIR_RANGE, AEGIS_WARD_REGEN_RADIUS, FIELD_DOCTOR_COOLDOWN_TURNS } from "../data/weaponBranches";
-import { decideHostileAction, decideCivilianAction, isVisibleTo } from "./ai";
+import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
+import { applyBloomOnHitEffect, applyCopiedOnHitEffect, applyMechOnHitEffect, isStunned, tickStatusEffects } from "./turnManager";
+import {
+  GRINDER_CLAW_HEAL_PCT,
+  RAPID_RESPONSE_REPAIR_RANGE,
+  DEFAULT_REPAIR_RANGE,
+  AEGIS_WARD_REGEN_RADIUS,
+  FIELD_DOCTOR_COOLDOWN_TURNS,
+  SCATTERSHOT_PISTOLS_CLEAVE_PCT,
+  WEAPON_BRANCH_ON_HIT_EFFECT,
+} from "../data/weaponBranches";
+import { decideHostileAction, decideCivilianAction, isVisibleTo, unitsVisibleToSide } from "./ai";
 import {
   createEventRuntimeState,
   evaluateTurnStart,
@@ -109,6 +170,17 @@ export interface DeployRosterEntry {
   // createPlayerUnit's overrides; see engine/units.ts's BattleUnit.sentOff
   // and data/socialActions.ts's SEND_OFF_DEFENSE_BONUS.
   sendOffBonus?: boolean;
+  // Vault Phase 2, slice 1 (2 Sep 2026) — set by scenes/Battle.ts's
+  // resolveDeployRoster when this entry's pilot is holding the CampaignState's
+  // currently-fielded Heirloom (engine/heirlooms.ts's heirloomForPilot /
+  // fieldedHeirloom), to ability id -> current rank for every ability in
+  // that Heirloom's kit (engine/heirlooms.ts's abilityRank). Passed straight
+  // through to createPlayerUnit's overrides; see engine/units.ts's
+  // BattleUnit.heirloomAbilityRanks. Deliberately NOT a HeirloomId or a
+  // reference into CampaignState — same flat-resolved-fact shape as
+  // sendOffBonus, so mission.ts and units.ts never need to import
+  // data/heirlooms.ts at all.
+  heirloomAbilityRanks?: Record<string, number>;
 }
 
 /**
@@ -153,6 +225,28 @@ export interface PermanentLossRecord {
   muntisDeployed: number;
   /** This pilot WAS the Munti — the one who was supposed to bring everyone home. */
   wasLastMunti: boolean;
+}
+
+/**
+ * lastword_signature (Migawari/The Last Word) — one entry per use, recorded
+ * live at the instant the wielder pays the ability's own permanent cost.
+ * Mirrors PermanentLossRecord's own reasoning exactly: the Mission object
+ * that knows this event is torn down at Debrief, so it has to be written
+ * down once, here, at the only moment anyone can still see it.
+ * engine/campaignState.ts's applyLastWordSignatureCosts is where this
+ * actually lands on the persistent PilotRecord.
+ */
+export interface LastWordSignatureCostRecord {
+  pilotId: string;
+  /**
+   * Multiplicative factor applied to the wielder's own permanent max-HP
+   * multiplier — LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1 (0.9) or
+   * LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK5 (0.95). See that constant's own
+   * comment in data/combatTables.ts for why multiplicative, not additive.
+   */
+  hpMultiplier: number;
+  /** Mission turn the use happened on — recorded for the same "when did this happen" completeness PermanentLossRecord.turn already gives, not currently read by anything. */
+  turn: number;
 }
 
 export interface AttackOutcome {
@@ -233,6 +327,20 @@ export interface MissionOptions {
    * more code than this one feature earns. Defaults to none installed.
    */
   builtModules?: CarrierModuleId[];
+  /**
+   * seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2
+   * slice 6, 3 Sep 2026) — the campaign's own CampaignState.foughtOnHitEffectKinds
+   * (engine/campaignState.ts), snapshotted here for the mission's lifetime,
+   * same "campaign state doesn't change under an in-progress mission" rule
+   * builtBays/builtModules above already follow. Deliberately does NOT
+   * include anything fought DURING this same mission — see
+   * sealBorrowedAuthority()'s own header for why that's read as the correct
+   * boundary, not an oversight. Defaults to none fought, so every existing
+   * call site (tests, npm run sim, anywhere that doesn't yet pass this)
+   * behaves exactly as before this field existed — sealBorrowedAuthority
+   * simply refuses cleanly with nothing to draw from.
+   */
+  foughtOnHitEffectKinds?: OnHitEffectKind[];
 }
 
 export interface RepairOutcome {
@@ -336,6 +444,109 @@ function repairHealAmount(healer: BattleUnit): number {
   return Math.round(REPAIR_BASE_HEAL * mult);
 }
 
+/**
+ * cinder_line_signature's own hazard state (Vault Phase 2, slice 3, 3 Sep
+ * 2026) — a player-PLACED, per-line-instance burning hazard, tracked on
+ * Mission rather than reused/collapsed into data/tiles.ts's `bloom_mat`
+ * TileType. Deliberately NOT bloom_mat, on purpose, for two real reasons:
+ * (1) bloom_mat is a static per-TileType definition (one flat
+ * turnStartDamage, no duration clock, no owner) — Surtr's line needs a
+ * duration that counts down and expires, and an ownerId so Firebreak/Draft
+ * can find "the wielder's OWN active Surtr line" specifically, neither of
+ * which the TileType model has anywhere to live; (2) collapsing the two
+ * would make a Surtr line indistinguishable from real Bloom hazard ground —
+ * clearBloom()/checkClearBloomPatchComplete()'s own bloom_mat sweep would
+ * then treat the wielder's own tactical tool as something to be cleared,
+ * and a clear_bloom mission's win condition could resolve (or fail to)
+ * depending on whether a player happened to torch a line nearby. Kept as
+ * its own array of instances instead, ticked once per environmentStep()
+ * cycle (tickSurtrLines(), below) — the exact "once per full round" cadence
+ * bloom_mat's own turnStartDamage already established (see
+ * engine/turnManager.ts's tickStatusEffects comment) — so the two hazards
+ * read identically to a player standing on either one (flat, unmitigated
+ * damage, no defense/cover interaction) without sharing any state.
+ */
+export interface SurtrLine {
+  /** The wielder's BattleUnit.instanceId at the moment this line was placed. cinder_line_signature's cooldown (5 turns) is longer than even its rank-5 duration (4 turns), so a single wielder can never have two lines active at once — canFirebreak/canDraft below both rely on that invariant ("the wielder's OWN active line," singular in the ability's own prose) rather than asking the player to disambiguate among several. */
+  ownerId: string;
+  /** Captured at creation rather than re-derived live via unitById(ownerId).side — the environment tick (tickSurtrLines) needs "which side is friendly to this line" to stay correct even in the edge case the owner is later removed from `units` (permadeath cleanup, if that's ever added) while the line it placed is still burning out its own clock. */
+  ownerSide: Side;
+  /** Up to CINDER_LINE_MAX_TILES coordinates, in cast order from the tile nearest the wielder outward — see getCinderLineAreaFrom/cinderLineSignature below for how a click resolves into this list. */
+  tiles: Coord[];
+  /** Environment-step ticks left, including the one about to fire — decremented AFTER this tick's damage is applied (tickSurtrLines), so a line cast with turnsRemaining=3 deals exactly 3 ticks of damage before it's removed, matching "burning for 3 turns" read as three tile-damage events, not two. */
+  turnsRemaining: number;
+  /** CINDER_LINE_DAMAGE_PER_TURN, copied in at creation (rank 5 doesn't change it, but every other ranked value on this record is captured the same way — a snapshot at cast time, immune to a mid-mission rank purchase that can't happen anyway since ranks are bought between missions). */
+  damagePerTurn: number;
+  /** cinder_draft's own clock. 0 means no immunity window is currently open — a friendly unit standing on this line takes full damage, same as a hostile does. While > 0, a unit whose `side` matches `ownerSide` is skipped by tickSurtrLines' damage loop entirely; every other unit on the tile (any hostile, always) is unaffected by this field regardless of its value — Draft only ever excuses the wielder's OWN side, never the enemy's, matching "Allies moving through a friendly Surtr line take no burn damage." */
+  friendlyImmuneTurnsRemaining: number;
+}
+
+// The 8 directions a "chosen line" can run — MECHANIC PLACEHOLDER, flagged
+// here rather than presented as spec: nothing in data/heirlooms.ts or the
+// plan doc actually defines how a player picks "a chosen line of up to 5
+// tiles," because no line-targeting UI has ever been built in this codebase
+// (Requiem/Gjallar, the one other "line attack" this file's own header
+// mentions, is itself unbuilt — see this file's header comment above and
+// data/heirlooms.ts's `requiem` entry). getFireSupportAreaFrom/
+// getMissileAreaFrom (this file, above) are this codebase's only existing
+// multi-tile-target precedents, and both are "click one tile, area resolves
+// around/at it" — neither is a line shape. Chosen fallback, honestly a
+// judgment call and not a transcription: a straight line, 8-directional
+// (cardinal AND diagonal — Chebyshev distance, matching how attackRange/
+// vision/fireSupport already measure range on this grid, per grid.ts's own
+// "distance-for-range checks use Chebyshev" comment; NOT 4-directional the
+// way actual movement/knockback are, since those are about physically
+// stepping across tiles and this is about where a blast radius reaches),
+// starting from the tile ADJACENT to the wielder (not the wielder's own
+// tile — a length-0 "line" would be meaningless, and starting one step out
+// reads closer to "a line of fire FROM the wielder" than "the wielder is
+// always standing in their own blast"). One click sets both direction and
+// length at once: clicking the Nth tile out in a given direction ignites
+// every tile from 1..N in that direction, the same "one click, engine
+// resolves the whole affected set" shape fireSupport/missile already use,
+// just with a path instead of a radius.
+const CINDER_LINE_DIRECTIONS: Coord[] = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+  { x: 1, y: 1 },
+  { x: 1, y: -1 },
+  { x: -1, y: 1 },
+  { x: -1, y: -1 },
+];
+
+// The 4 directions cutting_room_charge (Zanretsu) can run — CARDINAL ONLY,
+// deliberately NOT CINDER_LINE_DIRECTIONS' 8-directional set just above,
+// even though Cinder Line's own line-targeting is this engine's closest
+// existing "pick a direction, click the endpoint" precedent and the task
+// that produced this pass specifically suggested reusing it. Flagged as a
+// real, reasoned divergence, not an oversight:
+//
+// Cinder Line places a static hazard on tiles — fire doesn't care whether
+// the grid's movement model is 4- or 8-directional, so an 8-way blast shape
+// is a free, harmless design choice. cutting_room_charge actually MOVES the
+// wielder's mech across the board ("move through and strike"), and this
+// engine's real movement system is 4-directional only — grid.ts's own
+// CARDINAL comment says so explicitly ("the grid is a tactics grid, not a
+// hex/8-dir board"), and isStraightLineCharge (grid.ts), the ALREADY-BUILT
+// centauroid straight-line charge this exact pilot's chassis already
+// triggers on an ordinary Move, enforces the identical constraint in its
+// own dx/dy check ("diagonals aren't a straight cardinal line here").
+// Zanretsu's charge is thematically that same centauroid charge, turned
+// into a strike-everything action instead of a move-then-attack one — so it
+// inherits that mechanic's own cardinal-only shape rather than borrowing
+// Cinder Line's blast-shape one. A unit physically cannot walk a diagonal
+// "straight line" on this grid; letting the charge pretend otherwise would
+// be the one ability in the game whose movement rule doesn't match how
+// movement actually works everywhere else.
+const CUTTING_ROOM_CHARGE_DIRECTIONS: Coord[] = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+];
+
 export class Mission {
   readonly mission: CampaignMission;
   readonly map: MapDefinition;
@@ -374,6 +585,13 @@ export class Mission {
   // pilots and *why*; it does not itself touch any campaign save data,
   // since Mission has no CampaignState reference and isn't meant to.
   permanentLosses: PermanentLossRecord[] = [];
+  /**
+   * lastword_signature (Migawari/The Last Word) — one entry per use, live
+   * this mission. Same "Mission records, Debrief applies" split as
+   * permanentLosses right above; see LastWordSignatureCostRecord's own
+   * comment and engine/campaignState.ts's applyLastWordSignatureCosts.
+   */
+  signatureHpCosts: LastWordSignatureCostRecord[] = [];
   /**
    * Munti-path pilots on the player side at deploy. Latched once in the
    * constructor rather than counted later, because "how thin did you launch"
@@ -472,6 +690,41 @@ export class Mission {
   // abil_fire_support at all — canFireSupport's own ability check means
   // this counter simply never gets read on Missions 1-13).
   fireSupportChargesRemaining: number = FIRE_SUPPORT_CHARGES_PER_MISSION;
+  /**
+   * cinder_line_signature's placed hazards (Vault Phase 2, slice 3, 3 Sep
+   * 2026) — see the SurtrLine interface's own header comment just above
+   * this class for why this is its own tracked list rather than reusing
+   * bloom_mat. Empty on every mission whose deployed units never carry
+   * cinder_line_signature at all, same harmless-when-unused shape
+   * fireSupportChargesRemaining right above already has for Missions
+   * 1-13's non-Heirloom units. Ticked once per environmentStep() cycle
+   * (tickSurtrLines) and mutated by cinderLineSignature()/firebreak()/
+   * draft() below — nothing else in this file writes to it.
+   */
+  private activeSurtrLines: SurtrLine[] = [];
+  /**
+   * requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — the
+   * "shared 0-100 charge meter" data/heirlooms.ts's own `requiem` entry
+   * documents (that entry's `cooldownTurns: 0` is explicitly NOT "no
+   * cooldown" the way it means for every other passive ability in this
+   * file — see its own inline comment: "the existing shared 0-100 charge
+   * meter, not a turn cooldown"). Company-wide, not per-unit — exactly one
+   * of these per Mission, mutated by accrueRequiemCharge() (see that
+   * method's own comment for why resolveAttack() is the one correct choke
+   * point to call it from) and reset to 0 by requiemSeverance() itself on a
+   * successful fire.
+   *
+   * Starts at 0 every mission, not persisted across the mission boundary:
+   * GDD §8.3's own campaign-gating table only ever describes the meter
+   * filling WITHIN a single mission ("fills to roughly 60% by mission end"
+   * at Mission 2), and Mission itself is reconstructed fresh every mission
+   * with no existing mechanism to carry state like this across that
+   * boundary (contrast lastword_signature's own permanentMaxHpMultiplier,
+   * deliberately written onto CampaignPilotEntry for exactly the opposite
+   * reason) — so resetting to 0 at construction is the correct default,
+   * not an oversight.
+   */
+  private requiemCharge = 0;
   // Weapons Bay's bonus Fire Support charge (28 Aug 2026, Antfarm
   // buildable-bay pass) — see WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS's own
   // comment in data/combatTables.ts for the design. A readyAtTurn value for
@@ -497,6 +750,10 @@ export class Mission {
   // fireSupportRadius below); the other three modules never reach the
   // engine at all.
   private builtModules: CarrierModuleId[] = [];
+  // seal_borrowed_authority (Vault Phase 2 slice 6) — same snapshot-at-
+  // construction treatment as builtBays/builtModules right above. See
+  // MissionOptions.foughtOnHitEffectKinds' own comment.
+  private foughtOnHitEffectKinds: OnHitEffectKind[] = [];
   // Protect Asset (Mission 22, 25 Aug 2026) — see data/types.ts's
   // CampaignMission.objective comment for the full design. Field-default
   // here is just a safe placeholder; the real per-mission value is set in
@@ -528,6 +785,7 @@ export class Mission {
     this.mission = mission;
     this.builtBays = builtBays;
     this.builtModules = options.builtModules ?? [];
+    this.foughtOnHitEffectKinds = options.foughtOnHitEffectKinds ?? [];
     if (mission.objective === "protect_asset") {
       this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
       this.assetHp = this.assetMaxHp;
@@ -551,6 +809,11 @@ export class Mission {
     this.deployRoster = deployRoster;
     this.deployedPilotIds = deployRoster ? deployRoster.map((e) => e.pilotId) : [...mission.playerPilotIds];
     this.deployPlayerUnits();
+    // seal_inherited_weight (Simulacrum/The Stolen Seal, Vault Phase 2
+    // slice 6) — a mission-start-only passive roll, so it happens exactly
+    // once, right here, for every deployed unit that carries the ability.
+    // See rollInheritedWeight()'s own header for the full design.
+    this.rollInheritedWeight();
     // Counted off the real board, not off deployRoster, so a mission built
     // straight from mission.playerPilotIds (every test, every sim run) gets
     // the same answer a real deploy does.
@@ -636,7 +899,12 @@ export class Mission {
       // recruit.
       this.deployRoster.forEach((entry, i) => {
         const pos = pads[i % pads.length];
-        const unit = createPlayerUnit(entry.pilotId, pos, { pilot: entry.pilot, mek: entry.mek, sendOffBonus: entry.sendOffBonus });
+        const unit = createPlayerUnit(entry.pilotId, pos, {
+          pilot: entry.pilot,
+          mek: entry.mek,
+          sendOffBonus: entry.sendOffBonus,
+          heirloomAbilityRanks: entry.heirloomAbilityRanks,
+        });
         this.applyBonusAbilityUnlocks(unit);
         this.units.push(unit);
         this.unitPerformance[entry.pilotId] = { damageDealt: 0, kills: 0, assistCredit: 0, wasDowned: false, damageTaken: 0, abilitiesUsed: {} };
@@ -833,6 +1101,16 @@ export class Mission {
 
   unitById(id: string): BattleUnit | undefined {
     return this.units.find((u) => u.instanceId === id);
+  }
+
+  /** Read-only snapshot of Gjallar/Requiem's own charge meter (0 to SEVERANCE.maxCharge), for scenes/Battle.ts's HUD meter and hover tip. See requiemCharge's own field comment for what this tracks. */
+  getRequiemCharge(): number {
+    return this.requiemCharge;
+  }
+
+  /** Read-only snapshot of every currently-burning Surtr line, for scenes/Battle.ts's board overlay and hover tip — see the SurtrLine interface's own comment for what this tracks and why it isn't map.tiles. */
+  getActiveSurtrLines(): readonly SurtrLine[] {
+    return this.activeSurtrLines;
   }
 
   // Battle.ts's own extract_unit HUD line (30 Aug 2026, Maxime: "I couldnt
@@ -1211,7 +1489,10 @@ export class Mission {
     const dodgeChanceFor = (unit: BattleUnit, source: BattleUnit) => (unit.path === "meeps" && source.path !== "tank" ? MEEPS_DODGE_CHANCE : 0);
 
     if (defender.kind !== "bloom") {
-      const r = resolveMechAttack(this.map, attacker, defender, sameSideAsDefender, sameSideAsAttacker, attacker.chargedThisMove, false, false);
+      const r = resolveMechAttack(this.map, attacker, defender, sameSideAsDefender, sameSideAsAttacker, attacker.chargedThisMove, false, false, {
+        attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        defenderKillsThisMission: this.killsThisMissionFor(defender),
+      });
       const damage = r.damage * mult;
       const shieldAbsorbed = Math.min(defender.shield ?? 0, damage);
       const defenderHpAfter = Math.max(0, defender.currentHp - (damage - shieldAbsorbed));
@@ -1240,7 +1521,9 @@ export class Mission {
     // Endurance soaks first and overflow does NOT carry, so a shelled
     // creature can never die to one hit; once collapsed, a hit of at least
     // Vitality kills outright, a smaller one chips.
-    const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove);
+    const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove, {
+      attackerKillsThisMission: this.killsThisMissionFor(attacker),
+    });
     const damage = r.damage * mult;
     const endurance = defender.endurance ?? 0;
     const vitality = defender.vitality ?? 0;
@@ -1299,8 +1582,13 @@ export class Mission {
       let damage: number;
       if (kind === "fire_support") damage = FIRE_SUPPORT_DAMAGE;
       else if (victim.kind !== "bloom")
-        damage = resolveMechAttack(this.map, attacker, victim, sameSideAsVictim, sameSideAsAttacker, attacker.chargedThisMove, false, false).damage;
-      else damage = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove).damage;
+        damage = resolveMechAttack(this.map, attacker, victim, sameSideAsVictim, sameSideAsAttacker, attacker.chargedThisMove, false, false, {
+          attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        }).damage;
+      else
+        damage = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove, {
+          attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        }).damage;
       let downed: boolean;
       if (victim.kind !== "bloom") {
         const absorbed = Math.min(victim.shield ?? 0, damage);
@@ -1368,12 +1656,22 @@ export class Mission {
         sameSideAsAttacker,
         attacker.chargedThisMove,
         defenderDodged,
-        attackerDodgedCounter
+        attackerDodgedCounter,
+        // ledger_entry (Vault Phase 2, slice 2) — 0 kills is a no-op for
+        // every attacker/defender without the ability, same "harmless
+        // default" every other opts field here follows.
+        { attackerKillsThisMission: this.killsThisMissionFor(attacker), defenderKillsThisMission: this.killsThisMissionFor(defender) }
       );
       const dealt = ambushDecloakStrike ? r.damage * AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : r.damage;
       applyMechDamage(defender, dealt);
       if (r.countered && r.counterDamage !== undefined) applyMechDamage(attacker, r.counterDamage);
       this.applyGrinderClawHeal(attacker, dealt);
+      // Scattershot Pistols cleave — only reachable from this branch (mech
+      // attacking mech-shape defender), see applyScattershotCleave()'s own
+      // comment for the full mechanism. r.dodged is the PRIMARY defender's
+      // dodge roll; a dodged primary hit never cleaves (nothing landed to
+      // cleave off of).
+      this.applyScattershotCleave(attacker, defender, r.dodged === true, ambushDecloakStrike, sameSideAsAttacker);
       outcome = {
         attackerId,
         defenderId,
@@ -1386,11 +1684,59 @@ export class Mission {
         counterDodged: r.counterDodged,
       };
     } else if (attacker.kind !== "bloom" && defender.kind === "bloom") {
-      const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove);
+      const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove, {
+        attackerKillsThisMission: this.killsThisMissionFor(attacker),
+      });
       const dealt = ambushDecloakStrike ? r.damage * AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : r.damage;
       applyBloomDamage(defender, dealt);
       this.applyGrinderClawHeal(attacker, dealt);
       outcome = { attackerId, defenderId, damage: dealt, countered: false, defenderDowned: defender.downed };
+
+      // Mech on-hit effects (engine/turnManager.ts's applyMechOnHitEffect,
+      // 3 Sep 2026) — the reverse direction of the Bloom on-hit effects
+      // engine below: a mech's own equipped weapon branch (Shock Claws so
+      // far) applying an effect to the Bloom it just hit. resolveAttackOnBloom
+      // has no dodge concept at all (Bloom don't dodge — that's a Meeps
+      // house rule for mech-vs-mech only), so the only guard needed here is
+      // "did the hit actually leave a defender standing to affect,"
+      // mirroring applyBloomOnHitEffect's own no-op-on-a-downed-defender
+      // guard rather than duplicating it — outcome.defenderDowned already
+      // reflects applyBloomDamage's result by this line.
+      if (!outcome.defenderDowned) {
+        const branchFx = attacker.weaponBranchId ? WEAPON_BRANCH_ON_HIT_EFFECT[attacker.weaponBranchId] : undefined;
+        if (branchFx && this.rng() < branchFx.chance) {
+          applyMechOnHitEffect(branchFx.fxId, attacker, defender);
+          // Log wording is Shock Claws/stun-specific, same as Scattershot
+          // Pistols' own cleave log line a few methods below (branch-
+          // specific text, not a generic template) — the LOOKUP and
+          // APPLICATION above this line are the genuinely generic parts; a
+          // future branch adding a different effect kind would add its own
+          // log line here alongside this one, not replace it.
+          this.log.push(`${defender.displayName} is stunned!`);
+        }
+      }
+
+      // seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2
+      // slice 6, 3 Sep 2026) — consumes a primed copy on THIS SAME "mech
+      // attacks a Bloom" branch, the one the task's own brief calls out as
+      // the reachable path (see BattleUnit.borrowedAuthorityFxKind's own
+      // comment for why the scope is narrowed to this branch specifically).
+      // Cleared regardless of whether the defender survived to receive it
+      // (the wielder's "next attack" was spent either way) — but the effect
+      // itself only actually applies via applyCopiedOnHitEffect while
+      // !outcome.defenderDowned, same guard the branchFx block right above
+      // already uses, since a downed defender has nothing left to affect.
+      if (attacker.borrowedAuthorityFxKind) {
+        const copiedKind = attacker.borrowedAuthorityFxKind;
+        attacker.borrowedAuthorityFxKind = undefined;
+        if (!outcome.defenderDowned) {
+          const occupied = new Set(
+            this.units.filter((u) => !u.downed && u.instanceId !== defender.instanceId).map((u) => coordKey(u.pos))
+          );
+          applyCopiedOnHitEffect(copiedKind, attacker, defender, sameSideAsDefender, this.map, occupied);
+          this.log.push(`${attacker.displayName}'s Borrowed Authority copies a ${copiedKind} effect onto ${defender.displayName}.`);
+        }
+      }
     } else {
       // Bloom attacking a mech-shape defender.
       const surfaced = !!attacker.burrowed; // a burrowed unit that is attacking has just surfaced this turn
@@ -1425,6 +1771,14 @@ export class Mission {
     }
 
     this.recordPerformance(attacker, defender, outcome);
+    // Gjallar/Requiem's charge meter (Vault Phase 2, slice 7, 3 Sep 2026) —
+    // see accrueRequiemCharge's own comment (this file's "Vault Phase 2,
+    // slice 7" section) for why THIS is the one correct choke point: every
+    // ordinary attack in the game funnels through resolveAttack (see this
+    // method's own turnsWithoutContact-reset comment above), and `outcome`
+    // already carries the uniform shape recordPerformance just consumed on
+    // the line above — same reasoning, same call site.
+    this.accrueRequiemCharge(attacker, defender, outcome);
 
     // Attack always consumes every remaining action and ends the unit's
     // turn, regardless of which action slot it's used in (two-action house
@@ -1569,6 +1923,27 @@ export class Mission {
    */
   private resolveKill(victimInstanceId: string, finisherPilotId: string | undefined): void {
     this.creditKill(finisherPilotId);
+    // ledger_entry (Skuld/Widow's Ledger) rank 5's one-time move-range bonus
+    // — "the bonus also applies to move range past 3 stacks." Fires the
+    // instant this wielder's own kill count (creditKill just incremented it
+    // above) first exceeds LEDGER_ENTRY_MOVE_BONUS_THRESHOLD, guarded by
+    // ledgerEntryMoveBonusApplied so a later kill never re-adds it — see
+    // that constant's own comment in data/combatTables.ts for why this is a
+    // one-time grant, not per-stack scaling.
+    if (finisherPilotId) {
+      const finisher = this.units.find((u) => u.pilotId === finisherPilotId);
+      if (
+        finisher &&
+        finisher.abilities.includes("ledger_entry") &&
+        this.heirloomRank(finisher, "ledger_entry") >= 5 &&
+        !finisher.ledgerEntryMoveBonusApplied &&
+        (this.unitPerformance[finisherPilotId]?.kills ?? 0) > LEDGER_ENTRY_MOVE_BONUS_THRESHOLD
+      ) {
+        finisher.moveRange += LEDGER_ENTRY_MOVE_BONUS_AMOUNT;
+        finisher.ledgerEntryMoveBonusApplied = true;
+        this.log.push(`${finisher.displayName}'s ledger turns to move — +${LEDGER_ENTRY_MOVE_BONUS_AMOUNT} move range for the rest of the mission.`);
+      }
+    }
     const victim = this.unitById(victimInstanceId);
     if (victim && victim.side === "hostile") this.hostileKills[victim.archetypeId] = (this.hostileKills[victim.archetypeId] ?? 0) + 1;
     const bucket = this.victimContributions[victimInstanceId];
@@ -1691,6 +2066,105 @@ export class Mission {
     attacker.currentHp = Math.min(attacker.maxHp, attacker.currentHp + healAmount);
     const actual = attacker.currentHp - before;
     if (actual > 0) this.log.push(`${attacker.displayName}'s Grinder Claw heals ${actual} HP`);
+  }
+
+  /**
+   * Scattershot Pistols (Weapon Branch Point System, data/weaponBranches.ts,
+   * 3 Sep 2026) — a Meeps who's bought and equipped this branch cleaves a
+   * landed primary hit onto a second enemy unit, IF one happens to be
+   * adjacent to the PRIMARY TARGET (Chebyshev <= 1) — not adjacent to the
+   * attacker. Called from resolveAttack()'s mech-vs-mech branch only, right
+   * after the primary hit is applied; `primaryDodged` gates the whole thing
+   * (a dodged primary hit lands on nobody, so there is nothing to cleave
+   * off of) and this is the only guard against firing on a miss.
+   *
+   * Second-target selection is a plain `.find()` over livingUnits() —
+   * first match in engine unit order (spawn/deploy order), NOT "closest"
+   * or "lowest HP." With min range 1, a real two-or-more-adjacent-enemies
+   * case is possible; no documented tie-break exists for it yet, worth a
+   * real rule once a playtest actually produces one, cheap to change here
+   * in one place if so.
+   *
+   * Scope calls made here, each worth being explicit about rather than
+   * quietly picked:
+   *   - The second target must be mech-shape (kind !== "bloom"). Bloom
+   *     defenders run a different formula with no defense stat
+   *     (resolveAttackOnBloom) and no shield/downed shape symmetry with
+   *     applyMechDamage — folding that in was real scope, not a one-line
+   *     add, so it's deferred rather than guessed at. A Bloom standing
+   *     next to a mech target is simply never cleaved onto by this pass.
+   *   - The cleave hit runs resolveMechAttack fresh against the SECOND
+   *     target's own stats (its own defense/terrain), the same way every
+   *     other multi-victim effect in this file (missileStrike) computes
+   *     per-victim damage rather than splitting the primary's own number —
+   *     then SCATTERSHOT_PISTOLS_CLEAVE_PCT is applied on top of that
+   *     result, and the ambush-decloak multiplier (same flag as the
+   *     primary hit, since this is the same attack event breaking the same
+   *     cloak) is applied before the cleave fraction, matching the order
+   *     `dealt` uses for the primary hit just above this call.
+   *   - The second target's OWN Meeps-dodge chance is rolled and honored
+   *     (rollMeepsDodge, same as any other hit) — deliberately NOT the
+   *     "splash can't be dodged" treatment missileStrike uses for its
+   *     explosion (see that method's own comment for why an explosion
+   *     covering the whole blast tile isn't dodge-eligible the way an
+   *     aimed shot is). A pistol cleaving onto a second target is still an
+   *     aimed shot, just a secondary one — closer in kind to the primary
+   *     hit it rides on than to a blast radius.
+   *   - The cleave hit does NOT draw a counterattack, even if the second
+   *     target could otherwise counter at this range. Same spirit as
+   *     RAIL_LANCE_DEF_IGNORE_PCT's own "not applied to the counter" call
+   *     (combat.ts) — this is a small bonus effect riding on the real
+   *     attack, not a second full exchange, and letting it draw a counter
+   *     would make equipping this branch strictly worse in melee than not
+   *     having it whenever a second enemy happens to be adjacent to your
+   *     target. resolveMechAttack is still called with defenderDodged as
+   *     the only non-default arg (attackerDodgedCounter left false) purely
+   *     because the counter branch's own result fields are simply never
+   *     read below, not because a counter roll happens and is suppressed.
+   *   - Credited through the same recordPerformance() every other hit in
+   *     this file uses, so a cleave kill counts for campaign-economy
+   *     scoring exactly like a direct one, and handleDowned() runs if it
+   *     downs the second target — mirroring missileStrike's own per-victim
+   *     bookkeeping (this.recordPerformance + this.handleDowned) rather
+   *     than inventing a separate path.
+   */
+  private applyScattershotCleave(
+    attacker: BattleUnit,
+    primaryTarget: BattleUnit,
+    primaryDodged: boolean,
+    ambushDecloakStrike: boolean,
+    sameSideAsAttacker: BattleUnit[]
+  ): void {
+    if (attacker.weaponBranchId !== "meeps_scattershot_pistols" || primaryDodged) return;
+    const secondTarget = this.livingUnits().find(
+      (u) =>
+        u.instanceId !== primaryTarget.instanceId &&
+        u.instanceId !== attacker.instanceId &&
+        u.side === primaryTarget.side &&
+        u.kind !== "bloom" &&
+        chebyshevDistance(u.pos, primaryTarget.pos) <= 1
+    );
+    if (!secondTarget) return; // no second enemy adjacent to the primary target — the hit just lands on the one target, no crash, no wasted effect
+
+    const sameSideAsSecondTarget = this.units.filter((u) => u.side === secondTarget.side);
+    const secondDodged = rollMeepsDodge(secondTarget, attacker, this.rng);
+    const r = resolveMechAttack(this.map, attacker, secondTarget, sameSideAsSecondTarget, sameSideAsAttacker, attacker.chargedThisMove, secondDodged, false, {
+      attackerKillsThisMission: this.killsThisMissionFor(attacker),
+    });
+    let cleaveDmg = ambushDecloakStrike ? r.damage * AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : r.damage;
+    cleaveDmg = Math.round(cleaveDmg * SCATTERSHOT_PISTOLS_CLEAVE_PCT);
+    if (cleaveDmg <= 0) return; // dodged, or rounded to nothing against a well-defended second target — no phantom damage, no log line
+
+    applyMechDamage(secondTarget, cleaveDmg);
+    this.recordPerformance(attacker, secondTarget, {
+      attackerId: attacker.instanceId,
+      defenderId: secondTarget.instanceId,
+      damage: cleaveDmg,
+      countered: false,
+      defenderDowned: secondTarget.downed,
+    });
+    this.log.push(`${attacker.displayName}'s Scattershot Pistols cleave onto ${secondTarget.displayName} for ${cleaveDmg}`);
+    if (secondTarget.downed) this.handleDowned(secondTarget);
   }
 
   // ---- overwatch -----------------------------------------------------
@@ -2356,7 +2830,8 @@ export class Mission {
           sameSideAsAttacker,
           attacker.chargedThisMove,
           victimDodged,
-          attackerDodgedCounter
+          attackerDodgedCounter,
+          { attackerKillsThisMission: this.killsThisMissionFor(attacker), defenderKillsThisMission: this.killsThisMissionFor(victim) }
         );
         applyMechDamage(victim, r.damage);
         // Correction (26 Aug 2026, Maxime): "the counter shouldnt be ff
@@ -2388,7 +2863,9 @@ export class Mission {
           counterDodged: friendlyCounter ? undefined : r.counterDodged,
         };
       } else {
-        const r = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove);
+        const r = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove, {
+          attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        });
         applyBloomDamage(victim, r.damage);
         outcome = { attackerId: unitId, defenderId: victim.instanceId, damage: r.damage, countered: false, defenderDowned: victim.downed };
       }
@@ -2467,6 +2944,654 @@ export class Mission {
     return { unitId, tilesCleared: tiles.length };
   }
 
+  // ---- Vault Phase 2, slice 1 (2 Sep 2026) — the first 5 Heirloom
+  // abilities wired into combat. See data/heirlooms.ts's own "VAULT PHASE
+  // 2, SLICE 1" header and claude/Bloom_Wars_Build_Log_Addendum_
+  // VaultPhase2Slice1_02Sep2026.md for the full account of what shipped and
+  // the interpretation calls made turning prose rank text into real
+  // numbers. Each ability follows the exact canX()/verb() shape every
+  // ability above it does; salt_root_salt has neither, because it's
+  // passive (see engine/combat.ts's saltRootMultiplier instead).
+
+  /** This unit's current rank (1-5) in one of its wielded Heirloom's abilities. Defaults to 1 — the free rank every recruited Heirloom grants — for a unit that doesn't carry the ability at all; harmless, since every call site here already gates on `unit.abilities.includes(abilityId)` first. */
+  private heirloomRank(unit: BattleUnit, abilityId: string): number {
+    return unit.heirloomAbilityRanks?.[abilityId] ?? 1;
+  }
+
+  canIronWord(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("oath_iron_word")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "oath_iron_word"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * oath_iron_word (Vindex/The Iron Oath) — an Heirloom-tier abil_taunt:
+   * the identical `taunting` + root/lock mechanism abil_taunt already
+   * grants (see engine/ai.ts's own header comment for the full redirect
+   * rule), but RADIUS-gated rather than "whichever hostiles already have
+   * eyes on it." Sets `tauntRadius` alongside `taunting`; engine/ai.ts's
+   * four taunting-check sites read both together, and plain abil_taunt
+   * never sets tauntRadius, so this is purely additive — zero behavior
+   * change for every existing Taunt user.
+   *
+   * Costs the unit's entire remaining action budget and ends its turn,
+   * same tier as abil_taunt itself — Vindex is "the widest, slowest
+   * silhouette in the game," and this is still meant to be a full
+   * commitment. Gated by IRON_WORD_COOLDOWN_TURNS rather than abil_taunt's
+   * no-charge/reusable shape: Iron Word is the wielder's own ranked-up
+   * ability, not the baseline verb every Meeps with abil_taunt gets free.
+   */
+  ironWord(unitId: string): boolean {
+    if (!this.canIronWord(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const radius = this.heirloomRank(unit, "oath_iron_word") >= 5 ? IRON_WORD_RANK5_RADIUS : IRON_WORD_RADIUS;
+    unit.taunting = true;
+    unit.tauntRadius = radius;
+    unit.actionsRemaining = 0;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["oath_iron_word"] = startCooldown(this.turn, IRON_WORD_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "oath_iron_word");
+    this.log.push(`${unit.displayName} plants the Iron Word — every hostile within ${radius} must answer it.`);
+    return true;
+  }
+
+  canFieldTriage(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("lastword_field_triage")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "lastword_field_triage"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /** Every living, not-full-HP ally within lastword_field_triage's current radius of `from`, nearest first — the pool fieldTriage() heals from, capped at FIELD_TRIAGE_MAX_TARGETS, and exposed for the UI preview the same way getScreenableFrom/getClearableBloomFrom already are. */
+  getFieldTriageTargetsFrom(unitId: string, from: Coord): BattleUnit[] {
+    if (!this.canFieldTriage(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const radius = this.heirloomRank(unit, "lastword_field_triage") >= 5 ? FIELD_TRIAGE_RANK5_RADIUS : FIELD_TRIAGE_RADIUS;
+    return this.livingUnits()
+      .filter((t) => t.side === unit.side && t.currentHp < t.maxHp && chebyshevDistance(from, t.pos) <= radius)
+      .sort((a, b) => chebyshevDistance(from, a.pos) - chebyshevDistance(from, b.pos))
+      .slice(0, FIELD_TRIAGE_MAX_TARGETS);
+  }
+
+  /**
+   * lastword_field_triage (Migawari/The Last Word) — Repair, widened: heals
+   * up to FIELD_TRIAGE_MAX_TARGETS nearest wounded allies within radius in
+   * one use, via the exact same repairHealAmount() ordinary Repair uses —
+   * this is Migawari's own frame doing triage, not a second healing
+   * formula. Self-centered radius effect with no manual target picker,
+   * mirroring abil_screen/abil_clear_bloom's shape rather than building a
+   * new multi-select UI — see FIELD_TRIAGE_MAX_TARGETS's own comment in
+   * data/combatTables.ts for that call, flagged rather than hidden.
+   *
+   * Costs 1 action, does NOT end the turn — same tier as ordinary Repair
+   * and Screen. Gated by FIELD_TRIAGE_COOLDOWN_TURNS.
+   */
+  fieldTriage(unitId: string): RepairOutcome[] | null {
+    if (!this.canFieldTriage(unitId)) return null;
+    const healer = this.unitById(unitId)!;
+    const targets = this.getFieldTriageTargetsFrom(unitId, healer.pos);
+    const results: RepairOutcome[] = [];
+    for (const target of targets) {
+      const healAmount = repairHealAmount(healer);
+      const amount = Math.max(0, Math.min(healAmount, target.maxHp - target.currentHp));
+      target.currentHp += amount;
+      if (amount > 0) this.creditAssist(healer.pilotId, REPAIR_ASSIST_FRACTION);
+      results.push({ healerId: unitId, targetId: target.instanceId, amount });
+    }
+    healer.actionsRemaining -= 1;
+    healer.abilityCooldowns = healer.abilityCooldowns ?? {};
+    healer.abilityCooldowns["lastword_field_triage"] = startCooldown(this.turn, FIELD_TRIAGE_COOLDOWN_TURNS);
+    this.noteAbilityUse(healer, "lastword_field_triage");
+    this.log.push(
+      results.length
+        ? `${healer.displayName} runs field triage — ${results.map((r) => `${r.amount} HP`).join(", ")}.`
+        : `${healer.displayName} runs field triage — nobody in range needed it.`
+    );
+    return results;
+  }
+
+  canFarsightSignature(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("farsight_signature")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "farsight_signature"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * farsight_signature (Panoptes/Farsight's Reckoning) — Sensor Sweep,
+   * unbounded: paints EVERY living hostile on the map, burrowed included,
+   * via the identical `revealedUntilTurn` mechanism abil_sensor_sweep
+   * already uses (see sensorSweep()'s own comment for the exact "until the
+   * end of the following enemy turn" semantics) — just with no radius
+   * filter at all. This is Panoptes' actual signature move, not a side
+   * ability.
+   *
+   * DURATION AT RANK 5: `revealedUntilTurn = this.turn` (rank 1-4) expires
+   * the instant Mission.turn next increments — one hostile phase, same as
+   * a plain sweep. Rank 5's "duration 2 turns" is read as surviving one
+   * MORE increment: `revealedUntilTurn = this.turn + 1` stays
+   * `>= currentTurn` through two hostile phases instead of one (see
+   * engine/ai.ts's isVisibleTo, `target.revealedUntilTurn >= currentTurn`).
+   *
+   * Costs 1 action, does NOT end the turn — same tier as Sensor Sweep.
+   * Gated by FARSIGHT_SIGNATURE_COOLDOWN_TURNS rather than a per-mission
+   * charge budget, since that's the shape data/heirlooms.ts specifies for
+   * this kit (cooldownTurns: 5), not a spend-and-it's-gone resource.
+   */
+  farsightSignature(unitId: string): SensorSweepOutcome | null {
+    if (!this.canFarsightSignature(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const revealThrough = this.turn + (this.heirloomRank(unit, "farsight_signature") >= 5 ? 1 : 0);
+    const revealedIds: string[] = [];
+    for (const target of this.livingUnits()) {
+      if (target.side === unit.side) continue;
+      target.revealedUntilTurn = revealThrough;
+      revealedIds.push(target.instanceId);
+    }
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["farsight_signature"] = startCooldown(this.turn, FARSIGHT_SIGNATURE_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "farsight_signature");
+    this.log.push(
+      revealedIds.length
+        ? `${unit.displayName} calls Panoptes' watch — ${revealedIds.length} contact(s) painted across the whole field.`
+        : `${unit.displayName} calls Panoptes' watch — no contacts anywhere on the field.`
+    );
+    return { sweeperId: unitId, radius: Infinity, revealedIds, revealedUntilTurn: revealThrough };
+  }
+
+  canLedgerOverextended(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("ledger_overextended")) return false;
+    if (unit.overextended) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "ledger_overextended"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * ledger_overextended (Skuld/Widow's Ledger) — "Trade defense for one
+   * turn: 0 DEF, +40% ATK." A posture, same family as `taunting`/`braced`/
+   * `concealed`: sets `unit.overextended`, read live by engine/combat.ts's
+   * overextendedAttackMultiplier/overextendedDefense at the point each stat
+   * is actually used, and cleared in the exact same start-of-own-next-turn
+   * loop those three already share — so "one turn" means "survives the
+   * intervening hostile phase, clears when your own next turn begins,"
+   * same as Interdict's `braced`. The exposure through that hostile phase
+   * IS the trade, not an oversight.
+   *
+   * Costs 1 action, does NOT end the turn — unlike Ambush/Interdict/Taunt's
+   * whole-turn posture cost, this is meant to be armed and then spent
+   * attacking in the same turn (a -DEF/+ATK trade with no follow-up attack
+   * that turn is close to pointless), same tier as Repair/Screen/Sensor
+   * Sweep. Gated by LEDGER_OVEREXTENDED_COOLDOWN_TURNS.
+   */
+  ledgerOverextended(unitId: string): boolean {
+    if (!this.canLedgerOverextended(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    unit.overextended = true;
+    // Rank 5 extends the trade one extra turn — see BattleUnit.
+    // overextendedTurnsRemaining's own comment for why this mirrors
+    // stealthTurnsRemaining's shape rather than a second boolean. Left
+    // undefined at rank 1-4, same as an ordinary Ambush user who never
+    // sets stealthTurnsRemaining at all.
+    //
+    // BUG FIX, 2 Sep 2026 (Vault Phase 2, slice 1 test pass): this used to
+    // read `LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS - 1`, reasoning "the
+    // casting turn already counts as turn 1, so only 1 more decrement is
+    // needed." That reasoning doesn't match how the turn-start loop actually
+    // ticks this down — ambush()'s stealthTurnsRemaining, the pattern this
+    // is deliberately mirroring, sets the FULL duration with no "-1" (see
+    // its own assignment a few hundred lines up), and a side-by-side trace
+    // of the turn-start loop confirms why: starting at N-1 clears on the
+    // very FIRST decrement, at the wielder's very next turn, identical to
+    // rank 1-4 — the rank-5 upgrade was a no-op. Starting at the full
+    // LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS survives that first decrement
+    // (still > 0 after it) and only clears on the second, which is what
+    // "duration extended to 2 turns" actually requires. Caught by writing
+    // heirloomVaultAbilities.test.ts's rank-5 duration test against this
+    // code, not by inspection — it read correct until traced turn-by-turn.
+    if (this.heirloomRank(unit, "ledger_overextended") >= 5) {
+      unit.overextendedTurnsRemaining = LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS;
+    }
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["ledger_overextended"] = startCooldown(this.turn, LEDGER_OVEREXTENDED_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "ledger_overextended");
+    this.log.push(`${unit.displayName} overextends — defenseless, and hitting harder for it.`);
+    return true;
+  }
+
+  // ---- Vault Phase 2, slice 2 (3 Sep 2026) — the three Heirloom SIGNATURE
+  // abilities wired into combat this pass: ledger_entry, oath_oathkeeper,
+  // deadfall_strike. See data/heirlooms.ts's own "VAULT PHASE 2, SLICE 2"
+  // header and claude/Bloom_Wars_Build_Log_Addendum_VaultPhase2Slice2_
+  // 03Sep2026.md for the interpretation calls made turning prose rank text
+  // into real numbers. Same canX()/verb() shape slice 1 established above;
+  // ledger_entry has neither, same reason salt_root_salt doesn't — it's
+  // passive (see engine/combat.ts's ledgerEntryMultiplier instead).
+
+  /**
+   * ledger_entry's own kill count for `unit` this mission — read straight
+   * off Mission.unitPerformance rather than a second, unit-local counter
+   * (see engine/combat.ts's ledgerEntryMultiplier for why that's the one
+   * true source). 0 for a unit with no pilotId (hostiles, Bloom — neither
+   * can ever carry ledger_entry anyway) or no performance bucket.
+   */
+  private killsThisMissionFor(unit: BattleUnit): number {
+    return unit.pilotId ? (this.unitPerformance[unit.pilotId]?.kills ?? 0) : 0;
+  }
+
+  canOathkeeper(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("oath_oathkeeper")) return false;
+    if (unit.oathkeeperActive) return false; // cannot be re-armed while already active — same "no re-entry" guard canLedgerOverextended uses
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "oath_oathkeeper"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * oath_oathkeeper (Vindex/The Iron Oath) — "Cannot be reduced below 1 HP
+   * for N turns. All spared damage lands the instant it ends." A self-only
+   * posture, same tier as ledger_overextended: costs 1 action, does NOT end
+   * the turn — Vindex is meant to be able to arm this and still act (Iron
+   * Word, or simply moving into position) the same turn, not spend its
+   * entire budget the way ironWord()'s taunt does.
+   *
+   * Sets `oathkeeperActive` + the rank-appropriate `oathkeeperTurnsLeft`
+   * (OATHKEEPER_DURATION_TURNS at rank 1-4, OATHKEEPER_RANK5_DURATION_TURNS
+   * at rank 5) and zeroes any leftover `oathkeeperDeferredDamage` from a
+   * previous use — the interception itself lives in engine/combat.ts's
+   * applyMechDamage, which reads `oathkeeperActive` live; the window's
+   * expiry and the deferred damage actually landing happen in the
+   * start-of-own-next-turn loop below (runHostileTurn), mirroring exactly
+   * where overextendedTurnsRemaining's own clock ticks.
+   */
+  oathkeeper(unitId: string): boolean {
+    if (!this.canOathkeeper(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    unit.oathkeeperActive = true;
+    unit.oathkeeperTurnsLeft = this.heirloomRank(unit, "oath_oathkeeper") >= 5 ? OATHKEEPER_RANK5_DURATION_TURNS : OATHKEEPER_DURATION_TURNS;
+    unit.oathkeeperDeferredDamage = 0;
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["oath_oathkeeper"] = startCooldown(this.turn, OATHKEEPER_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "oath_oathkeeper");
+    this.log.push(`${unit.displayName} swears the Iron Oath — cannot fall for ${unit.oathkeeperTurnsLeft} turn(s).`);
+    return true;
+  }
+
+  canDeadfallStrike(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("deadfall_strike")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "deadfall_strike"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every living hostile currently visible to the whole player side — the
+   * pool deadfall_strike can target, "any range" rather than the wielder's
+   * own attackRange/vision. Mirrors scenes/Battle.ts's own fog-of-war query
+   * (engine/ai.ts's unitsVisibleToSide, the same check that gates what's
+   * drawn/clickable on the board at all) rather than inventing a second
+   * visibility rule — a target this ability could reach but the player
+   * can't otherwise see wouldn't be selectable in the UI anyway. Empty
+   * whenever canDeadfallStrike is false, same "ask the engine, never guess"
+   * contract every other getXTargetsFrom/getXFrom method here follows.
+   */
+  getDeadfallStrikeTargetsFrom(unitId: string): BattleUnit[] {
+    if (!this.canDeadfallStrike(unitId)) return [];
+    const visibleIds = unitsVisibleToSide("player", this.units, this.turn);
+    return this.livingUnits().filter((u) => u.side === "hostile" && visibleIds.has(u.instanceId));
+  }
+
+  /**
+   * deadfall_strike (Ichigeki/Deadfall) — "An unavoidable, uncounterable
+   * strike at x2 damage, any range." Deliberately does NOT call
+   * resolveAttack: that private method's very first line is the
+   * attackRange gate this ability exists to bypass, so this runs the same
+   * two damage resolvers (resolveMechAttack/resolveAttackOnBloom) directly,
+   * with resolveMechAttack's new `noCounter` opt doing the "uncounterable"
+   * half and simply never rolling a dodge doing the "unavoidable" half (no
+   * dodge roll happens here at all — defenderDodged is left at resolveMechAttack's
+   * own default false). Damage is the SAME base computation a normal hit
+   * from this unit would produce, then doubled by
+   * DEADFALL_STRIKE_DAMAGE_MULTIPLIER — so it still respects the target's
+   * own defense stat, terrain, salt_root_salt/ledger_entry multipliers,
+   * etc.; only the range/dodge/counter bypass is special.
+   *
+   * recordPerformance is called explicitly (the normal attack path's own
+   * damage-credit/kill-credit bookkeeping) — a kill through this ability
+   * counts toward the wielder's own mission kills the same as any other
+   * kill, which matters for real: ledger_entry's own stacking reads exactly
+   * that count.
+   *
+   * REVEAL, honestly reported rather than faked: this codebase's only
+   * "hidden player unit" concepts are `concealed`/`stealthTurnsRemaining`
+   * (Meeps abil_ambush / Munti abil_screen) — there is no general "more
+   * visible than normal" state for a unit that wasn't already cloaked, so
+   * for a wielder who ISN'T concealed at the moment of the strike, this
+   * ability's own "reveals the wielder's position" clause has nothing to
+   * do — the wielder was already fully visible, same as before the shot.
+   * For a wielder who IS concealed: a normal Attack (resolveAttack) already
+   * breaks concealment unconditionally the instant it fires ("firing gives
+   * your position away"), so rank 1's "reveal... for the rest of the turn"
+   * is implemented as that identical unconditional break, done here since
+   * this method doesn't route through resolveAttack. Rank 5's "the reveal
+   * is delayed one full turn instead of immediate" is implemented as
+   * deliberately NOT breaking it here — unlike every other attack in the
+   * game, this one specific shot leaves an active ambush cloak's own
+   * stealthTurnsRemaining clock running, so it survives exactly one more
+   * hostile phase than firing normally would before expiring through the
+   * ordinary turn-start loop. Flagged plainly: this is the closest honest
+   * equivalent this codebase's actual mechanics support, not a full
+   * "broadcast to every hostile AI" system — decideHostileAction's own
+   * targeting is unchanged by this ability either way.
+   */
+  deadfallStrike(unitId: string, targetId: string): AttackOutcome | null {
+    if (!this.canDeadfallStrike(unitId)) return null;
+    const attacker = this.unitById(unitId)!;
+    const defender = this.unitById(targetId);
+    // Refuses anything that isn't a live hostile — written as "not hostile"
+    // rather than "=== attacker.side" so this can never accidentally target
+    // a downed or non-hostile unit even if attacker.side were ever
+    // something other than "player" (canDeadfallStrike already guarantees
+    // it is, but this stays correct on its own terms either way).
+    if (!defender || defender.downed || defender.side !== "hostile") return null;
+    const visibleIds = unitsVisibleToSide("player", this.units, this.turn);
+    if (!visibleIds.has(defender.instanceId)) return null;
+
+    const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
+    const sameSideAsDefender = this.units.filter((u) => u.side === defender.side);
+
+    let baseDamage: number;
+    if (defender.kind !== "bloom") {
+      const r = resolveMechAttack(this.map, attacker, defender, sameSideAsDefender, sameSideAsAttacker, false, false, false, {
+        attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        noCounter: true,
+      });
+      baseDamage = r.damage;
+    } else {
+      const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, false, {
+        attackerKillsThisMission: this.killsThisMissionFor(attacker),
+      });
+      baseDamage = r.damage;
+    }
+    const dealt = Math.round(baseDamage * DEADFALL_STRIKE_DAMAGE_MULTIPLIER);
+    if (defender.kind !== "bloom") applyMechDamage(defender, dealt);
+    else applyBloomDamage(defender, dealt);
+
+    const outcome: AttackOutcome = {
+      attackerId: unitId,
+      defenderId: targetId,
+      damage: dealt,
+      countered: false,
+      defenderDowned: defender.downed,
+      attackerDowned: false,
+    };
+    this.recordPerformance(attacker, defender, outcome);
+
+    attacker.actionsRemaining = 0;
+    const rank5 = this.heirloomRank(attacker, "deadfall_strike") >= 5;
+    if (!rank5) {
+      // Rank 1 — see this method's own header comment for the full reveal
+      // reasoning. Mirrors resolveAttack's identical unconditional clear; a
+      // no-op if the wielder wasn't concealed to begin with.
+      attacker.concealed = false;
+      attacker.stealthTurnsRemaining = undefined;
+    }
+    // Rank 5 — deliberately no clear here at all (see header comment).
+    attacker.abilityCooldowns = attacker.abilityCooldowns ?? {};
+    attacker.abilityCooldowns["deadfall_strike"] = startCooldown(this.turn, DEADFALL_STRIKE_COOLDOWN_TURNS);
+    this.noteAbilityUse(attacker, "deadfall_strike");
+    this.log.push(`${attacker.displayName} lands Ichigeki on ${defender.displayName} for ${dealt} — unavoidable, uncounterable.`);
+    if (defender.downed) this.handleDowned(defender);
+    return outcome;
+  }
+
+  // ---- Vault Phase 2, slice 3 (3 Sep 2026) — Surtr's full 3-ability kit:
+  // cinder_line_signature, cinder_firebreak, cinder_draft. See data/
+  // heirlooms.ts's own "VAULT PHASE 2, SLICE 3" header and the SurtrLine
+  // interface's own comment (above this class) for the hazard-tracking
+  // design. Same canX()/getX()/verb() shape every ability above follows.
+
+  canCinderLineSignature(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("cinder_line_signature")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "cinder_line_signature"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every tile a cinder_line_signature cast could END at — one entry per
+   * (direction, step) pair, CINDER_LINE_DIRECTIONS x 1..CINDER_LINE_MAX_TILES,
+   * clipped at the board edge. This is a CLICK TARGET SET, same contract as
+   * getFireSupportAreaFrom/getMissileAreaFrom above: clicking any one of
+   * these tiles doesn't just ignite that single tile, it ignites the whole
+   * straight run from the wielder's adjacent tile out to the clicked one —
+   * see cinderLineSignature()'s own comment for why, and
+   * previewCinderLineFrom() below for how scenes/Battle.ts can show the
+   * player which tiles that actually is before they commit to the click.
+   */
+  getCinderLineAreaFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canCinderLineSignature(unitId)) return [];
+    const tiles: Coord[] = [];
+    for (const dir of CINDER_LINE_DIRECTIONS) {
+      for (let step = 1; step <= CINDER_LINE_MAX_TILES; step++) {
+        const c = { x: from.x + dir.x * step, y: from.y + dir.y * step };
+        if (!inBounds(this.map, c)) break;
+        tiles.push(c);
+      }
+    }
+    return tiles;
+  }
+
+  /**
+   * The actual tile run a click on `target` would ignite: `unit.pos`'s
+   * adjacent tile in `target`'s direction, out to `target` itself inclusive
+   * — null if `target` isn't a legal line endpoint (not a straight
+   * cardinal/diagonal run from the wielder, or beyond CINDER_LINE_MAX_TILES).
+   * Pure/read-only, shared by cinderLineSignature() (which calls this then
+   * commits the result) and previewCinderLineFrom() (which just returns it
+   * for a UI preview) — one true definition of "what does this click do."
+   */
+  private cinderLineTilesTo(from: Coord, target: Coord): Coord[] | null {
+    const ddx = target.x - from.x;
+    const ddy = target.y - from.y;
+    if (ddx === 0 && ddy === 0) return null;
+    const isCardinal = ddx === 0 || ddy === 0;
+    const isDiagonal = Math.abs(ddx) === Math.abs(ddy);
+    if (!isCardinal && !isDiagonal) return null;
+    const steps = Math.max(Math.abs(ddx), Math.abs(ddy));
+    if (steps > CINDER_LINE_MAX_TILES) return null;
+    const dirX = Math.sign(ddx);
+    const dirY = Math.sign(ddy);
+    const tiles: Coord[] = [];
+    for (let s = 1; s <= steps; s++) {
+      const c = { x: from.x + dirX * s, y: from.y + dirY * s };
+      if (!inBounds(this.map, c)) return null;
+      tiles.push(c);
+    }
+    return tiles;
+  }
+
+  /** UI preview for an armed cinder_line_signature: the tiles a click on `target` would actually ignite, or null if that click wouldn't be a legal line. Returns null outright (rather than guessing) if the ability isn't currently usable at all, same "ask the engine, never guess" contract getDeadfallStrikeTargetsFrom already follows. */
+  previewCinderLineFrom(unitId: string, target: Coord): Coord[] | null {
+    if (!this.canCinderLineSignature(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    return this.cinderLineTilesTo(unit.pos, target);
+  }
+
+  /**
+   * cinder_line_signature (Surtr) — "Sets a chosen line of up to 5 tiles
+   * burning for 3 turns — 15 damage/turn to anything standing on it,
+   * hostile or friendly, no exception on the tiles themselves." Creates one
+   * new SurtrLine (see that interface's own comment for the full design)
+   * from the wielder's adjacent tile out to `target`, at
+   * CINDER_LINE_DAMAGE_PER_TURN/turn for CINDER_LINE_DURATION_TURNS
+   * (CINDER_LINE_RANK5_DURATION_TURNS at rank 5 — "damage unchanged" per the
+   * rank5 text, so only the duration constant changes).
+   *
+   * Costs the unit's entire remaining action budget and ends its turn —
+   * same tier as fireSupport()/deadfallStrike() above, both this file's
+   * other "commit a whole turn to a battlefield-shaping strike" abilities.
+   * The rank text doesn't state an action cost explicitly (none of this
+   * kit's three abilities' prose does — same gap ironWord/fireSupport's own
+   * rank text has), so this is a judgment call, not spec: flagged here
+   * rather than silently decided, on the reasoning that placing a
+   * multi-turn area hazard is a bigger commitment than Firebreak/Draft's
+   * own one-action management tools below, which do NOT end the turn.
+   */
+  cinderLineSignature(unitId: string, target: Coord): boolean {
+    if (!this.canCinderLineSignature(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const tiles = this.cinderLineTilesTo(unit.pos, target);
+    if (!tiles) return false;
+    const rank5 = this.heirloomRank(unit, "cinder_line_signature") >= 5;
+    const duration = rank5 ? CINDER_LINE_RANK5_DURATION_TURNS : CINDER_LINE_DURATION_TURNS;
+    this.activeSurtrLines.push({
+      ownerId: unit.instanceId,
+      ownerSide: unit.side,
+      tiles,
+      turnsRemaining: duration,
+      damagePerTurn: CINDER_LINE_DAMAGE_PER_TURN,
+      friendlyImmuneTurnsRemaining: 0,
+    });
+    unit.actionsRemaining = 0;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["cinder_line_signature"] = startCooldown(this.turn, CINDER_LINE_SIGNATURE_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "cinder_line_signature");
+    this.log.push(`${unit.displayName} sets a ${tiles.length}-tile line burning for ${duration} turn(s).`);
+    return true;
+  }
+
+  canFirebreak(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("cinder_firebreak")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "cinder_firebreak"), this.turn)) return false;
+    // "One of the wielder's own active Surtr lines" — nothing to extinguish
+    // without one. cinder_line_signature's cooldown (5) outlasting even its
+    // own rank-5 duration (4) means a wielder can only ever have at most one
+    // line active (see SurtrLine.ownerId's own comment), so `find` here
+    // never has more than one candidate to pick between in practice.
+    if (!this.activeSurtrLines.some((l) => l.ownerId === unitId)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * cinder_firebreak (Firebreak) — "Instantly extinguish one of the
+   * wielder's own active Surtr lines." Rank 5 adds: "Extinguishing also
+   * deals the line's remaining total damage to every hostile currently
+   * standing on it, all at once." Costs 1 action, does NOT end the turn —
+   * same tier as oathkeeper()/ledgerOverextended() above, a quick reactive
+   * management tool rather than a battlefield-shaping commitment (see
+   * cinderLineSignature()'s own comment for why THAT one is priced
+   * differently); a wielder who lights a line and immediately regrets it
+   * can still act again this turn to walk it back, once cooldown allows.
+   *
+   * "The line's remaining total damage" is a placeholder READING of rank
+   * 5's prose, not a number pulled from spec: taken here as
+   * damagePerTurn * turnsRemaining at the moment of extinguishing — i.e.
+   * exactly the damage every hostile still standing on the line would have
+   * taken over its full remaining lifetime if it had been left to burn out
+   * naturally, front-loaded into one instant burst instead. Applied once
+   * per hostile currently on the line's tiles (not per-tile — a hostile
+   * that somehow occupies two tiles of the same line, impossible today
+   * since units are single-tile, would only take it once either way), flat
+   * and unmitigated, mirroring tickSurtrLines' own damage application
+   * exactly. Credited via recordContribution/resolveKill (this file's own
+   * off-board-strike pattern, e.g. fireSupport() above) rather than left
+   * uncredited the way the ordinary per-turn tick is: unlike that ambient
+   * tick, THIS damage is the direct result of the wielder choosing to
+   * detonate it right now, which reads as an attributable action the same
+   * way a called-in strike is.
+   */
+  firebreak(unitId: string): boolean {
+    if (!this.canFirebreak(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const idx = this.activeSurtrLines.findIndex((l) => l.ownerId === unitId);
+    const line = this.activeSurtrLines[idx];
+    const rank5 = this.heirloomRank(unit, "cinder_firebreak") >= 5;
+    let hitCount = 0;
+    if (rank5) {
+      const remainingTotal = line.damagePerTurn * line.turnsRemaining;
+      const tileSet = new Set(line.tiles.map(coordKey));
+      const caughtHostiles = this.livingUnits().filter((u) => u.side !== unit.side && tileSet.has(coordKey(u.pos)));
+      for (const victim of caughtHostiles) {
+        if (victim.kind === "bloom") applyBloomDamage(victim, remainingTotal);
+        else applyMechDamage(victim, remainingTotal);
+        this.recordContribution(victim.instanceId, unit.pilotId, remainingTotal);
+        if (victim.downed) this.resolveKill(victim.instanceId, unit.pilotId);
+        hitCount += 1;
+      }
+      for (const victim of caughtHostiles) if (victim.downed) this.handleDowned(victim);
+    }
+    this.activeSurtrLines.splice(idx, 1);
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["cinder_firebreak"] = startCooldown(this.turn, CINDER_FIREBREAK_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "cinder_firebreak");
+    this.log.push(
+      rank5 && hitCount > 0
+        ? `${unit.displayName} snuffs the line — ${hitCount} hostile(s) caught in the burst.`
+        : `${unit.displayName} snuffs the line out.`
+    );
+    return true;
+  }
+
+  canDraft(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("cinder_draft")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "cinder_draft"), this.turn)) return false;
+    // Same "nothing to do without an active line" gate as canFirebreak —
+    // "allies moving through a friendly Surtr line" has nothing to grant
+    // immunity FROM if the wielder has no line burning right now.
+    if (!this.activeSurtrLines.some((l) => l.ownerId === unitId)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * cinder_draft (Draft) — "Allies moving through a friendly Surtr line
+   * take no burn damage for 1 turn." Rank 5: "Duration 2 turns." Opens the
+   * immunity window (SurtrLine.friendlyImmuneTurnsRemaining) on every
+   * currently-active line this wielder owns — in practice at most one, per
+   * SurtrLine.ownerId's own comment. Costs 1 action, does NOT end the turn —
+   * same tier as Firebreak just above, for the identical reasoning.
+   */
+  draft(unitId: string): boolean {
+    if (!this.canDraft(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const rank5 = this.heirloomRank(unit, "cinder_draft") >= 5;
+    const duration = rank5 ? CINDER_DRAFT_RANK5_DURATION_TURNS : CINDER_DRAFT_DURATION_TURNS;
+    for (const line of this.activeSurtrLines) {
+      if (line.ownerId === unitId) line.friendlyImmuneTurnsRemaining = duration;
+    }
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["cinder_draft"] = startCooldown(this.turn, CINDER_DRAFT_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "cinder_draft");
+    this.log.push(`${unit.displayName} calls Draft — allies pass the line clean for ${duration} turn(s).`);
+    return true;
+  }
+
   /**
    * The clear_bloom objective's own countervailing pressure (data/combatTables.ts's
    * BLOOM_REGROWTH_* constants have the full pacing rationale). Fires on
@@ -2537,6 +3662,13 @@ export class Mission {
 
   private handleDowned(unit: BattleUnit): void {
     this.log.push(`${unit.displayName} is downed.`);
+    // Vault Phase 2, slice 5 (3 Sep 2026) — lastword_last_rites' own "this
+    // turn" gate reads this. Latched here unconditionally (every side, not
+    // just player) since handleDowned is the one place ANY unit's `downed`
+    // flag is processed after combat.ts already set it true — see this
+    // method's own call sites. Harmless on a hostile/Bloom; nothing reads
+    // it there.
+    unit.downedOnTurn = this.turn;
 
     // Commander down (25 Aug 2026) — checked FIRST, before anything else in
     // this method, on purpose. Independent Campaign doc §6a: Rourke going
@@ -2784,6 +3916,18 @@ export class Mission {
     this.checkRescueExtraction();
     this.checkClearBloomPatchComplete();
     if (this.checkWinLoss()) return;
+    // lastword_last_rites (Vault Phase 2, slice 5) — deliberately AFTER
+    // every objective/win-loss check above, not before: a unit currently
+    // acting on Last Rites' own borrowed action is, for this one moment,
+    // genuinely alive and fighting, and any extraction/rescue/bonus
+    // objective/win condition their action just completed should get to
+    // count before this closes the window back out — "one final time...
+    // before resolving" reads most generously as "before THIS turn's own
+    // resolution," not "before anything they do can matter." See that
+    // method's own comment for the rest of the reasoning, including why a
+    // win/loss that ends the mission on this exact call skips this step
+    // entirely (harmless — Debrief never reads live BattleUnit.downed).
+    this.resolveLastRitesBorrowedTime();
     this.phase = "hostile";
     this.log.push(`--- Turn ${this.turn}: hostile phase ---`);
     this.runHostileTurn();
@@ -2799,6 +3943,22 @@ export class Mission {
 
     for (const unit of this.livingUnits().filter((u) => u.side === "hostile")) {
       if (unit.downed) continue; // may have died mid-loop
+      // Shock Claws' stun (engine/turnManager.ts's isStunned, 3 Sep 2026) —
+      // a stunned unit skips its next action-taking opportunity entirely:
+      // no movement decision, no attack, for exactly this one hostile
+      // phase. Checked in the same place and the same way as the `downed`
+      // guard right above (a per-unit skip inside this loop, not a
+      // pre-filter on the list itself) so a unit that's ALSO stunned still
+      // gets its actionsRemaining/chargedThisMove reset from the loop just
+      // above this one — it's skipping its turn, not being removed from
+      // the roster. The stun itself ages down and expires through the
+      // ordinary tickStatusEffects() pass in environmentStep() later this
+      // same hostile phase, same as every other status effect — there is
+      // no separate stun-clearing step here.
+      if (isStunned(unit)) {
+        this.log.push(`${unit.displayName} is stunned and skips its turn.`);
+        continue;
+      }
       const decision = decideHostileAction(this.map, unit, this.units);
       if (decision.path && decision.path.length > 1) {
         this.moveHostile(unit, decision.path);
@@ -2872,6 +4032,110 @@ export class Mission {
       // redirect lasts exactly one hostile phase and expires when this
       // unit's own next turn begins.
       unit.taunting = false;
+      // oath_iron_word (Vault Phase 2, slice 1, 2 Sep 2026) — cleared
+      // unconditionally alongside `taunting` itself, so the radius gate can
+      // never outlive (or expire before) the posture it gates. A plain
+      // abil_taunt user never sets this, so this line is a no-op for them.
+      unit.tauntRadius = undefined;
+      // ledger_overextended (Vault Phase 2, slice 1, 2 Sep 2026) — same
+      // stealthTurnsRemaining-shaped extension abil_ambush's cloak clock
+      // uses just above: rank 1-4 clears unconditionally here, rank 5's
+      // extra turn survives one more pass through this loop first.
+      if (unit.overextendedTurnsRemaining !== undefined && unit.overextendedTurnsRemaining > 0) {
+        unit.overextendedTurnsRemaining -= 1;
+        if (unit.overextendedTurnsRemaining <= 0) {
+          unit.overextended = false;
+          unit.overextendedTurnsRemaining = undefined;
+        }
+      } else {
+        unit.overextended = false;
+      }
+      // oath_oathkeeper (Vault Phase 2, slice 2, 3 Sep 2026) — same
+      // decrement shape as overextendedTurnsRemaining just above: the
+      // window survives exactly oathkeeperTurnsLeft passes through this
+      // loop before closing. "All spared damage lands the instant it ends"
+      // — the instant the countdown reaches 0, `oathkeeperActive` is
+      // cleared FIRST, then the banked deferred pool (halved at rank 5) is
+      // applied through the ordinary applyMechDamage() with the posture
+      // already off, so a landing hit that empties it downs the unit
+      // through the real handleDowned() path exactly like any other hit
+      // that reaches 0 — no separate "deferred death" branch.
+      if (unit.oathkeeperActive && unit.oathkeeperTurnsLeft !== undefined) {
+        unit.oathkeeperTurnsLeft -= 1;
+        if (unit.oathkeeperTurnsLeft <= 0) {
+          unit.oathkeeperActive = false;
+          unit.oathkeeperTurnsLeft = undefined;
+          const deferred = unit.oathkeeperDeferredDamage ?? 0;
+          unit.oathkeeperDeferredDamage = 0;
+          if (deferred > 0) {
+            const rank5 = this.heirloomRank(unit, "oath_oathkeeper") >= 5;
+            const landing = rank5 ? Math.round(deferred * OATHKEEPER_RANK5_DEFERRED_MULTIPLIER) : deferred;
+            if (landing > 0) {
+              applyMechDamage(unit, landing);
+              this.log.push(`${unit.displayName}'s Iron Oath ends — ${landing} deferred damage lands.`);
+              if (unit.downed) this.handleDowned(unit);
+            }
+          }
+        }
+      }
+      // cutting_room_momentum (Zanretsu, Vault Phase 2 slice 4, 3 Sep 2026)
+      // — "+2 move on the turn immediately following any Zanretsu use."
+      // This IS "the turn immediately following": this loop runs exactly
+      // once per round, right as a player unit's own next turn begins,
+      // same choke point overextended/oathkeeperActive/etc. already use
+      // above. Two steps, in order: first, revert whatever bonus a
+      // PREVIOUS Momentum window granted — it was scoped to exactly the
+      // round that just ended (one pass through this loop, same "survives
+      // through the intervening hostile phase, clears when your own next
+      // turn begins" reading `overextended` itself uses), so it comes off
+      // here before anything new is considered. Then, if
+      // cuttingRoomCharge() left a fresh grant pending, apply it for the
+      // round now starting and clear the pending flag. See
+      // BattleUnit.momentumMoveBonusActive's own comment for why the move
+      // half is a direct, exactly-reverted stat add while the ATK half
+      // (momentumAtkBoostActive, read by combat.ts's
+      // momentumAttackMultiplier) is a plain live-read boolean instead.
+      if (unit.momentumMoveBonusActive) {
+        unit.moveRange -= unit.momentumMoveBonusActive;
+        unit.momentumMoveBonusActive = undefined;
+      }
+      unit.momentumAtkBoostActive = false;
+      if (unit.momentumPending) {
+        unit.momentumPending = false;
+        unit.moveRange += CUTTING_ROOM_MOMENTUM_MOVE_BONUS;
+        unit.momentumMoveBonusActive = CUTTING_ROOM_MOMENTUM_MOVE_BONUS;
+        if (this.heirloomRank(unit, "cutting_room_momentum") >= 5) {
+          unit.momentumAtkBoostActive = true;
+        }
+        this.log.push(`${unit.displayName} carries Momentum into this turn — +${CUTTING_ROOM_MOMENTUM_MOVE_BONUS} move.`);
+      }
+      // cutting_room_sure_footing (Zanretsu, Vault Phase 2 slice 4) — same
+      // TurnsRemaining-shaped decrement as overextendedTurnsRemaining/
+      // oathkeeperTurnsLeft above: the window survives exactly
+      // sureFootingTurnsLeft passes through this loop before closing.
+      if (unit.sureFootingTurnsLeft !== undefined && unit.sureFootingTurnsLeft > 0) {
+        unit.sureFootingTurnsLeft -= 1;
+        if (unit.sureFootingTurnsLeft <= 0) {
+          unit.sureFootingActive = false;
+          unit.sureFootingTurnsLeft = undefined;
+        }
+      } else {
+        unit.sureFootingActive = false;
+      }
+      // seal_ledgerhall_static (Simulacrum/The Stolen Seal, Vault Phase 2
+      // slice 6) — same TurnsRemaining-shaped decrement as
+      // sureFootingTurnsLeft just above. This loop already runs over EVERY
+      // unit, both sides (no side filter anywhere in this loop), which
+      // matters here specifically: Ledgerhall Static jams a HOSTILE, unlike
+      // every other timed status this loop clears, which are all
+      // player-side postures.
+      if (unit.jammedAbilityTurnsRemaining !== undefined && unit.jammedAbilityTurnsRemaining > 0) {
+        unit.jammedAbilityTurnsRemaining -= 1;
+        if (unit.jammedAbilityTurnsRemaining <= 0) {
+          unit.jammedAbilityId = undefined;
+          unit.jammedAbilityTurnsRemaining = undefined;
+        }
+      }
     }
     this.log.push(`--- Turn ${this.turn}: player phase ---`);
     // Stalled-eliminate_all nudge — see turnsWithoutContact's own comment.
@@ -2936,6 +4200,1275 @@ export class Mission {
     // that starts next turn.
     this.tickBloomRegrowth();
     this.tickAssetDamage();
+    // cinder_line_signature (Vault Phase 2, slice 3, 3 Sep 2026) — same
+    // once-per-cycle position as the two calls right above: independent of
+    // both (Surtr lines are never bloom_mat, never asset-defend zones), so
+    // ordering against them doesn't matter; kept last only because it's the
+    // newest of the three.
+    this.tickSurtrLines();
+  }
+
+  /**
+   * One environment-step tick for every currently-active Surtr line: every
+   * living unit standing on one of its tiles right now takes
+   * `damagePerTurn` — hostile OR friendly, no exception on the tiles
+   * themselves (data/heirlooms.ts's own hard rule, §1d, explicitly carves
+   * this kit out) — UNLESS that unit's side matches the line's own
+   * ownerSide AND the line's cinder_draft window is currently open
+   * (friendlyImmuneTurnsRemaining > 0), the one carve-out Draft exists to
+   * grant. Flat damage, no defense/cover mitigation and no shield
+   * interaction check — mirrors bloom_mat's own TileDef.turnStartDamage
+   * application right above in this same method exactly (applyMechDamage/
+   * applyBloomDamage + creditDamageTaken + handleDowned, nothing routed
+   * through resolveMechAttack/resolveAttackOnBloom), since this IS the same
+   * kind of hazard, just tracked separately — see the SurtrLine interface's
+   * own header comment for why. Deliberately does NOT call
+   * recordContribution/resolveKill for a unit this kills: environmental
+   * hazard damage isn't attributed to the wielder's own kill count any more
+   * than walking into bloom_mat is attributed to whoever converted that
+   * tile — ledger_entry's own stacking (killsThisMissionFor) would be a
+   * strange thing for a hazard tile to feed just because Surtr happens to
+   * also carry ledger_entry-style abilities on some other Heirloom.
+   *
+   * Damage is applied for every unit on every active line FIRST, then every
+   * line's own clocks (turnsRemaining, friendlyImmuneTurnsRemaining) are
+   * decremented in a second pass — so a line entering its LAST tick still
+   * deals that tick's damage before being dropped (turnsRemaining=3 at cast
+   * means exactly 3 damage events, not 2), matching how bloom_mat's own
+   * turnStartDamage/tickBloomRegrowth split is already ordered by comment
+   * right above this method.
+   */
+  private tickSurtrLines(): void {
+    if (this.activeSurtrLines.length === 0) return;
+    for (const line of this.activeSurtrLines) {
+      const tileSet = new Set(line.tiles.map(coordKey));
+      for (const unit of this.livingUnits()) {
+        if (!tileSet.has(coordKey(unit.pos))) continue;
+        const friendlyToLine = unit.side === line.ownerSide;
+        if (friendlyToLine && line.friendlyImmuneTurnsRemaining > 0) continue;
+        if (unit.kind === "bloom") applyBloomDamage(unit, line.damagePerTurn);
+        else {
+          applyMechDamage(unit, line.damagePerTurn);
+          this.creditDamageTaken(unit.pilotId, line.damagePerTurn);
+        }
+        if (unit.downed) this.handleDowned(unit);
+      }
+    }
+    for (const line of this.activeSurtrLines) {
+      line.turnsRemaining -= 1;
+      if (line.friendlyImmuneTurnsRemaining > 0) line.friendlyImmuneTurnsRemaining -= 1;
+    }
+    const stillBurning = this.activeSurtrLines.filter((l) => l.turnsRemaining > 0);
+    if (stillBurning.length !== this.activeSurtrLines.length) {
+      this.log.push("A Surtr line burns itself out.");
+    }
+    this.activeSurtrLines = stillBurning;
+  }
+
+  // ---- Vault Phase 2, slice 4 (3 Sep 2026) — Zanretsu's full 3-ability
+  // kit: cutting_room_charge, cutting_room_momentum, cutting_room_sure_footing
+  // (Vann Rethwick, House Rethwick, centauroid chassis, Meeps path). See
+  // data/heirlooms.ts's own "cutting_room" entry, CUTTING_ROOM_CHARGE_DIRECTIONS'
+  // own header comment above (why cardinal-only, not Cinder Line's 8-way
+  // set), and data/combatTables.ts's own "Vault Phase 2, slice 4" header for
+  // which numbers are explicit vs. placeholder. Same canX()/getX()/verb()
+  // shape every ability above follows.
+
+  canCuttingRoomCharge(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("cutting_room_charge")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "cutting_room_charge"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every tile a cutting_room_charge cast could END at — one entry per
+   * (direction, step) pair, CUTTING_ROOM_CHARGE_DIRECTIONS x
+   * 1..CUTTING_ROOM_CHARGE_MAX_LINE_TILES, clipped at the board edge OR at
+   * the first impassable tile in that direction, whichever comes first.
+   * That passability break is the one real difference from
+   * getCinderLineAreaFrom's identical-looking loop: Cinder Line places a
+   * hazard (nothing stops fire from igniting a tile behind a wall), this
+   * ability physically MOVES the wielder through the tiles it selects, so a
+   * genuinely impassable tile (a wall, water this chassis can't cross) has
+   * to actually block the line — "ignoring terrain cost" waives the COST of
+   * crossing difficult ground, not whether the ground can be crossed at
+   * all. Same CLICK TARGET SET contract as getCinderLineAreaFrom otherwise:
+   * clicking any one of these tiles resolves the whole run from the
+   * wielder's adjacent tile out to the clicked one, not just that one tile
+   * — see previewCuttingRoomChargeFrom below for the UI preview of exactly
+   * which tiles that is.
+   */
+  getCuttingRoomChargeAreaFrom(unitId: string, from: Coord): Coord[] {
+    if (!this.canCuttingRoomCharge(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const kind = this.movementKindFor(unit);
+    const tiles: Coord[] = [];
+    for (const dir of CUTTING_ROOM_CHARGE_DIRECTIONS) {
+      for (let step = 1; step <= CUTTING_ROOM_CHARGE_MAX_LINE_TILES; step++) {
+        const c = { x: from.x + dir.x * step, y: from.y + dir.y * step };
+        if (!inBounds(this.map, c)) break;
+        if (!isPassable(this.map, c, kind)) break;
+        tiles.push(c);
+      }
+    }
+    return tiles;
+  }
+
+  /**
+   * The actual tile run a click on `target` would charge through: `unit.pos`'s
+   * adjacent tile in `target`'s direction, out to `target` itself inclusive
+   * — null if `target` isn't a legal line endpoint (not a straight CARDINAL
+   * run — see CUTTING_ROOM_CHARGE_DIRECTIONS' own header comment for why
+   * this is cardinal-only where cinderLineTilesTo allows diagonals — beyond
+   * CUTTING_ROOM_CHARGE_MAX_LINE_TILES, or crossing a tile impassable to
+   * this unit's own movement kind). Deliberately does NOT check tile
+   * OCCUPANCY the way a normal move's reachableTiles does — striking
+   * through a tile an enemy is standing on is the entire point of this
+   * ability, not something to route around. Pure/read-only, shared by
+   * cuttingRoomCharge() (which calls this then commits the result) and
+   * previewCuttingRoomChargeFrom() (which just returns it for a UI
+   * preview) — mirrors cinderLineTilesTo's identical split.
+   */
+  private cuttingRoomChargeLineTo(unit: BattleUnit, target: Coord): Coord[] | null {
+    const from = unit.pos;
+    const ddx = target.x - from.x;
+    const ddy = target.y - from.y;
+    if (ddx === 0 && ddy === 0) return null;
+    if (ddx !== 0 && ddy !== 0) return null; // cardinal only — see CUTTING_ROOM_CHARGE_DIRECTIONS' header
+    const steps = Math.max(Math.abs(ddx), Math.abs(ddy));
+    if (steps > CUTTING_ROOM_CHARGE_MAX_LINE_TILES) return null;
+    const dirX = Math.sign(ddx);
+    const dirY = Math.sign(ddy);
+    const kind = this.movementKindFor(unit);
+    const tiles: Coord[] = [];
+    for (let s = 1; s <= steps; s++) {
+      const c = { x: from.x + dirX * s, y: from.y + dirY * s };
+      if (!inBounds(this.map, c)) return null;
+      if (!isPassable(this.map, c, kind)) return null;
+      tiles.push(c);
+    }
+    return tiles;
+  }
+
+  /** UI preview for an armed cutting_room_charge: the tiles a click on `target` would actually charge through, or null if that click wouldn't be a legal line. Returns null outright if the ability isn't currently usable at all, same "ask the engine, never guess" contract previewCinderLineFrom already follows. */
+  previewCuttingRoomChargeFrom(unitId: string, target: Coord): Coord[] | null {
+    if (!this.canCuttingRoomCharge(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    return this.cuttingRoomChargeLineTo(unit, target);
+  }
+
+  /**
+   * Shared by cuttingRoomCharge()'s two "where does the wielder end up"
+   * cases (hit at least one enemy vs. hit none) — see that method's own
+   * header comment for the two readings this implements. Scans `tiles`
+   * BACKWARD from index `upTo - 1` down to 0, returning the first tile NOT
+   * currently occupied by any other living unit; falls all the way back to
+   * `unit.pos` itself (no movement at all) if every candidate is occupied.
+   *
+   * That fallback is a genuinely rare edge case with no spec to point to —
+   * it needs the entire approach to the last enemy hit (or, in the
+   * zero-hit case, the whole chosen line) packed solid with other un-downed
+   * units — but it IS reachable (a second enemy standing exactly one tile
+   * short of the last one hit, or a friendly unit parked on the line), so
+   * it gets a real, deliberate answer rather than an unhandled crash or a
+   * silent double-occupy: not moving at all is the one option guaranteed
+   * never to put two units on the same tile.
+   */
+  private cuttingRoomChargeLandingTile(unit: BattleUnit, tiles: Coord[], upTo: number): Coord {
+    const occupied = this.occupiedSet(unit.instanceId);
+    for (let i = upTo - 1; i >= 0; i--) {
+      if (!occupied.has(coordKey(tiles[i]))) return tiles[i];
+    }
+    return unit.pos;
+  }
+
+  /**
+   * cutting_room_charge (Zanretsu/The Cutting Room) — "Move through and
+   * strike every enemy in a straight line, ignoring terrain cost, ending
+   * adjacent to the last one hit. Full commitment — cannot be called off
+   * partway through. Damage falls off against the 3rd+ target hit." Rank 5:
+   * "Damage no longer drops off against the 3rd+ target in the line."
+   *
+   * This is the one genuinely new resolution shape in this file: no
+   * existing ability both MOVES the wielder AND strikes multiple targets in
+   * one action. Every individual piece reuses existing machinery on
+   * purpose (per-victim damage through resolveMechAttack/
+   * resolveAttackOnBloom — the exact formula a normal hit uses, same as
+   * missileStrike's own per-victim loop above; recordPerformance for
+   * kill/assist/damage credit; evaluateZoneEntered for the tiles actually
+   * walked, the same bookkeeping moveUnit()'s own tail fires) — what's new
+   * is only the LOOP that ties them together, not the underlying math.
+   *
+   * Design calls this method's own prose leaves genuinely open, each
+   * decided and flagged here rather than guessed silently:
+   *
+   * WHICH TILES COUNT AS "IN THE LINE": the simplest, most literal reading
+   * of "strike every enemy in a straight line" — every living hostile unit
+   * whose OWN tile is one of the line's tiles (cuttingRoomChargeLineTo's
+   * result, wielder's adjacent tile outward to the clicked endpoint
+   * inclusive), in near-to-far order. NOT "adjacent to the line" — the
+   * prose says "in" it, and the wielder is meant to be physically crossing
+   * these exact tiles, not sweeping a radius around them the way Fire
+   * Support/Missile do.
+   *
+   * DODGE AND COUNTER: rolled and honored normally, per victim (rollMeepsDodge
+   * both directions, exactly resolveAttack()'s own primary-hit shape) —
+   * deliberately NOT deadfall_strike's "unavoidable, uncounterable" bypass,
+   * since cutting_room_charge's own prose never claims either of those
+   * properties the way Ichigeki's explicitly does. A real consequence
+   * worth being explicit about, mirroring missileStrike's own documented
+   * one: resolveMechAttack scales damage by attacker.currentHp/maxHp, so a
+   * counter that downs the wielder mid-charge makes every target resolved
+   * after it take zero — the formula already handles "the charger got
+   * cut down mid-run" without any extra guard here, same as missileStrike.
+   * Charging into a line of enemies carrying real return-fire risk reads as
+   * the right in-fiction consequence for "full commitment," not a bug to
+   * paper over.
+   *
+   * THE CENTAUROID CHARGE MULTIPLIER (CENTAUROID_CHARGE_MULT,
+   * combat.ts/turnManager.ts's own `charged` param) is deliberately NOT
+   * applied here, even though this pilot's own chassis is centauroid and
+   * this ability is thematically that exact mechanic. Passing `charged:
+   * true` into every resolveMechAttack call would silently stack an
+   * un-costed bonus on top of numbers this ability's own rank text already
+   * fully describes — a player reading "damage falls off against the 3rd+
+   * target" has no way to know a second, unrelated multiplier is also in
+   * play. Kept out for predictability; trivial to add back in one place if
+   * that's ever the wrong call.
+   *
+   * ENDING POSITION: "ending adjacent to the last one hit" — the tile in
+   * the line immediately BEFORE (one step closer to the wielder's own
+   * start than) the last enemy actually hit, found via
+   * cuttingRoomChargeLandingTile's backward-occupancy scan (so a unit
+   * standing exactly there doesn't get silently double-occupied). If the
+   * very first tile out from the wielder is where the last (only) enemy
+   * hit stands, that "one step before" tile IS the wielder's own starting
+   * tile — the wielder simply doesn't move, which is the correct reading
+   * of "adjacent to" a target one tile away to begin with.
+   *
+   * ZERO ENEMIES HIT: no spec exists for this ("full commitment... cannot
+   * be called off partway through" implies the player commits before
+   * knowing the outcome, the same reasoning cinder_line_signature's own
+   * header comment already establishes for a placed-but-wasted line) — read
+   * here as "the charge still happens as a MOVE," landing as far up the
+   * chosen line as the wielder can legally stand: cuttingRoomChargeLandingTile
+   * scanning backward from the line's own far end. This still ignores
+   * terrain cost/moveRange (the whole line, up to
+   * CUTTING_ROOM_CHARGE_MAX_LINE_TILES, was already validated as passable
+   * by cuttingRoomChargeLineTo) — a whiffed charge still ends with the
+   * wielder somewhere useful, not stranded at its own starting tile for no
+   * reason, matching "moves the full line length, or as far as the line's
+   * own tiles allow" per this pass's own brief.
+   *
+   * MAX LINE LENGTH IS NOT unit.moveRange: this is a fixed constant
+   * (CUTTING_ROOM_CHARGE_MAX_LINE_TILES, data/combatTables.ts), completely
+   * independent of the wielder's own current move stat — see that
+   * constant's own comment for why coupling it to moveRange would create
+   * an unwanted feedback loop with cutting_room_momentum's own +2 move
+   * grant (each Momentum-boosted round making the NEXT charge reach
+   * farther, compounding in a way neither ability's own prose describes).
+   *
+   * Costs the unit's entire remaining action budget and ends the turn
+   * ("full commitment — cannot be called off partway through" reads as
+   * this session's own established "high-impact single-use ability ends
+   * the turn" convention, same tier as cinder_line_signature/deadfall_strike
+   * above). Always triggers cutting_room_momentum on resolution — see
+   * BattleUnit.momentumPending's own comment — regardless of how many
+   * enemies were actually hit, including zero: "any Zanretsu use" per that
+   * ability's own prose, no hit-count qualifier.
+   */
+  cuttingRoomCharge(unitId: string, target: Coord): boolean {
+    if (!this.canCuttingRoomCharge(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const tiles = this.cuttingRoomChargeLineTo(unit, target);
+    if (!tiles) return false;
+
+    const rank5 = this.heirloomRank(unit, "cutting_room_charge") >= 5;
+    const sameSideAsAttacker = this.units.filter((u) => u.side === unit.side);
+
+    const hits: { index: number; victim: BattleUnit }[] = [];
+    tiles.forEach((c, index) => {
+      const victim = this.livingUnits().find((u) => u.side !== unit.side && coordsEqual(u.pos, c));
+      if (victim) hits.push({ index, victim });
+    });
+
+    const killedIds: string[] = [];
+    hits.forEach(({ victim }, hitOrder) => {
+      const sameSideAsVictim = this.units.filter((u) => u.side === victim.side);
+      const falloff = !rank5 && hitOrder >= 2 ? CUTTING_ROOM_CHARGE_FALLOFF_MULTIPLIER : 1;
+      let outcome: AttackOutcome;
+      if (victim.kind !== "bloom") {
+        const victimDodged = rollMeepsDodge(victim, unit, this.rng);
+        const attackerDodgedCounter = rollMeepsDodge(unit, victim, this.rng);
+        const r = resolveMechAttack(this.map, unit, victim, sameSideAsVictim, sameSideAsAttacker, false, victimDodged, attackerDodgedCounter, {
+          attackerKillsThisMission: this.killsThisMissionFor(unit),
+          defenderKillsThisMission: this.killsThisMissionFor(victim),
+        });
+        const dealt = Math.round(r.damage * falloff);
+        applyMechDamage(victim, dealt);
+        if (r.countered && r.counterDamage !== undefined) applyMechDamage(unit, r.counterDamage);
+        outcome = {
+          attackerId: unit.instanceId,
+          defenderId: victim.instanceId,
+          damage: dealt,
+          countered: r.countered,
+          counterDamage: r.counterDamage,
+          defenderDowned: victim.downed,
+          attackerDowned: unit.downed,
+          defenderDodged: r.dodged,
+          counterDodged: r.counterDodged,
+        };
+      } else {
+        const r = resolveAttackOnBloom(this.map, unit, victim, sameSideAsVictim, false, {
+          attackerKillsThisMission: this.killsThisMissionFor(unit),
+        });
+        const dealt = Math.round(r.damage * falloff);
+        applyBloomDamage(victim, dealt);
+        outcome = { attackerId: unit.instanceId, defenderId: victim.instanceId, damage: dealt, countered: false, defenderDowned: victim.downed };
+      }
+      this.recordPerformance(unit, victim, outcome);
+      if (outcome.defenderDowned) killedIds.push(victim.instanceId);
+    });
+
+    const landingUpTo = hits.length > 0 ? hits[hits.length - 1].index : tiles.length;
+    const landingTile = this.cuttingRoomChargeLandingTile(unit, tiles, landingUpTo);
+    const landingIndex = tiles.findIndex((c) => coordsEqual(c, landingTile));
+    const walkedPath = landingIndex >= 0 ? tiles.slice(0, landingIndex + 1) : [];
+    unit.pos = landingTile;
+    // Same tail moveUnit() itself fires for every tile actually stepped
+    // through — zone_entered events, the one piece of "normal movement
+    // bookkeeping" this ability can't skip even though it skips terrain
+    // COST. Not a call into moveUnit() itself: that method's own
+    // reachableTiles/budget semantics don't fit an ability that ignores
+    // both moveRange and terrain cost, so this replicates its event-firing
+    // tail directly rather than fighting its pathfinding to reuse it.
+    for (const step of walkedPath) {
+      const fired = evaluateZoneEntered(this.mission.events, step, this.turn, this.eventState);
+      for (const ev of fired) this.applyEventAction(ev.action);
+    }
+
+    for (const { victim } of hits) if (victim.downed) this.handleDowned(victim);
+    if (unit.downed) this.handleDowned(unit);
+
+    unit.actionsRemaining = 0;
+    unit.concealed = false; // firing/striking gives your position away, same as any other attack in this file
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["cutting_room_charge"] = startCooldown(this.turn, CUTTING_ROOM_CHARGE_COOLDOWN_TURNS);
+    unit.momentumPending = true; // cutting_room_momentum — always triggers, hit or whiff, see this method's own header
+    this.noteAbilityUse(unit, "cutting_room_charge");
+    this.log.push(
+      hits.length > 0
+        ? `${unit.displayName} charges the line — ${hits.length} hit, ${killedIds.length} downed.`
+        : `${unit.displayName} charges the line — nothing there to hit.`
+    );
+    return true;
+  }
+
+  canCuttingRoomSureFooting(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("cutting_room_sure_footing")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "cutting_room_sure_footing"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * cutting_room_sure_footing (Sure Footing) — "Immune to knockback and
+   * forced movement for 1 turn." Rank 5: "Duration 2 turns." Self-triggered
+   * defensive window, same shape as oathkeeper()/draft() above: costs 1
+   * action, does NOT end the turn (a quick posture, not a battlefield-
+   * shaping commitment the way cuttingRoomCharge() above is priced).
+   * BattleUnit.sureFootingActive is read live by
+   * engine/turnManager.ts's isKnockbackImmune; sureFootingTurnsLeft ages
+   * down in the same start-of-own-next-turn reset loop every other timed
+   * posture in this file already uses (see that loop's own comment for
+   * this ability's block).
+   */
+  cuttingRoomSureFooting(unitId: string): boolean {
+    if (!this.canCuttingRoomSureFooting(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const rank5 = this.heirloomRank(unit, "cutting_room_sure_footing") >= 5;
+    const duration = rank5 ? CUTTING_ROOM_SURE_FOOTING_RANK5_DURATION_TURNS : CUTTING_ROOM_SURE_FOOTING_DURATION_TURNS;
+    unit.sureFootingActive = true;
+    unit.sureFootingTurnsLeft = duration;
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["cutting_room_sure_footing"] = startCooldown(this.turn, CUTTING_ROOM_SURE_FOOTING_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "cutting_room_sure_footing");
+    this.log.push(`${unit.displayName} plants Sure Footing — immune to knockback for ${duration} turn(s).`);
+    return true;
+  }
+
+  // ---- Vault Phase 2, slice 5 (3 Sep 2026) — Migawari's remaining 2 of 3
+  // abilities: lastword_signature, lastword_last_rites (Osric Ferrow, House
+  // Ferrow, Munti path). See data/heirlooms.ts's own "last_word" entry for
+  // the full rank1/rank5 prose. lastword_field_triage (already live since
+  // slice 1) is untouched — see fieldTriage()/getFieldTriageTargetsFrom
+  // above.
+
+  /**
+   * Shared by getLastWordSignatureTargetsFrom and getLastRitesTargetsFrom:
+   * a downed pilot this SAME mission's own live permadeath check
+   * (evaluatePermadeathCheck, run inside handleDowned at the instant of
+   * THEIR OWN downing) already ruled un-restockable. Both of Migawari's
+   * revival-shaped abilities need this same "restockable casualty, not a
+   * corpse" gate — their own prose both say so explicitly ("not yet lost to
+   * permadeath" on Last Rites; the signature's own silence on it is read as
+   * the same rule, since reviving a pilot this campaign has already written
+   * off as permanently gone would contradict what "permanent" means
+   * everywhere else in this file).
+   */
+  private isPermanentlyLost(pilotId: string): boolean {
+    return this.permanentLosses.some((l) => l.pilotId === pilotId);
+  }
+
+  canLastWordSignature(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("lastword_signature")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "lastword_signature"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every currently-downed ally lastword_signature could revive. No radius
+   * filter — the prose states "one downed ally mid-mission" with no range
+   * clause at all, same "any range" reading deadfall_strike's own
+   * getDeadfallStrikeTargetsFrom (above) already established for a
+   * signature ability whose text gives no stated reach. Restricted to
+   * `!this.isPermanentlyLost(...)` — see that method's own comment — so
+   * this never offers a pilot the campaign has already written off. Empty
+   * whenever canLastWordSignature is false, same "ask the engine, never
+   * guess" contract every other getXTargetsFrom method in this file
+   * follows.
+   */
+  getLastWordSignatureTargetsFrom(unitId: string): BattleUnit[] {
+    if (!this.canLastWordSignature(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    return this.units.filter((u) => u.side === unit.side && u.downed && !!u.pilotId && !this.isPermanentlyLost(u.pilotId!));
+  }
+
+  /**
+   * lastword_signature (Migawari/The Last Word) — "Fully restores one
+   * downed ally mid-mission, no spare part spent. The wielder's own max HP
+   * is permanently reduced 10% for the rest of the campaign, each use."
+   * Rank 5: "The permanent cost drops to 5% per use — never removed
+   * entirely, only softened."
+   *
+   * THE RETROACTIVE-APPLICATION CALL, made deliberately and read carefully
+   * before touching this method: the wielder's own max HP shrinks THIS
+   * INSTANT, not deferred to their next deployment. "Permanently reduced...
+   * for the rest of the campaign" is read as starting the moment the cost
+   * is paid, and the remainder of THIS mission is part of "the rest of the
+   * campaign" the same as every future one — there's no textual support
+   * for a grace period where the cost is real but hasn't applied yet.
+   * `wielder.currentHp` is clamped down to the new, smaller `maxHp` if it
+   * would otherwise exceed it (a wielder at or near full health when they
+   * pay this cost cannot walk away with currentHp > maxHp, which nothing
+   * else in this file's damage/heal paths ever has to guard against) — but
+   * is never healed or otherwise changed beyond that clamp; a wielder
+   * already below the new cap keeps whatever HP they actually have, dented
+   * exactly as much as before.
+   *
+   * "Fully restores" is read as matching what a normal restock leaves a
+   * unit with — currentHp === maxHp, downed === false — since going down
+   * never touches anything else about a unit's stats/position, there is
+   * nothing else to reset. "No spare part spent" needs no code of its own:
+   * this method never calls anything that touches MekArchetype.spareParts
+   * (that only happens in campaignEconomy.ts's purchaseSpareParts, an
+   * unrelated shop flow), so simply not doing that IS the whole
+   * implementation of that clause.
+   *
+   * The SAME hpMultiplier is also recorded into this.signatureHpCosts for
+   * engine/campaignState.ts's applyLastWordSignatureCosts to land
+   * permanently on the wielder's own PilotRecord at Debrief — see that
+   * function's own comment, and LastWordSignatureCostRecord's, for why
+   * Mission can't write CampaignState directly and has to hand this off.
+   *
+   * Costs 1 action, does not end the turn — same tier as Field Triage
+   * (fieldTriage() above), the closest existing precedent for a support
+   * ability rather than an attack.
+   */
+  lastWordSignature(unitId: string, targetId: string): boolean {
+    if (!this.canLastWordSignature(unitId)) return false;
+    const wielder = this.unitById(unitId)!;
+    const target = this.getLastWordSignatureTargetsFrom(unitId).find((t) => t.instanceId === targetId);
+    if (!target) return false;
+
+    target.currentHp = target.maxHp;
+    target.downed = false;
+
+    const rank5 = this.heirloomRank(wielder, "lastword_signature") >= 5;
+    const hpMultiplier = rank5 ? LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK5 : LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1;
+    wielder.maxHp = Math.round(wielder.maxHp * hpMultiplier);
+    wielder.currentHp = Math.min(wielder.currentHp, wielder.maxHp);
+    if (wielder.pilotId) {
+      this.signatureHpCosts.push({ pilotId: wielder.pilotId, hpMultiplier, turn: this.turn });
+    }
+
+    wielder.actionsRemaining -= 1;
+    wielder.abilityCooldowns = wielder.abilityCooldowns ?? {};
+    wielder.abilityCooldowns["lastword_signature"] = startCooldown(this.turn, LAST_WORD_SIGNATURE_COOLDOWN_TURNS);
+    this.noteAbilityUse(wielder, "lastword_signature");
+    this.log.push(
+      `${wielder.displayName} pays Migawari's price for ${target.displayName} — fully restored, ${wielder.displayName}'s own max HP permanently reduced to ${wielder.maxHp}.`
+    );
+    return true;
+  }
+
+  canLastRites(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("lastword_last_rites")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "lastword_last_rites"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every ally who went down THIS SAME TURN — BattleUnit.downedOnTurn ===
+   * this.turn, latched once by handleDowned() at the instant of downing
+   * (see that field's own comment in engine/units.ts) — and hasn't already
+   * been ruled a permanent loss (isPermanentlyLost, same gate
+   * getLastWordSignatureTargetsFrom uses above; lastword_last_rites' own
+   * prose states this clause explicitly: "not yet lost to permadeath").
+   *
+   * "This turn" is deliberately Mission.turn, not phase. The one realistic
+   * way a player-side unit goes down WHILE the player still has the
+   * initiative to react (as opposed to during the hostile phase, when no
+   * player ability can be cast at all) is hostile OVERWATCH fire reacting
+   * to that unit's OWN move (triggerOverwatch, called from inside
+   * movePlayerUnit's own choke point) — Mission.turn does not advance
+   * until the hostile phase later hands back to the player
+   * (endPlayerTurn -> runHostileTurn -> `this.turn += 1`), so this stays
+   * true for the rest of that same player phase, which is exactly the
+   * window "before resolving" is read to mean. A downing during the
+   * hostile phase itself is never reachable here at all — no player
+   * ability can fire outside the player phase, so there is no case where
+   * this needs to reach "backward" across a phase boundary.
+   */
+  getLastRitesTargetsFrom(unitId: string): BattleUnit[] {
+    if (!this.canLastRites(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    return this.units.filter(
+      (u) => u.side === unit.side && u.downed && u.downedOnTurn === this.turn && !!u.pilotId && !this.isPermanentlyLost(u.pilotId!)
+    );
+  }
+
+  /**
+   * lastword_last_rites (Migawari/The Last Word) — "A downed ally (not yet
+   * lost to permadeath) can act one final time this turn before resolving."
+   * Rank 5: "The ally also gets a full heal for that one action, then goes
+   * down again as normal."
+   *
+   * MECHANIC READING, flagged: the target is un-downed immediately and
+   * granted LAST_RITES_ACTIONS_GRANTED action(s) — 1, not this game's
+   * normal 2-action budget, see that constant's own comment in
+   * data/combatTables.ts. Rank 1 does NOT heal them — they act at whatever
+   * currentHp their downing left them (0, since applyMechDamage/
+   * applyBloomDamage always clamp a downing hit to exactly 0 — a genuine
+   * "one last gasp" while critically wounded, matching rank1's prose
+   * exactly, which says nothing about healing). Rank 5 heals to full
+   * BEFORE that action so it can actually be spent at full effectiveness,
+   * per its own explicit "gets a full heal for that one action" clause.
+   *
+   * `lastRitesBorrowedTurn` is stamped with the CURRENT turn so
+   * resolveLastRitesBorrowedTime() (called once, from endPlayerTurn(), see
+   * that method's own comment for exactly where in the turn-end sequence
+   * and why) can force this unit back down when this same player turn
+   * closes out — UNCONDITIONALLY, whether or not the borrowed action was
+   * ever spent, and regardless of what HP they're sitting on by then. This
+   * is read as applying at BOTH ranks, not just rank 5: a borrowed action
+   * was never a rescue at either rank, only rank 5 changes what happens
+   * DURING it — rank 5's own explicit "then goes down again as normal" is
+   * read as spelling out a rule that was already implicit at rank 1, not
+   * introducing a NEW rule exclusive to rank 5 (the alternative reading —
+   * rank 1 permanently saves the pilot and only rank 5 sends them back
+   * down — would make rank 1 strictly a partial permadeath-cheat with no
+   * stated permanent-cost analogue anywhere in this kit, which nothing in
+   * the prose supports and which this Heirloom's OTHER ability already has
+   * the honest, costed version of).
+   *
+   * Costs the HEALER 1 action, does not end their turn — same tier as
+   * Field Triage/lastWordSignature above.
+   */
+  lastRites(unitId: string, targetId: string): boolean {
+    if (!this.canLastRites(unitId)) return false;
+    const healer = this.unitById(unitId)!;
+    const target = this.getLastRitesTargetsFrom(unitId).find((t) => t.instanceId === targetId);
+    if (!target) return false;
+
+    const rank5 = this.heirloomRank(healer, "lastword_last_rites") >= 5;
+    target.downed = false;
+    target.actionsRemaining = LAST_RITES_ACTIONS_GRANTED;
+    target.lastRitesBorrowedTurn = this.turn;
+    if (rank5) target.currentHp = target.maxHp;
+
+    healer.actionsRemaining -= 1;
+    healer.abilityCooldowns = healer.abilityCooldowns ?? {};
+    healer.abilityCooldowns["lastword_last_rites"] = startCooldown(this.turn, LAST_RITES_COOLDOWN_TURNS);
+    this.noteAbilityUse(healer, "lastword_last_rites");
+    this.log.push(
+      rank5
+        ? `${healer.displayName} performs Last Rites on ${target.displayName} — one final action, fully healed for it.`
+        : `${healer.displayName} performs Last Rites on ${target.displayName} — one final action.`
+    );
+    return true;
+  }
+
+  /**
+   * lastword_last_rites' own "before resolving" close-out — called once,
+   * from endPlayerTurn(), after every objective/win-loss check that same
+   * method already runs (see its own call-site comment for why AFTER, not
+   * before). Walks every unit currently on borrowed time FROM THIS TURN
+   * and forces it back down, unconditionally, if it's still alive and
+   * un-downed — matching rank5's explicit "then goes down again as normal"
+   * (read as applying at rank 1 too, see lastRites()'s own header comment).
+   *
+   * Deliberately does NOT call handleDowned(): the original downing
+   * already ran the full permadeath check and recorded whatever it needed
+   * to record (this.permanentLosses, survivalBonus tracking, the
+   * commander-down/rescue-failure branches) at the moment it actually
+   * happened. Re-running any of that here would be a second casualty for
+   * one downing, which is wrong on its face. This is only a bookkeeping
+   * flag reset — currentHp forced back to 0 regardless of any rank5 heal
+   * or damage taken during the borrowed action, since "goes down again as
+   * normal" reads as a full return to the pre-Last-Rites state, not a
+   * partial one.
+   *
+   * `lastRitesBorrowedTurn` is cleared on every unit that has one
+   * regardless of the `downed` check above — a unit that was ALSO killed
+   * again for real during its borrowed action (ordinary combat damage,
+   * handleDowned already ran for that) still needs the stale flag cleared
+   * so it doesn't linger into a future turn number this same field could
+   * coincidentally re-match against.
+   */
+  private resolveLastRitesBorrowedTime(): void {
+    for (const unit of this.units) {
+      if (unit.lastRitesBorrowedTurn === undefined) continue;
+      if (unit.lastRitesBorrowedTurn === this.turn && !unit.downed) {
+        unit.downed = true;
+        unit.currentHp = 0;
+        unit.actionsRemaining = 0;
+        this.log.push(`${unit.displayName}'s borrowed time from Last Rites runs out — down again.`);
+      }
+      unit.lastRitesBorrowedTurn = undefined;
+    }
+  }
+
+  // ---- Vault Phase 2, slice 6 (3 Sep 2026) — Simulacrum's full 3-ability
+  // kit (stolen_seal/The Stolen Seal). ABERRATION track, no aristocrat
+  // pilot — see data/heirlooms.ts's own header comment for what that
+  // distinction means, and this pass's own build-log addendum for the full
+  // account of how "which pilot ends up holding it" is a genuine
+  // pre-existing gap in this codebase (nothing anywhere calls
+  // engine/heirlooms.ts's acquireAberration for "stolen_seal" specifically —
+  // checked, not assumed — outside of test loops over both aberration ids
+  // generically). Every ability below only cares whether the FIELDED unit's
+  // own `abilities` array includes its id, the same gate every other live
+  // Heirloom ability already uses; how that array gets populated is
+  // entirely out of this pass's scope.
+
+  /** Uniform integer draw in [min, max] inclusive, via this Mission's own seeded rng — matches the codebase's existing "everything random goes through this.rng, never Math.random() directly" rule (see MissionOptions.rng's own comment) so a batch-sim run stays reproducible. No existing precedent in this file for a ranged integer roll (only rollMeepsDodge's threshold check existed before this pass), so this is a new small helper rather than an inline computation repeated at each of Simulacrum's three call sites below. */
+  private rollIntInRange(min: number, max: number): number {
+    return min + Math.floor(this.rng() * (max - min + 1));
+  }
+
+  /**
+   * seal_inherited_weight (Simulacrum/The Stolen Seal) — "At mission start,
+   * roll a random DEF bonus (0 to +15) for the whole mission." Rank5: "The
+   * roll's floor narrows to +8 to +15 — still random, never bad." Passive,
+   * cooldownTurns 0 in the data — this is not a player-cast verb at all, it
+   * fires automatically, exactly once, from the constructor (see the call
+   * site right after deployPlayerUnits()) for every currently-deployed
+   * player unit carrying the ability. A wielder who isn't fielded this
+   * mission simply has no BattleUnit for this loop to find, which is
+   * correct — nothing to roll for.
+   *
+   * The bonus is added directly onto `effectiveDefense`, not tracked as a
+   * separate live-read flag: unlike `oathkeeperActive`/`overextended`/etc.,
+   * combat.ts already reads `defender.effectiveDefense` at every damage
+   * calculation with no other "is there a bonus" branch needed, and nothing
+   * anywhere else in this file ever reassigns effectiveDefense after unit
+   * creation (grep-confirmed — the only other writers are the test-only
+   * synthetic literals in sim/playerAi/__tests__/combat.test.ts), so a
+   * direct, permanent-for-the-mission add is both the simplest and the most
+   * honest representation of "for the whole mission." The exact roll is
+   * also stashed on `inheritedWeightDefBonus` — see that field's own
+   * comment for why, purely informational, never itself read by combat
+   * code.
+   */
+  private rollInheritedWeight(): void {
+    for (const unit of this.units) {
+      if (unit.side !== "player" || unit.downed) continue;
+      if (!unit.abilities.includes("seal_inherited_weight")) continue;
+      const rank5 = this.heirloomRank(unit, "seal_inherited_weight") >= 5;
+      const bonus = rank5
+        ? this.rollIntInRange(SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK5, SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK5)
+        : this.rollIntInRange(SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK1, SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK1);
+      unit.effectiveDefense += bonus;
+      unit.inheritedWeightDefBonus = bonus;
+      this.log.push(`${unit.displayName} carries Inherited Weight — +${bonus} DEF for the mission.`);
+    }
+  }
+
+  /**
+   * seal_borrowed_authority (Simulacrum/The Stolen Seal) — every distinct
+   * on-hit-effect KIND any hostile unit that was ever on THIS mission's own
+   * board carries, win or lose, kill or no kill (the task's own bar:
+   * "appearing in the mission and being in the same battle counts," not
+   * "was actually killed"). Read from `this.units` rather than tracked
+   * incrementally as combat happens: nothing in this file ever splices a
+   * downed hostile out of `this.units` (grep-confirmed — the one `.filter`
+   * on this array anywhere in this class removes a RESCUED player-side NPC,
+   * engine/mission.ts's rescueUnit(), not a downed hostile), so by the time
+   * Debrief calls this at mission end, every hostile that ever spawned this
+   * mission — the initial deploy AND every later wave — is still present,
+   * with `downed` correctly reflecting whether it survived. This method
+   * doesn't filter on `downed` at all, on purpose.
+   *
+   * HOUSE AMARANTH FINDING, checked against the actual data rather than
+   * assumed or taken from an older plan: House Amaranth hostile mechs
+   * (hostile_mech_amaranth_01 through _05, hostile_mech_amaranth_conscript_01
+   * through _04 — data/units.ts) DO appear as hostiles inside Warden
+   * Company's own campaign (data/campaignAmaranth.ts references them 39
+   * times) — genuinely reachable in the exact same campaign run a fielded
+   * Simulacrum would ever be used in, not a separate, unreachable roster.
+   * BUT `onHit` is a field ONLY data/bloom.ts's Bloom archetypes carry
+   * (grep-confirmed: zero hits for "onHit" anywhere in data/units.ts) — a
+   * hostile mech, House Amaranth or otherwise, has no on-hit-effect data of
+   * any kind in this engine today. So rather than special-case "Bloom
+   * counts, mechs don't" with a comment and a skip, this scans every
+   * hostile UNIFORMLY by kind and only ever finds something for kind ===
+   * "bloom" — mech-shape hostiles correctly and automatically contribute
+   * nothing, without this method needing to hardcode that fact about them.
+   * The moment a future pass ever gives a hostile mech archetype its own
+   * onHit field, this starts picking it up for free, no changes needed
+   * here.
+   */
+  getFoughtOnHitEffectKindsThisMission(): OnHitEffectKind[] {
+    const kinds = new Set<OnHitEffectKind>();
+    for (const u of this.units) {
+      if (u.side !== "hostile" || u.kind !== "bloom") continue;
+      const fxId = BLOOM[u.archetypeId]?.onHit;
+      if (!fxId) continue;
+      const fx = BLOOM_ON_HIT_EFFECTS[fxId];
+      if (!fx || fx.kind === "none") continue;
+      kinds.add(fx.kind);
+    }
+    return Array.from(kinds);
+  }
+
+  canSealBorrowedAuthority(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("seal_borrowed_authority")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "seal_borrowed_authority"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * seal_borrowed_authority (Simulacrum/The Stolen Seal) — "Next attack
+   * copies a random on-hit effect drawn from any Bloom archetype or House
+   * Amaranth unit fought this campaign." Rank5: "Reroll the draw once per
+   * use before committing."
+   *
+   * THE DRAW POOL, flagged: `this.foughtOnHitEffectKinds` (the campaign's
+   * own persisted set, snapshotted at construction — see
+   * MissionOptions.foughtOnHitEffectKinds' own comment) is read here, NOT
+   * `getFoughtOnHitEffectKindsThisMission()`'s live, THIS-mission answer.
+   * Deliberate: "fought this campaign" is read as a retrospective memory
+   * bank the spoof draws on — it has to have learned an access pattern from
+   * something it fought BEFORE this exact instant, not from the enemy
+   * standing in front of it that it hasn't finished fighting yet. The real
+   * edge case this creates: a fresh campaign's very first mission with a
+   * freshly-fielded Simulacrum has an EMPTY pool (nothing fought in any
+   * PRIOR mission), so this refuses cleanly below even with hostiles
+   * actively on the board — read as correct, not a bug, given that
+   * reading. This mission's own encounters are unioned into the persisted
+   * set only at Debrief, for every FUTURE mission's draw.
+   *
+   * Returns `{ok:false, reason}` rather than a plain boolean on failure —
+   * this codebase's existing {ok, reason} convention for a verb whose
+   * refusal needs to reach the player as a sentence, not just a greyed-out
+   * button (see engine/heirlooms.ts's HeirloomRecruitResult/
+   * resolveAristocratPath, and engine/campaignState.ts's LaunchCheckResult)
+   * — chosen here, unlike this file's usual plain-boolean canX()/verb()
+   * pairs, because this ability's own OUTCOME (which kind got drawn) is
+   * something a caller/UI genuinely needs back, not just a yes/no.
+   *
+   * REROLL SEMANTICS (rank5), flagged as the most genuinely arguable call
+   * in this whole kit: "reroll the draw once per use before committing"
+   * could mean either (a) draw twice, show the player both, let them pick
+   * which one to commit, or (b) draw, then unconditionally draw again and
+   * commit the second result, discarding the first. This codebase has NO
+   * existing precedent anywhere for a "preview a random result, then let
+   * the player accept or reroll it" interactive flow — every ability here
+   * is a single canX()/verb() call, no multi-step commit dance — so
+   * building (a) for real would mean inventing a wholly new UI interaction
+   * pattern for one ability rank, out of proportion with the rest of this
+   * pass. (b) is implemented instead: at rank5 this.rng() is consumed
+   * TWICE (a real second draw, not a cosmetic one) and only the second
+   * result is kept. Worth being honest about what this DOESN'T buy: since
+   * both draws come from the same uniform distribution over the same pool,
+   * an unconditional reroll is statistically identical to a single draw —
+   * this is a faithful literal implementation of "roll again, discard the
+   * first," not a mechanic that improves the average outcome the way a
+   * genuine player-choice reroll would. Testable and honest either way:
+   * rank1 consumes the rng stream once, rank5 consumes it twice.
+   */
+  sealBorrowedAuthority(unitId: string): { ok: boolean; reason?: string; kind?: OnHitEffectKind } {
+    if (!this.canSealBorrowedAuthority(unitId)) return { ok: false, reason: "Simulacrum cannot use Borrowed Authority right now." };
+    if (this.foughtOnHitEffectKinds.length === 0) {
+      return { ok: false, reason: "Simulacrum hasn't encountered anything to copy yet this campaign." };
+    }
+    const unit = this.unitById(unitId)!;
+    const rank5 = this.heirloomRank(unit, "seal_borrowed_authority") >= 5;
+    let kind = this.foughtOnHitEffectKinds[Math.floor(this.rng() * this.foughtOnHitEffectKinds.length)];
+    if (rank5) {
+      // Second, independent draw — see this method's own header for why
+      // this reads as "reroll" rather than a cosmetic re-roll.
+      kind = this.foughtOnHitEffectKinds[Math.floor(this.rng() * this.foughtOnHitEffectKinds.length)];
+    }
+    unit.borrowedAuthorityFxKind = kind;
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["seal_borrowed_authority"] = startCooldown(this.turn, SEAL_BORROWED_AUTHORITY_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "seal_borrowed_authority");
+    this.log.push(`${unit.displayName} spoofs Borrowed Authority — next attack copies a ${kind} effect.`);
+    return { ok: true, kind };
+  }
+
+  canLedgerhallStatic(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("seal_ledgerhall_static")) return false;
+    if (!isCooldownReady(this.cooldownReadyTurn(unit, "seal_ledgerhall_static"), this.turn)) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every living hostile currently visible to the whole player side that
+   * actually HAS at least one ability to jam — `unit.abilities.length > 0`.
+   * That restriction matters in practice: createBloomUnit always sets
+   * `abilities: []` (grep-confirmed — no Bloom archetype ever carries a
+   * discrete "ability" the way a pilot does), so this naturally scopes
+   * Ledgerhall Static's legal targets down to hostile MECHS only (House
+   * Amaranth troopers/conscripts and any other human hostile), the only
+   * shape with a real, non-empty `abilities` array to draw from — same
+   * "any range" visibility rule deadfall_strike's own
+   * getDeadfallStrikeTargetsFrom already established (unitsVisibleToSide,
+   * not the wielder's own attackRange/vision). Empty whenever
+   * canLedgerhallStatic is false, same "ask the engine, never guess"
+   * contract every other getXTargetsFrom method in this file follows.
+   */
+  getLedgerhallStaticTargetsFrom(unitId: string): BattleUnit[] {
+    if (!this.canLedgerhallStatic(unitId)) return [];
+    const visibleIds = unitsVisibleToSide("player", this.units, this.turn);
+    return this.livingUnits().filter((u) => u.side === "hostile" && u.abilities.length > 0 && visibleIds.has(u.instanceId));
+  }
+
+  /**
+   * seal_ledgerhall_static (Ledgerhall Static) — "Jams one random enemy
+   * ability for 2 turns." Rank5: "Jams the target's strongest available
+   * ability specifically — the spoof has finally learned enough to be
+   * selective." Rank1 picks a uniformly random entry from the target's own
+   * `abilities` array; rank5 picks by SEAL_LEDGERHALL_STATIC_ABILITY_PRIORITY
+   * (data/combatTables.ts — see that table's own comment for the full
+   * reasoning behind the ordering, and its honest limits).
+   *
+   * HONEST LIMITATION, stated plainly rather than glossed over — read this
+   * before assuming the jam "does" anything to a hostile's behavior:
+   * engine/ai.ts's decideHostileAction has NO per-ability dispatch at all
+   * (grep-confirmed: zero references to `.abilities` anywhere in that
+   * file). A hostile mech's own `abilities` array only exists because
+   * createHostileMechUnit shares the exact same UNIT_ARCHETYPES record a
+   * player pilot of that path uses (engine/units.ts) — every canX() gate in
+   * THIS file that would otherwise read one of those ability ids
+   * (abil_overshield, abil_interdict, abil_charge, abil_ambush,
+   * abil_sensor_sweep, abil_repair, abil_cockpit_evac, abil_screen,
+   * abil_clear_bloom) unconditionally refuses for `unit.side !== "player"`
+   * before ever checking `unit.abilities.includes(...)`, and
+   * decideHostileAction's own decision tree (reflexive/pack/emergent tiers)
+   * never reads unit.abilities to choose between options — hostiles only
+   * ever move-then-basic-attack. So a hostile mech's ability list is, today,
+   * 100% inert leftover data regardless of this ability. What THIS method
+   * does is real and tested: it records exactly which ability id is jammed
+   * and for how long (BattleUnit.jammedAbilityId/jammedAbilityTurnsRemaining,
+   * decremented by the same start-of-own-next-turn reset loop every other
+   * timed status in this file uses). What it can't honestly claim: that the
+   * jam changes anything about how that hostile actually plays, because
+   * there is no ability-choice AI on the hostile side to prevent from
+   * choosing it in the first place. isAbilityJammed() below exists so the
+   * day decideHostileAction grows real ability dispatch, wiring the gate in
+   * is a one-line addition there, not a redesign here.
+   */
+  ledgerhallStatic(unitId: string, targetId: string): boolean {
+    if (!this.canLedgerhallStatic(unitId)) return false;
+    const unit = this.unitById(unitId)!;
+    const target = this.getLedgerhallStaticTargetsFrom(unitId).find((t) => t.instanceId === targetId);
+    if (!target) return false;
+
+    const rank5 = this.heirloomRank(unit, "seal_ledgerhall_static") >= 5;
+    const jammed = rank5
+      ? [...target.abilities].sort(
+          (a, b) => (SEAL_LEDGERHALL_STATIC_ABILITY_PRIORITY[b] ?? 0) - (SEAL_LEDGERHALL_STATIC_ABILITY_PRIORITY[a] ?? 0)
+        )[0]
+      : target.abilities[Math.floor(this.rng() * target.abilities.length)];
+
+    target.jammedAbilityId = jammed;
+    target.jammedAbilityTurnsRemaining = SEAL_LEDGERHALL_STATIC_JAM_DURATION_TURNS;
+    unit.actionsRemaining -= 1;
+    unit.abilityCooldowns = unit.abilityCooldowns ?? {};
+    unit.abilityCooldowns["seal_ledgerhall_static"] = startCooldown(this.turn, SEAL_LEDGERHALL_STATIC_COOLDOWN_TURNS);
+    this.noteAbilityUse(unit, "seal_ledgerhall_static");
+    this.log.push(`${unit.displayName} jams ${target.displayName}'s ${jammed} for ${SEAL_LEDGERHALL_STATIC_JAM_DURATION_TURNS} turn(s).`);
+    return true;
+  }
+
+  /** Whether `unit` currently has `abilityId` jammed by Ledgerhall Static — see that method's own header comment for the honest limit on what this presently changes about hostile behavior. Exists for tests and for a future decideHostileAction to consult. */
+  isAbilityJammed(unit: BattleUnit, abilityId: string): boolean {
+    return unit.jammedAbilityId === abilityId && (unit.jammedAbilityTurnsRemaining ?? 0) > 0;
+  }
+
+  // ---- Vault Phase 2, slice 7 (3 Sep 2026) — requiem_severance (Gjallar /
+  // the Requiem system). The LAST of this build-out's eight abilities, and
+  // per data/heirlooms.ts's own header comment "the worst candidate to
+  // build first... the one fixed point in the pool" — built last, on
+  // purpose, now that every other kit's canX()/getX()/verb() shape is
+  // already established to copy.
+  //
+  // Spec, pulled live from the actual current files rather than memory or
+  // an older plan (this project's own standing rule): data/abilities.ts's
+  // own SEVERANCE constant (Data Pack §11.5, "not a stat block tuning
+  // knob; softening it is explicitly against the design") plus GDD §8's own
+  // mechanics table, both found via a live project doc search this pass —
+  //   - Shape: a line 8 tiles long, 1 tile wide, from the origin OUTWARD,
+  //     origin tile INCLUDED (SEVERANCE.shape / GDD §8.2 "the origin unit
+  //     is included").
+  //   - Damage: 80, FIXED — "not modified by ATK, DEF, tier, mek, or
+  //     terrain defence" (SEVERANCE.damage/ignoresTerrain). This is why
+  //     requiemSeverance() below never calls resolveMechAttack/
+  //     resolveAttackOnBloom at all: those functions ARE the stat formula
+  //     this ability is defined by NOT using. "Ignores the full-HP damage
+  //     cap" (SEVERANCE.ignoresFullHpCap) falls out of that for free —
+  //     there's no `Math.min(dmg, FULL_HP_DAMAGE_CAP)` call anywhere below
+  //     to bypass, because there's no capped-formula call in the first
+  //     place. WORTH FLAGGING HONESTLY: FULL_HP_DAMAGE_CAP is 90
+  //     (data/combatTables.ts) and SEVERANCE.damage is 80 — for a mech-
+  //     shape target specifically, the cap could never have bound against
+  //     this fixed damage anyway (the cap only ever REDUCES a raw hit above
+  //     it; 80 is already below 90), so "ignores the cap" is mechanically
+  //     inert for mech targets under today's numbers. It's the Bloom side
+  //     (below) where bypassing the equivalent wall — Endurance — is the
+  //     part that actually changes an outcome. Not a bug, not silently
+  //     smoothed over: see this file's own gjallarRequiem.test.ts for a
+  //     test that says so explicitly, and this pass's own final report for
+  //     the same finding surfaced to Maxime.
+  //   - Versus Bloom: bypasses Endurance entirely, Collapse-checks Vitality
+  //     DIRECTLY (SEVERANCE.vsBloom === "collapse_check") — see
+  //     applyRequiemBloomDamage's own comment in engine/combat.ts for the
+  //     exact mechanic, mirrored off applyBloomDamage's own already-
+  //     collapsed branch. THIS is where the bypass is genuinely load-
+  //     bearing: a Bloom at full Endurance that a normal attack could never
+  //     touch Vitality on in one hit (Data Pack §8.3's own "overflow does
+  //     NOT carry into Vitality" rule) dies outright to Requiem if its
+  //     Vitality is 80 or less, regardless of Endurance.
+  //   - Hits friend and foe alike, unconditionally, no exception — see
+  //     requiemSeverance()'s own comment for why its hit-list is built with
+  //     NO side filter at all, the one deliberate absence this whole
+  //     section exists to be. data/heirlooms.ts's own hard rule: "No
+  //     Heirloom ability besides the Requiem system's own signature
+  //     line-attack may... hit friendlies unconditionally."
+  //   - Charge: +1 per 10 HP dealt by the player side, +1 per 10 HP taken by
+  //     the player side, max 100 (SEVERANCE.chargePerTenHpDealt/
+  //     chargePerTenHpTaken/maxCharge) — see accrueRequiemCharge below.
+  //     Resets to 0 on a successful fire, not a turn-based cooldown (see
+  //     requiemCharge's own field comment, above this class).
+  //
+  // FLAGGED ASSUMPTION #1, read before assuming the UI/action-economy shape
+  // below is spec rather than a judgment call: GDD Data Pack §11.5 says
+  // "Player chooses an origin — any own unit — and one of eight
+  // directions," which literally reads as decoupled from who's ACTING —
+  // pick any deployed unit's tile as the beam's origin, independent of
+  // whose turn action gets spent. This codebase has no precedent anywhere
+  // for a two-unit-selection ability flow (every arm-then-click ability
+  // here — Cinder Line, Missile, Fire Support, Deadfall — spends the
+  // SELECTED unit's own action and uses that SAME unit's own position as
+  // the effect's origin), and building a novel "pick unit A, then
+  // separately pick unit B's tile as the origin" flow for the one ability
+  // in the whole kit that's explicitly NOT meant to set any new precedent
+  // (data/heirlooms.ts's "Deliberately ONE ability, not three" is about
+  // ability COUNT, not UI shape) is real, risky scope expansion for one
+  // line of GDD prose. Read instead, and implemented below: "any own unit"
+  // describes the ordinary select-your-acting-unit choice every ability in
+  // this game already offers, with that SAME selected unit's own tile as
+  // the origin — Gjallar fires from wherever its wielder is standing, same
+  // as Cinder Line fires from wherever Surtr is standing. canRequiemSeverance
+  // is gated on `unit.abilities.includes("requiem_severance")` for exactly
+  // this reason — same uniform gate every other ability's canX() in this
+  // file uses — rather than letting any arbitrary player unit stand in as
+  // origin. The alternate, literal reading (a true two-step origin-then-
+  // direction flow, origin decoupled from the acting unit) is real and
+  // defensible from the text — flagged here for Maxime, not silently
+  // decided, since it changes both this section's shape and
+  // scenes/Battle.ts's targeting flow if he wants it built the other way.
+  //
+  // FLAGGED ASSUMPTION #2, smaller: neither the Data Pack nor GDD §8 says
+  // whether Oathkeeper's HP floor or an active Tank shield should still
+  // apply to a Requiem hit. requiemSeverance() below routes mech-shape
+  // damage through the ordinary applyMechDamage() choke point (same as
+  // every other damage source in the game — see oath_oathkeeper's own doc
+  // comment on that function: "no call site needs its own awareness" of
+  // it), so YES, both still apply here: an Oathkeeper-active ally caught in
+  // the beam is floored rather than deleted, and a shielded unit absorbs
+  // part of the 80 first. Defensible as the safer, most-consistent-with-
+  // existing-architecture default, but it is a choice, not spec — flagged.
+
+  canRequiemSeverance(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("requiem_severance")) return false;
+    if (this.requiemCharge < SEVERANCE.maxCharge) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * The direction from `from` to `target`, as a unit vector — one of
+   * CINDER_LINE_DIRECTIONS' own 8 offsets, reused as-is rather than
+   * declared a second time under a new name: Requiem's own 8-directional
+   * shape (GDD §8.2's "one of eight directions") is genuinely the same set
+   * Cinder Line already established as this engine's line-direction
+   * convention, not a coincidental match worth a duplicate literal array.
+   * Returns null if `target` isn't a legal cardinal/diagonal direction from
+   * `from` at all (mirrors cinderLineTilesTo's own isCardinal/isDiagonal
+   * check) — unlike Cinder Line, there's no MAX_TILES-style distance cap to
+   * also check here, since Requiem's line length is fixed
+   * (SEVERANCE.shape.length), never chosen by how far the click landed.
+   */
+  private requiemDirectionTo(from: Coord, target: Coord): Coord | null {
+    const ddx = target.x - from.x;
+    const ddy = target.y - from.y;
+    if (ddx === 0 && ddy === 0) return null;
+    const isCardinal = ddx === 0 || ddy === 0;
+    const isDiagonal = Math.abs(ddx) === Math.abs(ddy);
+    if (!isCardinal && !isDiagonal) return null;
+    return { x: Math.sign(ddx), y: Math.sign(ddy) };
+  }
+
+  /**
+   * The fixed SEVERANCE.shape.length tiles a Requiem fired in `dir` from
+   * `origin` actually hits, origin tile INCLUDED as tile 0 (GDD §8.2's own
+   * "the origin unit is included" — the wielder is inside its own blast,
+   * on purpose, see requiemSeverance's own comment). Clipped at the board
+   * edge exactly like getCinderLineAreaFrom/cinderLineTilesTo (`break` on
+   * the first out-of-bounds step) — SEVERANCE.shape doesn't say what
+   * happens off-map, so a short line near an edge rather than an error is
+   * the same judgment call Cinder Line already made for the identical gap.
+   */
+  private requiemLineTiles(origin: Coord, dir: Coord): Coord[] {
+    const tiles: Coord[] = [];
+    for (let step = 0; step < SEVERANCE.shape.length; step++) {
+      const c = { x: origin.x + dir.x * step, y: origin.y + dir.y * step };
+      if (!inBounds(this.map, c)) break;
+      tiles.push(c);
+    }
+    return tiles;
+  }
+
+  /**
+   * Every in-bounds tile along one of the 8 legal directions from `unitId`'s
+   * own position, out to the board edge — same "click target set" contract
+   * as getCinderLineAreaFrom (every (direction, step) pair, clipped at the
+   * map boundary), deliberately NOT capped at SEVERANCE.shape.length the
+   * way requiemLineTiles' own actual hit-list is: this set only names which
+   * DIRECTION a click selects, not how far the beam reaches (that's fixed),
+   * so a click anywhere along a legal ray — even past tile 8, even past the
+   * board's own far edge from a short line's perspective — correctly picks
+   * the same direction a click on the nearest tile would. scenes/Battle.ts
+   * highlights these as the clickable set; requiemSeverance/
+   * previewRequiemSeverance both re-derive the direction from whatever tile
+   * was actually clicked and independently cap the actual hit-list at
+   * SEVERANCE.shape.length via requiemLineTiles.
+   */
+  getRequiemDirectionTargets(unitId: string): Coord[] {
+    if (!this.canRequiemSeverance(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const tiles: Coord[] = [];
+    for (const dir of CINDER_LINE_DIRECTIONS) {
+      let step = 1;
+      while (true) {
+        const c = { x: unit.pos.x + dir.x * step, y: unit.pos.y + dir.y * step };
+        if (!inBounds(this.map, c)) break;
+        tiles.push(c);
+        step += 1;
+      }
+    }
+    return tiles;
+  }
+
+  /** UI preview for an armed Requiem: the fixed-length tile run a click on `target` would actually hit, or null if that click doesn't name a legal direction. Returns null outright if the ability isn't currently usable at all, same "ask the engine, never guess" contract previewCinderLineFrom already follows. */
+  previewRequiemSeverance(unitId: string, target: Coord): Coord[] | null {
+    if (!this.canRequiemSeverance(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const dir = this.requiemDirectionTo(unit.pos, target);
+    if (!dir) return null;
+    return this.requiemLineTiles(unit.pos, dir);
+  }
+
+  /**
+   * requiem_severance (Gjallar) — Data Pack §11.5 / GDD §8.2, transcribed
+   * exactly, not softened: fixed SEVERANCE.damage to every living unit on
+   * the line, EITHER side, the wielder's own tile included, no exception.
+   * Deliberately the only verb in this entire file that builds its hit-list
+   * with NO `u.side` filter and no "exclude the caster" filter (contrast
+   * missileStrike's own explicit `u.instanceId !== attacker.instanceId`
+   * exclusion, and every side-aware filter elsewhere in this class) — see
+   * this section's own header comment for the hard rule this is the one
+   * sanctioned exception to.
+   *
+   * Bypasses resolveMechAttack/resolveAttackOnBloom entirely for mech-shape
+   * targets — fixed damage, "not modified by ATK, DEF, tier, mek, or
+   * terrain defence" leaves nothing for that formula to compute — and
+   * routes straight to applyMechDamage, the same single choke point
+   * Oathkeeper's own HP floor and Tank shield absorption already use for
+   * every OTHER damage source in the game (see this section's own
+   * FLAGGED ASSUMPTION #2 above for why that's a choice, not spec).
+   *
+   * Bloom-shape targets go through applyRequiemBloomDamage instead
+   * (engine/combat.ts) — the Collapse-check-Vitality-directly mechanic, see
+   * that function's own comment.
+   *
+   * No dodge, no counter: Meeps dodge (rollMeepsDodge) and the counter
+   * check are both properties of resolveMechAttack's own formula call in
+   * resolveAttack() — a call this method never makes — so both are
+   * naturally absent here, consistent with GDD §8.1's "no ally carve-out,
+   * ever... no confirmation that lets you re-aim for free," read as
+   * extending to "no dodge, no counter" too: an unconditional beam isn't an
+   * aimed shot a Meeps steps out of, or a melee exchange a Tank swings back
+   * into.
+   *
+   * Also, by construction, never triggers Bloom on-hit effects, weapon-
+   * branch on-hit effects (Shock Claws' stun), or seal_borrowed_authority's
+   * copy — every one of those is wired inside resolveAttack()'s own three
+   * branches, none of which this method calls. A known, honest gap, not an
+   * oversight: flagged in this pass's own final report, and pinned by a
+   * dedicated test in gjallarRequiem.test.ts.
+   *
+   * Resets requiemCharge to 0 (GDD §8.2's own "cooldown: meter resets to
+   * zero") and spends the acting unit's entire action budget, same tier as
+   * every other "battlefield-shaping strike" verb in this file.
+   */
+  requiemSeverance(unitId: string, target: Coord): { hitIds: string[]; killedIds: string[] } | null {
+    if (!this.canRequiemSeverance(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const dir = this.requiemDirectionTo(unit.pos, target);
+    if (!dir) return null;
+    const tiles = this.requiemLineTiles(unit.pos, dir);
+    if (tiles.length === 0) return null;
+
+    const tileSet = new Set(tiles.map((c) => coordKey(c)));
+    // No side filter, no "exclude the caster" filter — see this method's
+    // own header comment. livingUnits() is this file's existing "not
+    // downed" filter, reused rather than a fresh `!u.downed` check.
+    const hit = this.livingUnits().filter((u) => tileSet.has(coordKey(u.pos)));
+    const killedIds: string[] = [];
+
+    for (const victim of hit) {
+      if (victim.kind === "bloom") {
+        applyRequiemBloomDamage(victim, SEVERANCE.damage);
+      } else {
+        applyMechDamage(victim, SEVERANCE.damage);
+      }
+      const outcome: AttackOutcome = {
+        attackerId: unitId,
+        defenderId: victim.instanceId,
+        damage: SEVERANCE.damage,
+        countered: false,
+        defenderDowned: victim.downed,
+      };
+      // Campaign-economy crediting, same call every other multi-target
+      // strike (missileStrike, fireSupport) already makes — see
+      // recordPerformance's own comment for why attacker === victim (the
+      // wielder caught in its own line, GDD §8.2's "origin unit included")
+      // is a safe, harmless call: it credits that SAME pilotId with both
+      // damageDealt and damageTaken for the hit, which is exactly correct
+      // for a unit that shot itself.
+      this.recordPerformance(unit, victim, outcome);
+      if (victim.downed) killedIds.push(victim.instanceId);
+    }
+
+    this.requiemCharge = 0;
+    unit.actionsRemaining = 0;
+    unit.concealed = false; // firing gives your position away, same as any other attack — resolveAttack's identical line
+    this.log.push(`${unit.displayName} fires Gjallar — Requiem, an ${tiles.length}-tile line, ${hit.length} hit, ${killedIds.length} downed.`);
+    for (const victim of hit) if (victim.downed) this.handleDowned(victim);
+    return { hitIds: hit.map((u) => u.instanceId), killedIds };
+  }
+
+  /**
+   * Gjallar/Requiem's charge meter — "+1 per 10 HP of damage dealt, +1 per
+   * 10 HP taken," read as: the PLAYER side's own combat activity, on
+   * either end of an exchange, charges the meter (SEVERANCE.
+   * chargePerTenHpDealt/chargePerTenHpTaken, both 1 today). Called once
+   * from resolveAttack(), right alongside recordPerformance — see that call
+   * site's own comment for why resolveAttack is the one correct choke
+   * point (every ordinary attack in the game funnels through it).
+   *
+   * SCOPED, FLAGGED: only ordinary attacks (resolveAttack's own primary hit
+   * and counter-hit) feed this meter — DoT ticks (bloom_mat, acid_dot,
+   * Surtr's own burning lines), Fire Support, and Missile splash damage do
+   * NOT, even though some of those can also involve the player side dealing
+   * or taking damage. Data Pack §11.5 doesn't specify whether passive/AoE
+   * damage sources should count, and wiring this file's other ~15
+   * applyMechDamage/applyBloomDamage call sites into a second bookkeeping
+   * pass is real, separate scope for a rate that's explicitly "not run
+   * through any sim" regardless (see HEIRLOOM_ABILITY_RANK_COST's own
+   * comment in data/heirlooms.ts for that project-wide caveat) — flagged
+   * here rather than silently narrowed, since a wider reading is
+   * defensible and cheap to extend later (this is the one method that
+   * would need new call sites; nothing else in this design changes).
+   *
+   * `outcome.damage`/`outcome.counterDamage` are read AFTER whatever the
+   * resolver formula already computed (terrain, cap, dodge all already
+   * baked in by the time `outcome` exists) but BEFORE Oathkeeper/shield
+   * mitigation, which happens downstream at applyMechDamage() — so a hit
+   * that later gets floored by an active Oathkeeper window still charges
+   * the meter based on the RESOLVED damage, not what actually landed on
+   * `currentHp`. Consistent with reading "damage dealt/taken" as the
+   * attack's own resolved size, not net of a target's separate defensive
+   * tech — no different from how ledger_entry's kill-stacking already reads
+   * off raw outcome damage elsewhere in this file.
+   */
+  private accrueRequiemCharge(attacker: BattleUnit, defender: BattleUnit, outcome: AttackOutcome): void {
+    const points = (dmg: number, perTen: number) => Math.floor(dmg / 10) * perTen;
+    if (outcome.damage > 0) {
+      if (attacker.side === "player") {
+        this.requiemCharge = Math.min(SEVERANCE.maxCharge, this.requiemCharge + points(outcome.damage, SEVERANCE.chargePerTenHpDealt));
+      }
+      if (defender.side === "player") {
+        this.requiemCharge = Math.min(SEVERANCE.maxCharge, this.requiemCharge + points(outcome.damage, SEVERANCE.chargePerTenHpTaken));
+      }
+    }
+    if (outcome.countered && outcome.counterDamage) {
+      // The counter is the DEFENDER's own mek striking back — same
+      // dealt/taken split recordPerformance's own header comment already
+      // argues for crediting counters to the defender, mirrored here.
+      if (defender.side === "player") {
+        this.requiemCharge = Math.min(SEVERANCE.maxCharge, this.requiemCharge + points(outcome.counterDamage, SEVERANCE.chargePerTenHpDealt));
+      }
+      if (attacker.side === "player") {
+        this.requiemCharge = Math.min(SEVERANCE.maxCharge, this.requiemCharge + points(outcome.counterDamage, SEVERANCE.chargePerTenHpTaken));
+      }
+    }
   }
 
   /**

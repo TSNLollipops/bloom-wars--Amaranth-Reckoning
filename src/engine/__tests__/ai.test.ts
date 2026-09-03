@@ -18,6 +18,7 @@ import { Mission } from "../mission";
 import { MISSION_1A } from "../../data/campaign";
 import { testUnit, makeUniformMap } from "./testHelpers";
 import { createHostileMechUnit, createBloomUnit } from "../units";
+import { IRON_WORD_RADIUS } from "../../data/combatTables";
 
 describe("unitsVisibleToSide", () => {
   it("counts a hostile visible to only ONE of several player units (union, not intersection or single-observer)", () => {
@@ -270,6 +271,85 @@ describe("decideHostileAction — abil_taunt overrides every tier's own pick", (
 
     const decision = decideHostileAction(map, mech, [mech, unseenTaunter, nearTank]);
     expect(decision.attackTargetId).toBe(nearTank.instanceId);
+  });
+});
+
+// oath_iron_word (Vindex/The Iron Oath, Vault Phase 2 slice 1, 2 Sep 2026) —
+// the same redirect as abil_taunt above, but gated to hostiles within
+// tauntRadius of the taunter. Set directly on the unit, same as every test
+// above (Mission.ironWord() itself is abilities.test.ts's own job, mirrored
+// now by heirloomVaultAbilities.test.ts). The radius check lives in the
+// `taunter` lookup itself (`targets.find((t) => t.taunting && (t.tauntRadius
+// === undefined || chebyshevDistance(...) <= t.tauntRadius))`), so this is
+// really one new describe block per redirect tier could theoretically need —
+// mech-reflexive is enough to prove the gate works; the "plain abil_taunt
+// still ignores distance" half is the load-bearing regression check.
+describe("decideHostileAction — oath_iron_word's radius gate (tauntRadius-bearing taunters only redirect hostiles within it)", () => {
+  it("a hostile WITHIN tauntRadius, already adjacent: redirected and attacks in place, same as plain Taunt", () => {
+    const map = makeUniformMap("plain", 20, 20);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 });
+    mech.vision = 25;
+    const taunter = testUnit("tank", { x: 1, y: 0 }); // adjacent — inPlaceTarget picks it up with no movement needed
+    taunter.taunting = true;
+    taunter.tauntRadius = IRON_WORD_RADIUS;
+    const munti = testUnit("munti", { x: 0, y: 1 }); // also adjacent — would win Munti-priority on its own, per the plain-Taunt precedent above
+
+    const decision = decideHostileAction(map, mech, [mech, taunter, munti]);
+    expect(decision.attackTargetId).toBe(taunter.instanceId);
+  });
+
+  it("a hostile WITHIN tauntRadius but NOT already adjacent: ROOTED, same ROOT/LOCK rule as plain Taunt — does not fall through to a closer, easier target", () => {
+    // This is the case that actually needed a second look: Taunt's own
+    // ROOT/LOCK rule (this file's header comment, "if it can already attack
+    // the taunting unit... if not, it does NOTHING this turn rather than
+    // moving to close distance") fires the instant a taunter is found and
+    // isn't already in range — it never tries to path toward it, radius
+    // gate or not. So "within radius" for Iron Word doesn't mean "will walk
+    // over and hit it"; it means "is even recognized as a taunter at all,"
+    // same as plain Taunt always has been.
+    const map = makeUniformMap("plain", 20, 20);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 }); // meeps: moveRange 6, attackRange [1,1]
+    mech.vision = 25;
+    const taunter = testUnit("tank", { x: IRON_WORD_RADIUS, y: 0 }); // within radius, but not adjacent
+    taunter.taunting = true;
+    taunter.tauntRadius = IRON_WORD_RADIUS;
+    const closer = testUnit("meeps", { x: 1, y: 0 }); // adjacent, and NOT the taunter — would be the obvious pick if taunt weren't recognized here
+
+    const decision = decideHostileAction(map, mech, [mech, taunter, closer]);
+    expect(decision.attackTargetId).toBeUndefined();
+    expect(decision.path).toBeUndefined();
+  });
+
+  it("a hostile OUTSIDE tauntRadius is NOT recognized as taunted at all — falls through to its own normal targeting instead", () => {
+    const map = makeUniformMap("plain", 20, 20);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 });
+    mech.vision = 25;
+    const taunter = testUnit("tank", { x: IRON_WORD_RADIUS + 1, y: 0 }); // one tile past the radius
+    taunter.taunting = true;
+    taunter.tauntRadius = IRON_WORD_RADIUS;
+    const closer = testUnit("meeps", { x: 1, y: 0 }); // adjacent — with the taunter excluded, this is a completely ordinary pick
+
+    const decision = decideHostileAction(map, mech, [mech, taunter, closer]);
+    expect(decision.attackTargetId).toBe(closer.instanceId);
+  });
+
+  it("REGRESSION: a plain abil_taunt user (tauntRadius undefined) is still recognized as a taunter at ANY distance — purely additive, zero behavior change", () => {
+    // Mirrors the pre-existing "ROOTED — does NOT fall back to Munti
+    // priority" test above almost exactly (same shape, same expected
+    // outcome) — the point here is narrower: proving the radius-gate edit
+    // itself (`t.tauntRadius === undefined || ...`) didn't accidentally
+    // start filtering out a tauntRadius-less taunter at long range too.
+    const map = makeUniformMap("plain", 30, 30);
+    const mech = createHostileMechUnit("hostile_mech_amaranth_02", { x: 0, y: 0 }); // meeps: moveRange 6, attackRange [1,1]
+    mech.vision = 25;
+    const farPlainTaunter = testUnit("tank", { x: 20, y: 0 }); // far past any Iron Word radius, and this is plain Taunt: no tauntRadius at all
+    farPlainTaunter.taunting = true;
+    expect(farPlainTaunter.tauntRadius).toBeUndefined();
+    const closer = testUnit("meeps", { x: 1, y: 0 }); // would otherwise be the obvious pick
+
+    const decision = decideHostileAction(map, mech, [mech, farPlainTaunter, closer]);
+    expect(decision.attackTargetId).toBeUndefined(); // rooted on the far taunter, not diverted onto `closer`
+    expect(decision.path).toBeUndefined();
   });
 });
 

@@ -10,5 +10,11 @@ const state = createWardenCampaignState(500);
 integrateSecondLance(state);
 integrateThirdLance(state);
 state.npcSocial = ensureNpcSocialState(state);
-writeFileSync("/mnt/user-data/uploads/bloom-wars/bloom-wars/tools/verify/save.json", JSON.stringify(state));
+// Carrier Scale-Up Plan v1, Phase 1, 3 Sep 2026 — output path switched from
+// a hardcoded absolute path (tied to one specific prior session's own
+// sandbox layout, e.g. /mnt/user-data/uploads/bloom-wars/bloom-wars/...)
+// to one resolved relative to this file. Whichever cloud sandbox actually
+// runs this next almost certainly has a different working directory —
+// this always writes save.json next to genSave.ts itself, regardless.
+writeFileSync(new URL("./save.json", import.meta.url), JSON.stringify(state));
 console.log("pilots:", Object.keys(state.pilots).length);

@@ -81,6 +81,17 @@ export class MapSelect extends Phaser.Scene {
       this.scene.start("Hangar");
     });
 
+    // Back-to-Hub button — EA Launch Plan Week 1 finding (Readiness Plan
+    // §3.1, 1 Sep 2026): this scene was the only real dead end in the
+    // deploy loop (Hub -> walk to BAY -> MapSelect -> TransporterPad ->
+    // Battle -> Debrief -> Hub), reachable from CONTINUE/RETURN TO BASE
+    // but with no way back except finishing a mission. Same header row,
+    // same makeShopButton styling as CAMPAIGN SHOP, positioned clear of
+    // both that button and the centered title text above.
+    makeShopButton(this, hangarLayer, 730, 20, 140, 30, "BACK TO HUB", true, () => {
+      this.scene.start("Hub");
+    });
+
     // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1
     // §2) — top-left, clear of the CAMPAIGN SHOP button and the tab row.
     addMenuOverlayButton(this, 80, 20, 100, 28, () => loadCampaignState());

@@ -400,7 +400,12 @@ function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battl
   // mechReflexiveDecision/emergentDecision use below for a priority Munti
   // target, so bestAttackTargetInRange has nothing else in scope to weigh
   // it against.
-  const taunter = targets.find((t) => t.taunting);
+  // oath_iron_word (Vault Phase 2, slice 1, 2 Sep 2026) — the identical
+  // taunting check, radius-gated when tauntRadius is set. Plain abil_taunt
+  // never sets tauntRadius, so `t.tauntRadius === undefined` keeps every
+  // existing Taunt behavior byte-identical; Iron Word additionally requires
+  // the taunted hostile to actually be within radius of the wielder.
+  const taunter = targets.find((t) => t.taunting && (t.tauntRadius === undefined || chebyshevDistance(unit.pos, t.pos) <= t.tauntRadius));
   const pool = taunter ? [taunter] : targets;
   pool.sort((a, b) => chebyshevDistance(unit.pos, a.pos) - chebyshevDistance(unit.pos, b.pos));
   const nearest = pool[0];
@@ -434,7 +439,12 @@ function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: Battl
   if (!targets.length) return undefined;
   // abil_taunt (25 Aug 2026): overrides the pack's own "lowest HP x DEF"
   // pick below, the same way it overrides every other tier's pick.
-  const taunter = targets.find((t) => t.taunting);
+  // oath_iron_word (Vault Phase 2, slice 1, 2 Sep 2026) — the identical
+  // taunting check, radius-gated when tauntRadius is set. Plain abil_taunt
+  // never sets tauntRadius, so `t.tauntRadius === undefined` keeps every
+  // existing Taunt behavior byte-identical; Iron Word additionally requires
+  // the taunted hostile to actually be within radius of the wielder.
+  const taunter = targets.find((t) => t.taunting && (t.tauntRadius === undefined || chebyshevDistance(unit.pos, t.pos) <= t.tauntRadius));
   if (taunter) return taunter;
   // "lowest (HP x DEF) wins" — GDD §5.3.
   return targets.reduce((best, t) => (t.currentHp * t.effectiveDefense < best.currentHp * best.effectiveDefense ? t : best));
@@ -486,7 +496,12 @@ function emergentDecision(map: MapDefinition, unit: BattleUnit, allUnits: Battle
   // omniscience (no isVisibleTo gate, see the comment above this
   // function) rather than adding one of its own — a taunting unit isn't
   // newly hidden from a boss that already sees everything on the board.
-  const taunter = targets.find((t) => t.taunting);
+  // oath_iron_word (Vault Phase 2, slice 1, 2 Sep 2026) — the identical
+  // taunting check, radius-gated when tauntRadius is set. Plain abil_taunt
+  // never sets tauntRadius, so `t.tauntRadius === undefined` keeps every
+  // existing Taunt behavior byte-identical; Iron Word additionally requires
+  // the taunted hostile to actually be within radius of the wielder.
+  const taunter = targets.find((t) => t.taunting && (t.tauntRadius === undefined || chebyshevDistance(unit.pos, t.pos) <= t.tauntRadius));
   const munti = targets.find((t) => t.path === "munti");
   const priority = taunter ?? munti;
 
@@ -543,7 +558,12 @@ function mechReflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: B
   // entire point of the ability. Same reach-check shape as the Munti
   // branch: only actually diverts if the taunting unit is reachable-into-
   // range THIS turn, else falls through exactly like Munti-priority does.
-  const taunter = targets.find((t) => t.taunting);
+  // oath_iron_word (Vault Phase 2, slice 1, 2 Sep 2026) — the identical
+  // taunting check, radius-gated when tauntRadius is set. Plain abil_taunt
+  // never sets tauntRadius, so `t.tauntRadius === undefined` keeps every
+  // existing Taunt behavior byte-identical; Iron Word additionally requires
+  // the taunted hostile to actually be within radius of the wielder.
+  const taunter = targets.find((t) => t.taunting && (t.tauntRadius === undefined || chebyshevDistance(unit.pos, t.pos) <= t.tauntRadius));
   if (taunter) {
     const inPlace = bestAttackTargetInRange(map, unit, unit.pos, [taunter], allUnits);
     if (inPlace) return { attackTargetId: inPlace.instanceId };

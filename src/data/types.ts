@@ -112,6 +112,25 @@ export interface PilotRecord {
   // branches, default weapon," with zero migration needed.
   ownedWeaponBranches?: string[];
   equippedWeaponBranch?: string;
+  // Vault Phase 2, slice 5 (3 Sep 2026) — lastword_signature's (Migawari/
+  // The Last Word) own permanent cost: "the wielder's own max HP is
+  // permanently reduced X% for the rest of the campaign, each use."
+  // Stored as a MULTIPLIER, not a raw percentage, and compounds
+  // MULTIPLICATIVELY across uses — each use multiplies whatever this
+  // already is by the new use's own factor (0.9 at rank 1-4, 0.95 at rank
+  // 5) — see data/combatTables.ts's LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1
+  // for the full reasoning on why multiplicative-on-remaining, not
+  // additive-off-base. Undefined/absent reads as 1 ("no reduction") for
+  // every pilot who has never wielded Migawari or never used its
+  // signature — the overwhelming majority of pilots this game will ever
+  // generate. engine/units.ts's createPlayerUnit is the one place this
+  // actually multiplies into a fresh BattleUnit's maxHp; engine/
+  // campaignState.ts's applyLastWordSignatureCosts is the one place it is
+  // ever written, mirroring applyMissionLosses' own "Mission records the
+  // live fact, Debrief lands it on CampaignState" split — see
+  // engine/mission.ts's Mission.signatureHpCosts/LastWordSignatureCostRecord
+  // for the recording half.
+  permanentMaxHpMultiplier?: number;
 }
 
 export interface MekArchetype {

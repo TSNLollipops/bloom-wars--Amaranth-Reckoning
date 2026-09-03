@@ -11,10 +11,12 @@
 // That status-effect pass exists now (engine/turnManager.ts, 27 Aug 2026)
 // — BattleUnit.statusEffects, acid_dot/debuff_attack ticking, and the
 // knockback resolver are all real, generic infrastructure, not Bloom-
-// specific. No weapon branch here uses any of it yet; this note is just
-// the pointer for whenever a future Tier-3 branch wants stun/knockback/
-// DoT/attack-debuff on the player side — the plumbing to reuse is already
-// built, not a new system to design from scratch.
+// specific. As of 3 Sep 2026 it also runs the OTHER direction — see
+// applyMechOnHitEffect (engine/turnManager.ts) and Shock Claws below, this
+// file's first branch to actually reuse it. The note stands for whichever
+// status-effect kind comes after stun (knockback/DoT/attack-debuff on the
+// player side, or a second stun-granting branch/Heirloom): the plumbing to
+// reuse is already built, not a new system to design from scratch.
 //
 // Shape, per the doc's own §3/§9: cost and tier-gate depend on PURCHASE
 // ORDER (1st/2nd/3rd/4th branch a pilot ever buys), not on which specific
@@ -56,11 +58,69 @@
 // own header comment, never actually written to by any ability until this
 // one. See FIELD_DOCTOR_COOLDOWN_TURNS below and repairUnit()'s own
 // comment in engine/mission.ts for the mechanism.
+//
+// Scattershot Pistols added 3 Sep 2026 (Bloom_Wars_Mek_Workshop_And_Weapon_
+// Progression_v1.md's own line for Meeps' second branch: "very short range
+// (2, not Meeps' usual 1), small cleave to a second adjacent target...
+// worth watching that it doesn't quietly become a mini-Reeps"). Meeps' base
+// attackRange is [1,1] (data/units.ts) — melee-adjacent only, the whole
+// point of the class being "has to get close." This branch is the first in
+// the file to touch the attackRange TUPLE itself rather than a stat/
+// targeting condition: SCATTERSHOT_PISTOLS_ATTACK_RANGE is [1,2], not
+// [2,2] — the minimum stays 1 deliberately, so equipping this never takes
+// away the option to stand adjacent, it only adds the option to stand one
+// tile back. That's the "tiny nudge toward range without actually breaking
+// Meeps has to get close" the source doc asks for; [2,2] (forcing the
+// minimum out to 2, the way Reeps' [2,4] never lets them touch anything)
+// would have been the mini-Reeps the doc explicitly says to watch for.
+//
+// The cleave: on a landed hit (not a dodge), a SECOND enemy unit adjacent
+// to the PRIMARY TARGET — not adjacent to the Meeps — takes
+// SCATTERSHOT_PISTOLS_CLEAVE_PCT of a freshly-computed hit against its own
+// stats (its own defense/terrain, run through the same resolveMechAttack
+// formula as any other hit, not a flat fraction of the primary's damage
+// number). See engine/mission.ts's applyScattershotCleave() for the full
+// mechanism and the specific calls this pass makes on dodge/counter/ambush
+// interaction — none of that lives here, this file only owns the numbers.
+// Both SCATTERSHOT_PISTOLS_ATTACK_RANGE and SCATTERSHOT_PISTOLS_CLEAVE_PCT
+// are placeholders, same status as every other number in this file: not
+// run through combat_sim.py or an equivalent, one line each to retune.
+//
+// Shock Claws added 3 Sep 2026, same day, third pass — Meeps' 3rd branch,
+// and the FIRST branch in this file to actually use the status-effect
+// infrastructure the note above has been pointing at since 27 Aug. Straight
+// melee (does NOT touch attackRange — Meeps' plain [1,1] stays [1,1]; that
+// tuple belongs to Scattershot Pistols above, this is a different lever).
+// Spec: "chance to briefly stun on hit." Two placeholder numbers, both
+// flagged the same way as every other number in this file (not run through
+// combat_sim.py): SHOCK_CLAWS_STUN_CHANCE (25%, picked as a round "sometimes,
+// not reliably" number — high enough to be worth building around, low
+// enough that a Meeps carrying this can't be counted on to lock a target
+// down turn after turn) and SHOCK_CLAWS_STUN_DURATION_TURNS (1 turn — the
+// shortest duration this file's status-effect vocabulary supports; a
+// longer stun on a chance-based melee proc reads as a much bigger power
+// swing than "brief" in the spec's own wording implies).
+//
+// The mapping below (WEAPON_BRANCH_ON_HIT_EFFECT) is the data half of the
+// mech->Bloom on-hit effects engine (engine/turnManager.ts's
+// applyMechOnHitEffect, added alongside this branch) — the reverse
+// direction of data/bloom.ts's own BLOOM_ON_HIT_EFFECTS/onHit pairing.
+// engine/mission.ts's mech-attacks-Bloom resolution reads this table by the
+// ATTACKER's own weaponBranchId (not a branch === "meeps_shock_claws"
+// special case buried in that file) to decide whether a landed hit rolls
+// for an effect at all, and MECH_ON_HIT_EFFECTS (keyed by fxId, same shape
+// as BLOOM_ON_HIT_EFFECTS) to decide what that effect actually does. A
+// future branch or Heirloom ability that wants an on-hit effect adds one
+// entry to each of these two tables — no new engine surface required, the
+// same "plumbing already built" promise the note above made for the Bloom
+// side now holds for this side too.
 import type { Path } from "./types";
 import { MUNTI_REGEN_RADIUS } from "./combatTables";
 
 export type WeaponBranchId =
   | "meeps_impact_lance"
+  | "meeps_scattershot_pistols"
+  | "meeps_shock_claws"
   | "tank_grinder_claw"
   | "reeps_missiles"
   | "reeps_rail_lance"
@@ -85,6 +145,47 @@ export const WEAPON_BRANCH_TIER_GATE: readonly ("D" | "C" | "B" | "A")[] = ["D",
 
 /** Meeps — a single heavier committed strike, no dodge-adjacent bonus (the "trust the hit, not the footwork" alternative to Twinblades). */
 export const IMPACT_LANCE_ATK_BONUS = 15;
+
+/** Meeps — Scattershot Pistols, 3 Sep 2026. Overrides the archetype's own [1,1] attackRange (data/units.ts) — min stays 1 on purpose (see header comment: this is a range NUDGE, not a Reeps-style stand-off weapon). Applied in engine/units.ts's createPlayerUnit() the same "baked in at creation" way branchAttackBonus already is. */
+export const SCATTERSHOT_PISTOLS_ATTACK_RANGE: readonly [number, number] = [1, 2];
+
+/** Meeps — Scattershot Pistols' cleave fraction, 3 Sep 2026. Fraction of a freshly-computed hit (own defense/terrain, same resolveMechAttack formula) dealt to a second enemy adjacent to the PRIMARY TARGET when the primary hit lands. Placeholder — not run through combat_sim.py, one line to retune. Picked at 50%, the same "half-strength secondary effect" order of magnitude as RAIL_LANCE_DEF_IGNORE_PCT/GRINDER_CLAW_HEAL_PCT below, deliberately not full damage: this is a small cleave nudge per the source doc, not Missiles' full-damage splash (which is its own dedicated action-costing ability, not a rider on every basic attack). */
+export const SCATTERSHOT_PISTOLS_CLEAVE_PCT = 0.5;
+
+/** Meeps — Shock Claws, 3 Sep 2026. Chance (0-1) that a landed hit rolls a stun onto the defender — see engine/mission.ts's mech-attacks-Bloom resolution for where this roll actually happens (this file only owns the number). Placeholder — not run through combat_sim.py, one line to retune. */
+export const SHOCK_CLAWS_STUN_CHANCE = 0.25;
+
+/** Meeps — Shock Claws' stun duration, in turns, same convention as every duration elsewhere in this system (BLOOM_ON_HIT_EFFECTS' own acid_dot/debuff_attack durations, data/bloom.ts). Placeholder, same status as SHOCK_CLAWS_STUN_CHANCE above — picked at the shortest duration this status-effect vocabulary supports, matching the spec's own "briefly." */
+export const SHOCK_CLAWS_STUN_DURATION_TURNS = 1;
+
+/**
+ * Mech-side on-hit effects (engine/turnManager.ts's applyMechOnHitEffect) —
+ * this system's analogue of data/bloom.ts's BLOOM_ON_HIT_EFFECTS, same
+ * shape (a table of fxId -> {kind, magnitude, duration}, dispatched on
+ * `kind`). `magnitude` is unused for "stun" (there's no "how much" the way
+ * acid_dot/debuff_attack have one) but kept on the shared shape so this
+ * table's entries stay structurally identical to BLOOM_ON_HIT_EFFECTS'
+ * rather than inventing a second, effect-kind-specific shape for a table of
+ * exactly one entry today.
+ */
+export const MECH_ON_HIT_EFFECTS: Record<string, { kind: "stun"; magnitude: number; duration: number }> = {
+  fx_shock_claws_stun: { kind: "stun", magnitude: 0, duration: SHOCK_CLAWS_STUN_DURATION_TURNS },
+};
+
+/**
+ * Which weapon branch grants which mech-side on-hit effect, and at what
+ * chance to fire on a landed hit — the piece BLOOM_ON_HIT_EFFECTS doesn't
+ * need an equivalent of, since a Bloom archetype's onHit is baked into the
+ * archetype itself (data/bloom.ts) rather than depending on anything the
+ * player equips. Read by engine/mission.ts's mech-attacks-Bloom resolution,
+ * keyed by the ATTACKER's own weaponBranchId — not present in this record
+ * at all for every branch that doesn't grant an on-hit effect (the common
+ * case; Partial, not Record, deliberately, so a branch with nothing to add
+ * here needs no entry rather than an explicit `undefined`).
+ */
+export const WEAPON_BRANCH_ON_HIT_EFFECT: Partial<Record<WeaponBranchId, { fxId: string; chance: number }>> = {
+  meeps_shock_claws: { fxId: "fx_shock_claws_stun", chance: SHOCK_CLAWS_STUN_CHANCE },
+};
 
 /** Tank — melee plus self-heal on a successful hit. A fraction of damage DEALT, not received; only fires when the hit actually lands (a dodge or a miss heals nothing). */
 export const GRINDER_CLAW_HEAL_PCT = 0.2;
@@ -112,6 +213,18 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
     displayName: "Impact Lance",
     path: "meeps",
     description: `A single heavier strike (+${IMPACT_LANCE_ATK_BONUS} ATK). No dodge-adjacent bonus — the committed alternative to Twinblades.`,
+  },
+  meeps_scattershot_pistols: {
+    id: "meeps_scattershot_pistols",
+    displayName: "Scattershot Pistols",
+    path: "meeps",
+    description: `Range extends to ${SCATTERSHOT_PISTOLS_ATTACK_RANGE[1]} (was 1). A landed hit also cleaves onto a second enemy adjacent to your target for ${Math.round(SCATTERSHOT_PISTOLS_CLEAVE_PCT * 100)}% damage.`,
+  },
+  meeps_shock_claws: {
+    id: "meeps_shock_claws",
+    displayName: "Shock Claws",
+    path: "meeps",
+    description: `Melee. A landed hit has a ${Math.round(SHOCK_CLAWS_STUN_CHANCE * 100)}% chance to stun the target for ${SHOCK_CLAWS_STUN_DURATION_TURNS} turn.`,
   },
   tank_grinder_claw: {
     id: "tank_grinder_claw",
@@ -151,9 +264,9 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
   },
 };
 
-/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy). Shock Claws/Riot Drum/Maser Lance/Suppression Autocannon/Combat Medic all still wait on a status-effect pass (see the source doc's own §5/§10 Tier-3 split) and are not listed here so the shop never offers something the engine can't back yet. Reeps gets two (Missiles, then Rail Lance) since both are numbers-only and this exercises the real "collect more than one, swap for free" mechanic end to end; Munti now gets three for the same reason (Rapid Response, Aegis Ward, Field Doctor). */
+/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy). Riot Drum/Maser Lance/Suppression Autocannon/Combat Medic still wait on further design work (see the source doc's own §5/§10 Tier-3 split) and are not listed here so the shop never offers something the engine can't back yet. Reeps gets two (Missiles, then Rail Lance) since both are numbers-only and this exercises the real "collect more than one, swap for free" mechanic end to end; Munti now gets three for the same reason (Rapid Response, Aegis Ward, Field Doctor). Meeps now gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. */
 export const WEAPON_BRANCHES_BY_PATH: Record<Path, WeaponBranchId[]> = {
-  meeps: ["meeps_impact_lance"],
+  meeps: ["meeps_impact_lance", "meeps_scattershot_pistols", "meeps_shock_claws"],
   tank: ["tank_grinder_claw"],
   reeps: ["reeps_missiles", "reeps_rail_lance"],
   munti: ["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor"],

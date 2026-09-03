@@ -50,7 +50,14 @@ export class HoverTip {
     this.text = scene.add
       .text(0, 0, "", { fontFamily: "monospace", fontSize: FONT_SIZE, color: TEXT_COLOR, lineSpacing: 2 })
       .setOrigin(0, 0);
-    this.container = scene.add.container(0, 0, [this.bg, this.text]).setDepth(TIP_DEPTH).setVisible(false);
+    // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — Hub.ts's own camera
+    // now scrolls per deck (Battle.ts's own camera still doesn't move).
+    // show() below positions this container using screen-space pointerX/Y
+    // handed to it by the host scene (layoutHoverTip works in scene.scale.
+    // width/height, not camera-relative), so it needs scrollFactor(0) to
+    // keep those screen coordinates from being reinterpreted as world
+    // coordinates the moment Hub's camera pans. A no-op for Battle.ts.
+    this.container = scene.add.container(0, 0, [this.bg, this.text]).setDepth(TIP_DEPTH).setVisible(false).setScrollFactor(0);
   }
 
   /**

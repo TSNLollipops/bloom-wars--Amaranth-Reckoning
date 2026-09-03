@@ -73,6 +73,205 @@ against the actual running game, not a mock.
   measuring wall-clock directly (`calendarClock.ts`'s `measureRealDelta`),
   re-verified at ratio 1.00. Writes `calendar_report.json` and two
   screenshots (`calendar_start.png`/`calendar_end.png`).
+- `checkHubCameraScroll.mjs` — 3 Sep 2026, same save/boot pattern again.
+  Verifies Carrier Scale-Up Plan v1 Phase 1 (the scrolling-camera, bigger-
+  deck-floor pass — see `claude/Bloom_Wars_Carrier_Scale_And_Lance_Workshop_Plan_v1.md`
+  in the Project for the authorizing doc). Checks, against the real running
+  scene: the camera actually scrolls as the player walks (real WASD input,
+  not simulated); a direct teleport to a point deep in the new floor
+  (1500,1200 — past the old ROOM_BOUNDS edges of 830/552) proves that
+  space is real and walkable, and that the camera follows there and stays
+  correctly clamped to the deck's own (now much bigger) bounds — including
+  correctly pegging against the deck's own edge rather than centering,
+  when the player is close enough to a corner that centering isn't
+  possible; a door hop to a DIFFERENT deck (grotto) re-clamps the camera
+  to grotto's own bounds, not a stale copy of the lower deck's; and —
+  the one real regression risk this pass introduced and fixed in the same
+  commit — hovering a real NPC after the camera has scrolled away from
+  (0,0) still identifies the correct one, proving the pointer world-space/
+  screen-space fix (`pointerWorldX`/`pointerWorldY`) actually works and
+  isn't just correct on paper. Note in the report, not a bug: the organic
+  WASD-walk portion can legitimately cover very little ground in 6 real
+  seconds if the seeded 15-pilot roster is crowding the spawn rooms — real
+  pre-existing NPC collision, and exactly the crowding problem this whole
+  pass exists to relieve, not a Phase 1 regression; the direct-teleport
+  check is what actually proves the bigger floor and camera clamp, free of
+  that pathing luck. Writes `camera_report.json` and four screenshots
+  (`cam_start.png`/`cam_scrolled.png`/`cam_new_floor.png`/`cam_grotto.png`).
+
+- `checkLanceWorkshops.mjs` — 3 Sep 2026, same save/boot pattern again.
+  Verifies Carrier Scale-Up Plan v1 Phase 2 (one Mek workshop per lance).
+  The seeded save is the full three-lance 15-pilot midgame, which is
+  exactly the roster the phase exists for: before it, all 15 Meks stood in
+  one 420x444 room. Checks that every Mek is in ITS OWN lance's workshop
+  (cross-checked against the real exported `lanceOfMek`, imported inside
+  the page from Vite so it's the same module the game is running — a
+  second copy of the rule in the test could agree with itself while both
+  are wrong); that all three workshops are actually populated; the real
+  before/after crowd figure for Lance A's room; that the new rooms are
+  genuine walkable floor whose zone and title bar resolve correctly, with
+  the camera still clamped to the upper deck; and that a Mek displaced into
+  another room ON THE SAME DECK actually walks home rather than parking
+  there — the one regression this phase introduced (`nextHopDoor` returns
+  undefined for a same-deck pair, so the pre-existing Mek-confinement
+  branch had no route to a workshop that isn't across a stair) and fixed in
+  `walkToRoomTarget`. That last check runs a deliberately long ~48s window:
+  the displacement point is the real upper-deck stair landing, so the Mek
+  has to cross the whole original room box through whatever crowd is in the
+  way — a short window there measures the crowd, not the fix. Writes
+  `lance_report.json` (including per-sample walk traces) and three
+  screenshots (`lance_start.png`/`lance_workshopC.png`/`lance_end.png`).
+
+- `checkHubInteractionAfterScroll.mjs` — 3 Sep 2026. The other half of the
+  camera-scroll risk: `checkHubCameraScroll.mjs` covers HOVER (a pointer
+  position this codebase computes itself), this covers CLICKING (hit-testing
+  Phaser does for us, against each object's `scrollFactor` — the exact
+  property the Phase 1 pass changed on ~20 objects). **This is the run that
+  caught a real regression before it shipped**, and the third in this
+  harness's short life to do so: Phaser renders a container's children using
+  the CONTAINER's scroll factor but hit-tests them using each CHILD's own,
+  so every interactive element inside the newly-pinned overlays — the MENU
+  button, every overlay's close/help button, the peg dots, the workshop and
+  vault rows, the poker/darts controls — was drawing in the right place and
+  taking clicks somewhere else entirely, off by exactly the camera's scroll.
+  `tsc`, `eslint` and all 1607 unit tests passed clean the whole time it was
+  broken. Fixed by giving every interactive element its own
+  `.setScrollFactor(0)` at creation (and having `makeShopButton` inherit its
+  host layer's, which fixes every shop-style button in the game at once).
+  Checks, all with the camera deliberately scrolled well off (0,0): a
+  world-space NPC click provokes THAT NPC; the screen-fixed MENU button
+  still opens its overlay; that overlay covers the real canvas rather than
+  sitting offset by the scroll (the `camera.centerX/centerY` fix); the chat
+  box — a real DOM element, not a canvas object — stays on screen; and a
+  canvas overlay (History) renders on screen. Writes
+  `interaction_report.json` and three screenshots (`click_npc.png`/
+  `click_history.png`/`click_menu.png`).
+
+- `checkHubDoorReachability.mjs` — 3 Sep 2026. Direct answer to the gap
+  found by the grotto-to-workshop hotfix (see
+  `claude/Bloom_Wars_Build_Log_Addendum_GrottoUpperStairUnreachable_03Sep2026.md`
+  in the Project): the up-stair to the Upper Deck sat at a fixed
+  `(480, 130)` left over from before Phase 1's bigger decks, and Phase 1's
+  own ellipse recompute quietly dragged the grotto's walkable floor out
+  from under it — reachable coordinates, unreachable in practice, and
+  nothing in this harness or the unit suite ever actually tried to walk to
+  a door and check. This script closes exactly that gap, generically, for
+  every door: pulls the real `DOORS` table live off the running scene
+  (`hub.doorMarkers.map(m => m.def)`, never a hand-copied second table that
+  could drift), then for each one forces the player into that door's room,
+  clears NPCs off the deck so a collision can't mask or fake the result,
+  and calls the REAL `tryMove(dx, dy)` — the exact method every WASD frame
+  uses, running the exact `clampToDeckFloor` that broke the grotto's
+  up-stair — repeatedly toward the door's own (x, y) until it stops making
+  progress, then asks the scene's own `isAtDoor()` whether it recognizes
+  where the player landed. Add a seventh door to the game and this picks it
+  up automatically, no edit needed here. Writes `door_reachability_report.json`
+  (per-door landing point, distance from the marker, pass/fail) and one
+  screenshot (`door_reachability_last.png`); exits non-zero if any door
+  fails, so it can gate a build the way the lint/typecheck scripts already
+  do. Run and passing 6/6 since the same day it was written.
+  **Rewritten 3 Sep 2026 (floor-plan pass)**: decks have walls now, so a
+  straight-line march at a marker would fail for the honest reason that
+  there's a wall in the way. Each door is now approached from a DIFFERENT
+  room on its deck, along the waypoints `engine/hubNav.ts` hands back for a
+  PLAYER_R body, every leg driven by the real `tryMove()` — so a doorway
+  too narrow, a marker behind furniture, or a landing inside a wall still
+  fails the way a real player would find out. The corridor stairs need 2
+  waypoints (through a doorway); the single-room decks need 0.
+- `captureHubDecks.mjs` — 3 Sep 2026, the floor-plan pass. Two jobs. (1)
+  Screenshots: every deck framed whole (`deck_<id>_full.png`, camera
+  zoomed out, HUD hidden for the capture and restored after) plus three
+  gameplay-scale views. (2) The live roaming check that walls-without-
+  pathfinding would have failed: samples every NPC for ~40s and reports
+  how many changed ROOM (only possible through a doorway now), how many
+  changed DECK, whether anyone ever sat stuck past the timeout, and — the
+  assertion — that nobody was ever standing inside a wall or a piece of
+  furniture (`hubLayout.circleHitsSolid`, imported live). Exits non-zero
+  on any body-in-solid, any page error, or zero doorway crossings. This
+  run is what caught the "bunk 15px off the wall" trap that became the
+  `no trap gaps` unit test. Writes `capture_report.json`.
+- `checkDockCameraSplit.mjs` — 3 Sep 2026, Carrier Scale-Up Plan v1 Phase 2.
+  Verifies the OVERHEARD/chat UI-camera dock fix: real map content (floor,
+  walls, NPCs) was scrolling underneath the screen-fixed OVERHEARD sidebar
+  and getting hidden behind its own opaque background once the Hub's world
+  got a scrolling camera (Phase 1) — this is the regression report and the
+  fix for it (two cameras: a narrowed main/world camera and a second,
+  static UI camera owning the dock strip exclusively — see Hub.ts's own
+  `DOCK_SPLIT_X` header for the full mechanism). Checks, against the real
+  running scene: both cameras' own viewport geometry is exactly the
+  expected split (main 0,0,838,640 / UI 838,0,236,640); on EVERY deck
+  (lower/upper/grotto/sparRoom), teleporting the player to whatever point
+  on that deck would have scrolled real floor content into the old dock
+  strip if the viewport weren't narrowed leaves that whole screen strip
+  showing nothing but dock chrome — sampled directly off the live canvas
+  pixel-by-pixel, not inferred from geometry math alone; opening MENU
+  darkens the FULL canvas, dock strip included (the specific risk of
+  narrowing `cameras.main`'s own viewport — MenuOverlay.ts's backdrop used
+  to read `cameras.main.width/height` for exactly this); T opens the chat
+  input in its new position under the OVERHEARD panel and a typed line
+  lands in the visible log; and the instructions text (wordWrap narrowed
+  900->700 this same pass, a forced fix once its old width could clip past
+  the new dock split) fits inside the narrowed viewport without colliding
+  with `deckIndicatorText` below it — caught the same way the original
+  wordWrap bug was, in a live screenshot, not by eye. Writes
+  `dock_report.json` and one screenshot per deck
+  (`dock_deck_<id>.png`) plus `dock_start.png`/`dock_menu_open.png`/
+  `dock_chat_sent.png`.
+
+### `checkActionBarPaging.mjs` — the Battle action bar's MORE paging (3 Sep 2026)
+
+The first script here that enters **Battle** rather than the Hub, and the
+first that boots a mission with `scene.start("Battle", {...})` directly —
+the same call `TransporterPad.ts` makes on BEAM DOWN, with the same
+arguments, so nothing about the mission is faked. Needs
+`genActionBarSave.ts` first: a midgame roster with `last_word` (Migawari /
+Osric Ferrow) recruited **and fielded**, since an unfielded Heirloom grants
+no combat abilities and the point here is a heavy kit.
+
+Checks three things, and the first is as important as the rest:
+
+1. **Nothing changed for the game as it ships.** The heaviest kit a player
+   can actually assemble today is six verbs — exactly the slot count — so
+   the bar must draw six real actions and no MORE button. A "fix" that
+   spent a slot on paging for every heavy build would be a regression.
+2. **Overflow loses nothing.** Two more real ability ids are pushed onto the
+   deployed unit in-page (`abil_taunt`, `abil_interdict` — real verbs with
+   real `canX()` predicates, so the bar is still built by the real code
+   path), taking it to eight. MORE is then clicked with **real mouse
+   events at its real screen position**, not by calling `runActionSlot()`,
+   and the union of both pages is asserted to equal the whole kit. Clicking
+   MORE again must wrap back to page 1; selecting a different pilot must
+   reset to page 1.
+3. **Labels fit their buttons.** Measured off the live Phaser `Text`
+   objects (`label.x`, `label.width` against the button's own bounds and
+   the hotkey digit's right edge). This is the check that caught the real
+   bug this pass fixed: the label used to be centred while the digit sat on
+   the left edge, so the shipping bar for this exact pilot read
+   `1OVERWATCH`, `5MIGAWARI` and `6LAST RITES` with the digit fused into
+   the L, scanning as "BAST RITES". `tsc`, `eslint` and 1965 unit tests
+   were clean through every frame of it — a screenshot is what found it.
+
+**One trap worth writing down for the next Battle script.** The game's
+logical coordinate space is **1074x640** (`src/main.ts`), not 960x600.
+Scaling a scene coordinate by `box.width / 960` puts a click ~110px off
+target, and because a miss on the canvas is a legal board click rather than
+an error, the script fails with a confusing "the button did nothing"
+instead of anything pointing at the arithmetic. That is exactly how the
+first run of this script failed.
+
+Writes `actionbar_base.png`, `actionbar_page1.png`, `actionbar_page2.png`
+and `actionbar_paging.png`.
+
+## A note on speed in the cloud sandbox
+
+Headless Chromium here renders in software and runs the game at roughly
+10-15fps (measured on the UNCHANGED code too — it's the harness, not the
+game). Phaser's smoothed delta then moves bodies in slow motion (~5px/s
+against a 90px/s walk speed), and a fixed "wait 1.2s for the camera lerp"
+isn't enough frames. Scripts that care poll for the camera to settle, and
+`checkLanceWorkshops`'s walk-home check tops each real 2s window up with
+120 explicit `updateNpcMovement(16)` ticks so the walk covers the ground a
+real machine would. On Maxime's own GPU none of this applies.
 
 ## How to run it
 
@@ -84,6 +283,15 @@ node tools/verify/checkHubNpcs.mjs
 node tools/verify/checkDebriefAndMinigameGate.mjs
 node tools/verify/checkSocialActions.mjs
 node tools/verify/checkCalendarClock.mjs
+node tools/verify/checkHubCameraScroll.mjs
+node tools/verify/checkLanceWorkshops.mjs
+node tools/verify/checkHubInteractionAfterScroll.mjs
+node tools/verify/checkHubDoorReachability.mjs
+node tools/verify/captureHubDecks.mjs
+node tools/verify/checkDockCameraSplit.mjs
+
+npx tsx tools/verify/genActionBarSave.ts     # its own save, not genSave's
+node tools/verify/checkActionBarPaging.mjs
 ```
 
 Chromium's already installed in the cloud sandbox at a fixed path (see

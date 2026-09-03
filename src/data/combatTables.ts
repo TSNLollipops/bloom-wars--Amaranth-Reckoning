@@ -315,3 +315,355 @@ export const PROTECT_ASSET_DEFAULT_MAX_HP = 300;
 // only ever wants ONE hostile through per turn to hurt (this number), not
 // a whole swarm parked there to combo it.
 export const PROTECT_ASSET_TICK_DAMAGE = 25;
+
+// ---- Vault Phase 2, slice 1 (2 Sep 2026) — the first 5 Heirloom abilities
+// wired into combat: oath_iron_word, lastword_field_triage,
+// farsight_signature, salt_root_salt, ledger_overextended. See
+// claude/Bloom_Wars_Build_Log_Addendum_VaultPhase2Slice1_02Sep2026.md.
+//
+// RANK SCALING, stated once here rather than on every constant below: each
+// of these five abilities' entry in data/heirlooms.ts gives only a rank-1
+// value and a rank-5 value in prose ("ranks 2-4 scale between the two" is
+// the general framing, but none of these five actually have a numeric
+// midpoint to scale toward — a radius of 2 has no sensible "2.5", a 1-turn
+// duration has no sensible "1.5"). Read literally as a flat rank1 number that
+// steps up ONE time, at rank 5 — ranks 2-4 are identical to rank 1. That's an
+// interpretation call, not spec, flagged here rather than buried in engine
+// code: every RANK5 constant below names what changes at max rank, and
+// engine/mission.ts's own methods gate on `rank >= 5`, nothing in between.
+
+/** oath_iron_word (Vindex/The Iron Oath) — Chebyshev radius at rank 1-4. Rank 5: IRON_WORD_RANK5_RADIUS. */
+export const IRON_WORD_RADIUS = 2;
+export const IRON_WORD_RANK5_RADIUS = 3;
+/** Turns between uses (data/heirlooms.ts's own cooldownTurns for oath_iron_word, transcribed here since engine/mission.ts's cooldown helpers take a plain number, not a HeirloomAbility lookup). */
+export const IRON_WORD_COOLDOWN_TURNS = 3;
+
+/** lastword_field_triage (Migawari/The Last Word) — Chebyshev radius at rank 1-4. Rank 5: FIELD_TRIAGE_RANK5_RADIUS. */
+export const FIELD_TRIAGE_RADIUS = 2;
+export const FIELD_TRIAGE_RANK5_RADIUS = 3;
+/**
+ * Targets healed per use. The ability text says "two allies in radius 2" —
+ * read here as a self-centered radius effect capped at this many targets
+ * (nearest-neediest first: living allies below max HP, closest first),
+ * mirroring abil_screen/abil_clear_bloom's existing no-target-picker,
+ * press-the-button shape rather than building a new manual 2-target picker
+ * UI. Flagged as a real simplification, not hidden: a manual picker is a
+ * genuinely different (and heavier) UI pattern than anything else in this
+ * ability bar, and this reuses what's already shipped and tested.
+ */
+export const FIELD_TRIAGE_MAX_TARGETS = 2;
+export const FIELD_TRIAGE_COOLDOWN_TURNS = 3;
+
+/** farsight_signature (Panoptes/Farsight's Reckoning) — reveal duration in turns at rank 1-4. Rank 5: FARSIGHT_SIGNATURE_RANK5_DURATION. Global (whole-map) reveal, so unlike abil_sensor_sweep there is no radius constant here. */
+export const FARSIGHT_SIGNATURE_DURATION_TURNS = 1;
+export const FARSIGHT_SIGNATURE_RANK5_DURATION_TURNS = 2;
+export const FARSIGHT_SIGNATURE_COOLDOWN_TURNS = 5;
+
+/**
+ * salt_root_salt (Delenda/Salt the Root) — passive, no cooldown (matches
+ * data/heirlooms.ts's own cooldownTurns: 0 for this ability, "never ready
+ * or recharging, simply applies").
+ *
+ * DEFENDER CATEGORY, flagged: the ability text names "Gallcyst-family, the
+ * Wellroot, the Unnamed" as sessile/hive-type. data/bloom.ts already tags
+ * each Bloom archetype with `movementType`, and exactly those three carry
+ * "sessile" — PLUS a fourth, the Heartwood (Act I's boss), which is also
+ * movementType "sessile" but isn't named in the ability text. Read here as
+ * `movementType === "sessile"`, which catches all four rather than
+ * hardcoding the three named ids — the Heartwood not being named reads more
+ * like an oversight (it's literally the same lineage the Unnamed grows from)
+ * than a deliberate exclusion, but this is a real interpretation call, not
+ * spec, worth Maxime's eyes.
+ */
+export const SALT_ROOT_SESSILE_MULTIPLIER = 1.6;
+export const SALT_ROOT_OTHER_MULTIPLIER = 0.7;
+export const SALT_ROOT_RANK5_OTHER_MULTIPLIER = 0.85;
+
+/** ledger_overextended (Skuld/Widow's Ledger) — self buff duration in turns at rank 1-4. Rank 5: LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS. */
+export const LEDGER_OVEREXTENDED_ATK_MULTIPLIER = 1.4;
+/**
+ * "0 DEF" read literally would divide by zero in engine/combat.ts's damage
+ * formula (`100 / defender.effectiveDefense`) — Infinity/NaN damage, not a
+ * bigger number. Floored at the smallest defense value that keeps the
+ * formula finite while still reading as "as good as no defense at all."
+ * Flagged as an engineering interpretation of flavor text, not a design
+ * number pulled from a doc.
+ */
+export const LEDGER_OVEREXTENDED_DEFENSE_FLOOR = 1;
+export const LEDGER_OVEREXTENDED_DURATION_TURNS = 1;
+export const LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS = 2;
+export const LEDGER_OVEREXTENDED_COOLDOWN_TURNS = 2;
+
+// ---- Vault Phase 2, slice 2 (3 Sep 2026) — the three Heirloom SIGNATURE
+// abilities wired into combat this pass: ledger_entry, oath_oathkeeper,
+// deadfall_strike. See data/heirlooms.ts's own "VAULT PHASE 2, SLICE 2"
+// header and claude/Bloom_Wars_Build_Log_Addendum_VaultPhase2Slice2_
+// 03Sep2026.md for the full account. Same "rank1 gives a flat value, rank5
+// steps it once, ranks 2-4 are identical to rank 1" reading slice 1's own
+// header comment above states, applied again here for the same reason:
+// none of these three ability texts give a numeric midpoint to scale toward.
+
+/**
+ * ledger_entry (Skuld/Widow's Ledger) — "+8% damage per kill this mission,
+ * stacking, for the rest of the mission." The percentage itself doesn't
+ * change at rank 5; what rank 5 changes is the stack CAP (raised) and adds
+ * a one-time move-range bonus past a threshold — see the two constants
+ * below.
+ */
+export const LEDGER_ENTRY_DAMAGE_PER_STACK = 0.08;
+/**
+ * PLACEHOLDER, flagged: rank1's own prose gives no explicit ceiling
+ * ("stacks... for the rest of the mission," read literally, is unbounded).
+ * Picked as a reasoned, not simulated, cap — +40% at rank1 is already a
+ * serious spike from one weapon's own passive, and "stack cap raised" at
+ * rank 5 needs headroom to mean something against this number.
+ * combat_sim.py has not validated either cap.
+ */
+export const LEDGER_ENTRY_STACK_CAP = 5;
+/** Rank 5's raised cap — same placeholder status as the rank-1 cap above. */
+export const LEDGER_ENTRY_RANK5_STACK_CAP = 10;
+/**
+ * Rank 5's "the bonus also applies to move range past 3 stacks" — read as a
+ * ONE-TIME +LEDGER_ENTRY_MOVE_BONUS_AMOUNT move-range grant the instant this
+ * wielder's own kill count first exceeds this threshold, not a per-stack or
+ * per-turn scaling: the prose gives no formula for how big or how often a
+ * move bonus should reapply, and letting it re-add on every kill past 3
+ * would compound in a way nothing else in this file does. PLACEHOLDER,
+ * flagged — see engine/mission.ts's resolveKill for where this actually
+ * fires, exactly once per mission per wielder (BattleUnit.
+ * ledgerEntryMoveBonusApplied guards the re-fire).
+ */
+export const LEDGER_ENTRY_MOVE_BONUS_THRESHOLD = 3;
+export const LEDGER_ENTRY_MOVE_BONUS_AMOUNT = 1;
+
+/**
+ * oath_oathkeeper (Vindex/The Iron Oath) — "Cannot be reduced below 1 HP for
+ * N turns. All spared damage lands the instant it ends." Self-triggered,
+ * cooldown-gated (data/heirlooms.ts's own cooldownTurns: 5).
+ */
+export const OATHKEEPER_HP_FLOOR = 1;
+/** Duration in turns at rank 1-4. Rank 5: OATHKEEPER_RANK5_DURATION_TURNS. Same "survives N hostile phases" shape LEDGER_OVEREXTENDED_RANK5_DURATION_TURNS already established — see engine/mission.ts's turn-start loop for the decrement. */
+export const OATHKEEPER_DURATION_TURNS = 2;
+export const OATHKEEPER_RANK5_DURATION_TURNS = 3;
+/** Rank 5's "the deferred damage is halved on landing instead of full." */
+export const OATHKEEPER_RANK5_DEFERRED_MULTIPLIER = 0.5;
+export const OATHKEEPER_COOLDOWN_TURNS = 5;
+
+/**
+ * deadfall_strike (Ichigeki/Deadfall) — "An unavoidable, uncounterable
+ * strike at x2 damage, any range." Applied to the SAME base-damage
+ * computation a normal hit already uses (engine/combat.ts's
+ * resolveMechAttack/resolveAttackOnBloom), then doubled — see
+ * engine/mission.ts's deadfallStrike() for the range/dodge/counter bypass.
+ */
+export const DEADFALL_STRIKE_DAMAGE_MULTIPLIER = 2;
+export const DEADFALL_STRIKE_COOLDOWN_TURNS = 5;
+
+// ---- Vault Phase 2, slice 3 (3 Sep 2026) — Surtr's full 3-ability kit:
+// cinder_line_signature, cinder_firebreak, cinder_draft. See data/
+// heirlooms.ts's own "VAULT PHASE 2, SLICE 3" header and this file's own
+// engine/mission.ts SurtrLine block for the mechanic these constants feed.
+// Every number below IS explicit in cinder_line's own rank1/rank5 prose or
+// its cooldownTurns field (data/heirlooms.ts) — nothing here is a numeric
+// placeholder the way LEDGER_ENTRY_STACK_CAP above is. The placeholder
+// judgment calls this kit actually makes are all MECHANIC shape, not
+// numbers, and are flagged as comments on the engine code that makes them
+// (line direction/length selection, whether each ability ends the turn,
+// what "remaining total damage" means for Firebreak's rank-5 burst) rather
+// than here.
+
+/** "A chosen line of up to 5 tiles" — the max tile count a single signature cast can ignite, and (see engine/mission.ts's getCinderLineAreaFrom) the max reach in any of the 8 directions the click-to-target fallback offers. */
+export const CINDER_LINE_MAX_TILES = 5;
+/** "15 damage/turn to anything standing on it, hostile or friendly" — unchanged at rank 5 (the rank5 text says so explicitly: "damage unchanged"). Flat, no defense mitigation — mirrors bloom_mat's own TileDef.turnStartDamage (data/tiles.ts), the existing hazard-tile precedent this kit is built alongside rather than on top of. */
+export const CINDER_LINE_DAMAGE_PER_TURN = 15;
+/** Duration in turns at rank 1-4. Rank 5: CINDER_LINE_RANK5_DURATION_TURNS. Same "N environment-step ticks, then gone" shape LEDGER_OVEREXTENDED_DURATION_TURNS/OATHKEEPER_DURATION_TURNS already establish for a wielder-side duration clock, applied here to a placed hazard instead of a unit posture. */
+export const CINDER_LINE_DURATION_TURNS = 3;
+export const CINDER_LINE_RANK5_DURATION_TURNS = 4;
+/** data/heirlooms.ts cinder_line_signature.cooldownTurns. */
+export const CINDER_LINE_SIGNATURE_COOLDOWN_TURNS = 5;
+
+/** data/heirlooms.ts cinder_firebreak.cooldownTurns — "Instantly extinguish one of the wielder's own active Surtr lines," rank 5 adds a one-time AoE burst (see engine/mission.ts's firebreak() for what "the line's remaining total damage" is computed as — a placeholder READING of that phrase, not a number, flagged there). */
+export const CINDER_FIREBREAK_COOLDOWN_TURNS = 1;
+
+/** cinder_draft — "Allies moving through a friendly Surtr line take no burn damage for 1 turn." Rank 5: CINDER_DRAFT_RANK5_DURATION_TURNS. Same duration-clock shape as CINDER_LINE_DURATION_TURNS above, applied to the line's own friendly-immunity window instead of its burn window. */
+export const CINDER_DRAFT_DURATION_TURNS = 1;
+export const CINDER_DRAFT_RANK5_DURATION_TURNS = 2;
+/** data/heirlooms.ts cinder_draft.cooldownTurns. */
+export const CINDER_DRAFT_COOLDOWN_TURNS = 3;
+
+// ---- Vault Phase 2, slice 4 (3 Sep 2026) — Zanretsu's full 3-ability kit:
+// cutting_room_charge, cutting_room_momentum, cutting_room_sure_footing.
+// See data/heirlooms.ts's own "cutting_room" entry and engine/mission.ts's
+// cuttingRoomCharge() for the full mechanic design — that method's own
+// header comment is where every MECHANIC-shape judgment call (line
+// direction, "which tiles count as the line," the zero-hit landing
+// fallback) is flagged, the same split cinder_line's own header comment
+// above establishes between "numbers live here" and "shape lives on the
+// engine code." The two genuinely unvalidated NUMBERS this kit adds (max
+// line length, 3rd+ falloff) are flagged individually below; every other
+// constant here is explicit in cutting_room's own rank1/rank5 prose or its
+// cooldownTurns field (data/heirlooms.ts).
+
+/**
+ * "A straight line" — max reach, in tiles, from the wielder's own adjacent
+ * tile outward. PLACEHOLDER: cutting_room_charge's own prose gives no
+ * number at all (unlike cinder_line_signature's explicit "up to 5 tiles").
+ * Borrowed from CINDER_LINE_MAX_TILES as the closest existing "line
+ * ability" precedent in this codebase, but kept as its OWN constant rather
+ * than importing that one directly — a future tuning pass on Surtr's own
+ * line length shouldn't silently retune Zanretsu's too. Deliberately NOT
+ * derived from the wielder's own moveRange (see cuttingRoomCharge()'s own
+ * header comment for why coupling it to moveRange would create an
+ * unwanted feedback loop with cutting_room_momentum's own +2 move grant).
+ * Not run through combat_sim.py.
+ */
+export const CUTTING_ROOM_CHARGE_MAX_LINE_TILES = 5;
+/**
+ * "Damage falls off against the 3rd+ target hit" — PLACEHOLDER reading:
+ * a flat multiplier applied to every hit from the 3rd one on (not an
+ * increasingly steep falloff per target past the 2nd), since the prose
+ * gives no formula and a flat number is the simplest reading that still
+ * respects "falls off" as written. Rank 5 removes this entirely (every
+ * target takes full damage) per that rank's own prose. Not run through
+ * combat_sim.py.
+ */
+export const CUTTING_ROOM_CHARGE_FALLOFF_MULTIPLIER = 0.5;
+/** data/heirlooms.ts cutting_room_charge.cooldownTurns. */
+export const CUTTING_ROOM_CHARGE_COOLDOWN_TURNS = 4;
+
+/** "+2 move" — explicit in cutting_room_momentum's own rank1 prose. */
+export const CUTTING_ROOM_MOMENTUM_MOVE_BONUS = 2;
+/** "+10% ATK" — explicit in cutting_room_momentum's own rank5 prose. */
+export const CUTTING_ROOM_MOMENTUM_ATK_BONUS_PCT = 0.1;
+
+/** Duration in turns at rank 1-4 (explicit in cutting_room_sure_footing's own rank1 prose). Rank 5: CUTTING_ROOM_SURE_FOOTING_RANK5_DURATION_TURNS. Same "N hostile phases survived" shape OATHKEEPER_DURATION_TURNS/CINDER_DRAFT_DURATION_TURNS already establish. */
+export const CUTTING_ROOM_SURE_FOOTING_DURATION_TURNS = 1;
+/** Explicit in cutting_room_sure_footing's own rank5 prose ("Duration 2 turns"). */
+export const CUTTING_ROOM_SURE_FOOTING_RANK5_DURATION_TURNS = 2;
+/** data/heirlooms.ts cutting_room_sure_footing.cooldownTurns. */
+export const CUTTING_ROOM_SURE_FOOTING_COOLDOWN_TURNS = 2;
+
+// ---- Vault Phase 2, slice 5 (3 Sep 2026) — Migawari's remaining 2 of 3
+// abilities: lastword_signature, lastword_last_rites (Osric Ferrow, House
+// Ferrow, Munti path). lastword_field_triage is already live (slice 1, 2
+// Sep 2026) and untouched by this slice. See data/heirlooms.ts's own
+// "last_word" entry for the full rank1/rank5 prose, and engine/mission.ts's
+// lastWordSignature()/lastRites() for the mechanic-shape judgment calls
+// (both flagged there, not repeated here).
+
+/**
+ * lastword_signature (Migawari/The Last Word) — "Fully restores one downed
+ * ally mid-mission, no spare part spent. The wielder's own max HP is
+ * permanently reduced 10% for the rest of the campaign, each use." /
+ * rank5: "The permanent cost drops to 5% per use — never removed entirely,
+ * only softened."
+ *
+ * Both numbers ARE explicit in the prose (10%, 5%) — the one real judgment
+ * call this pair makes is storing them as MULTIPLIERS (0.9, 0.95) that
+ * compound MULTIPLICATIVELY use over use, rather than as flat percentages
+ * subtracted from the pilot's original base. That choice is genuinely
+ * load-bearing, not cosmetic: two rank-1 uses under this reading leave
+ * 0.9 * 0.9 = 81% of the ORIGINAL max HP, not 100% - 10% - 10% = 80% under
+ * a flat-subtraction reading — close for two uses, but the two readings
+ * diverge hard with more of them, and only the multiplicative one has the
+ * property that matters most for a "permanent, repeatable" cost: no number
+ * of uses can ever drive max HP to 0 or below. A flat 10%-of-original
+ * subtracted ten times reaches zero exactly, and an eleventh use would go
+ * negative — a wielder who leans on Migawari hard would eventually be
+ * unfieldable or the engine would need a floor clamp invented from
+ * nowhere. Multiplicative compounding needs no such clamp; it asymptotes
+ * toward zero and never reaches it. Standard game-design shape for a
+ * repeatable permanent cost (armor durability loss, stacking debuffs) for
+ * exactly this reason. Not run through combat_sim.py — this is a
+ * permanent-cost/campaign-persistence mechanic, not a per-hit damage
+ * number the sim evaluates.
+ */
+export const LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1 = 0.9;
+export const LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK5 = 0.95;
+/** data/heirlooms.ts lastword_signature.cooldownTurns. */
+export const LAST_WORD_SIGNATURE_COOLDOWN_TURNS = 6;
+
+/**
+ * lastword_last_rites (Migawari/The Last Word) — "A downed ally (not yet
+ * lost to permadeath) can act one final time this turn before resolving."
+ * / rank5: "The ally also gets a full heal for that one action, then goes
+ * down again as normal."
+ *
+ * PLACEHOLDER, flagged: how many action points "act one final time" grants
+ * is not itself a number the prose states. Read as exactly ONE action —
+ * "one final time," singular, read literally — rather than this game's
+ * normal MAX_ACTIONS_PER_TURN (2) full budget; the more conservative of
+ * the two readings, and the one that keeps a revived corpse from
+ * out-acting a unit that was never downed at all. Not run through
+ * combat_sim.py, same reason as LAST_WORD_SIGNATURE_HP_MULTIPLIER_RANK1
+ * above.
+ */
+export const LAST_RITES_ACTIONS_GRANTED = 1;
+/** data/heirlooms.ts lastword_last_rites.cooldownTurns. */
+export const LAST_RITES_COOLDOWN_TURNS = 5;
+
+// ---- Vault Phase 2, slice 6 (3 Sep 2026) — Simulacrum/The Stolen Seal ----
+// (stolen_seal, ABERRATION track — no aristocrat pilot; see data/heirlooms.ts's
+// own header for what that distinction means). All three numbers below back
+// engine/mission.ts's sealBorrowedAuthority()/ledgerhallStatic()/
+// rollInheritedWeight(); none of this has been run through combat_sim.py or
+// an equivalent — same "argued, not simulated" status as every other
+// Heirloom placeholder number in this file.
+
+/** data/heirlooms.ts seal_borrowed_authority.cooldownTurns. */
+export const SEAL_BORROWED_AUTHORITY_COOLDOWN_TURNS = 5;
+
+/** data/heirlooms.ts seal_ledgerhall_static.cooldownTurns. */
+export const SEAL_LEDGERHALL_STATIC_COOLDOWN_TURNS = 4;
+/**
+ * "Jams one random enemy ability for 2 turns" (rank1). Rank5's own text
+ * ("Jams the target's strongest available ability specifically") changes
+ * WHICH ability gets picked, not how long the jam lasts — it doesn't
+ * restate a duration at all, read as leaving rank1's stated 2 turns
+ * unchanged rather than silently doubling it or some other invented number.
+ */
+export const SEAL_LEDGERHALL_STATIC_JAM_DURATION_TURNS = 2;
+
+/**
+ * seal_ledgerhall_static rank5 — "the target's strongest available ability
+ * specifically." PLACEHOLDER, flagged as more speculative than most: this
+ * engine has no real numeric "how strong is this ability" measurement
+ * anywhere (grep-confirmed), so there is nothing principled to rank
+ * against. This is an authored, arguable ordering over the ability ids that
+ * actually appear in a hostile mech's own `abilities` array (UNIT_ARCHETYPES,
+ * data/units.ts — Bloom-shape hostiles carry none at all, see
+ * getLedgerhallStaticTargetsFrom's own comment) — defensive/battlefield-
+ * control tools ranked above mobility/stealth, ranked above pure support —
+ * picked for having SOME reasoned shape rather than none, not derived from
+ * any measured combat weight. Doubly moot in practice today: see
+ * BattleUnit.jammedAbilityId's own comment for why nothing in
+ * engine/ai.ts's decideHostileAction currently reads a jam at all — this
+ * table decides which ability id gets RECORDED as jammed, not which one a
+ * hostile is actually prevented from using, since there is no per-ability
+ * hostile AI to prevent anything from in the first place yet.
+ */
+export const SEAL_LEDGERHALL_STATIC_ABILITY_PRIORITY: Record<string, number> = {
+  abil_overshield: 5,
+  abil_interdict: 4,
+  abil_charge: 3,
+  abil_ambush: 3,
+  abil_sensor_sweep: 2,
+  abil_repair: 1,
+  abil_cockpit_evac: 1,
+  abil_screen: 1,
+  abil_clear_bloom: 1,
+};
+
+/**
+ * data/heirlooms.ts seal_inherited_weight — "At mission start, roll a
+ * random DEF bonus (0 to +15) for the whole mission" (rank1); "The roll's
+ * floor narrows to +8 to +15 — still random, never bad" (rank5). Both
+ * numbers are explicit in the prose; the only judgment call is HOW the roll
+ * is drawn (a uniform integer draw inclusive of both ends, same convention
+ * as every other die-roll-shaped random number in this codebase), not what
+ * the bounds are.
+ */
+export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK1 = 0;
+export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK1 = 15;
+export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK5 = 8;
+export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK5 = 15;

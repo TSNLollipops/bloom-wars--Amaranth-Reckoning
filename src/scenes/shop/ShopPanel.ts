@@ -141,6 +141,24 @@ export function makeShopButton(
   layer.add([bg, txt]);
   if (!enabled) return;
   bg.setInteractive({ useHandCursor: true });
+  // Carrier Scale-Up Plan v1 Phase 1 follow-on, 3 Sep 2026 — inherit the
+  // host layer's scroll factor, which matters the moment any caller's
+  // camera actually moves (Hub.ts's now does; MapSelect/Hangar/Debrief's
+  // don't, where this is a no-op).
+  //
+  // Why it has to be set on the BUTTON and not just its parent container:
+  // Phaser renders a container's children using the CONTAINER's scroll
+  // factor (multiplied by the child's own — see ContainerWebGLRenderer),
+  // but hit-tests each child using only the CHILD's own (InputManager.
+  // hitTest's `px = worldX + csx * gameObject.scrollFactorX - csx`). A
+  // button inside a scrollFactor(0) container that still has its own
+  // default factor of 1 therefore DRAWS pinned to the screen and is
+  // CLICKABLE somewhere else entirely — off by exactly the camera's scroll,
+  // so it looks perfect in a screenshot and silently ignores every click.
+  // Caught by a live Playwright check (tools/verify/
+  // checkHubInteractionAfterScroll.mjs), not by tsc/lint/tests, all of
+  // which passed clean while the MENU button was unclickable.
+  bg.setScrollFactor(layer.scrollFactorX, layer.scrollFactorY);
   bg.on("pointerover", () => bg.setFillStyle(0x3a6f92, 1));
   bg.on("pointerout", () => bg.setFillStyle(0x2e5c7a, 1));
   bg.on("pointerdown", onClick);
@@ -158,8 +176,18 @@ export function makeShopButton(
  * codebase yet to build a real "name this save" text field against).
  */
 export function showSaveAsOverlay(scene: Phaser.Scene, state: CampaignState, onSaved?: (slot: number) => void): void {
-  const layer = scene.add.container(0, 0).setDepth(20);
-  const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.75).setInteractive();
+  // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — this overlay is reached
+  // from Hub.ts too (via MenuOverlay.ts's own SAVE... button), whose camera
+  // now scrolls per deck. Pinned to the screen so it doesn't drift off
+  // wherever the camera happened to be looking when SAVE... was pressed —
+  // MapSelect/Hangar/Debrief's own static cameras make this a no-op for
+  // them.
+  const layer = scene.add.container(0, 0).setDepth(20).setScrollFactor(0);
+  // .setScrollFactor(0) for the same render-vs-hit-test reason makeShopButton
+  // above documents: this backdrop is interactive (it's what swallows clicks
+  // meant for the game underneath), so it needs its own factor, not just its
+  // parent layer's.
+  const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.75).setInteractive().setScrollFactor(0);
   const panel = scene.add.rectangle(480, 320, 460, 300, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
   const title = scene.add.text(480, 210, "SAVE AS...", { fontFamily: "monospace", fontSize: "18px", color: "#e8e2d4" }).setOrigin(0.5);
   layer.add([backdrop, panel, title]);
@@ -277,6 +305,28 @@ export class ShopPanel {
   setDepth(depth: number): void {
     this.shopLayer.setDepth(depth);
     this.navLayer.setDepth(depth);
+  }
+
+  // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — Hub.ts's own camera now
+  // scrolls (see that file's startFollow/deckCameraBounds), and shopLayer/
+  // navLayer are created with no explicit scroll factor (default 1, i.e.
+  // world-space) — exactly correct for Debrief.ts/Hangar.ts, whose cameras
+  // never move, but wrong for Hub's own hangarShopOverlay use, which needs
+  // to stay pinned to the screen like every other overlay regardless of
+  // where the camera is looking. Same additive-method shape as setVisible/
+  // setDepth above: a no-op for Debrief.ts/Hangar.ts, since neither calls
+  // it, and the one new way for Hub.ts to reach shopLayer/navLayer's own
+  // scroll factor from outside.
+  setScrollFactor(scrollFactor: number): void {
+    // `true` = also update the children that exist right now. Everything
+    // this panel builds from here on inherits the layer's factor at
+    // creation instead (makeShopButton and the recruit-class buttons both
+    // do), so this third argument only matters for anything already built
+    // when a caller changes the factor — but leaving it out would make the
+    // method quietly order-dependent, which is the kind of thing that
+    // works until someone moves one line.
+    this.shopLayer.setScrollFactor(scrollFactor, scrollFactor, true);
+    this.navLayer.setScrollFactor(scrollFactor, scrollFactor, true);
   }
 
   render(): void {
@@ -545,6 +595,12 @@ export class ShopPanel {
         .rectangle(cx + 60, top + 62, 118, 26, selected ? 0x2e5c7a : 0x1a2028, 1)
         .setStrokeStyle(1, selected ? 0x4a7a9a : 0x3a4552)
         .setInteractive({ useHandCursor: true })
+        // Same inherit-the-layer's-scroll-factor rule as makeShopButton
+        // above (see its comment for the full Phaser render-vs-hit-test
+        // mismatch). This one is rebuilt on every render(), so it inherits
+        // from shopLayer at creation rather than relying on any one-time
+        // pass over the container.
+        .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
         .on("pointerdown", () => {
           this.recruitClass = cls;
           this.recruitMessage = "";

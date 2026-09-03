@@ -558,6 +558,101 @@ if recon_ok:
 else:
     out("SKIPPED -- reconstruction check above failed, not trusting new numbers yet.")
 
+# ===========================================================================
+# 15. HEIRLOOM ABILITY MULTIPLIERS -- Vault Phase 2, slice 1 (2 Sep 2026)
+#     salt_root_salt (Delenda/Salt the Root) and ledger_overextended
+#     (Skuld/Widow's Ledger) are the two of the five sliced abilities that
+#     actually change a damage FORMULA -- oath_iron_word/lastword_field_triage/
+#     farsight_signature are radius/duration/cooldown values with no new
+#     damage number (Field Triage reuses the already-validated Data Pack §6
+#     repair-heal number wholesale), so they get no section here, matching
+#     how abil_taunt/abil_screen/abil_interdict never got one either -- this
+#     script validates damage-formula numbers, not every constant in the game.
+#     Transcribed 1:1 from engine/combat.ts's resolveMechAttack/
+#     resolveAttackOnBloom (see saltRootMultiplier/overextendedAttackMultiplier/
+#     overextendedDefense there) and src/data/combatTables.ts's own constants.
+# ===========================================================================
+hdr("HEIRLOOM ABILITY MULTIPLIERS -- Vault Phase 2 slice 1, 2 Sep 2026")
+
+SALT_ROOT_SESSILE_MULTIPLIER = 1.6
+SALT_ROOT_OTHER_MULTIPLIER = 0.7
+SALT_ROOT_RANK5_OTHER_MULTIPLIER = 0.85
+LEDGER_OVEREXTENDED_ATK_MULTIPLIER = 1.4
+LEDGER_OVEREXTENDED_DEFENSE_FLOOR = 1
+
+
+def salt_root_mult(has_ability, sessile, rank5=False):
+    if not has_ability:
+        return 1
+    if sessile:
+        return SALT_ROOT_SESSILE_MULTIPLIER
+    return SALT_ROOT_RANK5_OTHER_MULTIPLIER if rank5 else SALT_ROOT_OTHER_MULTIPLIER
+
+
+def overext_atk_mult(is_overextended):
+    return LEDGER_OVEREXTENDED_ATK_MULTIPLIER if is_overextended else 1
+
+
+def overext_def(effective_defense, is_overextended):
+    return LEDGER_OVEREXTENDED_DEFENSE_FLOOR if is_overextended else effective_defense
+
+
+def mech_dmg_v2(power, atk_hp_frac, atk_eff_attack, def_eff_defense, terrain_stars,
+                 salt_root_has=False, salt_root_sessile=False, salt_root_rank5=False,
+                 atk_overextended=False, def_overextended=False, def_at_full_hp=True):
+    """resolveMechAttack, extended with the two Vault Phase 2 slice 1 hooks,
+    in the exact order engine/combat.ts applies them (attackDebuffMultiplier
+    is always 1 here -- no Bloom on-hit effect is in play in this idealized
+    1v1 math, same simplification section 1's mech_dmg() already makes)."""
+    dmg = power
+    dmg *= atk_hp_frac
+    dmg *= atk_eff_attack / 100
+    dmg *= salt_root_mult(salt_root_has, salt_root_sessile, salt_root_rank5)
+    dmg *= overext_atk_mult(atk_overextended)
+    dmg *= 100 / overext_def(def_eff_defense, def_overextended)
+    dmg *= (1 - 0.1 * terrain_stars)
+    dmg = js_round(dmg)
+    if def_at_full_hp:
+        dmg = min(dmg, FULL_HP_DAMAGE_CAP)
+    return dmg
+
+
+out("salt_root_salt (Delenda) -- G-tier meeps attacker vs a G-tier defender,")
+out("open ground, comparing the sessile bonus against the non-sessile penalty:")
+plain_hit = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0)
+sessile_hit = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0, salt_root_has=True, salt_root_sessile=True)
+other_hit_r1 = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0, salt_root_has=True, salt_root_sessile=False)
+other_hit_r5 = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0, salt_root_has=True, salt_root_sessile=False, salt_root_rank5=True)
+out(f"  no salt_root_salt                          : {plain_hit:>4} dmg (baseline)")
+out(f"  salt_root_salt vs sessile/hive-type target  : {sessile_hit:>4} dmg  (x{SALT_ROOT_SESSILE_MULTIPLIER})")
+out(f"  salt_root_salt vs everything else, rank 1   : {other_hit_r1:>4} dmg  (x{SALT_ROOT_OTHER_MULTIPLIER})")
+out(f"  salt_root_salt vs everything else, rank 5   : {other_hit_r5:>4} dmg  (x{SALT_ROOT_RANK5_OTHER_MULTIPLIER}, softened)")
+salt_gate_ok = sessile_hit > plain_hit > other_hit_r1 and other_hit_r5 > other_hit_r1
+out(f"  GATE: sessile > baseline > non-sessile(r1), and rank 5 softens (but does not")
+out(f"        erase) the non-sessile penalty -- {'PASS' if salt_gate_ok else 'FAIL'}")
+
+out()
+out("ledger_overextended (Skuld) -- the same G-tier meeps-vs-tank matchup,")
+out("open ground, isolating each half of the trade:")
+normal_atk_hit = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0)
+boosted_atk_hit = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0, atk_overextended=True)
+normal_def_hit = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0)
+exposed_def_hit = mech_dmg_v2(POWER["meeps"]["tank"], 1, 100, 100, 0, def_overextended=True, def_at_full_hp=False)
+out(f"  attacker's own hit,   normal (DEF 100 as usual) : {normal_atk_hit:>4} dmg")
+out(f"  attacker overextended (+{int((LEDGER_OVEREXTENDED_ATK_MULTIPLIER-1)*100)}% ATK)          : {boosted_atk_hit:>4} dmg")
+out(f"  hit taken,   defender normal   (DEF 100)         : {normal_def_hit:>4} dmg")
+out(f"  hit taken,   defender overextended (DEF floor {LEDGER_OVEREXTENDED_DEFENSE_FLOOR})    : {exposed_def_hit:>4} dmg")
+overext_gate_ok = boosted_atk_hit > normal_atk_hit and exposed_def_hit > normal_def_hit * 3
+out(f"  GATE: overextended attacker deals strictly more, AND an overextended")
+out(f"        defender takes dramatically more (>3x, not a rounding-sized effect --")
+out(f"        DEF 1 against 100 is the whole point of the trade) -- {'PASS' if overext_gate_ok else 'FAIL'}")
+out()
+out("Both gates read from the same mech_dmg_v2() transcription of")
+out("engine/combat.ts's saltRootMultiplier/overextendedAttackMultiplier/")
+out("overextendedDefense -- see heirloomVaultAbilities.test.ts's own")
+out("'INTEGRATION' tests for the TypeScript-side confirmation that the real")
+out("resolver (not just this Python transcription) applies them the same way.")
+
 out()
 out("=" * 74)
 out("DONE. Full trace above; RECONSTRUCTION CHECK section is the load-bearing")

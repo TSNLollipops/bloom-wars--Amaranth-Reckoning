@@ -737,6 +737,35 @@ describe("purchaseWeaponBranch / equipWeaponBranch — the Weapon Branch Point S
     expect(neverOwned.ok).toBe(false);
     expect(neverOwned.reason).toMatch(/doesn't own/);
   });
+
+  // Scattershot Pistols (Weapon Branch Point System, data/weaponBranches.ts,
+  // 3 Sep 2026) — Meeps' 2nd branch, same "2nd branch = tier C,
+  // WEAPON_BRANCH_COSTS[1], purchase-order not branch-identity" shape the
+  // Reeps/Munti 2nd-branch cases above already exercise, plus its own
+  // purchase -> equip -> unequip cycle mirroring the case just above.
+  it("gates a Meeps pilot's 2nd branch (Scattershot Pistols) at WEAPON_BRANCH_TIER_GATE[1] (C), priced at WEAPON_BRANCH_COSTS[1], then equips/unequips like any other branch", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_rourke"].pilot.tier = WEAPON_BRANCH_TIER_GATE[1]; // "C" — enough for the 2nd, not gate-blocked
+    state.pilots["pilot_rourke"].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1];
+    const first = purchaseWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(first.ok).toBe(true);
+    const second = purchaseWeaponBranch(state, "pilot_rourke", "meeps_scattershot_pistols");
+    expect(second.ok).toBe(true);
+    expect(second.cost).toBe(WEAPON_BRANCH_COSTS[1]);
+    expect(state.pilots["pilot_rourke"].personalPoints).toBe(0);
+    expect(state.pilots["pilot_rourke"].pilot.ownedWeaponBranches).toEqual(["meeps_impact_lance", "meeps_scattershot_pistols"]);
+
+    const equip = equipWeaponBranch(state, "pilot_rourke", "meeps_scattershot_pistols");
+    expect(equip.ok).toBe(true);
+    expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBe("meeps_scattershot_pistols");
+
+    // Swapping to the other owned branch (not unequipping) — the "collect
+    // more than one, swap for free" mechanic Reeps/Munti already prove out,
+    // now exercised for Meeps too.
+    const swap = equipWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(swap.ok).toBe(true);
+    expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBe("meeps_impact_lance");
+  });
 });
 
 describe("convertPersonalToCompany — the release-valve mechanism, Weapon Branch Point System §5", () => {

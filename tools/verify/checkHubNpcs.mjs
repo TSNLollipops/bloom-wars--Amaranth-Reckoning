@@ -8,7 +8,7 @@
 import { chromium } from "playwright";
 import { readFileSync, writeFileSync } from "fs";
 
-const save = readFileSync("/home/claude/bloomwars/tools/verify/save.json", "utf8");
+const save = readFileSync(new URL("./save.json", import.meta.url).pathname, "utf8");
 
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const page = await browser.newPage({ viewport: { width: 1074, height: 640 } });
@@ -42,7 +42,7 @@ const sceneReady = await page.evaluate(() => {
 });
 console.log("Hub scene status:", sceneReady);
 
-await page.screenshot({ path: "/home/claude/bloomwars/tools/verify/hub_start.png" });
+await page.screenshot({ path: new URL("./hub_start.png", import.meta.url).pathname });
 
 async function sampleNpcs() {
   return page.evaluate(() => {
@@ -70,7 +70,7 @@ for (let i = 0; i < SAMPLE_COUNT; i++) {
   await page.waitForTimeout(INTERVAL_MS);
 }
 
-await page.screenshot({ path: "/home/claude/bloomwars/tools/verify/hub_end.png" });
+await page.screenshot({ path: new URL("./hub_end.png", import.meta.url).pathname });
 
 // ---- Analysis ----
 const byId = {};
@@ -118,7 +118,7 @@ for (const sample of samples) {
 const persistentClusters = Object.entries(closeCounts).filter(([, c]) => c >= SAMPLE_COUNT - 1);
 
 const out = { sceneReady, samples, report, persistentClusters };
-writeFileSync("/home/claude/bloomwars/tools/verify/report.json", JSON.stringify(out, null, 2));
+writeFileSync(new URL("./report.json", import.meta.url).pathname, JSON.stringify(out, null, 2));
 
 console.log("\n=== Per-NPC summary ===");
 for (const r of report) {

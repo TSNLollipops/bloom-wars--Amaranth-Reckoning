@@ -1,33 +1,48 @@
 // src/engine/turnManager.ts
-// Bloom on-hit effects engine — Data Pack §8.1's acid DoT / attack debuff /
-// knockback, wired for real the first time, 27 Aug 2026.
+// On-hit effects engine — Data Pack §8.1's acid DoT / attack debuff /
+// knockback, wired for real the first time, 27 Aug 2026. Extended to the
+// reverse direction (a mech's own weapon branch applying an effect to a
+// Bloom it just hit) plus a new "stun" effect kind, 3 Sep 2026, alongside
+// Shock Claws (data/weaponBranches.ts).
 //
 // This file is the thing data/bloom.ts's own BLOOM_ON_HIT_EFFECTS comment
 // has been pointing at since the Wellroot pass ("DoT/debuff ticking lives
-// in engine/turnManager.ts") without it actually existing. Until this pass,
-// every Bloom archetype's `onHit` field (Gallcyst's acid, Sirenmaw/Choir's
-// attack debuff, Heartwood/the Unnamed's knockback, and the Wellroot's own
-// acid, added 27 Aug 2026 specifically without a working DoT to lean on)
-// was pure flavor data — see that file's own header for the Wellroot
-// pass's full account of finding this gap the hard way (an 80% win rate
-// against a documented ~35% target, because the acid DoT it was counting
-// on to make up for a lower attackPower was never actually landing).
+// in engine/turnManager.ts") without it actually existing. Until the 27 Aug
+// pass, every Bloom archetype's `onHit` field (Gallcyst's acid, Sirenmaw/
+// Choir's attack debuff, Heartwood/the Unnamed's knockback, and the
+// Wellroot's own acid, added 27 Aug 2026 specifically without a working DoT
+// to lean on) was pure flavor data — see that file's own header for the
+// Wellroot pass's full account of finding this gap the hard way (an 80%
+// win rate against a documented ~35% target, because the acid DoT it was
+// counting on to make up for a lower attackPower was never actually
+// landing).
 //
-// Scope, deliberately narrow: this wires the three effect KINDS the Data
-// Pack already specifies (acid_dot, debuff_attack, knockback) for the SIX
-// Bloom archetypes that already carry a real onHit field. It does not add
-// stun (Shock Claws, still-unbuilt per the Mek Workshop/Weapon Progression
-// doc's own §5 flag) or extend this system to any player weapon branch —
-// weaponBranches.ts's own header already says those "wait for a dedicated
-// status-effect pass"; this IS that pass, but only exercised on the Bloom
-// side so far. The infrastructure (BattleUnit.statusEffects, the apply/
-// tick/multiplier functions below) is generic enough that a future status
-// effect on a player weapon can reuse it without another rewrite.
+// 27 Aug 2026 scope, deliberately narrow: this wired the three effect KINDS
+// the Data Pack already specifies (acid_dot, debuff_attack, knockback) for
+// the SIX Bloom archetypes that already carry a real onHit field. It did
+// not add stun or extend this system to any player weapon branch —
+// weaponBranches.ts's own header already said those "wait for a dedicated
+// status-effect pass"; that pass was this file, but only exercised on the
+// Bloom side so far, with a note that "the infrastructure... is generic
+// enough that a future status effect on a player weapon can reuse it
+// without another rewrite."
+//
+// 3 Sep 2026: that reuse actually happened. applyMechOnHitEffect (below) is
+// the mech->Bloom mirror of applyBloomOnHitEffect — same BattleUnit.
+// statusEffects, same applyStatusEffect/tickStatusEffects underneath, only
+// a new fxId table (data/weaponBranches.ts's MECH_ON_HIT_EFFECTS, the
+// mech-side equivalent of BLOOM_ON_HIT_EFFECTS) and a new "stun" StatusEffect
+// kind (engine/units.ts) needed adding — no rewrite of anything that already
+// existed. Shock Claws (Meeps' 3rd branch) is the one consumer so far;
+// isStunned (below) and its one caller, engine/mission.ts's runHostileTurn,
+// are the piece that makes a stunned unit's own turn actually do nothing.
 import type { Coord, MapDefinition } from "../data/types";
 import { TILES } from "../data/tiles";
 import { inBounds, tileAt, chebyshevDistance, coordKey } from "./grid";
-import type { BattleUnit, StatusEffect } from "./units";
+import type { BattleUnit, OnHitEffectKind, StatusEffect } from "./units";
 import { BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
+import { MECH_ON_HIT_EFFECTS } from "../data/weaponBranches";
+import { CUTTING_ROOM_MOMENTUM_ATK_BONUS_PCT } from "../data/combatTables";
 
 /** fx_debuff_attack / fx_choir_dissonance (Data Pack §8.1) — "target + friendlies within 2 tiles," Chebyshev per every other range check in this engine. */
 export const DEBUFF_ATTACK_RADIUS = 2;
@@ -85,12 +100,101 @@ export function applyBloomOnHitEffect(
   }
 
   if (fx.kind === "knockback") {
+    // cutting_room_sure_footing (Zanretsu, Vault Phase 2 slice 4, 3 Sep
+    // 2026) — "Immune to knockback and forced movement." knockback is the
+    // ONLY forced-movement mechanic this engine has today (grepped: no
+    // other push/pull/displace effect exists anywhere in src/engine or
+    // src/data), so gating this one branch covers the ability's full
+    // prose, not a partial implementation of it.
+    if (isKnockbackImmune(defender)) return {};
     const dest = knockbackDestination(map, attacker.pos, defender.pos, fx.magnitude, occupied);
     if (dest) defender.pos = dest;
     return {};
   }
 
   return {};
+}
+
+/**
+ * Applies `fxId`'s effect (data/weaponBranches.ts's MECH_ON_HIT_EFFECTS)
+ * from `attacker`'s equipped weapon branch having just landed a hit on
+ * `defender` — the mech-side mirror of applyBloomOnHitEffect above, same
+ * "generic, not a one-off hack for one branch" shape the header comment at
+ * the top of this file promised when it was Bloom-only. Nothing in this
+ * function assumes `defender` is specifically a Bloom-shape unit — it reads
+ * and writes BattleUnit.statusEffects the same way applyBloomOnHitEffect
+ * does, so a future effect that lands on a mech-shape defender (a hostile
+ * mech, say) would work here unchanged. No-op if the defender didn't
+ * survive the hit (nothing left to stun) or if `fxId` is undefined/
+ * unrecognized, mirroring applyBloomOnHitEffect's own guards exactly.
+ *
+ * Deliberately does NOT roll any chance of its own — "does this hit even
+ * try to apply an effect" is the CALLER's decision (engine/mission.ts reads
+ * data/weaponBranches.ts's WEAPON_BRANCH_ON_HIT_EFFECT.chance and rolls it
+ * before ever calling this), the same division of labor
+ * applyBloomOnHitEffect already has with its own caller (mission.ts decides
+ * whether the hit landed at all; this file only applies the effect once
+ * told to). `attacker` is unused for stun specifically (there's no
+ * direction/magnitude to derive from it the way knockback needs the
+ * attacker's position) but kept in the signature — matching
+ * applyBloomOnHitEffect's own shape — for whichever future mech-side effect
+ * does need it, so that isn't a second signature change later.
+ */
+export function applyMechOnHitEffect(
+  fxId: string | undefined,
+  _attacker: BattleUnit,
+  defender: BattleUnit
+): OnHitApplyResult {
+  if (!fxId || defender.downed) return {};
+  const fx = MECH_ON_HIT_EFFECTS[fxId];
+  if (!fx) return {};
+
+  if (fx.kind === "stun") {
+    applyStatusEffect(defender, { kind: "stun", magnitude: fx.magnitude, turnsRemaining: fx.duration });
+    return {};
+  }
+
+  return {};
+}
+
+/**
+ * seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2 slice
+ * 6, 3 Sep 2026) — "Next attack copies a random on-hit effect drawn from
+ * any Bloom archetype... fought this campaign." Once engine/mission.ts has
+ * decided WHICH kind was drawn (that's its job — the draw depends on
+ * campaign-persistent state this file has no business knowing about), this
+ * is the "actually apply it" half: a thin dispatcher over the two appliers
+ * directly above, reusing them exactly as-is rather than re-implementing
+ * any effect's logic a third time.
+ *
+ * Three of the four kinds (acid_dot, debuff_attack, knockback) only exist
+ * today as BLOOM_ON_HIT_EFFECTS entries — routed through
+ * applyBloomOnHitEffect, same call shape a Bloom's own onHit already uses
+ * when IT lands a hit. The fourth (stun) only exists in MECH_ON_HIT_EFFECTS
+ * — routed through applyMechOnHitEffect, same call shape Shock Claws
+ * already uses. Both appliers already no-op correctly on a downed defender,
+ * so this function adds no guard of its own beyond picking the right one.
+ *
+ * WHICH SPECIFIC fxId represents a given kind, when a table has more than
+ * one entry of that kind, is a judgment call: fx_debuff_attack (-20%/2
+ * turns) is picked over fx_choir_dissonance (-30%/3 turns, The Choir's own
+ * tuned-up sibling) — the copy should read as a generic instance of the
+ * KIND, not as strong as the single toughest source that ever carried it.
+ * Same reasoning for fx_knockback_1 (there's only one knockback entry
+ * today, so no real choice, but the principle would apply if a second ever
+ * gets added) and fx_shock_claws_stun (currently the only stun entry).
+ */
+export function applyCopiedOnHitEffect(
+  kind: OnHitEffectKind,
+  attacker: BattleUnit,
+  defender: BattleUnit,
+  defenderSameSide: BattleUnit[],
+  map: MapDefinition,
+  occupied: Set<string>
+): OnHitApplyResult {
+  if (kind === "stun") return applyMechOnHitEffect("fx_shock_claws_stun", attacker, defender);
+  const fxId = kind === "acid_dot" ? "fx_acid_dot" : kind === "debuff_attack" ? "fx_debuff_attack" : "fx_knockback_1";
+  return applyBloomOnHitEffect(fxId, attacker, defender, defenderSameSide, map, occupied);
 }
 
 /**
@@ -129,6 +233,58 @@ function applyStatusEffect(unit: BattleUnit, effect: StatusEffect): void {
 export function attackDebuffMultiplier(unit: BattleUnit): number {
   const effect = unit.statusEffects.find((e) => e.kind === "debuff_attack" && e.turnsRemaining > 0);
   return effect ? 1 - effect.magnitude : 1;
+}
+
+/**
+ * Whether `unit` is currently stunned (fx_shock_claws_stun today, any
+ * future mech-side stun-kind effect tomorrow) — reads `turnsRemaining > 0`
+ * for the same just-expired-effect reason attackDebuffMultiplier does
+ * right above. engine/mission.ts's runHostileTurn is this function's one
+ * caller: a stunned unit skips its hostile-phase decision and attack
+ * entirely for that one turn, the same way an already-`downed` unit is
+ * skipped, and the stun's own turnsRemaining ages down and expires through
+ * the ordinary tickStatusEffects() pass below like every other status
+ * effect — there is no separate stun-specific decay path.
+ */
+export function isStunned(unit: BattleUnit): boolean {
+  return unit.statusEffects.some((e) => e.kind === "stun" && e.turnsRemaining > 0);
+}
+
+/**
+ * cutting_room_sure_footing (Zanretsu, Vault Phase 2 slice 4, 3 Sep 2026) —
+ * whether `unit` currently has an active knockback/forced-movement
+ * immunity window open (Mission.cuttingRoomSureFooting() sets it,
+ * BattleUnit.sureFootingActive's own comment has the full clock shape).
+ * The ONE caller today is applyBloomOnHitEffect's own knockback branch,
+ * above — there is no mech-on-Bloom knockback in this engine yet (only
+ * "stun" is a wired mech->Bloom on-hit kind, see applyMechOnHitEffect's own
+ * header comment), so this immunity check has nothing else to gate against
+ * right now; a future mech-side knockback effect should call this the same
+ * way.
+ */
+export function isKnockbackImmune(unit: BattleUnit): boolean {
+  return !!unit.sureFootingActive;
+}
+
+/**
+ * cutting_room_momentum (Zanretsu, Vault Phase 2 slice 4, 3 Sep 2026) —
+ * rank 5's "+10% ATK that same turn" half. The +2 move half lives as a
+ * direct, exactly-reverted BattleUnit.moveRange add instead (see
+ * engine/mission.ts's per-round reset loop, right where overextended/
+ * oathkeeperActive/etc. already get cleared) rather than a multiplier read
+ * at every reachableTiles call site — moveRange has no existing "temporary
+ * modifier" abstraction the way effectiveAttack does. The ATK half DOES
+ * have one (attackDebuffMultiplier, right above), so it reuses that same
+ * shape: a 1 (no-op) multiplier for every unit without an active window,
+ * so every pre-existing test/sim case stays byte-identical.
+ * `unit.momentumAtkBoostActive` is a plain boolean rather than a
+ * statusEffects entry — a round-scoped grant tied to one specific
+ * Heirloom's own bookkeeping (at most one window, on its own wielder, ever
+ * active at a time), not a stackable/duration-ticking combat status the
+ * shared StatusEffect array is built to model.
+ */
+export function momentumAttackMultiplier(unit: BattleUnit): number {
+  return unit.momentumAtkBoostActive ? 1 + CUTTING_ROOM_MOMENTUM_ATK_BONUS_PCT : 1;
 }
 
 /**

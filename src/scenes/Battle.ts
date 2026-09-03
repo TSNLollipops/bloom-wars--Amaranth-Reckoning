@@ -14,12 +14,16 @@ import { unitsVisibleToSide } from "../engine/ai";
 import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen } from "../engine/campaignState";
+import { fieldedHeirloom, heirloomForPilot, abilityRank } from "../engine/heirlooms";
+import { HEIRLOOMS } from "../data/heirlooms";
 // Calendar economy, 2 Sep 2026 — mission time feeds the same campaign clock
 // the Hub does. Maxime: "time spent in the hub and time spent on mission run
 // on the same ckock."
 import { accrueRealMs, creditRealMs, measureRealDelta } from "../engine/calendarClock";
 import { TILES } from "../data/tiles";
-import { tierPipCount } from "../data/combatTables";
+import { tierPipCount, CINDER_LINE_DAMAGE_PER_TURN, CINDER_LINE_MAX_TILES, CUTTING_ROOM_CHARGE_MAX_LINE_TILES } from "../data/combatTables";
+// requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — SEVERANCE.maxCharge for the HUD's own charge-meter line, same locked-numbers reuse engine/mission.ts's own Requiem section already does rather than a second placeholder constant.
+import { SEVERANCE } from "../data/abilities";
 import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry";
 // Cursor-following hover tip, 2 Sep 2026 — see scenes/ui/HoverTip.ts and
 // engine/hoverTipLayout.ts. The CONTENT is hoverLines() below, unchanged
@@ -27,6 +31,7 @@ import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry
 import { HoverTip } from "./ui/HoverTip";
 import { VITAL_SIGNS_WARN_FRACTION } from "../data/carrierModules";
 import { UNIT_ARCHETYPES } from "../data/units";
+import { pageActionBar, advancePage, moreButtonLabel } from "../engine/actionBarPaging";
 
 const TILE_COLORS: Record<TileType, number> = {
   plain: 0x3a4636,
@@ -64,6 +69,51 @@ const CONCEAL_COLOR = 0xc084fc; // abil_ambush / abil_screen — this unit is no
 const INTERDICT_COLOR = 0xfb923c; // abil_interdict kill-box
 const SCREEN_COLOR = 0xf472b6; // abil_screen coverage preview
 const FIRE_SUPPORT_COLOR = 0x38bdf8; // abil_fire_support — a distinct sky blue, chosen apart from every hue above so an armed strike's click-target wash never reads as a repaint of an existing verb (Sweep's own violet, Interdict's orange, Screen's pink)
+const DEADFALL_STRIKE_COLOR = 0xd946ef; // deadfall_strike (Vault Phase 2 slice 2) — fuchsia, distinct from attackable's red and every hue above: this target set is NOT the normal attackable list (it ignores range), so it needs its own tell rather than borrowing red's meaning
+// cinder_line_signature (Vault Phase 2 slice 3, 3 Sep 2026) — two colours,
+// two different facts, deliberately not one: CINDER_LINE_TARGET_COLOR washes
+// every legal click endpoint while the ability is armed (same "static area
+// highlight" shape FIRE_SUPPORT_COLOR/missile's own range already use), a
+// burnt orange distinct from every existing hue including INTERDICT_COLOR's
+// lighter 0xfb923c. CINDER_LINE_BURN_COLOR is a separate, darker ember red —
+// drawn every render() call (not just while armed) over whichever tiles are
+// ACTUALLY on fire right now, on either side, the persistent hazard tell a
+// player needs to not walk a unit through their own line by accident.
+const CINDER_LINE_TARGET_COLOR = 0xea580c;
+const CINDER_LINE_BURN_COLOR = 0x991b1b;
+// cutting_room_charge (Zanretsu, Vault Phase 2 slice 4, 3 Sep 2026) — same
+// filled-wash-while-armed treatment as CINDER_LINE_TARGET_COLOR, own hue: a
+// cool steel blue-violet, distinct from every existing wash above including
+// Cinder Line's own burnt orange (the two could plausibly be armed on
+// different units in the same session, even if never on the SAME unit).
+const CUTTING_ROOM_CHARGE_TARGET_COLOR = 0x6366f1;
+
+// Migawari/lastword_signature (Vault Phase 2 slice 5, 3 Sep 2026) — a
+// downed-ally target set, but a fundamentally bigger deal than
+// fieldTriage's own cyan ("gets healed"): this one fully revives, and
+// costs the WIELDER permanently. Emerald — reads as "restored to life,"
+// distinct from every existing hue above.
+const LAST_WORD_SIGNATURE_TARGET_COLOR = 0x10b981;
+// Last Rites/lastword_last_rites (Vault Phase 2 slice 5, 3 Sep 2026) — also
+// a downed-ally target set, own hue: amber, distinct from Migawari's own
+// emerald just above (the two abilities are both on the same Heirloom and
+// can both be armed in the same session, even if never on the same unit at
+// once) — "one last flicker," not a full restoration.
+const LAST_RITES_TARGET_COLOR = 0xfbbf24;
+// Ledgerhall Static/seal_ledgerhall_static (Simulacrum/The Stolen Seal,
+// Vault Phase 2 slice 6, 3 Sep 2026) — a HOSTILE target set, unlike every
+// color above it (all downed-ally sets) — violet, distinct from
+// attackable's red (this isn't a damage option) and from every other hue
+// already claimed.
+const LEDGERHALL_STATIC_TARGET_COLOR = 0x8b5cf6;
+// requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — a bone-
+// white, deliberately unlike every warm hue claimed above (every existing
+// target wash reads as "an ordinary tactical option," red/orange/pink/
+// purple/indigo/emerald/amber): Requiem is the one attack in the game that
+// hits its own side unconditionally, and its own tell on the board should
+// look like nothing else here rather than borrow a color that already
+// means "safe to click."
+const REQUIEM_TARGET_COLOR = 0xfafaf9;
 
 // Right-hand panel layout. The log occupies the band between the HUD block
 // and the contextual action bar; drawHud() budgets its lines against it.
@@ -117,6 +167,18 @@ const ACTION_SLOTS: Coord[] = [
 ];
 const ACTION_SLOT_W = 70;
 const ACTION_SLOT_H = 30;
+/** Left inset where an action label starts, leaving the hotkey digit its own column. See the label's creation site in create(). */
+const ACTION_LABEL_GUTTER = 13;
+/**
+ * Labels at or past this length drop a point of font size so they still fit
+ * the button's remaining width. Monospace at 10px advances ~6px per
+ * character, so 10 characters is 60px against the ~52px a 70px button has
+ * left after the digit gutter and a right margin; at 9px it is ~54px, which
+ * fits. checkActionBarPaging.mjs measures the real Phaser Text objects and
+ * fails if any label still overruns its button, so this number is checked
+ * rather than assumed.
+ */
+const ACTION_LABEL_LONG_CHARS = 10;
 
 /**
  * The silhouettes drawUnit() ever draws. "blob" is now a true defensive
@@ -154,6 +216,17 @@ function bloomSilhouetteKind(movementType: BloomArchetype["movementType"]): Silh
     case "limbless":
       return "bloom_limbless";
   }
+}
+
+/**
+ * Set an action-bar label, dropping a point of size for the long ones so
+ * they stay inside their 70px button. Both call sites in drawActionBar go
+ * through here rather than calling setText directly, so the MORE button and
+ * a verb can never end up with different sizing rules.
+ */
+function setActionLabel(text: Phaser.GameObjects.Text, value: string) {
+  text.setFontSize(value.length >= ACTION_LABEL_LONG_CHARS ? 9 : 10);
+  text.setText(value);
 }
 
 /** One entry in the contextual action bar. `usable` comes from the engine's own canX() predicate — this scene never re-derives one. */
@@ -209,6 +282,13 @@ export class Battle extends Phaser.Scene {
   // button would do, not a click target).
   private rescuableNpc: BattleUnit[] = [];
   private clearableBloom: Coord[] = [];
+  // lastword_field_triage preview (Vault Phase 2, slice 1, 2 Sep 2026):
+  // follows repairable's own shape (a set of units, not tiles) since it's
+  // the same "will get healed" meaning as ordinary Repair, just self-
+  // centered and multi-target — drawn with repairable's own color for that
+  // reason rather than a new hue. Not a click target: the TRIAGE button
+  // runs on press, same as screenable/clearableBloom's own sets above.
+  private fieldTriageTargets: BattleUnit[] = [];
   // abil_fire_support (25 Aug 2026, Mission 14 "Steel Rain") — the one
   // action-bar verb that needs a genuine two-click flow instead of "click
   // the button, it runs": pressing FIRE arms fireSupportTargeting and fills
@@ -271,6 +351,18 @@ export class Battle extends Phaser.Scene {
   // never this scene's.
   private actionSlots: { btn: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text; key: Phaser.GameObjects.Text }[] = [];
   private actionOptions: ActionOption[] = [];
+  // Action-bar paging, 3 Sep 2026 (engine/actionBarPaging.ts — read that
+  // file's header for the bug this closes). actionOptions above is the
+  // unit's WHOLE kit; slotOptions is only what the six buttons are showing
+  // right now, and it is what runActionSlot() indexes into. A null entry is
+  // an empty slot; the MORE button is a slot index rather than an entry, so
+  // that a page's last real action and MORE can never be confused for each
+  // other by an off-by-one.
+  private actionPage = 0;
+  private slotOptions: (ActionOption | null)[] = [];
+  private moreSlotIndex = -1;
+  /** Whose kit the bar is currently paged over. A change resets to page 1 — a player selecting a new unit should never land on that unit's page 2. */
+  private actionBarUnitId: string | null = null;
   // Legibility pass, 1 Sep 2026 (claude/Bloom_Wars_First_Game_Dev_Feature_
   // Gap_Report_1Sep2026.md, items A1/A3/A8/C4/C5 — every one verified
   // absent in this file before being built):
@@ -304,6 +396,65 @@ export class Battle extends Phaser.Scene {
   private forecastLabels: Phaser.GameObjects.Text[] = [];
   private missileTargeting = false;
   private missileRange: Coord[] = [];
+  // deadfall_strike (Ichigeki/Deadfall, Vault Phase 2 slice 2, 3 Sep 2026) —
+  // a third arm-then-click flow, mirroring missileTargeting/missileRange's
+  // own shape, except the click target is a UNIT anywhere visible on the
+  // board rather than a tile in range: deadfallTargets is filled from
+  // engine/mission.ts's getDeadfallStrikeTargetsFrom (every visible hostile,
+  // not just this unit's own attackRange), and handleBoardClick's own
+  // deadfall branch checks membership in it the same way the fire-support/
+  // missile branches check their own tile sets.
+  private deadfallTargeting = false;
+  private deadfallTargets: BattleUnit[] = [];
+  // cinder_line_signature (Surtr, Vault Phase 2 slice 3, 3 Sep 2026) — same
+  // arm-then-click shape as fireSupportTargeting/fireSupportRange: SURTR's
+  // button fills cinderLineArea from engine/mission.ts's
+  // getCinderLineAreaFrom (every legal line-endpoint tile), and
+  // handleBoardClick's own branch below checks membership in it the same
+  // way the fire-support/missile branches check theirs.
+  private cinderLineTargeting = false;
+  private cinderLineArea: Coord[] = [];
+  // cutting_room_charge (Zanretsu, Vault Phase 2 slice 4, 3 Sep 2026) — same
+  // arm-then-click shape as cinderLineTargeting/cinderLineArea just above:
+  // ZANRETSU's button fills cuttingRoomChargeArea from engine/mission.ts's
+  // getCuttingRoomChargeAreaFrom (every legal line-endpoint tile — cardinal
+  // only, not Cinder Line's 8-way set, see that method's own header), and
+  // handleBoardClick's own branch below checks membership in it the same
+  // way cinderLineArea's own branch does.
+  private cuttingRoomChargeTargeting = false;
+  private cuttingRoomChargeArea: Coord[] = [];
+  // Vault Phase 2, slice 5 (3 Sep 2026) — Migawari's remaining 2 of 3
+  // abilities. Both are click-a-UNIT flows, same shape as
+  // deadfallTargeting/deadfallTargets above (a downed ally, not a visible
+  // hostile, but the same "arm, then click a member of a precomputed
+  // list" contract) — see engine/mission.ts's getLastWordSignatureTargetsFrom/
+  // getLastRitesTargetsFrom for what fills each list.
+  private lastWordSignatureTargeting = false;
+  private lastWordSignatureTargets: BattleUnit[] = [];
+  private lastRitesTargeting = false;
+  private lastRitesTargets: BattleUnit[] = [];
+  // seal_ledgerhall_static (Simulacrum/The Stolen Seal, Vault Phase 2 slice
+  // 6, 3 Sep 2026) — same click-a-unit arm-then-click shape as
+  // deadfallTargeting/deadfallTargets above, except the target pool is
+  // getLedgerhallStaticTargetsFrom (visible hostiles that actually have an
+  // ability to jam), not downed allies. seal_borrowed_authority needs no
+  // targeting state of its own — it's a self-only cast, same tier as
+  // OATHKEEPER's own single-click button below, no arm/click flow at all.
+  private ledgerhallStaticTargeting = false;
+  private ledgerhallStaticTargets: BattleUnit[] = [];
+  // requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — same
+  // arm-then-click shape as cinderLineTargeting/cinderLineArea above:
+  // GJALLAR's button fills requiemDirectionTargets from engine/mission.ts's
+  // getRequiemDirectionTargets (one representative tile per legal
+  // direction), and handleBoardClick's own branch below checks whether the
+  // clicked tile shares a direction with any of them the same way the
+  // Cinder Line branch checks membership in cinderLineArea. Unlike Cinder
+  // Line, requiemDirectionTargets is always at most 8 entries (one per
+  // direction, not one per (direction, step) pair) — the line's LENGTH is
+  // fixed (SEVERANCE.shape.length), never chosen by the click, so there's
+  // nothing to enumerate per-step here.
+  private requiemTargeting = false;
+  private requiemDirectionTargets: Coord[] = [];
   private endTurnPrompt: Phaser.GameObjects.Container | null = null;
 
   constructor() {
@@ -327,7 +478,15 @@ export class Battle extends Phaser.Scene {
       // same single load — this used to call loadCampaignState() twice in
       // this constructor, which was two reads of a store that could in
       // principle disagree.
-      { builtModules: campaignForMission?.builtModules ?? [] }
+      {
+        builtModules: campaignForMission?.builtModules ?? [],
+        // seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2
+        // slice 6) — same "snapshot campaign state for this mission's
+        // lifetime" read as builtBays/builtModules above, from the same
+        // single loadCampaignState() call. See CampaignState.foughtOnHitEffectKinds'
+        // own comment for the full design.
+        foughtOnHitEffectKinds: campaignForMission?.foughtOnHitEffectKinds ?? [],
+      }
     );
     // Vital Signs Uplink (2 Sep 2026, data/carrierModules.ts) — snapshotted
     // here for the same reason builtBays is on the line above: this is a
@@ -399,6 +558,25 @@ export class Battle extends Phaser.Scene {
       if (target) target.sendOffBonus = true;
       state.preMissionSendOff = undefined;
       saveCampaignState(state);
+    }
+    // Vault Phase 2, slice 1 (2 Sep 2026) — the one currently-fielded
+    // Heirloom (state.heirlooms.fielded, filtered through fieldedHeirloom's
+    // own "does it still have a living holder" check) grants its wielder
+    // the kit's ability ids at their current ranks. Read-only here: unlike
+    // preMissionSendOff, nothing about fielding is consumed by deploying —
+    // the same Heirloom stays fielded mission after mission until the
+    // player benches or loses it (engine/heirlooms.ts's fieldHeirloom/
+    // unfieldHeirloom own that, not this scene).
+    const heirloomId = fieldedHeirloom(state);
+    if (heirloomId) {
+      const wielderId = Object.keys(state.pilots).find((pid) => heirloomForPilot(state, pid) === heirloomId);
+      const target = wielderId ? roster.find((e) => e.pilotId === wielderId) : undefined;
+      if (target) {
+        const def = HEIRLOOMS[heirloomId];
+        const ranks: Record<string, number> = {};
+        for (const ability of def.abilities) ranks[ability.id] = abilityRank(state, heirloomId, ability.id);
+        target.heirloomAbilityRanks = ranks;
+      }
     }
     return roster;
   }
@@ -651,7 +829,23 @@ export class Battle extends Phaser.Scene {
       // 3x2 layout) — narrower 70px buttons need the extra margin so
       // "OVERWATCH"/"INTERDICT" (the longest labels, 9 characters) don't
       // crowd the button edge.
-      const label = this.add.text(p.x, p.y, "", { fontFamily: "monospace", fontSize: "10px", color: "#ffffff" }).setOrigin(0.5);
+      // Left-aligned, starting after the hotkey digit's gutter (3 Sep 2026).
+      // This used to be .setOrigin(0.5) — centred — with the digit drawn as
+      // a separate object pinned to the same button's left edge, and the two
+      // collided for any label of about eight characters or more. Not
+      // hypothetical and not new: the shipping bar for a Munti carrying
+      // Migawari reads "1OVERWATCH", "5MIGAWARI" and, worst of all,
+      // "6LAST RITES" with the digit fused into the L so it scans as "BAST
+      // RITES". Found by actually looking at a screenshot of the real bar
+      // while verifying something else, which is the only way this class of
+      // bug ever gets found — tsc, eslint and 1965 unit tests were all clean
+      // through every frame of it. Giving the digit its own gutter and
+      // letting the text start after it removes the overlap by construction
+      // rather than by tuning a font size until it happens to fit; the
+      // long-label size drop in drawActionBar() handles the remaining width.
+      const label = this.add
+        .text(p.x - ACTION_SLOT_W / 2 + ACTION_LABEL_GUTTER, p.y, "", { fontFamily: "monospace", fontSize: "10px", color: "#ffffff" })
+        .setOrigin(0, 0.5);
       // Hotkey digit (2 Sep 2026) — pinned inside the button's left edge,
       // vertically centred, in a dimmer blue than the label so it reads as
       // chrome rather than part of the action's name. See drawActionBar.
@@ -770,11 +964,30 @@ export class Battle extends Phaser.Scene {
       this.render();
       return;
     }
-    if ((this.fireSupportTargeting || this.missileTargeting) && this.selectedUnitId) {
+    if (
+      (this.fireSupportTargeting ||
+        this.missileTargeting ||
+        this.cinderLineTargeting ||
+        this.cuttingRoomChargeTargeting ||
+        this.lastWordSignatureTargeting ||
+        this.lastRitesTargeting ||
+        this.requiemTargeting) &&
+      this.selectedUnitId
+    ) {
       this.fireSupportTargeting = false;
       this.fireSupportRange = [];
       this.missileTargeting = false;
       this.missileRange = [];
+      this.cinderLineTargeting = false;
+      this.cinderLineArea = [];
+      this.cuttingRoomChargeTargeting = false;
+      this.cuttingRoomChargeArea = [];
+      this.lastWordSignatureTargeting = false;
+      this.lastWordSignatureTargets = [];
+      this.lastRitesTargeting = false;
+      this.lastRitesTargets = [];
+      this.requiemTargeting = false;
+      this.requiemDirectionTargets = [];
       this.recomputeSelectionHighlights(this.selectedUnitId);
       this.render();
       return;
@@ -859,6 +1072,153 @@ export class Battle extends Phaser.Scene {
     if (!tile) return;
 
     const unitHere = this.mission.livingUnits().find((u) => u.pos.x === tile.x && u.pos.y === tile.y);
+
+    // Cinder Line, armed (Surtr, Vault Phase 2 slice 3, 3 Sep 2026) —
+    // checked first of all, ahead of Deadfall/missile/fire-support: its own
+    // click target set (every legal line-endpoint tile) can overlap every
+    // other set below (attackable, reachable, the other two strikes' own
+    // ranges), and an armed line placement should win an ambiguous click
+    // the same reason those three already do for each other.
+    if (this.selectedUnitId && this.cinderLineTargeting) {
+      if (this.cinderLineArea.some((c) => coordKey(c) === coordKey(tile))) {
+        this.mission.cinderLineSignature(this.selectedUnitId, tile);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      // Clicked outside the legal endpoint set — cancel targeting, same
+      // escape hatch every other armed-strike branch here uses, then fall
+      // through to ordinary click handling on this same tile.
+      this.cinderLineTargeting = false;
+      this.cinderLineArea = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Gjallar, armed (requiem_severance, Vault Phase 2 slice 7, 3 Sep 2026)
+    // — same "armed strike wins the click, checked ahead of every other
+    // block" reasoning as Cinder Line's own comment just above. A click
+    // matching requiemDirectionTargets fires the FULL fixed-length line in
+    // that direction (mission.requiemSeverance), not just the clicked tile
+    // — same "one click, engine resolves the whole affected set" contract
+    // Cinder Line's own click branch uses.
+    if (this.selectedUnitId && this.requiemTargeting) {
+      if (this.requiemDirectionTargets.some((c) => coordKey(c) === coordKey(tile))) {
+        this.mission.requiemSeverance(this.selectedUnitId, tile);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      // Clicked outside the legal direction set — cancel targeting, same
+      // escape hatch every other armed-strike branch here uses, then fall
+      // through to ordinary click handling on this same tile.
+      this.requiemTargeting = false;
+      this.requiemDirectionTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Zanretsu, armed (cutting_room_charge, Vault Phase 2 slice 4, 3 Sep
+    // 2026) — same "checked first, ahead of every other armed-strike
+    // branch" shape Cinder Line's own block above just established, for the
+    // identical reason: its click target set can overlap attackable/
+    // reachable/every other strike's own range, and an armed charge should
+    // win the click.
+    if (this.selectedUnitId && this.cuttingRoomChargeTargeting) {
+      if (this.cuttingRoomChargeArea.some((c) => coordKey(c) === coordKey(tile))) {
+        this.mission.cuttingRoomCharge(this.selectedUnitId, tile);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      // Clicked outside the legal endpoint set — cancel targeting, same
+      // escape hatch every other armed-strike branch here uses, then fall
+      // through to ordinary click handling on this same tile.
+      this.cuttingRoomChargeTargeting = false;
+      this.cuttingRoomChargeArea = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Migawari (lastword_signature, Vault Phase 2 slice 5, 3 Sep 2026) —
+    // checked next, same "armed strike wins the click" reasoning as every
+    // block above. Matched by POSITION, not `unitHere`: the target is a
+    // DOWNED ally, and `unitHere` above is deliberately derived from
+    // livingUnits() (excludes downed units) — see that assignment's own
+    // comment. Position match against the precomputed target list is the
+    // same contract cinderLineArea/cuttingRoomChargeArea's own tile-set
+    // checks already use, just against unit positions instead of a raw
+    // coordinate set.
+    if (this.selectedUnitId && this.lastWordSignatureTargeting) {
+      const target = this.lastWordSignatureTargets.find((t) => coordKey(t.pos) === coordKey(tile));
+      if (target) {
+        this.mission.lastWordSignature(this.selectedUnitId, target.instanceId);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      this.lastWordSignatureTargeting = false;
+      this.lastWordSignatureTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Last Rites (lastword_last_rites, Vault Phase 2 slice 5, 3 Sep 2026) —
+    // same shape as Migawari's own block just above (a downed-ally target,
+    // matched by position).
+    if (this.selectedUnitId && this.lastRitesTargeting) {
+      const target = this.lastRitesTargets.find((t) => coordKey(t.pos) === coordKey(tile));
+      if (target) {
+        this.mission.lastRites(this.selectedUnitId, target.instanceId);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      this.lastRitesTargeting = false;
+      this.lastRitesTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Deadfall Strike, armed (Ichigeki/Deadfall, Vault Phase 2 slice 2, 3
+    // Sep 2026) — checked next, ahead of missile/fire-support (only Cinder
+    // Line's own block above it now, added later — see that block's own
+    // comment for why it claims the very first slot instead): its own
+    // target set (any visible hostile, not just this unit's own attackRange)
+    // can overlap the ordinary attackable set, and an armed strike should
+    // win that click, not get reinterpreted as a normal Attack.
+    if (this.selectedUnitId && this.deadfallTargeting) {
+      if (unitHere && this.deadfallTargets.some((t) => t.instanceId === unitHere.instanceId)) {
+        this.mission.deadfallStrike(this.selectedUnitId, unitHere.instanceId);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      // Clicked outside the target set — cancel targeting, same escape
+      // hatch the fire-support/missile branches below use, then fall
+      // through to the normal click handling below using this same tile.
+      this.deadfallTargeting = false;
+      this.deadfallTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Ledgerhall Static, armed (seal_ledgerhall_static, Vault Phase 2 slice
+    // 6, 3 Sep 2026) — same shape as Deadfall Strike's own block just above:
+    // a visible-hostile target set, checked ahead of the ordinary attackable
+    // set so an armed jam wins the click.
+    if (this.selectedUnitId && this.ledgerhallStaticTargeting) {
+      if (unitHere && this.ledgerhallStaticTargets.some((t) => t.instanceId === unitHere.instanceId)) {
+        this.mission.ledgerhallStatic(this.selectedUnitId, unitHere.instanceId);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      this.ledgerhallStaticTargeting = false;
+      this.ledgerhallStaticTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
 
     // Missile, armed (1 Sep 2026, feature-gap report A8) — identical shape
     // to the fire-support branch right below it, checked first for the same
@@ -1078,10 +1438,25 @@ export class Battle extends Phaser.Scene {
     this.screenable = [];
     this.rescuableNpc = [];
     this.clearableBloom = [];
+    this.fieldTriageTargets = [];
     this.fireSupportTargeting = false;
     this.fireSupportRange = [];
     this.missileTargeting = false;
     this.missileRange = [];
+    this.deadfallTargeting = false;
+    this.deadfallTargets = [];
+    this.cinderLineTargeting = false;
+    this.cinderLineArea = [];
+    this.cuttingRoomChargeTargeting = false;
+    this.cuttingRoomChargeArea = [];
+    this.lastWordSignatureTargeting = false;
+    this.lastWordSignatureTargets = [];
+    this.lastRitesTargeting = false;
+    this.lastRitesTargets = [];
+    this.ledgerhallStaticTargeting = false;
+    this.ledgerhallStaticTargets = [];
+    this.requiemTargeting = false;
+    this.requiemDirectionTargets = [];
   }
 
   /**
@@ -1099,7 +1474,18 @@ export class Battle extends Phaser.Scene {
     // immediately repopulate reachable/attackable/repairable/etc. from the
     // engine again, undoing the suppression that same run() just did and
     // leaving a confusing mix of washes on the board mid-targeting.
-    if (this.fireSupportTargeting || this.missileTargeting) return;
+    if (
+      this.fireSupportTargeting ||
+      this.missileTargeting ||
+      this.deadfallTargeting ||
+      this.cinderLineTargeting ||
+      this.cuttingRoomChargeTargeting ||
+      this.lastWordSignatureTargeting ||
+      this.lastRitesTargeting ||
+      this.ledgerhallStaticTargeting ||
+      this.requiemTargeting
+    )
+      return;
     const unit = this.mission.unitById(unitId);
     if (!unit) return;
     this.reachable = this.mission.getReachableTiles(unitId);
@@ -1110,6 +1496,7 @@ export class Battle extends Phaser.Scene {
     this.screenable = this.mission.getScreenableFrom(unitId, unit.pos);
     this.rescuableNpc = this.mission.getRescuableFrom(unitId, unit.pos);
     this.clearableBloom = this.mission.getClearableBloomFrom(unitId, unit.pos);
+    this.fieldTriageTargets = this.mission.getFieldTriageTargetsFrom(unitId, unit.pos);
   }
 
   /**
@@ -1205,6 +1592,7 @@ export class Battle extends Phaser.Scene {
           this.screenable = [];
           this.rescuableNpc = [];
           this.clearableBloom = [];
+          this.fieldTriageTargets = [];
         },
       });
     }
@@ -1231,17 +1619,283 @@ export class Battle extends Phaser.Scene {
           this.screenable = [];
           this.rescuableNpc = [];
           this.clearableBloom = [];
+          this.fieldTriageTargets = [];
         },
       });
     }
-    return out.slice(0, ACTION_SLOTS.length);
+    // Vault Phase 2, slice 1 (2 Sep 2026) — the four Heirloom abilities that
+    // need a player-facing button (salt_root_salt is passive and never
+    // shows here — see engine/combat.ts's saltRootMultiplier instead). No
+    // "arm targeting" flow for any of these, unlike FIRE/MISSILE above:
+    // none of them target a tile. Iron Word and Ledger Overextended are
+    // self-only postures (same shape as OVERWATCH/TAUNT's own buttons);
+    // Field Triage and Farsight Signature are self-centered radius/global
+    // effects (same shape as SCREEN/SWEEP's own buttons).
+    if (unit.abilities.includes("oath_iron_word")) {
+      out.push({ label: "IRON WORD", usable: m.canIronWord(id), endsTurn: true, run: () => void m.ironWord(id) });
+    }
+    if (unit.abilities.includes("lastword_field_triage")) {
+      out.push({ label: "TRIAGE", usable: m.canFieldTriage(id), endsTurn: false, run: () => void m.fieldTriage(id) });
+    }
+    if (unit.abilities.includes("farsight_signature")) {
+      out.push({ label: "PANOPTES", usable: m.canFarsightSignature(id), endsTurn: false, run: () => void m.farsightSignature(id) });
+    }
+    if (unit.abilities.includes("ledger_overextended")) {
+      out.push({ label: "OVEREXTEND", usable: m.canLedgerOverextended(id), endsTurn: false, run: () => void m.ledgerOverextended(id) });
+    }
+    // Vault Phase 2, slice 2 (3 Sep 2026) — the two more Heirloom
+    // abilities that need a player-facing button (ledger_entry is passive,
+    // same carve-out as salt_root_salt just above — see engine/combat.ts's
+    // ledgerEntryMultiplier instead). Oathkeeper is a self-only posture,
+    // same shape as OVEREXTEND's own button just above; Deadfall Strike is
+    // the one genuinely new flow here — it arms a click-a-unit targeting
+    // mode, same two-click shape as FIRE/MISSILE above except the target
+    // pool is a set of UNITS (getDeadfallStrikeTargetsFrom), not tiles.
+    if (unit.abilities.includes("oath_oathkeeper")) {
+      out.push({ label: "OATHKEEPER", usable: m.canOathkeeper(id), endsTurn: false, run: () => void m.oathkeeper(id) });
+    }
+    if (unit.abilities.includes("deadfall_strike")) {
+      out.push({
+        label: "ICHIGEKI",
+        usable: m.canDeadfallStrike(id),
+        endsTurn: false,
+        run: () => {
+          this.deadfallTargeting = true;
+          this.deadfallTargets = m.getDeadfallStrikeTargetsFrom(id);
+          // Suppress every other highlight while armed — same reasoning as
+          // FIRE/MISSILE's own run() just above: refreshSelectionAfterAction
+          // runs right after this (endsTurn is false) and would otherwise
+          // repopulate reachable/attackable/etc. straight back.
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    // Vault Phase 2, slice 3 (3 Sep 2026) — Surtr's full 3-ability kit.
+    // SURTR itself arms a click-a-tile targeting mode, the fourth of this
+    // shape after FIRE/MISSILE/ICHIGEKI (see cinderLineTargeting's own field
+    // comment) — its target set is every legal line endpoint
+    // (getCinderLineAreaFrom), not the unit's own attackRange. Firebreak and
+    // Draft are both self-only, one-action postures with no targeting step
+    // of their own, same shape as OATHKEEPER's button just above.
+    if (unit.abilities.includes("cinder_line_signature")) {
+      out.push({
+        label: "SURTR",
+        usable: m.canCinderLineSignature(id),
+        endsTurn: false,
+        run: () => {
+          this.cinderLineTargeting = true;
+          this.cinderLineArea = m.getCinderLineAreaFrom(id, unit.pos);
+          // Suppress every other highlight while armed — same reasoning as
+          // FIRE/MISSILE/ICHIGEKI's own run() above.
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    if (unit.abilities.includes("cinder_firebreak")) {
+      out.push({ label: "FIREBREAK", usable: m.canFirebreak(id), endsTurn: false, run: () => void m.firebreak(id) });
+    }
+    if (unit.abilities.includes("cinder_draft")) {
+      out.push({ label: "DRAFT", usable: m.canDraft(id), endsTurn: false, run: () => void m.draft(id) });
+    }
+    // Vault Phase 2, slice 4 (3 Sep 2026) — Zanretsu's full 3-ability kit.
+    // ZANRETSU itself arms a click-a-tile targeting mode, same shape as
+    // SURTR's own button above — its target set is every legal line
+    // endpoint (getCuttingRoomChargeAreaFrom), cardinal only. Sure Footing
+    // is a self-only, one-action posture with no targeting step, same
+    // shape as OATHKEEPER/FIREBREAK/DRAFT above. cutting_room_momentum has
+    // no button at all — it isn't separately activated, see
+    // BattleUnit.momentumPending's own comment.
+    if (unit.abilities.includes("cutting_room_charge")) {
+      out.push({
+        label: "ZANRETSU",
+        usable: m.canCuttingRoomCharge(id),
+        endsTurn: false,
+        run: () => {
+          this.cuttingRoomChargeTargeting = true;
+          this.cuttingRoomChargeArea = m.getCuttingRoomChargeAreaFrom(id, unit.pos);
+          // Suppress every other highlight while armed — same reasoning as
+          // every other armed-strike button above.
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    if (unit.abilities.includes("cutting_room_sure_footing")) {
+      out.push({
+        label: "SURE FOOT",
+        usable: m.canCuttingRoomSureFooting(id),
+        endsTurn: false,
+        run: () => void m.cuttingRoomSureFooting(id),
+      });
+    }
+    // Vault Phase 2, slice 5 (3 Sep 2026) — Migawari's remaining 2 of 3
+    // abilities. Both arm a click-a-UNIT targeting mode, same shape as
+    // ICHIGEKI's own button above except the target pool is a set of
+    // DOWNED allies (getLastWordSignatureTargetsFrom / getLastRitesTargetsFrom),
+    // not visible hostiles. lastword_field_triage (TRIAGE, above) is
+    // unrelated and untouched.
+    if (unit.abilities.includes("lastword_signature")) {
+      out.push({
+        label: "MIGAWARI",
+        usable: m.canLastWordSignature(id),
+        endsTurn: false,
+        run: () => {
+          this.lastWordSignatureTargeting = true;
+          this.lastWordSignatureTargets = m.getLastWordSignatureTargetsFrom(id);
+          // Suppress every other highlight while armed — same reasoning as
+          // every other armed-strike button above.
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    if (unit.abilities.includes("lastword_last_rites")) {
+      out.push({
+        label: "LAST RITES",
+        usable: m.canLastRites(id),
+        endsTurn: false,
+        run: () => {
+          this.lastRitesTargeting = true;
+          this.lastRitesTargets = m.getLastRitesTargetsFrom(id);
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    // Vault Phase 2, slice 6 (3 Sep 2026) — Simulacrum's full 3-ability kit
+    // (stolen_seal/The Stolen Seal). seal_inherited_weight is passive
+    // (rolled once at mission start, engine/mission.ts's
+    // rollInheritedWeight()) — same no-button carve-out as ledger_entry/
+    // salt_root_salt above. seal_borrowed_authority is self-only, same
+    // single-click shape as OATHKEEPER's own button above (no arm/click
+    // flow — its rank5 reroll is resolved internally, see
+    // Mission.sealBorrowedAuthority's own header for why). seal_ledgerhall_static
+    // is a click-a-hostile flow, same shape as ICHIGEKI's own button above.
+    if (unit.abilities.includes("seal_borrowed_authority")) {
+      out.push({
+        label: "SIMULACRUM",
+        usable: m.canSealBorrowedAuthority(id),
+        endsTurn: false,
+        run: () => void m.sealBorrowedAuthority(id),
+      });
+    }
+    if (unit.abilities.includes("seal_ledgerhall_static")) {
+      out.push({
+        label: "STATIC",
+        usable: m.canLedgerhallStatic(id),
+        endsTurn: false,
+        run: () => {
+          this.ledgerhallStaticTargeting = true;
+          this.ledgerhallStaticTargets = m.getLedgerhallStaticTargetsFrom(id);
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    // requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — same
+    // arm-then-click-a-direction shape as SURTR/ZANRETSU above, gated on
+    // this SAME uniform `unit.abilities.includes(...)` convention every
+    // other button here uses (see engine/mission.ts's own Requiem section
+    // header, FLAGGED ASSUMPTION #1, for why "any own unit" from the GDD
+    // text is read as "the ordinary selected unit," not a second unit-pick
+    // step). `usable` folds in BOTH gates — the shared charge meter being
+    // full AND this specific unit still having an action — so the button
+    // greys out for the mundane reason (already acted) exactly the same way
+    // it greys out for the dramatic one (not charged yet); the hover tip
+    // (see drawHud below) is where the player learns which.
+    if (unit.abilities.includes("requiem_severance")) {
+      out.push({
+        label: "GJALLAR",
+        usable: m.canRequiemSeverance(id),
+        endsTurn: false,
+        run: () => {
+          this.requiemTargeting = true;
+          this.requiemDirectionTargets = m.getRequiemDirectionTargets(id);
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    // Returns the WHOLE kit — no slice, no cap (3 Sep 2026). This used to
+    // end with `out.slice(0, ACTION_SLOTS.length)` and a console.warn, which
+    // meant a seventh verb was dropped on the floor with nothing on screen
+    // saying so: 23 Aug 2026 it was a Munti losing FIRE, and by the time the
+    // Heirloom kits landed it was reachable by fifteen different archetype x
+    // Heirloom pairings, peaking at eight buttons for six slots. drawActionBar
+    // pages the overflow now (engine/actionBarPaging.ts), so the honest thing
+    // for this function to return is everything the unit can actually do, and
+    // the "does it fit" question belongs entirely to the drawing side.
+    return out;
   }
 
   private runActionSlot(index: number) {
     if (this.mission.outcome !== "ongoing" || this.mission.phase !== "player") return;
     if (this.isAnimatingMove) return; // same lock as handleBoardClick — see animatingUnitId's field comment
     if (this.endTurnPrompt) return; // modal — see handleBoardClick's own guard
-    const option = this.actionOptions[index];
+    // MORE (3 Sep 2026): turns the page rather than running a verb. Checked
+    // before the option lookup because on an overflowing bar this slot holds
+    // no option at all. Deliberately not gated on the mission/animation
+    // guards above being *loose* — it goes through exactly the same ones, so
+    // paging is impossible at moments when acting is, which keeps the bar's
+    // contents stable while a modal is open or a move is animating.
+    if (index === this.moreSlotIndex) {
+      const pageCount = pageActionBar(this.actionOptions, ACTION_SLOTS.length, this.actionPage).pageCount;
+      this.actionPage = advancePage(this.actionPage, pageCount);
+      this.render();
+      return;
+    }
+    const option = this.slotOptions[index];
     if (!option || !option.usable) return;
     option.run();
     if (option.endsTurn) {
@@ -1305,6 +1959,24 @@ export class Battle extends Phaser.Scene {
       }
     }
 
+    // cinder_line_signature — persistent burning-tile overlay (Vault Phase
+    // 2 slice 3, 3 Sep 2026). Drawn every render() call, not gated on any
+    // selection/arming state: a Surtr line is a fact about the BOARD (any
+    // unit standing here takes damage at the next tick, either side, no
+    // exception), not about whoever currently has a unit selected — the
+    // same reason terrain itself is drawn unconditionally just above,
+    // rather than only while some unit that cares about it is selected.
+    // Read straight from Mission.getActiveSurtrLines() (engine/mission.ts)
+    // rather than any local Battle.ts cache, so a line placed, ticked down,
+    // or extinguished this frame is always exactly what's on the board —
+    // there is no separate copy here to fall out of sync.
+    for (const line of this.mission.getActiveSurtrLines()) {
+      for (const c of line.tiles) {
+        g.fillStyle(CINDER_LINE_BURN_COLOR, 0.55);
+        g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+      }
+    }
+
     // Contrast pass, 27 Aug 2026 (Campaign Playtest Review — "it took me
     // real time to stop misreading terrain color for a movement highlight
     // (the two look similar enough at a glance that I wasted several turns
@@ -1329,7 +2001,23 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(0xef4444, 0.4);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
     }
+    // deadfall_strike target preview (Vault Phase 2 slice 2) — its own
+    // fuchsia, not attackable's red: this set ignores attackRange entirely
+    // (any visible hostile, anywhere), so reusing red would read as an
+    // ordinary Attack option and mislead a player into expecting the normal
+    // dodge/counter rules.
+    for (const u of this.deadfallTargets) {
+      g.fillStyle(DEADFALL_STRIKE_COLOR, 0.4);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
     for (const u of this.repairable) {
+      g.fillStyle(0x22d3ee, 0.4);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    // lastword_field_triage preview — same cyan as repairable just above,
+    // same meaning ("gets healed"); see fieldTriageTargets' own field
+    // comment for why this doesn't need a color distinct from Repair's.
+    for (const u of this.fieldTriageTargets) {
       g.fillStyle(0x22d3ee, 0.4);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
     }
@@ -1393,6 +2081,51 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(FIRE_SUPPORT_COLOR, 0.3);
       g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
+    // Cinder Line targeting (Surtr, Vault Phase 2 slice 3, 3 Sep 2026) —
+    // same filled-wash treatment as Fire Support/Missile just above, own
+    // colour: this IS the click target set, every other highlight is
+    // suppressed while armed (see SURTR's own run() in availableActions).
+    for (const c of this.cinderLineArea) {
+      g.fillStyle(CINDER_LINE_TARGET_COLOR, 0.3);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+    }
+    // Zanretsu targeting (cutting_room_charge, Vault Phase 2 slice 4, 3 Sep
+    // 2026) — same filled-wash treatment as Cinder Line just above, own
+    // colour: this IS the click target set, every other highlight is
+    // suppressed while armed (see ZANRETSU's own run() in availableActions).
+    for (const c of this.cuttingRoomChargeArea) {
+      g.fillStyle(CUTTING_ROOM_CHARGE_TARGET_COLOR, 0.3);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+    }
+    // Migawari / Last Rites target previews (Vault Phase 2 slice 5, 3 Sep
+    // 2026) — unit-position washes, same shape as deadfallTargets/
+    // fieldTriageTargets above, not the cinderLineArea/cuttingRoomChargeArea
+    // raw-tile-set shape just above (there's no line/area to trace, just a
+    // handful of specific downed allies to pick from).
+    for (const u of this.lastWordSignatureTargets) {
+      g.fillStyle(LAST_WORD_SIGNATURE_TARGET_COLOR, 0.45);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    for (const u of this.lastRitesTargets) {
+      g.fillStyle(LAST_RITES_TARGET_COLOR, 0.45);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    // Ledgerhall Static target preview (Vault Phase 2 slice 6, 3 Sep 2026) —
+    // a hostile-unit wash, same shape as deadfallTargets above, own violet.
+    for (const u of this.ledgerhallStaticTargets) {
+      g.fillStyle(LEDGERHALL_STATIC_TARGET_COLOR, 0.4);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    // Gjallar targeting (requiem_severance, Vault Phase 2 slice 7, 3 Sep
+    // 2026) — same filled-wash treatment as Cinder Line/Zanretsu above, own
+    // colour (REQUIEM_TARGET_COLOR's own comment explains the deliberate
+    // "unlike anything else on this board" choice). This IS the click
+    // target set — every direction, out to the board edge, not just the
+    // fixed 8-tile hit-list (see getRequiemDirectionTargets' own comment).
+    for (const c of this.requiemDirectionTargets) {
+      g.fillStyle(REQUIEM_TARGET_COLOR, 0.22);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+    }
     // Splash preview: while a strike is armed and the pointer sits on a
     // legal target tile, outline the blast footprint so "who's inside"
     // is visible on the board itself, not only in the HUD's victim list.
@@ -1402,6 +2135,56 @@ export class Battle extends Phaser.Scene {
         const h = this.hoverTile;
         g.lineStyle(2, 0xffffff, 0.9);
         g.strokeRect(this.boardX + (h.x - 1) * ts + 1, this.boardY + (h.y - 1) * ts + 1, 3 * ts - 3, 3 * ts - 3);
+      }
+    }
+    // Cinder Line preview: unlike Fire Support/Missile's fixed-size blast
+    // box, a Surtr line's actual affected set is a variable-length RUN from
+    // the wielder out to wherever the pointer sits — the clickable area
+    // above (every legal endpoint) is NOT the same shape as what a given
+    // click would ignite, so this outlines the real tile-by-tile run
+    // (Mission.previewCinderLineFrom) rather than a fixed box, the one
+    // piece of information the flat area wash above can't convey on its
+    // own.
+    if (this.selectedUnitId && this.hoverTile && this.cinderLineTargeting) {
+      const preview = this.mission.previewCinderLineFrom(this.selectedUnitId, this.hoverTile);
+      if (preview) {
+        for (const c of preview) {
+          g.lineStyle(2, 0xffffff, 0.9);
+          g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
+        }
+      }
+    }
+    // Zanretsu preview: same "outline the real tile-by-tile run" treatment
+    // as Cinder Line's own preview just above, for the identical reason —
+    // the clickable area wash above is every legal endpoint, not the same
+    // shape as what a given click would actually charge through.
+    if (this.selectedUnitId && this.hoverTile && this.cuttingRoomChargeTargeting) {
+      const preview = this.mission.previewCuttingRoomChargeFrom(this.selectedUnitId, this.hoverTile);
+      if (preview) {
+        for (const c of preview) {
+          g.lineStyle(2, 0xffffff, 0.9);
+          g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
+        }
+      }
+    }
+    // Gjallar preview: same "outline the real fixed-length hit-list"
+    // treatment as Cinder Line/Zanretsu's own preview just above, for the
+    // identical reason — the direction-set wash above only says which way
+    // the beam points, not the actual (always exactly SEVERANCE.shape.length
+    // -or-shorter-at-an-edge) tiles it hits. Drawn in REQUIEM_TARGET_COLOR
+    // rather than the neutral white every other preview outline here uses,
+    // on purpose: this outline always includes the wielder's OWN tile (GDD
+    // §8.2's "the origin unit is included"), so a plain white box here would
+    // read as "you are safe, standing in the preview area" exactly backward
+    // from the truth — the player needs to see their own square is part of
+    // the kill zone before they commit to the click, not after.
+    if (this.selectedUnitId && this.hoverTile && this.requiemTargeting) {
+      const preview = this.mission.previewRequiemSeverance(this.selectedUnitId, this.hoverTile);
+      if (preview) {
+        for (const c of preview) {
+          g.lineStyle(2, REQUIEM_TARGET_COLOR, 0.95);
+          g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
+        }
       }
     }
     // Hold Zone marker (30 Aug 2026, Maxime: "i reach turn 16 and it give me
@@ -1559,9 +2342,41 @@ export class Battle extends Phaser.Scene {
    */
   private drawActionBar() {
     this.actionOptions = this.availableActions();
+    // Page 1 whenever the selection changes. Without this, selecting a
+    // seven-verb unit, pressing MORE, then clicking a three-verb unit would
+    // leave the new unit's bar on a page that doesn't exist — pageActionBar
+    // clamps rather than blanks, so it would have shown the last page, but
+    // "I clicked a unit and got its second page" is still wrong.
+    if (this.selectedUnitId !== this.actionBarUnitId) {
+      this.actionBarUnitId = this.selectedUnitId;
+      this.actionPage = 0;
+    }
+    const paged = pageActionBar(this.actionOptions, ACTION_SLOTS.length, this.actionPage);
+    this.actionPage = paged.page - 1; // absorb any clamp, so MORE steps from where we actually are
+    this.moreSlotIndex = paged.moreSlotIndex;
+    this.slotOptions = [];
     for (let i = 0; i < this.actionSlots.length; i++) {
       const slot = this.actionSlots[i];
-      const option = this.actionOptions[i];
+      // MORE always sits in the last slot and is always pressable — it is
+      // navigation, not a verb, so it never greys out with the unit's
+      // remaining actions. Drawn in the same blue as a usable action rather
+      // than a colour of its own: a third button colour on a six-button bar
+      // reads as a third *kind* of thing, and this is just a page turn.
+      if (i === paged.moreSlotIndex) {
+        this.slotOptions.push(null);
+        slot.btn.setVisible(true);
+        slot.label.setVisible(true);
+        slot.btn.setFillStyle(0x2e5c7a);
+        slot.btn.setStrokeStyle(1, 0x4a7a9a);
+        setActionLabel(slot.label, moreButtonLabel(paged.page, paged.pageCount));
+        slot.label.setColor("#ffffff");
+        slot.key.setVisible(true);
+        slot.key.setText(String(i + 1));
+        slot.key.setColor("#8ab4d8");
+        continue;
+      }
+      const option = paged.items[i];
+      this.slotOptions.push(option ?? null);
       if (!option) {
         slot.btn.setVisible(false);
         slot.label.setVisible(false);
@@ -1572,7 +2387,7 @@ export class Battle extends Phaser.Scene {
       slot.label.setVisible(true);
       slot.btn.setFillStyle(option.usable ? 0x2e5c7a : 0x1a2028);
       slot.btn.setStrokeStyle(1, option.usable ? 0x4a7a9a : 0x3a4552);
-      slot.label.setText(option.label);
+      setActionLabel(slot.label, option.label);
       slot.label.setColor(option.usable ? "#ffffff" : "#5a6572");
       // Hotkey digit, 2 Sep 2026 (Maxime: "add some natural keybinding for
       // the majority of action"). A binding nobody can find is worth
@@ -2257,6 +3072,32 @@ export class Battle extends Phaser.Scene {
     if (this.fireSupportTargeting) lines.push("", `Blue tiles = Fire Support strike center (shared, ${m.fireSupportChargesRemaining} charge(s) left) — click to call it in, or click elsewhere to cancel`);
     if (this.missileTargeting && this.selectedUnitId)
       lines.push("", `Blue tiles = MISSILE target (${m.missileChargesRemaining(this.selectedUnitId)} charge(s) left) — splash hits EVERYONE within 1 tile, allies included. Click to fire, Esc/right-click to cancel`);
+    if (this.cinderLineTargeting)
+      lines.push("", `Orange tiles = SURTR line endpoints, up to ${CINDER_LINE_MAX_TILES} tiles — click one to set the whole run burning, either side, no exception. Esc/right-click to cancel`);
+    if (m.getActiveSurtrLines().length) lines.push("", "Dark red tiles = an active Surtr line — burns anything standing on it, either side");
+    if (this.cuttingRoomChargeTargeting)
+      lines.push("", `Indigo tiles = ZANRETSU line endpoints, up to ${CUTTING_ROOM_CHARGE_MAX_LINE_TILES} tiles — click one to charge the whole run, full commitment, ends the turn. Esc/right-click to cancel`);
+    if (this.lastWordSignatureTargeting)
+      lines.push("", "Emerald tile = MIGAWARI target — fully restores a downed ally, permanently reduces the wielder's own max HP. Esc/right-click to cancel");
+    if (this.lastRitesTargeting)
+      lines.push("", "Amber tile = LAST RITES target — one final action for an ally downed this turn, then they go back down. Esc/right-click to cancel");
+    if (this.requiemTargeting)
+      lines.push(
+        "",
+        `Bone-white tiles = GJALLAR direction — an unconditional ${SEVERANCE.shape.length}-tile beam, ${SEVERANCE.damage} fixed damage, EVERYONE on it including your own unit, no exception. Click to fire, Esc/right-click to cancel`
+      );
+    // Gjallar's charge meter — shown whenever the party actually holds it
+    // this mission (a living player unit carries requiem_severance),
+    // independent of whether it's currently armed, so the player can watch
+    // it fill toward SEVERANCE.maxCharge over the course of the fight the
+    // same way GDD §8.3 describes ("the meter appears... the player learns
+    // it exists").
+    {
+      const requiemWielder = this.mission.livingUnits().find((u) => u.side === "player" && u.abilities.includes("requiem_severance"));
+      if (requiemWielder) {
+        lines.push("", `Gjallar charge (${requiemWielder.displayName}): ${this.mission.getRequiemCharge()}/${SEVERANCE.maxCharge}`);
+      }
+    }
     // Same legend treatment as every highlight above, for the terrain
     // itself rather than an action preview — green exit tiles are drawn as
     // base terrain (TILE_COLORS.exit) on every extract_unit map already, so
@@ -2343,6 +3184,15 @@ export class Battle extends Phaser.Scene {
     return `on hit: knocks the target back ${fx.magnitude} tile`;
   }
 
+  /** The active Surtr line (if any) whose tiles include `c`, for hoverLines' own burning-tile readout — Mission.getActiveSurtrLines() is the single source, this is purely a lookup. */
+  private surtrLineAt(c: Coord): { damagePerTurn: number; turnsRemaining: number } | undefined {
+    const key = coordKey(c);
+    for (const line of this.mission.getActiveSurtrLines()) {
+      if (line.tiles.some((t) => coordKey(t) === key)) return line;
+    }
+    return undefined;
+  }
+
   /** The HUD's hover block — see drawHud's call site for the priority order. */
   private hoverLines(): string[] {
     const m = this.mission;
@@ -2365,6 +3215,53 @@ export class Battle extends Phaser.Scene {
       return out;
     }
 
+    // Cinder Line, armed: which tiles a click here would actually ignite —
+    // the wash over the whole clickable area (every legal endpoint) can't
+    // convey that on its own, same reasoning as the BLAST readout above.
+    if (selectedId && this.cinderLineTargeting) {
+      const preview = m.previewCinderLineFrom(selectedId, h);
+      if (preview) {
+        out.push("", `LINE at (${h.x},${h.y}): ${preview.length} tile(s), ${CINDER_LINE_DAMAGE_PER_TURN} dmg/turn, hits either side`);
+      }
+      return out;
+    }
+
+    // Gjallar, armed: same "the click-target wash can't show WHO gets hit"
+    // reasoning as Cinder Line's own hover block just above, sharpened —
+    // this is the one preview in the game that can and should report the
+    // wielder's OWN name among the casualties, since GDD §8.2's "origin
+    // unit included" means the acting unit is ALWAYS in this list the
+    // instant it has a legal direction at all.
+    if (selectedId && this.requiemTargeting) {
+      const preview = m.previewRequiemSeverance(selectedId, h);
+      if (preview) {
+        const tileSet = new Set(preview.map((c) => coordKey(c)));
+        const hit = m.livingUnits().filter((u) => tileSet.has(coordKey(u.pos)));
+        const allies = hit.filter((u) => u.side === "player").length;
+        const hostiles = hit.filter((u) => u.side === "hostile").length;
+        out.push(
+          "",
+          `GJALLAR at (${h.x},${h.y}): ${preview.length} tile(s), ${SEVERANCE.damage} dmg fixed — ${hit.length} hit (${allies} of yours, ${hostiles} hostile), no exception`
+        );
+      }
+      return out;
+    }
+
+    // Zanretsu, armed: same "the click-target wash can't show WHO gets
+    // charged through" reasoning as Cinder Line's own hover block just
+    // above — this preview names every enemy actually on the run, not just
+    // its tile count, since that's the number a player is really deciding
+    // on.
+    if (selectedId && this.cuttingRoomChargeTargeting) {
+      const preview = m.previewCuttingRoomChargeFrom(selectedId, h);
+      if (preview) {
+        const tileSet = new Set(preview.map((c) => coordKey(c)));
+        const hit = m.livingUnits().filter((u) => u.side === "hostile" && tileSet.has(coordKey(u.pos)));
+        out.push("", `CHARGE at (${h.x},${h.y}): ${preview.length} tile(s)${hit.length ? `, ${hit.length} enemy(ies) in the run` : ", nothing there to hit"}`);
+      }
+      return out;
+    }
+
     const hovered = this.hoveredUnit();
     // Bare ground (2 Sep 2026): feature-gap report C4's own second half —
     // "Hover a tile: terrain name and defence stars" — which the 1 Sep pass
@@ -2382,6 +3279,8 @@ export class Battle extends Phaser.Scene {
       if (def.turnStartDamage) out.push(`Burns ${def.turnStartDamage} HP at turn start`);
       if (def.reepsRangeBonus) out.push(`+${def.reepsRangeBonus} range for Reeps standing here`);
       if (!def.passableGround) out.push("Impassable on the ground");
+      const burning = this.surtrLineAt(h);
+      if (burning) out.push(`SURTR LINE — ${burning.damagePerTurn} dmg/turn, ${burning.turnsRemaining} turn(s) left, hits either side`);
       return out;
     }
 
@@ -2428,6 +3327,8 @@ export class Battle extends Phaser.Scene {
       out.push(`Range ${hovered.attackRange[0]}-${hovered.attackRange[1]}, moves ${hovered.moveRange}, sees ${hovered.vision}${hovered.canCounter ? ", counters" : ""}`);
       const fx = hovered.statusEffects?.map((s) => (s.kind === "acid_dot" ? `acid ${s.turnsRemaining}t` : `-${Math.round(s.magnitude * 100)}% atk ${s.turnsRemaining}t`)) ?? [];
       if (fx.length) out.push(`Status: ${fx.join(", ")}`);
+      const burning = this.surtrLineAt(hovered.pos);
+      if (burning) out.push(`Standing on a Surtr line — ${burning.damagePerTurn} dmg at the next tick`);
     }
     return out;
   }

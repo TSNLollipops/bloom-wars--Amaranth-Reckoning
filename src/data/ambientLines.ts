@@ -181,6 +181,31 @@ const MUSTER_LINES = [
   "Bay, got it. Moving.",
 ];
 
+// Muster decline lines, 2 Sep 2026 (Bloom_Wars_Build_Log_Addendum_MusterMekCoAckFix_02Sep2026.md's
+// own flagged follow-up). A Mek or the CO hears a muster call the same as
+// anyone else in earshot, but neither has a deployable mission slot to walk
+// toward — Hub.ts already refuses to move them for it. Before this, they
+// said nothing at all once that refusal was fixed to also stop the false
+// "on my way" acknowledgment, which read as the NPC just not reacting.
+// This gives them a real, in-voice decline instead of silence, without
+// pretending they're heading anywhere. Deliberately NOT catalyst-gated the
+// way most of this file's other banks are (STAGE_PROMOTION_LINES,
+// RANK_GREETING_LINES) — a full catalyst-flavored pass for both roles would
+// be 9 catalysts × however many lines, real new content-authoring scope for
+// what's meant to be a small polish fix, not assumed here. Worth a real
+// catalyst pass later if it's wanted; flagged, not built.
+const MEK_MUSTER_DECLINE_LINES = [
+  "Not my post, boss — my war's fought at the bench.",
+  "Can't deploy what I don't pilot. Go on without me.",
+  "Send the pilots. I'll have their kit ready when they're back.",
+  "That call's not for me. I'll be here, wrench in hand.",
+];
+const CO_MUSTER_DECLINE_LINES = [
+  "You don't summon me — I send you. Get to the bay.",
+  "Muster's for the pilots. I'm already where I need to be.",
+  "Noted. I'll be at the bay when it matters — for the send-off, not the sign-up.",
+];
+
 // Rumor content, ported from Maxime's own example verbatim ("mc asked
 // someone out and got rejected, everyone will know it") rather than an
 // invented scenario. Two tiers, not one — the exaggerated bank is what
@@ -476,6 +501,14 @@ function fillTemplate(line: string, vars: Record<string, string>): string {
 // alongside the rest of the Stage gating — every Hub.ts call site already
 // had `npc.ambient` on hand, so this only changed what got passed in, not
 // what got looked up.
+// Separate from pickLineForMessage on purpose: a decline isn't a variant of
+// the muster HubMessage's own content, it's what a specific NPC ROLE says
+// INSTEAD of reacting to it, so it takes a role rather than a HubMessage.
+export function pickMusterDeclineLine(role: "mek" | "co"): string {
+  const bank = role === "co" ? CO_MUSTER_DECLINE_LINES : MEK_MUSTER_DECLINE_LINES;
+  return bank[Math.floor(Math.random() * bank.length)];
+}
+
 export function pickLineForMessage(speaker: { catalyst: Catalyst; stage: Stage }, message: HubMessage): string {
   if (message.kind === "emotion") {
     const bank = LINE_BANK[speaker.catalyst][message.echo][speaker.stage];
