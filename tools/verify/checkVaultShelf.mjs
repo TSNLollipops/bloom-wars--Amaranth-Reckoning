@@ -126,8 +126,30 @@ if (!fieldedTitle) throw new Error("FAIL: renderVault() did not re-render the [F
 const unfieldBtn = rows.find((r) => r.text === "[ unfield ]");
 if (!unfieldBtn) throw new Error("FAIL: button did not flip to [ unfield ] after fielding");
 
-const rankBtn = rows.find((r) => r.text === "[ rank up ]");
+// Pick the [ rank up ] on the IRON WORD row, not simply the first one.
+//
+// Fixed 3 Sep 2026. This check used to take rows.find(text === "[ rank up ]")
+// — the first such button on the shelf — and then assert about
+// oath_iron_word. Vindex (oath_oathkeeper) is listed above Iron Word and is
+// ALSO in HEIRLOOM_ABILITIES_LIVE_IN_COMBAT, so it has its own rank-up
+// button and that is the one the click was landing on. The purchase worked
+// perfectly every time: it ranked Vindex to 2 and debited exactly 250,
+// which is why the points assertion passed while the rank assertion failed.
+//
+// Worth being clear about, because the failure looked alarming: the game
+// was never wrong here. A player was never charged for nothing. The check
+// was clicking one button and grading another, and it has been doing that
+// since the shelf shipped — a green run of this file was, on this one
+// assertion, telling nobody anything.
+const ironWordRow = rows.find((r) => r.text.startsWith("Iron Word"));
+if (!ironWordRow) throw new Error("Iron Word row not found on the shelf — did the ability list change?");
+const rankBtn = rows
+  .filter((r) => r.text === "[ rank up ]")
+  .sort((a, b) => Math.abs(a.y - ironWordRow.y) - Math.abs(b.y - ironWordRow.y))[0];
 if (!rankBtn) throw new Error("[ rank up ] button not found — holder personalPoints/live-ability gating wrong?");
+if (Math.abs(rankBtn.y - ironWordRow.y) > 12) {
+  throw new Error(`the nearest [ rank up ] is ${Math.round(Math.abs(rankBtn.y - ironWordRow.y))}px from the Iron Word row — rows no longer line up, so this check cannot tell which button belongs to which ability`);
+}
 if (!rankBtn.interactive) throw new Error("[ rank up ] button found but has no interactive input");
 
 console.log(`\nClicking [ rank up ] at (${rankBtn.x + 4}, ${rankBtn.y + rankBtn.h / 2})`);

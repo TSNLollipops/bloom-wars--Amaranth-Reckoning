@@ -34,9 +34,23 @@ import {
   applyMissionLosses,
   applyLastWordSignatureCosts,
   recordFoughtOnHitEffectKinds,
+  companyNameOf,
   type CampaignState,
 } from "../engine/campaignState";
-import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, applyBonusObjectivePoints, type CompanyEarningsResult } from "../engine/campaignEconomy";
+import {
+  computeMissionEarnings,
+  applyMissionEarnings,
+  applyCompanyEarnings,
+  applyBonusObjectivePoints,
+  applyBeaconReviveCosts,
+  applyBeaconStockConsumption,
+  type CompanyEarningsResult,
+} from "../engine/campaignEconomy";
+// Requiem Early-Equip (4 Sep 2026) — see resolveRequiemEarlyEquip's own doc
+// comment in engine/heirlooms.ts for the full trigger reasoning. Separate
+// import block: heirlooms.ts is a sibling of campaignState.ts/
+// campaignEconomy.ts, not a re-export of either.
+import { resolveRequiemEarlyEquip } from "../engine/heirlooms";
 // Calendar economy, 2 Sep 2026 — the flat per-mission day cost lands here,
 // where every other mission consequence already does. formatDayLabel is the
 // same formatter the Hub HUD readout uses, imported here for the campaign-
@@ -44,10 +58,11 @@ import { computeMissionEarnings, applyMissionEarnings, applyCompanyEarnings, app
 // at the finale as a shareable stat" the v2 proposal's own §7 named.
 import { applyMissionCompletionDayCost, formatDayLabel } from "../engine/calendarClock";
 import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatalyst";
-import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry";
+import { recordHumanMissionSummary, activeRosterSize, currentGameVersion } from "../engine/telemetry";
 import { summaryMvp, type MissionSummary } from "../engine/missionSummary";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
+import { showCopyTextPanel } from "./ui/CopyTextPanel";
 
 const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
@@ -65,6 +80,9 @@ const CAMPAIGN_FINALE_MISSION_IDS = new Set(["mission_amaranth_36", "mission_hou
 export class Debrief extends Phaser.Scene {
   private mission!: Mission;
   private state!: CampaignState;
+  // B7 (5 Sep 2026) — same open-once guard shape Options.ts uses for its own
+  // export panel, so a double-click can't stack two copies of it.
+  private missionLogPanel: Phaser.GameObjects.Container | null = null;
   private earnings: Record<string, number> = {};
   private companyResult!: CompanyEarningsResult;
   private muntiFired = false;
@@ -92,6 +110,12 @@ export class Debrief extends Phaser.Scene {
   // engine/campaignEconomy.ts's computeBonusObjectivePoints for exactly
   // what this reads.
   private bonusObjectivePoints = 0;
+  // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built 4
+  // Sep 2026) — the company-pool points clawed back for this mission's
+  // beacon revives (0 for a mission that never touched Beacon Control at
+  // all). See engine/campaignEconomy.ts's applyBeaconReviveCosts for
+  // exactly what this reads.
+  private beaconReviveCost = 0;
   // Telemetry pass (1 Sep 2026) — this mission's stored record, built in
   // create() step 3d once every roster/points change above it has landed.
   // Null only if the stats layer failed (it's best-effort); the earnings
@@ -247,6 +271,15 @@ export class Debrief extends Phaser.Scene {
     // deliberately not folded into applyCompanyEarnings above; see that
     // function's own doc comment in engine/campaignEconomy.ts for why.
     this.bonusObjectivePoints = applyBonusObjectivePoints(this.state, this.mission);
+    // Beacon Control (built 4 Sep 2026) — two separate steps, same split
+    // this section already keeps between applyCompanyEarnings/
+    // applyBonusObjectivePoints above. Cost deducted BEFORE the stockpile
+    // sync below, though the two don't actually depend on each other's
+    // order — grouped together since both are Beacon Control's own
+    // Debrief-side reconciliation. See engine/campaignEconomy.ts's own doc
+    // comments on both functions for exactly what each does and why.
+    this.beaconReviveCost = applyBeaconReviveCosts(this.state, this.mission);
+    applyBeaconStockConsumption(this.state, this.mission);
 
     // ---- 2b. Calendar: the flat mission-completion cost -------------------
     // Calendar economy, 2 Sep 2026. This is ONLY the flat cost — the transit,
@@ -302,6 +335,30 @@ export class Debrief extends Phaser.Scene {
       const result = integrateHouseAmaranthSecondLance(this.state);
       this.secondLancePilots = result.integrated ? result.pilots : undefined;
     }
+
+    // ---- 3b-ii. Requiem Early-Equip (4 Sep 2026, Maxime: "ship ability to
+    // allow bosk to equip requiem as soon as mission 2") — same shape as
+    // 3b/3c around it, except deliberately NOT gated on `win`, and not
+    // truly "one-shot" at this call site — see why below. Full reasoning
+    // for the trigger and its guard lives on resolveRequiemEarlyEquip
+    // itself (engine/heirlooms.ts); this is only the wiring.
+    //
+    // Verified against scenes/MapSelect.ts before writing this: missions
+    // are NOT gated on winning the one before — every mission in a
+    // campaign's own list is always shown and launchable
+    // (renderMissionList has no locked/completed check at all), so Mission
+    // 1's Debrief can legitimately be reached more than once in a save
+    // (replayed later for fun, out of order, whatever) and a loss there
+    // doesn't block Mission 2 the way it might in a stricter campaign
+    // structure. Gating this on `win` would then mean a save that only
+    // ever LOSES Mission 1 before moving on never gets Requiem at all,
+    // which contradicts "as soon as mission 2" outright — so this runs on
+    // every Mission-1 debrief, any outcome, and leans entirely on
+    // resolveRequiemEarlyEquip's own assignedPilotId check (not a fresh
+    // one-shot flag) to stay a no-op on every call after the first that
+    // actually matters, including a much-later replay after Requiem has
+    // since transferred to Rourke at Mission 12.
+    resolveRequiemEarlyEquip(this.state);
 
     // ---- 3c. Third Lance integration (Act III opening, 25 Aug 2026 —
     // same-day correction) — mirrors 3b exactly, one mission later: see
@@ -406,11 +463,49 @@ export class Debrief extends Phaser.Scene {
     // interaction pattern — Debrief's own earnings/roster/Grief Catalyst
     // logic above is untouched, this only changes where the screen sends
     // the player once that's done.
+    // B7, "save the battle report" (First Game Dev Feature Gap Report §B7:
+    // "The engine's `log` is already a readable turn-by-turn narrative;
+    // players share those, and testers will paste them into bug reports
+    // without being asked"), built 5 Sep 2026.
+    //
+    // Placement: the footer's free middle. Company Points sits at x=46, the
+    // conditional SAVE AS... spans 240-380, RETURN TO BASE spans 710-930 —
+    // so a 210px button centered at 560 (455-665) clears both, including
+    // when SAVE AS... is present (non-Ironman saves only).
+    makeShopButton(this, this.footerLayer, 560, 604, 210, 30, "COPY MISSION LOG", true, () => this.openMissionLogPanel());
     makeShopButton(this, this.footerLayer, CARD_R - 110, 604, 220, 34, "RETURN TO BASE", true, () => {
       saveCampaignState(this.state);
       // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
       // campaignState.ts): a House Amaranth save has no Hub to send it to.
       this.scene.start(baseSceneKeyFor(this.state));
+    });
+  }
+
+  /**
+   * B7 — the mission's own turn-by-turn log, plus enough of a header that a
+   * pasted report identifies itself without the reader having to ask three
+   * follow-up questions (which mission, won or lost, which build, which
+   * company). engine/mission.ts's `log` is already written as readable
+   * narrative — this doesn't reformat it, it just hands it over.
+   *
+   * Uses the same panel as Options' bug-report export (scenes/ui/
+   * CopyTextPanel.ts), so the clipboard-refused-inside-itch.io case is
+   * handled identically in both places rather than only in the older one.
+   */
+  private openMissionLogPanel(): void {
+    if (this.missionLogPanel) return;
+    const m = this.mission;
+    const outcome = m.outcome === "win" ? "WON" : m.outcome === "loss" ? "LOST" : String(m.outcome).toUpperCase();
+    const header =
+      `The Bloom Wars — mission log\n` +
+      `mission: ${m.mission.displayName}\n` +
+      `company: ${companyNameOf(this.state)}\n` +
+      `outcome: ${outcome} on turn ${m.turn}\n` +
+      `version: v${currentGameVersion()}\n` +
+      `exported: ${new Date().toISOString()}\n` +
+      `\n----- turn-by-turn -----\n\n`;
+    this.missionLogPanel = showCopyTextPanel(this, header + m.log.join("\n"), () => {
+      this.missionLogPanel = null;
     });
   }
 
@@ -481,8 +576,12 @@ export class Debrief extends Phaser.Scene {
     }
 
     y += 2;
+    // Beacon Control's own revive cost (built 4 Sep 2026) nets against the
+    // total shown here — a mission that spent beacons genuinely keeps less
+    // of its own payout, not a separate line pretending otherwise.
+    const netCompanyChange = this.companyResult.totalAdded + this.bonusObjectivePoints - this.beaconReviveCost;
     this.add
-      .text(CARD_L + 16, y, `Company pool: +${this.companyResult.totalAdded + this.bonusObjectivePoints} pts`, {
+      .text(CARD_L + 16, y, `Company pool: ${netCompanyChange >= 0 ? "+" : ""}${netCompanyChange} pts`, {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#facc15",
@@ -510,6 +609,7 @@ export class Debrief extends Phaser.Scene {
       );
     }
     if (this.bonusObjectivePoints > 0) parts.push(`bonus objective +${this.bonusObjectivePoints}`);
+    if (this.beaconReviveCost > 0) parts.push(`beacon revives -${this.beaconReviveCost} (${this.mission.beaconRevivesUsed} used)`);
     if (!parts.length) return "(no completion bonus — mission was not a win)";
     return `(${parts.join("; ")})`;
   }

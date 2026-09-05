@@ -100,8 +100,29 @@ export class Hangar extends Phaser.Scene {
     // this button to a House Amaranth save would route straight into the
     // exact broken-Hub problem baseSceneKeyFor exists to avoid everywhere
     // else in this codebase.
+    //
+    // MOVED, 3 Sep 2026, from (480, 572) to the shared footer row at y=604.
+    // y=572 collided head-on with ShopPanel's own page-navigation row,
+    // which sits at `viewportBottom + 8` = 574 and is 24px tall: "< PREV"
+    // and "NEXT >" drew straight over this 260px-wide button, leaving the
+    // label clipped to the gibberish "BLE HUB (PROTO" between them.
+    //
+    // Why nobody saw it: that pager only renders when the shop has more
+    // than one page (ShopPanel.render's own `pages.length > 1` guard). A
+    // fresh five-pilot Warden save is one page, so the row is empty and
+    // this button looks fine. It takes a mid-campaign roster — three
+    // lances, the state most of this game is actually played in — to draw
+    // both at once. A bug that only appears once the player has invested
+    // twenty hours is the worst kind to ship, and the reason the UI sweep
+    // that found it runs against a midgame save rather than a new one.
+    //
+    // x=525 on the 604 row sits in the real gap between SAVE AS...
+    // (CARD_L + 280 = 310, 140 wide, so 240..380) and BACK TO MISSION
+    // SELECT (CARD_R - 130 = 800, 260 wide, so 670..930): 395..655 with
+    // clearance either side, and wider still on an Ironman save where
+    // SAVE AS... isn't drawn at all.
     if (baseSceneKeyFor(this.state) === "Hub") {
-      makeShopButton(this, this.footerLayer, 480, 572, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
+      makeShopButton(this, this.footerLayer, 525, 604, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
         saveCampaignState(this.state);
         this.scene.start("Hub");
       });

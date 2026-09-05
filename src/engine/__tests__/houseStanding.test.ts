@@ -240,6 +240,10 @@ describe("applyMissionLosses — the stamp, at the one moment it can be made", (
       turnsWithoutMunti: 2,
       muntisDeployed: 1,
       wasLastMunti: false,
+      // Added 3 Sep 2026 for the Rec Room standings board, which keeps a
+      // dead pilot's row and wants to say when they were lost beside it.
+      // A fresh campaign is on day 1.
+      lostOnDay: 1,
     });
   });
 

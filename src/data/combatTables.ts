@@ -284,6 +284,36 @@ export const MISSILE_SPLASH_RADIUS = 1;
 // per mission.
 export const MISSILE_CHARGES_PER_MISSION = 2;
 
+// Maser Lance (Tank's 3rd weapon branch, data/weaponBranches.ts's
+// tank_maser_lance, 5 Sep 2026) — this engine's SECOND granted-weapon-branch
+// ability after Missiles just above, and its first non-radius shape. Three
+// real design forks got resolved via AskUserQuestion before this was
+// buildable, all Maxime's own call, not guessed (see weaponBranches.ts's own
+// header comment for the full account):
+//   1. A separate granted ability (own action-bar button, own per-mission
+//      charge budget, ends the turn), not a modifier on the Tank's ordinary
+//      attack — same architecture as Missiles, not a third thing.
+//   2. A REAL expanding cone, not a simpler frontal rectangle — 1 tile wide
+//      at forward-step 1, 3 wide at step 2, 5 wide at step 3 (width = 2*step
+//      - 1), picked from one of 8 directions the same way
+//      requiem_severance/cinder_line_signature already pick a direction on
+//      this grid (engine/mission.ts's CINDER_LINE_DIRECTIONS, reused again).
+//   3. Friendly-fire capable, no side filter — same "doesn't check sides"
+//      family as Missiles/abil_severance, not excluded the way
+//      abil_fire_support's hostile-only blast is.
+//
+// MASER_LANCE_CONE_RANGE is how many forward steps the cone reaches (the
+// per-step width formula lives in engine/mission.ts's maserLanceConeTiles,
+// not here — this constant is only the depth). Not run through
+// combat_sim.py, same placeholder status as every other ability-depth
+// constant in this file.
+export const MASER_LANCE_CONE_RANGE = 3;
+// Per-unit budget, same shape as MISSILE_CHARGES_PER_MISSION just above (this
+// engine's only other granted-ability weapon branch) — not squad-shared.
+// Placeholder, pending real playtesting once a Tank pilot can actually carry
+// this into a run.
+export const MASER_LANCE_CHARGES_PER_MISSION = 2;
+
 // Regrowth pacing — first tick, then repeat interval, then how many NEW
 // tiles convert per tick (engine/mission.ts's tickBloomRegrowth). Kept
 // deliberately small and DETERMINISTIC (no Math.random — see that method's
@@ -667,3 +697,18 @@ export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK1 = 0;
 export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK1 = 15;
 export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK5 = 8;
 export const SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK5 = 15;
+
+// ---- Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md,
+// built 4 Sep 2026) — the mission-mechanic half of the feature. Point costs
+// (crate/charge price, revive-payout percentage, starting stockpile) live
+// in engine/campaignEconomy.ts and engine/campaignState.ts instead, next to
+// every other economy number, same file-split this codebase already keeps
+// everywhere else (combat/mission mechanics here, points economy there).
+
+/**
+ * §2: "up to 3 beacons per mission, each usable once." A per-mission cap
+ * on PLACEMENTS, separate from the crate/charge stockpile that also gates
+ * each use — a squad that somehow had unlimited crates and charges still
+ * couldn't place a 4th beacon in one mission.
+ */
+export const BEACON_MAX_PER_MISSION = 3;

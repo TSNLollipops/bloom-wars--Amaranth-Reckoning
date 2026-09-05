@@ -23,7 +23,7 @@ import {
 } from "../actionBarPaging";
 import { UNIT_ARCHETYPES } from "../../data/units";
 import { HEIRLOOMS } from "../../data/heirlooms";
-import { MISSILE_GRANT_ABILITY } from "../../data/weaponBranches";
+import { MISSILE_GRANT_ABILITY, MASER_LANCE_GRANT_ABILITY } from "../../data/weaponBranches";
 
 /** The real bar. Kept in sync with scenes/Battle.ts's ACTION_SLOTS by the last test below. */
 const SLOTS = 6;
@@ -153,6 +153,23 @@ const PATHS = ["meeps", "tank", "reeps", "munti"] as const;
  * eight buttons; the real figure is six. Getting that wrong in the safe
  * direction still would have been getting it wrong.
  */
+/**
+ * Every ability-granting weapon branch reachable on `path`, as (label
+ * suffix, granted ability id) pairs, always including the no-branch case
+ * (empty suffix, no id) first. Two such branches exist now — reeps_missiles
+ * (5 Sep 2026's Maser Lance is the second, per that branch's own header
+ * comment in data/weaponBranches.ts) — each reachable on exactly one path,
+ * so a build never needs to consider two grants at once, but this stays a
+ * list rather than an if/else specifically so a THIRD grant only needs one
+ * more entry here, not a new nested loop.
+ */
+function grantedAbilityOptionsFor(path: string): Array<{ suffix: string; abilityId: string | null }> {
+  const options: Array<{ suffix: string; abilityId: string | null }> = [{ suffix: "", abilityId: null }];
+  if (path === "reeps") options.push({ suffix: " + Missiles", abilityId: MISSILE_GRANT_ABILITY });
+  if (path === "tank") options.push({ suffix: " + Maser Lance", abilityId: MASER_LANCE_GRANT_ABILITY });
+  return options;
+}
+
 function reachableBuilds(buttons: Set<string>): Array<{ label: string; verbs: Set<string> }> {
   const out: Array<{ label: string; verbs: Set<string> }> = [];
   for (const h of Object.values(HEIRLOOMS)) {
@@ -163,24 +180,20 @@ function reachableBuilds(buttons: Set<string>): Array<{ label: string; verbs: Se
       const arch = UNIT_ARCHETYPES[archetypeId];
       if (!arch) continue; // mintAristocrat refuses this pairing too
       const archVerbs = (arch.abilities ?? []).filter((x) => buttons.has(x));
-      for (const withMissiles of [false, true]) {
-        // reeps_missiles is the only branch that grants an ability, and it
-        // is a Reeps branch — a Munti cannot equip it.
-        if (withMissiles && path !== "reeps") continue;
+      for (const { suffix, abilityId } of grantedAbilityOptionsFor(path)) {
         const verbs = new Set([...archVerbs, ...heirloomVerbs]);
-        if (withMissiles) verbs.add(MISSILE_GRANT_ABILITY);
-        out.push({ label: `${h.id} as ${archetypeId}${withMissiles ? " + Missiles" : ""}`, verbs });
+        if (abilityId) verbs.add(abilityId);
+        out.push({ label: `${h.id} as ${archetypeId}${suffix}`, verbs });
       }
     }
   }
   // Plus every ordinary (non-Heirloom) pilot, who can still hold a branch.
   for (const arch of Object.values(UNIT_ARCHETYPES)) {
     const archVerbs = (arch.abilities ?? []).filter((x) => buttons.has(x));
-    for (const withMissiles of [false, true]) {
-      if (withMissiles && arch.path !== "reeps") continue;
+    for (const { suffix, abilityId } of grantedAbilityOptionsFor(arch.path)) {
       const verbs = new Set(archVerbs);
-      if (withMissiles) verbs.add(MISSILE_GRANT_ABILITY);
-      out.push({ label: `${arch.id}${withMissiles ? " + Missiles" : ""}`, verbs });
+      if (abilityId) verbs.add(abilityId);
+      out.push({ label: `${arch.id}${suffix}`, verbs });
     }
   }
   return out;
@@ -193,6 +206,7 @@ describe("action bar reachability against the live data", () => {
     expect(buttons.size).toBeGreaterThan(10);
     expect(buttons.has("abil_sensor_sweep")).toBe(true);
     expect(buttons.has(MISSILE_GRANT_ABILITY)).toBe(true);
+    expect(buttons.has(MASER_LANCE_GRANT_ABILITY)).toBe(true);
   });
 
   it("Battle.ts still draws exactly SLOTS buttons", () => {
@@ -230,11 +244,18 @@ describe("action bar reachability against the live data", () => {
     expect(worst.count, `worst real build is ${worst.label}`).toBe(SLOTS);
   });
 
-  it("names the two builds that sit at the limit, so a change to either is visible", () => {
+  it("names the builds that sit at the limit, so a change to any of them is visible", () => {
+    // A third build joined the original two here 5 Sep 2026: Maser Lance
+    // (Tank's own granted-ability branch) equipped on cinder_line's
+    // Tank-chassis wielder reaches the same six-button ceiling, without
+    // exceeding it. Still worth naming — one more active landing on either
+    // this build or the original two tips it into the MORE button, same
+    // "no headroom left" warning the test above already gives, now with a
+    // second Heirloom to watch alongside last_word.
     const atLimit = reachableBuilds(buttons)
       .filter((b) => ALWAYS_PRESENT_ACTIONS + b.verbs.size === SLOTS)
       .map((b) => b.label)
       .sort();
-    expect(atLimit).toEqual(["cinder_line as arch_munti_bipedal", "last_word as arch_munti_bipedal"]);
+    expect(atLimit).toEqual(["cinder_line as arch_munti_bipedal", "cinder_line as arch_tank_bipedal + Maser Lance", "last_word as arch_munti_bipedal"]);
   });
 });

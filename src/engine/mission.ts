@@ -11,6 +11,7 @@ import type {
   MekArchetype,
   PilotRecord,
   RescuePilotBonusObjective,
+  Tier,
   TileType,
 } from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
@@ -59,6 +60,8 @@ import {
   WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS,
   MISSILE_SPLASH_RADIUS,
   MISSILE_CHARGES_PER_MISSION,
+  MASER_LANCE_CONE_RANGE,
+  MASER_LANCE_CHARGES_PER_MISSION,
   PROTECT_ASSET_DEFAULT_MAX_HP,
   PROTECT_ASSET_TICK_DAMAGE,
   IRON_WORD_RADIUS,
@@ -108,6 +111,7 @@ import {
   SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK1,
   SEAL_INHERITED_WEIGHT_DEF_BONUS_MIN_RANK5,
   SEAL_INHERITED_WEIGHT_DEF_BONUS_MAX_RANK5,
+  BEACON_MAX_PER_MISSION,
 } from "../data/combatTables";
 import { TILES } from "../data/tiles";
 // Forward Battery, 2 Sep 2026 — the one carrier module the engine reads.
@@ -341,7 +345,35 @@ export interface MissionOptions {
    * simply refuses cleanly with nothing to draw from.
    */
   foughtOnHitEffectKinds?: OnHitEffectKind[];
+  /**
+   * Beacon Control's crate/charge stockpile (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md,
+   * built 4 Sep 2026), read from CampaignState.beaconCrates/beaconCharges at
+   * construction — same "snapshot for the mission's lifetime" treatment
+   * builtModules/foughtOnHitEffectKinds above already get. Defaults to 0/0,
+   * deliberately NOT a nonzero placeholder: an existing call site that
+   * doesn't pass these (tests, npm run sim, anywhere not yet updated) gets a
+   * mission where Beacon Control is correctly unusable for lack of stock,
+   * rather than a silently-granted budget nobody paid for — the opposite
+   * failure mode from fireSupportChargesRemaining's always-nonzero default,
+   * which is fine there because that charge pool was never gated behind a
+   * purchased, campaign-persistent stockpile the way this one is.
+   */
+  beaconCratesRemaining?: number;
+  beaconChargesRemaining?: number;
 }
+
+/**
+ * Duplicated from engine/campaignEconomy.ts's own TIER_ORDER (same G→A
+ * ladder, S deliberately excluded — see that file's own comment for why S
+ * is off the purchase ladder entirely) rather than imported: campaignEconomy.ts
+ * imports Mission/UnitPerformance FROM this file already, so importing
+ * TIER_ORDER back the other way would be a real circular dependency, not
+ * just a style choice. If these two ever need to be the same array instead
+ * of two arrays that happen to agree, the fix is moving TIER_ORDER to a
+ * neutral file (data/types.ts, alongside Tier itself) that both sides can
+ * import from — flagged here rather than silently duplicated.
+ */
+const BEACON_TIER_ORDER: Tier[] = ["G", "F", "E", "D", "C", "B", "A"];
 
 export interface RepairOutcome {
   healerId: string;
@@ -735,6 +767,26 @@ export class Mission {
   // mission/save without the bay built, same as fireSupportChargesRemaining
   // is harmless on Missions 1-13's units that lack abil_fire_support at all.
   fireSupportBonusReadyTurn: number = 0;
+  // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built 4
+  // Sep 2026) — mirrors fireSupportChargesRemaining's own "shared, not
+  // per-unit" shape directly above: one company-wide placement budget for
+  // the whole mission, spent by whoever currently holds the ability
+  // (beaconHolderId() below, computed live every call rather than cached —
+  // see that method's own comment for why). Separate from the crate/charge
+  // stockpile right below, which gates each use a second way.
+  beaconsRemaining: number = BEACON_MAX_PER_MISSION;
+  // Crate/charge stockpile, snapshotted at construction from
+  // MissionOptions.beaconCratesRemaining/beaconChargesRemaining — see that
+  // field's own comment for why the default is 0/0, not a nonzero guess.
+  beaconCratesRemaining: number = 0;
+  beaconChargesRemaining: number = 0;
+  // How many beacon revives actually landed this mission — read at Debrief
+  // (engine/campaignEconomy.ts's applyBeaconReviveCosts) to charge the
+  // mission's own point-payout percentage per use. Kept separately from
+  // beaconsRemaining counting down so a future difficulty hook that changes
+  // the starting placement budget still reports an honest "how many did we
+  // actually spend," not a number derived from the (possibly different) cap.
+  beaconRevivesUsed: number = 0;
   // Which Antfarm bays are built on the campaign save this mission was
   // launched from (engine/campaignState.ts's CampaignState.builtBays) —
   // passed in once at construction, not re-read live, same "snapshot for
@@ -786,6 +838,8 @@ export class Mission {
     this.builtBays = builtBays;
     this.builtModules = options.builtModules ?? [];
     this.foughtOnHitEffectKinds = options.foughtOnHitEffectKinds ?? [];
+    this.beaconCratesRemaining = options.beaconCratesRemaining ?? 0;
+    this.beaconChargesRemaining = options.beaconChargesRemaining ?? 0;
     if (mission.objective === "protect_asset") {
       this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
       this.assetHp = this.assetMaxHp;
@@ -1693,26 +1747,44 @@ export class Mission {
       outcome = { attackerId, defenderId, damage: dealt, countered: false, defenderDowned: defender.downed };
 
       // Mech on-hit effects (engine/turnManager.ts's applyMechOnHitEffect,
-      // 3 Sep 2026) — the reverse direction of the Bloom on-hit effects
-      // engine below: a mech's own equipped weapon branch (Shock Claws so
-      // far) applying an effect to the Bloom it just hit. resolveAttackOnBloom
-      // has no dodge concept at all (Bloom don't dodge — that's a Meeps
-      // house rule for mech-vs-mech only), so the only guard needed here is
-      // "did the hit actually leave a defender standing to affect,"
-      // mirroring applyBloomOnHitEffect's own no-op-on-a-downed-defender
-      // guard rather than duplicating it — outcome.defenderDowned already
-      // reflects applyBloomDamage's result by this line.
+      // 3 Sep 2026, widened 4 Sep 2026 for Riot Drum's knockback) — the
+      // reverse direction of the Bloom on-hit effects engine below: a
+      // mech's own equipped weapon branch applying an effect to the Bloom
+      // it just hit. resolveAttackOnBloom has no dodge concept at all
+      // (Bloom don't dodge — that's a Meeps house rule for mech-vs-mech
+      // only), so the only guard needed here is "did the hit actually leave
+      // a defender standing to affect," mirroring applyBloomOnHitEffect's
+      // own no-op-on-a-downed-defender guard rather than duplicating it —
+      // outcome.defenderDowned already reflects applyBloomDamage's result
+      // by this line.
+      //
+      // WEAPON_BRANCH_ON_HIT_EFFECT is a LIST per branch (widened 4 Sep
+      // 2026 — Riot Drum is the first branch with more than one entry), so
+      // this loops and rolls each entry independently: Shock Claws' own
+      // single-entry list behaves exactly as before (one roll, same
+      // chance), Riot Drum's two-entry list can proc knockback, pin, both,
+      // or neither off the same hit. `occupied` is only actually read by a
+      // "knockback"-kind fx (Riot Drum) — computed unconditionally here
+      // anyway, same "cheap enough not to special-case" call as the
+      // identical computation a few lines below for Borrowed Authority.
       if (!outcome.defenderDowned) {
         const branchFx = attacker.weaponBranchId ? WEAPON_BRANCH_ON_HIT_EFFECT[attacker.weaponBranchId] : undefined;
-        if (branchFx && this.rng() < branchFx.chance) {
-          applyMechOnHitEffect(branchFx.fxId, attacker, defender);
-          // Log wording is Shock Claws/stun-specific, same as Scattershot
-          // Pistols' own cleave log line a few methods below (branch-
-          // specific text, not a generic template) — the LOOKUP and
-          // APPLICATION above this line are the genuinely generic parts; a
-          // future branch adding a different effect kind would add its own
-          // log line here alongside this one, not replace it.
-          this.log.push(`${defender.displayName} is stunned!`);
+        if (branchFx) {
+          const occupied = new Set(
+            this.units.filter((u) => !u.downed && u.instanceId !== defender.instanceId).map((u) => coordKey(u.pos))
+          );
+          for (const fx of branchFx) {
+            if (this.rng() >= fx.chance) continue;
+            applyMechOnHitEffect(fx.fxId, attacker, defender, this.map, occupied);
+            // Log wording is per-fxId, same as Scattershot Pistols' own
+            // cleave log line a few methods below (branch-specific text,
+            // not a generic template) — the LOOKUP and APPLICATION above
+            // this line are the genuinely generic parts; a future fxId
+            // adds its own line here alongside these, not a replacement.
+            if (fx.fxId === "fx_riot_drum_knockback") this.log.push(`${defender.displayName} is knocked back!`);
+            else if (fx.fxId === "fx_riot_drum_pin") this.log.push(`${defender.displayName} is pinned!`);
+            else this.log.push(`${defender.displayName} is stunned!`);
+          }
         }
       }
 
@@ -2594,6 +2666,189 @@ export class Mission {
   // path it always has.
 
   /** True if this campaign save has the Weapons Bay built (engine/campaignState.ts's ReservedBayId) — gates the bonus Fire Support charge below. */
+
+  // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md §6) —
+  // both Beacon Control and Restock Room require the Generator built first,
+  // same dependency shape Forward Battery already has on Weapons Bay
+  // (engine/campaignEconomy.ts's purchaseCarrierModule). Three separate
+  // getters rather than one combined check so canPlaceBeacon's own gate
+  // list stays readable about WHICH bay is missing, and so a future caller
+  // that only cares about one of the three (the Hub build-request flow,
+  // which needs generatorBuilt alone to refuse constructing either bay
+  // early) doesn't have to reimplement the lookup.
+  private get beaconControlBuilt(): boolean {
+    return this.builtBays.includes("beaconControl");
+  }
+  private get restockRoomBuilt(): boolean {
+    return this.builtBays.includes("restockRoom");
+  }
+  private get generatorBuilt(): boolean {
+    return this.builtBays.includes("generator");
+  }
+
+  /**
+   * True if a living, non-downed Munti is on the player side right now —
+   * the same live check muntiCollapseTurn's own tracking uses elsewhere in
+   * this file, factored out here since Beacon Control needs to ask this
+   * question independently of that latch (a Munti can come back into
+   * relevance for THIS check even after muntiCollapseTurn has already
+   * fired once, since that field never un-latches — see its own comment).
+   * Used by useBeaconControl() below to decide whether this use's Restock
+   * Room charge is waived.
+   */
+  private livingMuntiPresent(): boolean {
+    return this.units.some((u) => u.side === "player" && u.path === "munti" && !u.downed);
+  }
+
+  /**
+   * Beacon Control's ability holder — "whichever deployed pilot currently
+   * holds the highest chassis/gear grade... looked up live each mission,"
+   * Maxime's own framing (source doc §2), explicitly NOT hardcoded to
+   * Rourke/the Commander so this same lookup can generalize to Gladiator
+   * mode's own champions later. Recomputed on every call rather than
+   * cached at deploy — "currently holds" and "deployed" are both read as
+   * live conditions: a downed holder loses the role to the next-highest
+   * living pilot until they're revived or the mission ends, same as any
+   * other ability that requires being alive and on the field to use.
+   *
+   * S-tier (Heirloom) pilots rank above every purchasable tier, same -1-off
+   * handling purchaseWeaponBranch/purchaseTierUpgrade already need for the
+   * same reason (S sits outside TIER_ORDER's own ladder — see that
+   * constant's comment in campaignEconomy.ts). Ties (two pilots at the same
+   * tier, or two S-tier Heirloom-holders) resolve to whichever this.units
+   * lists first — an arbitrary but harmless tiebreak; nothing in the source
+   * doc specifies one.
+   */
+  beaconHolderId(): string | null {
+    let bestId: string | null = null;
+    let bestRank = -1;
+    for (const u of this.units) {
+      if (u.side !== "player" || u.downed || !u.pilotId) continue;
+      const rank = u.tier === "S" ? BEACON_TIER_ORDER.length : BEACON_TIER_ORDER.indexOf(u.tier ?? "G");
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestId = u.instanceId;
+      }
+    }
+    return bestId;
+  }
+
+  /**
+   * Beacon Control's own range rule (source doc §2: "wherever the
+   * ability-holder can currently see, and within their own movement range
+   * that turn"). SIMPLIFICATION, flagged rather than hidden: the source doc
+   * frames this as placing a beacon TILE that then pulls back whoever it
+   * reaches; this build collapses that into a single click on the downed
+   * ally directly, same shape as lastword_signature/lastword_last_rites
+   * above, rather than adding a separate "choose a tile" step — the
+   * revived pilot gets back up where they fell, matching every other
+   * revive-shaped ability already in this file. The RANGE the doc describes
+   * survives as the actual gate on which downed ally can be targeted at
+   * all: within the holder's fog-of-war-aware vision (isVisibleTo) AND
+   * within one tile of somewhere the holder could physically move this
+   * turn (reachableTiles, same primitive getReachableTiles already uses) —
+   * not unlimited range the way lastword_signature is, which is the whole
+   * point of this being a beacon carried into position rather than a
+   * signature fired from wherever you're standing.
+   */
+  private beaconTargetInRange(holder: BattleUnit, target: BattleUnit): boolean {
+    if (!isVisibleTo(holder, target, this.turn)) return false;
+    if (chebyshevDistance(holder.pos, target.pos) <= 1) return true;
+    const reachable = reachableTiles(this.map, holder.pos, holder.moveRange, this.movementKindFor(holder), this.occupiedSet(holder.instanceId));
+    for (const key of reachable.keys()) {
+      const [x, y] = key.split(",").map(Number);
+      if (chebyshevDistance({ x, y }, target.pos) <= 1) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Every gate on whether `unitId` can place a beacon right now: must
+   * actually be the current holder (beaconHolderId(), live), both bays plus
+   * the Generator built (§6), a placement left this mission, a crate left
+   * (always consumed per use, no Munti exception — source doc §3), and
+   * either a charge left OR a living Munti present to waive it (§3/§4 — see
+   * useBeaconControl's own comment for exactly how the waiver is applied).
+   */
+  canPlaceBeacon(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (unitId !== this.beaconHolderId()) return false;
+    if (!this.beaconControlBuilt || !this.restockRoomBuilt || !this.generatorBuilt) return false;
+    if (this.beaconsRemaining <= 0) return false;
+    if (this.beaconCratesRemaining <= 0) return false;
+    if (this.beaconChargesRemaining <= 0 && !this.livingMuntiPresent()) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every downed ally `unitId` could revive right now — restockable
+   * casualties only (isPermanentlyLost, same gate getLastWordSignatureTargetsFrom
+   * uses above) within beaconTargetInRange of the holder. Empty whenever
+   * canPlaceBeacon is false, same "ask the engine, never guess" contract
+   * every other getXTargetsFrom method in this file follows.
+   */
+  getBeaconTargetsFrom(unitId: string): BattleUnit[] {
+    if (!this.canPlaceBeacon(unitId)) return [];
+    const holder = this.unitById(unitId)!;
+    return this.units.filter(
+      (u) => u.side === holder.side && u.downed && !!u.pilotId && !this.isPermanentlyLost(u.pilotId!) && this.beaconTargetInRange(holder, u)
+    );
+  }
+
+  /**
+   * Places a beacon and revives `targetId` — full restock (currentHp maxed,
+   * downed cleared), same "fully restores" reading lastWordSignature above
+   * already established, no permanent stat cost unlike Migawari's own price
+   * (this is a purchased/logistics cost, not a personal one — source doc
+   * §3 lists three costs and none of them touch the holder's own stats).
+   *
+   * Consumes, in order: one placement (beaconsRemaining), one crate
+   * (beaconCratesRemaining, unconditionally), and one charge
+   * (beaconChargesRemaining) UNLESS a living Munti is present on the field
+   * at this exact moment, in which case the charge is fully waived.
+   * READING, flagged: source doc §3/§4 say a charge's "point-cost is
+   * reduced" with a Munti present but never say by how much or against
+   * what — full waiver (0 charges instead of 1) is the reading taken here,
+   * the cleanest way to make "reduced" concrete against a discrete,
+   * integer stockpile rather than inventing fractional charges. Cheap to
+   * change to a partial discount later if that reading turns out wrong.
+   * The mission-payout percentage (the third cost, charged at Debrief —
+   * see engine/campaignEconomy.ts's applyBeaconReviveCosts) and the crate
+   * are NOT Munti-discounted — the doc's own wording ties the discount to
+   * "a charge's cost" specifically, not the other two.
+   *
+   * Costs the holder 1 action, does not end their turn — same tier as
+   * Field Triage/lastWordSignature/lastRites above.
+   */
+  useBeaconControl(unitId: string, targetId: string): boolean {
+    if (!this.canPlaceBeacon(unitId)) return false;
+    const holder = this.unitById(unitId)!;
+    const target = this.getBeaconTargetsFrom(unitId).find((t) => t.instanceId === targetId);
+    if (!target) return false;
+
+    target.currentHp = target.maxHp;
+    target.downed = false;
+
+    this.beaconsRemaining -= 1;
+    this.beaconCratesRemaining -= 1;
+    const muntiPresent = this.livingMuntiPresent();
+    if (!muntiPresent) {
+      this.beaconChargesRemaining -= 1;
+    }
+    this.beaconRevivesUsed += 1;
+
+    holder.actionsRemaining -= 1;
+    this.noteAbilityUse(holder, "beacon_control");
+    this.log.push(
+      muntiPresent
+        ? `${holder.displayName} drops a beacon for ${target.displayName} — full restock, a Munti on the field waives the Restock Room charge (${this.beaconsRemaining} beacon(s) left).`
+        : `${holder.displayName} drops a beacon for ${target.displayName} — full restock (${this.beaconsRemaining} beacon(s) left, ${this.beaconChargesRemaining} charge(s) left).`
+    );
+    return true;
+  }
+
   /**
    * Fire Support's blast radius for THIS mission (Chebyshev, so radius 1 is
    * a 3x3 box and radius 2 a 5x5).
@@ -2883,6 +3138,254 @@ export class Mission {
     attacker.concealed = false;
     this.log.push(
       `${attacker.displayName} fires a missile at (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${chargesLeft} charge(s) left).`
+    );
+
+    for (const victim of hit) if (victim.downed) this.handleDowned(victim);
+    if (attacker.downed) this.handleDowned(attacker);
+    return { hitIds: hit.map((u) => u.instanceId), killedIds };
+  }
+
+  // ---- abil_maser_lance (5 Sep 2026, SOFT pass) — Tank's own weapon-branch
+  // granted ability, see data/abilities.ts's own comment for the full design
+  // context (three real forks, all resolved via AskUserQuestion, not
+  // guessed). Same canX()/getX()/verb shape as abil_missile just above —
+  // this is a granted weapon, same per-unit charge budget, same "damage runs
+  // through the ordinary per-target combat formula" contract — but the
+  // TARGETING shape is new: a chosen direction (one of
+  // CINDER_LINE_DIRECTIONS' own 8, reused again — requiem_severance/
+  // cinder_line_signature already established this grid's one direction-
+  // picking convention, not a second one invented here) and a WIDENING CONE
+  // down it, not a radius around a clicked tile the way Missiles/Fire
+  // Support both are.
+
+  /** Charges of abil_maser_lance this unit has left this mission. Exposed for the HUD. Undefined reads as a full, unspent budget — see maserLanceUsesRemaining's own comment in engine/units.ts. */
+  maserLanceChargesRemaining(unitId: string): number {
+    const unit = this.unitById(unitId);
+    if (!unit) return 0;
+    return unit.maserLanceUsesRemaining ?? MASER_LANCE_CHARGES_PER_MISSION;
+  }
+
+  canMaserLanceStrike(unitId: string): boolean {
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed) return false;
+    if (unit.side !== "player") return false;
+    if (!unit.abilities.includes("abil_maser_lance")) return false;
+    if (this.maserLanceChargesRemaining(unitId) <= 0) return false;
+    return unit.actionsRemaining > 0;
+  }
+
+  /**
+   * Every tile in `from`'s own cone footprint fired in direction `dir`,
+   * MASER_LANCE_CONE_RANGE forward steps deep, origin tile EXCLUDED (this is
+   * a shot fired FROM the Tank, not a blast the Tank stands inside — see
+   * abil_severance's own opposite convention for the contrasting case, and
+   * CINDER_LINE_DIRECTIONS' own header for why Cinder Line's line similarly
+   * starts one step out rather than on the wielder's own tile).
+   *
+   * The widening-cone formula, not a special case per direction: at forward
+   * step `d` (1..MASER_LANCE_CONE_RANGE), the cone is `2*d - 1` tiles wide —
+   * 1 tile at d=1, 3 at d=2, 5 at d=3 — centred on the step-`d` tile straight
+   * out along `dir`, spreading along `perp` (`dir` rotated 90 degrees: `{x:
+   * -dir.y, y: dir.x}`). Using `dir`'s own perpendicular rather than a
+   * literal dx/dy table is what makes one formula cover all 8 directions,
+   * diagonals included, without a separate branch for each — for a cardinal
+   * `dir` this reads as an ordinary forward-widening wedge; for a diagonal
+   * `dir` the same math produces a wedge that widens across the
+   * perpendicular diagonal instead, the natural equivalent shape on a square
+   * grid. Each individual (step, lateral) tile is bounds-checked on its own
+   * rather than the whole direction being cut off at the first
+   * out-of-bounds step, the same "a short/clipped shape near an edge rather
+   * than an error" judgment call getRequiemDirectionTargets/
+   * getCinderLineAreaFrom already make for their own edge cases — a cone
+   * near a corner can have a partial row on one side and a full row on the
+   * other, not a hard cutoff at whichever came first.
+   */
+  private maserLanceConeTiles(from: Coord, dir: Coord): Coord[] {
+    const perp = { x: -dir.y, y: dir.x };
+    const tiles: Coord[] = [];
+    for (let step = 1; step <= MASER_LANCE_CONE_RANGE; step++) {
+      const half = step - 1;
+      for (let lateral = -half; lateral <= half; lateral++) {
+        const c = { x: from.x + dir.x * step + perp.x * lateral, y: from.y + dir.y * step + perp.y * lateral };
+        if (inBounds(this.map, c)) tiles.push(c);
+      }
+    }
+    return tiles;
+  }
+
+  /**
+   * Every in-bounds tile along one of the 8 legal directions from `unitId`'s
+   * own position, out to the board edge — identical contract to
+   * getRequiemDirectionTargets just below in this file (this only NAMES
+   * which direction a click selects; previewMaserLanceCone/maserLanceStrike
+   * both re-derive the direction from whatever tile was actually clicked and
+   * independently resolve the real, fixed-depth cone via
+   * maserLanceConeTiles). scenes/Battle.ts highlights this set as the
+   * clickable one while armed.
+   */
+  getMaserLanceDirectionTargets(unitId: string): Coord[] {
+    if (!this.canMaserLanceStrike(unitId)) return [];
+    const unit = this.unitById(unitId)!;
+    const tiles: Coord[] = [];
+    for (const dir of CINDER_LINE_DIRECTIONS) {
+      let step = 1;
+      while (true) {
+        const c = { x: unit.pos.x + dir.x * step, y: unit.pos.y + dir.y * step };
+        if (!inBounds(this.map, c)) break;
+        tiles.push(c);
+        step += 1;
+      }
+    }
+    return tiles;
+  }
+
+  /** UI preview for an armed Maser Lance: the actual cone footprint a click on `target` would fire, or null if that click doesn't name a legal direction or the ability isn't currently usable at all — same "ask the engine, never guess" contract previewRequiemSeverance/previewCinderLineFrom already follow. Reuses requiemDirectionTo's own cardinal/diagonal check (below in this file) rather than a second copy — that check has nothing Requiem-specific in it despite the name, it's this grid's one "is `target` a legal direction from `from`" test. */
+  previewMaserLanceCone(unitId: string, target: Coord): Coord[] | null {
+    if (!this.canMaserLanceStrike(unitId)) return null;
+    const unit = this.unitById(unitId)!;
+    const dir = this.requiemDirectionTo(unit.pos, target);
+    if (!dir) return null;
+    return this.maserLanceConeTiles(unit.pos, dir);
+  }
+
+  /**
+   * Read-only damage forecast for an armed Maser Lance, same purpose as
+   * forecastSplash just above but shaped around a resolved TILE SET
+   * (previewMaserLanceCone) rather than a radius from a clicked tile — the
+   * cone's clickable direction-set (getMaserLanceDirectionTargets) and its
+   * actual hit footprint are deliberately NOT the same shape (mirrors
+   * getRequiemDirectionTargets/requiemLineTiles' own split for the identical
+   * reason), so this can't reuse forecastSplash's own radius-membership
+   * check. Per-victim damage math (mech vs Bloom branches, no dodge) is
+   * copied from forecastSplash's own missile branch rather than factored out
+   * into a shared helper — small enough, and about to diverge further if a
+   * Bloom-shape defender-specific rule ever lands on only one of the two
+   * granted-ability strikes.
+   */
+  forecastMaserLance(unitId: string, target: Coord): SplashForecastEntry[] {
+    const attacker = this.unitById(unitId);
+    if (!attacker || attacker.downed) return [];
+    const preview = this.previewMaserLanceCone(unitId, target);
+    if (!preview) return [];
+    const tileSet = new Set(preview.map((c) => coordKey(c)));
+    const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
+    const out: SplashForecastEntry[] = [];
+    for (const victim of this.livingUnits()) {
+      if (victim.instanceId === attacker.instanceId) continue;
+      if (!tileSet.has(coordKey(victim.pos))) continue;
+      const sameSideAsVictim = this.units.filter((u) => u.side === victim.side);
+      let damage: number;
+      if (victim.kind !== "bloom")
+        damage = resolveMechAttack(this.map, attacker, victim, sameSideAsVictim, sameSideAsAttacker, attacker.chargedThisMove, false, false, {
+          attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        }).damage;
+      else
+        damage = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove, {
+          attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        }).damage;
+      let downed: boolean;
+      if (victim.kind !== "bloom") {
+        const absorbed = Math.min(victim.shield ?? 0, damage);
+        downed = victim.currentHp - (damage - absorbed) <= 0;
+      } else {
+        downed = (victim.endurance ?? 0) <= 0 && damage >= (victim.vitality ?? 0);
+      }
+      out.push({ unitId: victim.instanceId, displayName: victim.displayName, side: victim.side, damage, downed });
+    }
+    return out;
+  }
+
+  /**
+   * Fire a Maser Lance toward `target`: resolves the legal direction from
+   * `target` the same way previewMaserLanceCone does, then hits every living
+   * unit in that direction's actual cone footprint (maserLanceConeTiles)
+   * through the ordinary per-target combat formula — identical per-victim
+   * resolution to missileStrike just above (mech vs Bloom branch, splash NOT
+   * dodgable, friendly counters suppressed, recordPerformance for economy
+   * crediting), copied rather than factored into a shared helper for the
+   * same reason forecastMaserLance's own comment gives: small, and likely to
+   * diverge further once either strike gets its own tuning pass.
+   *
+   * Costs this unit's entire remaining action budget and ends the turn, and
+   * spends one of THIS unit's own MASER_LANCE_CHARGES_PER_MISSION charges —
+   * regardless of how many units the cone actually hits, including zero,
+   * same "a wasted call still costs you" rule missileStrike/fireSupport
+   * already have.
+   */
+  maserLanceStrike(unitId: string, target: Coord): { hitIds: string[]; killedIds: string[] } | null {
+    if (!this.canMaserLanceStrike(unitId)) return null;
+    const attacker = this.unitById(unitId)!;
+    const dir = this.requiemDirectionTo(attacker.pos, target);
+    if (!dir) return null;
+    const coneTiles = this.maserLanceConeTiles(attacker.pos, dir);
+    const tileSet = new Set(coneTiles.map((c) => coordKey(c)));
+
+    const hit = this.livingUnits().filter((u) => u.instanceId !== attacker.instanceId && tileSet.has(coordKey(u.pos)));
+    const killedIds: string[] = [];
+
+    for (const victim of hit) {
+      const sameSideAsVictim = this.units.filter((u) => u.side === victim.side);
+      const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
+      let outcome: AttackOutcome;
+
+      if (victim.kind !== "bloom") {
+        // Same "splash shouldn't be dodgable" correction missileStrike's own
+        // comment explains in full — a cone already covering the whole
+        // blast footprint isn't a single aimed shot a Meeps steps out of.
+        const victimDodged = false;
+        const attackerDodgedCounter = rollMeepsDodge(attacker, victim, this.rng);
+        const r = resolveMechAttack(
+          this.map,
+          attacker,
+          victim,
+          sameSideAsVictim,
+          sameSideAsAttacker,
+          attacker.chargedThisMove,
+          victimDodged,
+          attackerDodgedCounter,
+          { attackerKillsThisMission: this.killsThisMissionFor(attacker), defenderKillsThisMission: this.killsThisMissionFor(victim) }
+        );
+        applyMechDamage(victim, r.damage);
+        // Same friendly-counter suppression missileStrike's own comment
+        // explains in full: a friendly caught in the cone still visibly
+        // takes the primary damage, it just doesn't shoot back at whoever
+        // fired it.
+        const friendlyCounter = r.countered && victim.side === attacker.side;
+        if (r.countered && r.counterDamage !== undefined && !friendlyCounter) {
+          applyMechDamage(attacker, r.counterDamage);
+        }
+        outcome = {
+          attackerId: unitId,
+          defenderId: victim.instanceId,
+          damage: r.damage,
+          countered: r.countered && !friendlyCounter,
+          counterDamage: friendlyCounter ? undefined : r.counterDamage,
+          defenderDowned: victim.downed,
+          attackerDowned: attacker.downed,
+          defenderDodged: r.dodged,
+          counterDodged: friendlyCounter ? undefined : r.counterDodged,
+        };
+      } else {
+        const r = resolveAttackOnBloom(this.map, attacker, victim, sameSideAsVictim, attacker.chargedThisMove, {
+          attackerKillsThisMission: this.killsThisMissionFor(attacker),
+        });
+        applyBloomDamage(victim, r.damage);
+        outcome = { attackerId: unitId, defenderId: victim.instanceId, damage: r.damage, countered: false, defenderDowned: victim.downed };
+      }
+
+      this.recordPerformance(attacker, victim, outcome);
+      if (outcome.defenderDowned) killedIds.push(victim.instanceId);
+    }
+
+    const chargesLeft = this.maserLanceChargesRemaining(unitId) - 1;
+    attacker.maserLanceUsesRemaining = chargesLeft;
+    this.noteAbilityUse(attacker, "abil_maser_lance");
+    attacker.actionsRemaining = 0;
+    // Firing gives your position away, same as any other attack (see
+    // resolveAttack's identical line) — a Maser Lance shot is not stealthy.
+    attacker.concealed = false;
+    this.log.push(
+      `${attacker.displayName} fires Maser Lance toward (${target.x},${target.y}) — ${hit.length} hit, ${killedIds.length} downed (${chargesLeft} charge(s) left).`
     );
 
     for (const victim of hit) if (victim.downed) this.handleDowned(victim);

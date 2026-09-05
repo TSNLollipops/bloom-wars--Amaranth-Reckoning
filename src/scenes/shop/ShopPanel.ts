@@ -53,6 +53,12 @@ import {
   TIER_UPGRADE_COST,
   MEK_SECONDARY_COST,
   SPARE_PART_COST,
+  purchaseBeaconCrate,
+  purchaseBeaconCharge,
+  BEACON_CRATE_COST,
+  BEACON_CRATE_COST_DISCOUNTED,
+  BEACON_CHARGE_COST,
+  BEACON_CHARGE_COST_DISCOUNTED,
 } from "../../engine/campaignEconomy";
 import {
   recruitDiscretionary,
@@ -86,7 +92,8 @@ type ShopEntry =
   | { type: "pilot"; pilotId: string }
   | { type: "mek"; pilotId: string }
   | { type: "info"; label: string }
-  | { type: "recruit" };
+  | { type: "recruit" }
+  | { type: "beaconStock" };
 
 const ROW_H: Record<ShopEntry["type"], number> = {
   sectionHeader: 30,
@@ -94,6 +101,10 @@ const ROW_H: Record<ShopEntry["type"], number> = {
   mek: 54,
   info: 30,
   recruit: 136,
+  // Beacon Control's crate/charge stockpile (built 4 Sep 2026) — one row,
+  // two buy buttons side by side, same rough footprint as drawMekRow's own
+  // 54 but a hair taller since it carries two stock counts instead of one.
+  beaconStock: 60,
 };
 
 function computePages(entries: ShopEntry[], budget: number): ShopEntry[][] {
@@ -263,6 +274,14 @@ export class ShopPanel {
       for (const pilotId of fabricatorPilotIds) entries.push({ type: "mek", pilotId });
     }
 
+    // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built
+    // 4 Sep 2026) — always shown, same "buy ahead of the bay" reasoning
+    // purchaseBeaconCrate/Charge's own comment gives: nothing stops a
+    // player stockpiling before Beacon Control/Restock Room/Generator are
+    // actually built, so this section isn't gated on builtBays either.
+    entries.push({ type: "sectionHeader", label: "COMPANY — BEACON CONTROL STOCK" });
+    entries.push({ type: "beaconStock" });
+
     entries.push({ type: "sectionHeader", label: "COMPANY — RECRUIT" });
     entries.push({ type: "recruit" });
 
@@ -329,6 +348,62 @@ export class ShopPanel {
     this.navLayer.setScrollFactor(scrollFactor, scrollFactor, true);
   }
 
+  // Hangar Deck sidebar-shop clipping bug, 4 Sep 2026 (caught from Maxime's
+  // own phone photo of his live game, not by the UI sweep — see that
+  // sweep's own build-log addendum for why: it checks against the 1074px
+  // CANVAS, and this panel never left the canvas, it left the narrower
+  // 838px MAIN-CAMERA VIEWPORT Hub.ts's dock split gives the room). This
+  // panel's cards were built SHOP_CARD_W=900 wide (x=30..930), which is
+  // exactly right for Debrief.ts and Hangar.ts, whose cameras really are
+  // 1074 wide with nothing else sharing the screen. Hub.ts's own dock
+  // (DOCK_SPLIT_X, that file's own header) narrowed its main camera to
+  // 0..838 on 2-3 Sep, after this panel was already wired into Hub on 30
+  // Aug — every OTHER Hub overlay was sized to ROOM_BOUNDS (830) from the
+  // start and never noticed, this one was 100px too wide and nobody
+  // caught it, because a screenshot taken WITHOUT opening this exact
+  // overlay can't show it. The personal-points readout and the whole
+  // Convert-to-company button sat past x=838 — drawn by the main camera,
+  // which simply stops rendering there, with Hub's own chat dock sitting
+  // in that same screen region on its own camera. Looked exactly like an
+  // overlap because, in a sense, it was one: two cameras' content sharing
+  // a boundary nobody told this panel about.
+  //
+  // Fix is a uniform shrink, not a reflow — SHOP_CARD_L/R/W stay exactly
+  // as Debrief.ts/Hangar.ts already rely on; only Hub's two layers get
+  // scaled down after construction. anchorX (480, this panel's own
+  // horizontal center — every card background is centered there) and
+  // anchorY (`top`, this panel's own top edge) are the one screen point
+  // each axis holds still, so the shrink reads as "the same panel,
+  // slightly smaller" rather than sliding toward a corner. Call once,
+  // right after construction — the scale/position live on the container
+  // itself, so they survive every future render() clearing and rebuilding
+  // the children inside it.
+  //
+  // Trade-off, stated plainly rather than buried: pulling a 900-wide panel
+  // in to fit a 700-wide room is a ~22% shrink (scale ends up 350/450 —
+  // see the math below), not a cosmetic nudge. An 8px label renders at
+  // roughly 6px. If that reads as too small on a real screen, the heavier
+  // fix — give this panel a real narrow layout (its own SHOP_CARD_W,
+  // chosen by the caller) instead of scaling a wide one down — is still
+  // on the table; this method exists to make that an easy A/B to look at
+  // rather than the only option committed to.
+  fitWidth(maxRight: number): void {
+    const anchorX = 480; // this panel's own horizontal center — see header
+    // Scale is solved from the anchor, not a plain maxRight/SHOP_CARD_R
+    // ratio: since setPosition below re-centers on anchorX, the fraction
+    // that actually has to shrink is the HALF-WIDTH beyond the anchor
+    // (SHOP_CARD_R - anchorX), not the full card width from screen zero.
+    // Using the plain ratio here was this fix's own first-draft bug — it
+    // under-shrank by exactly the anchor offset, and still clipped.
+    const scale = Math.min(1, (maxRight - anchorX) / (SHOP_CARD_R - anchorX));
+    if (scale >= 1) return;
+    const anchorY = this.top;
+    for (const layer of [this.shopLayer, this.navLayer]) {
+      layer.setScale(scale);
+      layer.setPosition(anchorX * (1 - scale), anchorY * (1 - scale));
+    }
+  }
+
   render(): void {
     const entries = this.buildEntries();
     const budget = this.bottom - this.top;
@@ -387,6 +462,9 @@ export class ShopPanel {
       case "recruit":
         this.drawRecruitRow(top, h);
         break;
+      case "beaconStock":
+        this.drawBeaconStockRow(top, h);
+        break;
     }
     return top + h;
   }
@@ -429,7 +507,23 @@ export class ShopPanel {
     const isHeirloomTier = pilot.tier === "S";
     const atMaxTier = isHeirloomTier || idx === TIER_ORDER.length - 1;
     const tierCost = atMaxTier ? undefined : TIER_UPGRADE_COST[pilot.tier as Exclude<Tier, "A" | "S">];
-    const tierLabel = isHeirloomTier ? "HEIRLOOM (S)" : atMaxTier ? "TIER MAXED" : `UPGRADE -> ${TIER_ORDER[idx + 1]} (${tierCost})`;
+    // S-tier clarity fix, 4 Sep 2026 (Maxime: "I thought I could use my
+    // heirloom in my last nission... S grade is greyed out. I dont even
+    // know."). A pilot capped at A with no Heirloom used to hit this same
+    // "TIER MAXED" label a pilot at any other tier gets on affordability
+    // grounds — reading identically to "you can't afford this yet," when
+    // the real reason is the one campaignEconomy.ts's own
+    // purchaseTierUpgrade refusal already states: S is granted by an
+    // Heirloom, not purchasable at any price. Put on the button itself
+    // rather than a separate caption — this card has no free pixels left
+    // near it (drawPilotRow's own comments track two prior overlap fixes
+    // in this exact footprint), so wordWrap breaking this across two lines
+    // in place is the fix, not a new label element.
+    const tierLabel = isHeirloomTier
+      ? "HEIRLOOM (S)"
+      : atMaxTier
+        ? "MAXED - S COMES FROM AN HEIRLOOM"
+        : `UPGRADE -> ${TIER_ORDER[idx + 1]} (${tierCost})`;
     const tierEnabled = !atMaxTier && tierCost !== undefined && entry.personalPoints >= tierCost;
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 84, top + 62, 148, 24, tierLabel, tierEnabled, () => {
       purchaseTierUpgrade(this.state, pilotId);
@@ -569,6 +663,54 @@ export class ShopPanel {
     const enabled = !atMax && this.state.points >= SPARE_PART_COST;
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 90, cy, 160, 26, atMax ? "AT MAX" : `BUY PART (${SPARE_PART_COST})`, enabled, () => {
       purchaseSpareParts(this.state, mek.id);
+      this.render();
+    });
+  }
+
+  /**
+   * Beacon Control's crate/charge stockpile (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md,
+   * built 4 Sep 2026) — one company-wide row, not per-pilot/per-mek like
+   * drawMekRow above: this is squad logistics, not any one loadout's own
+   * cap. Two buy buttons side by side, same "BUY PART" shape as drawMekRow's
+   * own button, showing the live discounted price once the Fabricator bay
+   * is built (purchaseBeaconCrate/Charge apply that discount themselves —
+   * this only needs to LABEL it correctly, same "ask the engine, never
+   * guess" discipline the highlight-source methods in engine/mission.ts
+   * already follow for targeting).
+   */
+  private drawBeaconStockRow(top: number, h: number): void {
+    const cardH = h - 6;
+    const cy = top + cardH / 2;
+    const fabricatorBuilt = (this.state.builtBays ?? []).includes("fabricator");
+    const crateCost = fabricatorBuilt ? BEACON_CRATE_COST_DISCOUNTED : BEACON_CRATE_COST;
+    const chargeCost = fabricatorBuilt ? BEACON_CHARGE_COST_DISCOUNTED : BEACON_CHARGE_COST;
+    const crates = this.state.beaconCrates ?? 0;
+    const charges = this.state.beaconCharges ?? 0;
+
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552));
+    this.shopLayer.add(
+      this.scene.add.text(SHOP_CARD_L + 14, top + 8, `Fabricator crates: ${crates}  ·  Restock Room charges: ${charges}`, {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#e8e2d4",
+      })
+    );
+    this.shopLayer.add(
+      this.scene.add.text(SHOP_CARD_L + 14, top + 26, "Spent mid-mission by Beacon Control to revive a downed ally — see the CO about the bay.", {
+        fontFamily: "monospace",
+        fontSize: "9px",
+        color: "#6b7a8a",
+      })
+    );
+
+    const crateEnabled = this.state.points >= crateCost;
+    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 190, top + 44, 170, 22, `BUY CRATE (${crateCost})`, crateEnabled, () => {
+      purchaseBeaconCrate(this.state);
+      this.render();
+    });
+    const chargeEnabled = this.state.points >= chargeCost;
+    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 190, top + 44, 170, 22, `BUY CHARGE (${chargeCost})`, chargeEnabled, () => {
+      purchaseBeaconCharge(this.state);
       this.render();
     });
   }

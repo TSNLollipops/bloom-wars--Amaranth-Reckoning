@@ -803,3 +803,121 @@ export function applyBonusObjectivePoints(state: CampaignState, mission: Mission
   state.points += amount;
   return amount;
 }
+
+// ---- Company points: spending — Beacon Control crate/charge stockpile --
+//
+// claude/Bloom_Wars_Beacon_Restock_Economy_v1.md §5, built 4 Sep 2026 —
+// both bought at the Fabricator, the same bay that already sells spare mek
+// parts (purchaseSpareParts above), COMPANY pool, half price once the
+// Fabricator bay itself is built (matching that bay's own established
+// "raises a cap/lowers a cost, doesn't gate the purchase" role — contrast
+// purchaseCarrierModule's Forward Battery check, a real hard gate on a
+// DIFFERENT bay). Two nearly-identical functions rather than one
+// parameterized by resource kind: CampaignState.beaconCrates and
+// .beaconCharges are separate fields, not a keyed record, so a generic
+// version would need an awkward field-name parameter for two callers this
+// small — not worth the abstraction.
+
+export const BEACON_CRATE_COST = 50;
+export const BEACON_CRATE_COST_DISCOUNTED = 25;
+export const BEACON_CHARGE_COST = 50;
+export const BEACON_CHARGE_COST_DISCOUNTED = 25;
+
+export interface BeaconStockPurchaseResult {
+  ok: boolean;
+  reason?: string;
+  stock?: number;
+  cost?: number;
+}
+
+function fabricatorDiscount(state: CampaignState, full: number, discounted: number): number {
+  return (state.builtBays ?? []).includes("fabricator") ? discounted : full;
+}
+
+/** Buys one Fabricator crate for the COMPANY stockpile — see engine/mission.ts's useBeaconControl for what it's spent on. Deliberately NOT gated on Beacon Control or the Generator being built (see the Hub.ts build-request Generator gate for where THAT dependency actually lives) — nothing stops a player stockpiling ahead of unlocking the ability, same as banking company points before spending them. */
+export function purchaseBeaconCrate(state: CampaignState): BeaconStockPurchaseResult {
+  const cost = fabricatorDiscount(state, BEACON_CRATE_COST, BEACON_CRATE_COST_DISCOUNTED);
+  if (state.points < cost) {
+    return { ok: false, reason: `not enough company points — a Fabricator crate costs ${cost}, company has ${state.points}` };
+  }
+  state.points -= cost;
+  state.beaconCrates = (state.beaconCrates ?? 0) + 1;
+  return { ok: true, stock: state.beaconCrates, cost };
+}
+
+/** Buys one Restock Room charge for the COMPANY stockpile — same shape as purchaseBeaconCrate above, see that function's own comment for the build-order reasoning. */
+export function purchaseBeaconCharge(state: CampaignState): BeaconStockPurchaseResult {
+  const cost = fabricatorDiscount(state, BEACON_CHARGE_COST, BEACON_CHARGE_COST_DISCOUNTED);
+  if (state.points < cost) {
+    return { ok: false, reason: `not enough company points — a Restock Room charge costs ${cost}, company has ${state.points}` };
+  }
+  state.points -= cost;
+  state.beaconCharges = (state.beaconCharges ?? 0) + 1;
+  return { ok: true, stock: state.beaconCharges, cost };
+}
+
+// ---- Company points: Beacon Control's Debrief-side reconciliation ------
+//
+// Two separate steps, called once each from scenes/Debrief.ts's own
+// mission-end sequence — same split applyCompanyEarnings/
+// applyBonusObjectivePoints above already keep, rather than one do-everything
+// function.
+
+/**
+ * Writes back whatever the mission actually consumed from the crate/charge
+ * stockpile. Mission only ever holds a SNAPSHOT (MissionOptions.
+ * beaconCratesRemaining/beaconChargesRemaining, read once at construction —
+ * same "campaign state doesn't change under an in-progress mission" rule
+ * builtBays/builtModules already follow) — the real, persistent count lives
+ * on CampaignState and has to be told what the mission ended with. Safe to
+ * call even on a mission that never touched Beacon Control at all: the
+ * ending numbers are just whatever was passed in, unchanged.
+ */
+export function applyBeaconStockConsumption(state: CampaignState, mission: Mission): void {
+  state.beaconCrates = mission.beaconCratesRemaining;
+  state.beaconCharges = mission.beaconChargesRemaining;
+}
+
+/**
+ * §3 item 1: "a percentage of that mission's own point payout" per beacon
+ * revive used, deducted from the COMPANY pool at Debrief — not at the
+ * moment of use in-mission, since a mission's own payout isn't known until
+ * it actually resolves. PLACEHOLDER percentage, same "argued, not
+ * simulated" status every other unset number in this file already carries
+ * (this project has no economy-sim harness yet — source doc's own framing,
+ * repeated in its every-number-is-a-placeholder header) — 15%, picked as a
+ * real but not crushing tax: reviving all 3 beacons in one mission costs
+ * 45% of that mission's completion bonus, still leaves more than half.
+ */
+export const BEACON_REVIVE_PAYOUT_PERCENT = 0.15;
+
+/**
+ * "That mission's own point payout" is read as the Company-pool completion
+ * bonus (computeMissionCompletionBonus's own `total` — base reward + the
+ * turn/no-downed/no-severance bonuses), confirmed against the actual
+ * current earning-split code per the source doc's own instruction to do so
+ * before building this: personal earnings (computeMissionEarnings above) is
+ * an entirely separate per-pilot kill/assist/survival formula with no
+ * connection to "the mission's payout" as a single number, so Company pool
+ * is the only reading that matches the doc's own language. Recomputes
+ * computeMissionCompletionBonus itself rather than taking it as a
+ * parameter — a pure derivation from `mission`, so there's no risk of a
+ * caller passing a stale number, same reasoning fireSupportRadius's own
+ * getter comment gives for reading through one place rather than a cached
+ * value. A losing mission's payout is 0 (computeMissionCompletionBonus is
+ * entirely win-gated), so this cost is correctly 0 on a loss too — a
+ * beacon's crate/charge cost still applies either way (paid in-mission,
+ * via useBeaconControl), but the payout-percentage tax only bites when
+ * there was a payout to tax. Clamped so this can never push state.points
+ * negative — a post-hoc deduction against value being added the same
+ * Debrief cycle, not a pre-checked purchase the way purchaseBeaconCrate/
+ * Charge above are, so there's nothing to refuse in advance the way those
+ * two can.
+ */
+export function applyBeaconReviveCosts(state: CampaignState, mission: Mission): number {
+  if (mission.beaconRevivesUsed <= 0) return 0;
+  const payout = computeMissionCompletionBonus(mission).total;
+  const cost = Math.round(payout * BEACON_REVIVE_PAYOUT_PERCENT * mission.beaconRevivesUsed);
+  state.points = Math.max(0, state.points - cost);
+  return cost;
+}

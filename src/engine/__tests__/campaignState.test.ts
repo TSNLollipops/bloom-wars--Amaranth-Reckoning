@@ -35,6 +35,10 @@ import {
   loadManualSlot,
   clearManualSlot,
   type CampaignStorage,
+  createHouseAmaranthCampaignState,
+  companyNameOf,
+  DEFAULT_WARDEN_COMPANY_NAME,
+  DEFAULT_HOUSE_AMARANTH_COMPANY_NAME,
 } from "../campaignState";
 import { testUnit } from "./testHelpers";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS } from "../../data/campaignAmaranth";
@@ -944,5 +948,93 @@ describe("rankDisplayTitle — the Hub UI's own rank readout, 27 Aug 2026", () =
     expect(rankDisplayTitle("2nd_lt")).toBe("2nd Lt.");
     expect(rankDisplayTitle("capt")).toBe("Capt.");
     expect(rankDisplayTitle("maj")).toBe("Maj.");
+  });
+});
+
+// B6, "name your company" (First Game Dev Feature Gap Report §B6), 5 Sep
+// 2026. The DOM text field itself is covered by tools/verify/
+// checkCompanyName.mjs — a Phaser scene can't be unit-tested here (importing
+// Phaser at module scope throws outside a browser), and a text input is
+// exactly the kind of thing that passes every unit test while being
+// impossible to actually type into. What IS testable is the engine half:
+// the per-side defaults, the read path scenes use, and the backfill that
+// decides what every pre-B6 save is called on its next load.
+describe("B6 — company name: defaults, read path, and backfill", () => {
+  function memoryStorage(): CampaignStorage {
+    const backing = new Map<string, string>();
+    return {
+      getItem: (k) => backing.get(k) ?? null,
+      setItem: (k, v) => void backing.set(k, v),
+      removeItem: (k) => void backing.delete(k),
+    };
+  }
+
+  it("gives each side its own default name at creation", () => {
+    expect(createWardenCampaignState().companyName).toBe(DEFAULT_WARDEN_COMPANY_NAME);
+    expect(createHouseAmaranthCampaignState().companyName).toBe(DEFAULT_HOUSE_AMARANTH_COMPANY_NAME);
+  });
+
+  it("companyNameOf returns whatever the player actually named them", () => {
+    const state = createWardenCampaignState();
+    state.companyName = "The Gravediggers";
+    expect(companyNameOf(state)).toBe("The Gravediggers");
+  });
+
+  it("companyNameOf falls back per-side rather than rendering 'undefined'", () => {
+    // A state that never went through loadCampaignState's backfill — e.g. a
+    // fresh createCampaignState in a test, or a hand-built one.
+    const warden = createWardenCampaignState();
+    delete warden.companyName;
+    expect(companyNameOf(warden)).toBe(DEFAULT_WARDEN_COMPANY_NAME);
+
+    const house = createHouseAmaranthCampaignState();
+    delete house.companyName;
+    expect(companyNameOf(house)).toBe(DEFAULT_HOUSE_AMARANTH_COMPANY_NAME);
+  });
+
+  it("treats a whitespace-only name as no name at all", () => {
+    const state = createWardenCampaignState();
+    state.companyName = "   ";
+    expect(companyNameOf(state)).toBe(DEFAULT_WARDEN_COMPANY_NAME);
+  });
+
+  it("backfills a pre-B6 Warden save to the name it was always shown under", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    delete state.companyName; // exactly what every save written before 5 Sep 2026 looks like
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.companyName).toBe(DEFAULT_WARDEN_COMPANY_NAME);
+  });
+
+  it("backfills a pre-B6 House Amaranth save to ITS side's name, not Warden's", () => {
+    // The bit worth guarding: side is decided by baseSceneKeyFor's own
+    // pilot_rourke rule, so a House Amaranth save must not silently come
+    // back calling itself Warden Company.
+    const storage = memoryStorage();
+    const state = createHouseAmaranthCampaignState();
+    delete state.companyName;
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage);
+    expect(loaded!.companyName).toBe(DEFAULT_HOUSE_AMARANTH_COMPANY_NAME);
+  });
+
+  it("never overwrites a name the player did choose", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    state.companyName = "Ninth Column";
+    saveCampaignState(state, storage);
+
+    expect(loadCampaignState(storage)!.companyName).toBe("Ninth Column");
+  });
+
+  it("round-trips a name through save and load unchanged", () => {
+    const storage = memoryStorage();
+    const state = createWardenCampaignState();
+    state.companyName = "Rourke's Own";
+    saveCampaignState(state, storage);
+    expect(companyNameOf(loadCampaignState(storage)!)).toBe("Rourke's Own");
   });
 });

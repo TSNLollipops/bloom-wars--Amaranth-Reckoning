@@ -61,6 +61,11 @@ import type { SocialLogEntry } from "../data/verbs";
 import type { CarrierModuleId } from "../data/carrierModules";
 import type { HeirloomCampaignState } from "./heirlooms";
 import type { BattleUnit, OnHitEffectKind } from "./units";
+import type { RecRoomState } from "./recRoomRecord";
+// Value import, not type-only: applyMissionLosses below stamps the calendar
+// day a pilot was lost on. calendarClock.ts imports CampaignState from this
+// file TYPE-ONLY, so this is not a runtime cycle.
+import { currentDay } from "./calendarClock";
 
 // ---- 4. Campaign-persistent roster state ----------------------------
 
@@ -153,6 +158,17 @@ export interface PilotLossContext {
   muntisDeployed: number;
   /** They were themselves the last Munti. */
   wasLastMunti: boolean;
+  /**
+   * The calendar day they were lost on. Added 3 Sep 2026 for the Rec Room
+   * standings board, which keeps a dead pilot's row and wants to say when
+   * they were lost beside it — that date existed nowhere in the save until
+   * now (this context recorded the mission and the turn, not the day).
+   *
+   * Optional because every save written before this field existed has
+   * none. A missing value reads as "we no longer know which day," and the
+   * board says nothing rather than guessing — see StandingsPanel.
+   */
+  lostOnDay?: number;
 }
 
 export interface CampaignPilotEntry {
@@ -314,6 +330,16 @@ export interface CampaignState {
   // date, and every fresh createCampaignState() call, has none yet;
   // ensureNpcSocialState() is the only thing that ever creates it.
   npcSocial?: NpcSocialState;
+  // Rec Room Standings & NPC Learning, slice 2 (3 Sep 2026) — every
+  // pilot's win/loss record at the three Rec Room minigames, plus the
+  // player's own under PLAYER_RECORD_ID. Optional and lazily created by
+  // ensureRecRoomState(), exactly the npcSocial pattern directly above,
+  // so no save migration is needed for anything that predates it.
+  //
+  // Read engine/recRoomRecord.ts's closing comment before writing any
+  // cleanup pass that touches this: entries for pilots who are no longer
+  // on the roster are deliberate, not orphans.
+  recRoom?: RecRoomState;
   // Debrief-side echo, 27 Aug 2026 (Social Sim Roadmap #9) — set by
   // scenes/Debrief.ts every time a mission resolves for real (win, loss, or
   // commander_down — see data/hotTopics.ts's own header for why
@@ -344,6 +370,23 @@ export interface CampaignState {
   // continuously-overwriting key, no manual saves" is the actual behavior
   // every such save has always had, not a feature it should quietly gain.
   ironman?: boolean;
+  // B6, "name your company" (First Game Dev Feature Gap Report, 1 Sep 2026:
+  // "Players name things they intend to lose") — built 5 Sep 2026. Set once
+  // at CampaignSetup from a text field next to the Ironman checkbox, then
+  // read anywhere the company's name is shown to the player rather than
+  // hardcoded: TransporterPad's header today, the memorial header when B3
+  // lands. Optional and backfilled (backfillCompanyName below) so every save
+  // written before this field existed keeps the exact name it was always
+  // displayed under, side-correct, instead of going blank.
+  //
+  // Deliberately NOT wired into ambient lines, though the gap report's own
+  // B6 entry mentions a "{COMPANY} slot" — Claude, 5 Sep 2026: no such slot
+  // exists. data/ambientLines.ts is ~96KB of literal strings with zero
+  // template placeholders of any kind, so honoring that line would mean
+  // designing and threading a substitution layer through the whole ambient
+  // system, which is a system, not this field. Flagged for Maxime rather
+  // than quietly built.
+  companyName?: string;
   // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Set true the
   // first time any real interaction (ordinary Talk, a build request, or
   // small talk) reaches Arangement of Content in the grotto — see Hub.ts's
@@ -406,7 +449,50 @@ export interface CampaignState {
   // anyway — calendarClock.ts's currentDay()/rawCalendarDay() own the
   // "absent means 1" default in one place.
   calendarDay?: number;
+  // Beacon Control & Restock Room (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md,
+  // built 4 Sep 2026) — the crate/charge stockpile purchased at the
+  // Fabricator (engine/campaignEconomy.ts's purchaseBeaconCrate/
+  // purchaseBeaconCharge), drawn down mid-mission by engine/mission.ts's
+  // useBeaconControl and read back into this state at Debrief
+  // (applyBeaconStockConsumption). Optional, defaulting to 0 (NOT
+  // BEACON_STARTING_CRATES/CHARGES below) at every read site — a save from
+  // before this field existed gets none, same "absent means empty/zero"
+  // convention every other optional field on this interface already
+  // follows, deliberately NOT backfilled to the starting grant: that grant
+  // is framed as "one-time, at campaign start" (source doc §7), and a
+  // campaign already in progress already missed that moment, the same way
+  // it would have missed any other one-time campaign-start bonus added
+  // after it began. createCampaignState below is the only place that sets
+  // these to a real starting value, for brand-new campaigns going forward.
+  beaconCrates?: number;
+  beaconCharges?: number;
 }
+
+/**
+ * Beacon Control's starting stockpile (source doc §7) — one-time, granted
+ * at campaign creation only, never refilled at Act breaks. The source doc
+ * scales this by the player's chosen AI-difficulty tier (Easy 5/5,
+ * Moderate 2/2, Hard 0/0), reusing "the existing Easy/Moderate/Hard system
+ * from the Player AI Difficulty Tiers build" — but that system
+ * (src/sim/playerAi/) is the OFFLINE BATCH SIMULATOR's bot, used to
+ * balance-test missions by having a bot play instead of a human
+ * (src/sim/runBatch.ts's own --tier flag). It is not, and has never been, a
+ * difficulty a real player picks anywhere in this game — grep-confirmed:
+ * CampaignSetup.ts (the actual New Campaign screen) offers exactly two
+ * choices, Warden/House Amaranth side and the Ironman checkbox, nothing
+ * difficulty-shaped. Building a real player-facing difficulty picker to
+ * make the source doc's table literally true would be a genuinely new
+ * system, unplanned scope well beyond this pass — flagged to Maxime rather
+ * than built silently. Until that exists (if it ever does), every campaign
+ * gets this ONE flat starting stock instead: the Moderate row from that
+ * table, since the source doc itself calls that one "an arbitrary midpoint,
+ * not sim-checked" already, making it the least-committal number to
+ * hardcode as a placeholder. If a real difficulty selector is ever added,
+ * swapping this flat constant for a three-way lookup keyed off that
+ * selection is the one place that change needs to happen.
+ */
+export const BEACON_STARTING_CRATES = 2;
+export const BEACON_STARTING_CHARGES = 2;
 
 /**
  * A random, meaningless id (1 Sep 2026, telemetry pass). crypto.randomUUID
@@ -437,15 +523,60 @@ export function createCampaignState(pilots: PilotRecord[], meks: Record<string, 
   // calendarDay: 1 — the calendar epoch is campaign start, not first-mission-
   // complete (Calendar Economy Proposal v2 §7). "Day 47 — Muster" only reads
   // right if real days have already elapsed before whatever Muster marks.
-  const state: CampaignState = { points: startingPoints, pilots: {}, meks: {}, nextGeneratedId: 1, rourkeRank: "2nd_lt", ironman: true, campaignId: mintRandomId(), calendarDay: 1 };
+  const state: CampaignState = {
+    points: startingPoints,
+    pilots: {},
+    meks: {},
+    nextGeneratedId: 1,
+    rourkeRank: "2nd_lt",
+    ironman: true,
+    campaignId: mintRandomId(),
+    calendarDay: 1,
+    beaconCrates: BEACON_STARTING_CRATES,
+    beaconCharges: BEACON_STARTING_CHARGES,
+  };
   for (const p of pilots) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(meks)) state.meks[id] = { ...m };
   return state;
 }
 
+// B6 "name your company" (5 Sep 2026) — the two per-side defaults, and the
+// longest name the UI will accept. Exported so CampaignSetup's text field
+// seeds and validates against the same values these factories use, rather
+// than a second copy of the strings that could drift from them.
+//
+// 24 characters is not arbitrary: TransporterPad's header renders as
+// `TRANSPORTER PAD — ${name}` at 30px monospace centered on a 1074px-wide
+// canvas, and that template plus a 24-char name is what still fits without
+// running into the "< mission select" button at the top right. Longer names
+// aren't rejected on load (an old save or a hand-edited one keeps whatever
+// it has); the cap only applies to what the player can type in.
+export const DEFAULT_WARDEN_COMPANY_NAME = "Warden Company";
+export const DEFAULT_HOUSE_AMARANTH_COMPANY_NAME = "House Amaranth";
+export const COMPANY_NAME_MAX_LENGTH = 24;
+
+/**
+ * The company name to actually show for `state` — B6's single read path, so
+ * no scene has to repeat the undefined-check or guess a fallback. Falls back
+ * to the same per-side default backfillCompanyName would have written, using
+ * baseSceneKeyFor's own Rourke rule for which side this is, so a state that
+ * somehow reaches a scene without passing through loadCampaignState (a fresh
+ * createCampaignState in a test, say) still renders a correct name instead
+ * of "undefined".
+ */
+export function companyNameOf(state: CampaignState): string {
+  if (state.companyName && state.companyName.trim()) return state.companyName;
+  return state.pilots["pilot_rourke"] ? DEFAULT_WARDEN_COMPANY_NAME : DEFAULT_HOUSE_AMARANTH_COMPANY_NAME;
+}
+
 /** The live campaign's actual starting state (Warden Company, data/campaignAmaranth.ts — the non-archived roster; data/campaign.ts's Team One slice is intentionally untouched by this whole pass). */
 export function createWardenCampaignState(startingPoints = 0): CampaignState {
-  return createCampaignState(WARDEN_PILOTS, WARDEN_MEKS, startingPoints);
+  const state = createCampaignState(WARDEN_PILOTS, WARDEN_MEKS, startingPoints);
+  // B6 default (5 Sep 2026) — the name this side has always been shown under
+  // everywhere in the UI. CampaignSetup overwrites it from its text field
+  // before the first save, exactly the way it already does for `ironman`.
+  state.companyName = DEFAULT_WARDEN_COMPANY_NAME;
+  return state;
 }
 
 /**
@@ -481,7 +612,9 @@ export function createWardenCampaignState(startingPoints = 0): CampaignState {
  * increases for this side — a missing nice-to-have, not a bug.
  */
 export function createHouseAmaranthCampaignState(startingPoints = 0): CampaignState {
-  return createCampaignState(HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_MEKS, startingPoints);
+  const state = createCampaignState(HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_MEKS, startingPoints);
+  state.companyName = DEFAULT_HOUSE_AMARANTH_COMPANY_NAME; // B6 default, see createWardenCampaignState's own note
+  return state;
 }
 
 /**
@@ -577,6 +710,7 @@ export function loadCampaignState(storage?: CampaignStorage, key: string = STORA
     backfillRourkeRank(state);
     backfillIronman(state);
     backfillCampaignId(state);
+    backfillCompanyName(state);
     backfillCalendarDay(state);
     return state;
   } catch {
@@ -872,6 +1006,7 @@ export function applyMissionLosses(
       turnsWithoutMunti: loss.turnsWithoutMunti,
       muntisDeployed: loss.muntisDeployed,
       wasLastMunti: loss.wasLastMunti,
+      lostOnDay: currentDay(state),
     };
     flipped.push(loss.pilotId);
   }
@@ -1417,6 +1552,21 @@ function backfillCampaignId(state: CampaignState): void {
 }
 
 /**
+ * B6, 5 Sep 2026 — a save written before `companyName` existed gets the name
+ * that side was actually always displayed under, so nothing a player has
+ * been looking at for weeks silently changes or blanks out. Side is decided
+ * by baseSceneKeyFor's own rule (Warden has pilot_rourke, House Amaranth
+ * doesn't) rather than a second discriminator that could disagree with it.
+ * Also repairs a whitespace-only name, which is the one thing a text field
+ * can produce that would otherwise render as an empty header.
+ */
+function backfillCompanyName(state: CampaignState): void {
+  if (!state.companyName || !state.companyName.trim()) {
+    state.companyName = state.pilots["pilot_rourke"] ? DEFAULT_WARDEN_COMPANY_NAME : DEFAULT_HOUSE_AMARANTH_COMPANY_NAME;
+  }
+}
+
+/**
  * Calendar economy pass (2 Sep 2026) — a save written before `calendarDay`
  * existed heals to day 1 on first load. Same pure-in-memory shape as the
  * three backfills above.
@@ -1782,4 +1932,24 @@ export function ensureNpcSocialState(state: CampaignState, seed: Record<string, 
     state.npcSocial = { bonds: { ...seed }, relationships: [] };
   }
   return state.npcSocial;
+}
+
+/**
+ * Rec Room Standings, slice 2 — same "seed once, hand back the same object
+ * after" shape as ensureNpcSocialState directly above, and for the same
+ * reason: every save that predates this field has none, and there is
+ * exactly one of these per CampaignState rather than one per pilot.
+ *
+ * There is no seed argument here because there is nothing to seed. A
+ * pilot with no record has played nothing, which is the correct starting
+ * truth for everyone — including the crew who were already aboard before
+ * this system existed. Their skill starts at 0 and climbs from their
+ * first real session, and that reads as honest rather than as a gap:
+ * nobody has a record at a game the ship never kept score at.
+ */
+export function ensureRecRoomState(state: CampaignState): RecRoomState {
+  if (!state.recRoom) {
+    state.recRoom = { records: {} };
+  }
+  return state.recRoom;
 }

@@ -406,6 +406,50 @@ export const ABILITIES: Record<string, AbilityDef> = {
     // combatTables.ts) per mission. Firing breaks concealment (abil_ambush/
     // abil_screen), same as any other attack.
   },
+  abil_maser_lance: {
+    id: "abil_maser_lance",
+    displayName: "Maser Lance",
+    kind: "active",
+    // Tank — 5 Sep 2026, granted by data/weaponBranches.ts's
+    // tank_maser_lance (Tank's 3rd branch). Same "SOFT pass" precedent as
+    // abil_missile just above: this pass makes the mechanic itself real and
+    // wires it to the one branch that grants it, not a second gear-tier
+    // fork — see weaponBranches.ts's own header for that reasoning.
+    //
+    // Effect: pick one of 8 directions from this unit's own tile (same
+    // CINDER_LINE_DIRECTIONS set requiem_severance/cinder_line_signature
+    // already use to pick a direction on this grid) and fire a WIDENING
+    // CONE down it — 1 tile at forward-step 1, 3 tiles at step 2, 5 tiles
+    // at step 3 (MASER_LANCE_CONE_RANGE, data/combatTables.ts; the per-step
+    // width formula itself lives in engine/mission.ts's maserLanceConeTiles).
+    // This was a genuine three-way design fork, resolved by Maxime via
+    // AskUserQuestion rather than guessed:
+    //   1. A separate granted ability (own action-bar button, own
+    //      per-mission charge budget, ends the turn) — NOT a modifier
+    //      riding on the Tank's ordinary attack. Same architecture as
+    //      Missiles just above, not a third shape.
+    //   2. A REAL expanding cone — NOT a simpler frontal rectangle/block.
+    //   3. Friendly-fire capable, no side filter — allies caught in the
+    //      cone are hit too, same "doesn't check sides" family as
+    //      abil_missile/abil_severance, not excluded the way
+    //      abil_fire_support's hostile-only blast is.
+    //
+    // Damage runs through the ordinary per-target combat formula
+    // (resolveMechAttack / resolveAttackOnBloom), same as Missiles and for
+    // the same reason — this is the Tank's own weapon, scaled by its own
+    // stats, not a flat off-board number. Splash is NOT dodgable (mirrors
+    // missileStrike's own "an explosion already covering the whole blast
+    // tile" reasoning exactly — a chance-based footwork dodge doesn't hold
+    // for a cone any more than it does for a missile's blast radius), but a
+    // surviving victim's own counter is still a real roll, with the same
+    // friendly-counter suppression missileStrike already established (a
+    // friendly caught in the cone doesn't shoot back at whoever fired it).
+    //
+    // Cost: this unit's entire remaining action budget, ends the turn, one
+    // of MASER_LANCE_CHARGES_PER_MISSION per-unit charges (data/
+    // combatTables.ts) — same tier and per-unit-budget shape as Missiles.
+    // Firing breaks concealment, same as any other attack.
+  },
   abil_fire_support: {
     id: "abil_fire_support",
     displayName: "Fire Support",

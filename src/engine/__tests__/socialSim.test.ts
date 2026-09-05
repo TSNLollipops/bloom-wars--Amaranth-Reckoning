@@ -18,6 +18,9 @@ import {
   ASK_OUT_CHANCE,
   type SocialSimPilot,
   type SocialSimState,
+  resolvePokerEncounter,
+  resolveFletchersEncounter,
+  NPC_POKER_HANDS,
 } from "../socialSim";
 import { ROMANCE_ACCEPT_FAVORABILITY_DELTA, ROMANCE_REJECT_FAVORABILITY_DELTA, ROMANCE_MIN_FAVORABILITY } from "../../data/romance";
 import { GATE0_BASE_CHANCE } from "../../data/reactionGate";
@@ -224,19 +227,89 @@ describe("resolvePegBoardEncounter", () => {
   });
 });
 
-describe("resolveAbstractedMinigameEncounter", () => {
-  it("poker: a forced-low rng picks pilotA as the (abstracted) winner, always a +6 delta", () => {
-    const result = resolveAbstractedMinigameEncounter("poker", { pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.1 });
+// Rec Room Standings & NPC Learning, slice 5 (3 Sep 2026) — these two used
+// to be a `rng() < 0.5` coin flip and were tested as one: force the rng
+// low, assert pilotA "won". Both of those tests are gone, deliberately,
+// because the thing they described no longer exists. They are replaced
+// below by tests of the real sessions, not adjusted to keep passing.
+//
+// (Contrast slice 1, where the whole safety net was that NO existing test
+// changed. That was a pure refactor; this is an intentional behaviour
+// change, and pretending otherwise by massaging an old assertion would be
+// the actual mistake.)
+describe("resolveAbstractedMinigameEncounter — now real sessions, not a coin flip", () => {
+  const base = { pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.5 };
+
+  it("poker reports a real scoreline instead of narrating an abstraction", () => {
+    const result = resolveAbstractedMinigameEncounter("poker", { ...base });
     expect(result.kind).toBe("poker");
-    expect(result.bondDelta).toBe(6);
-    expect(result.summary).toContain("Bosk won");
-    expect(result.summary).toContain("abstracted");
+    expect([2, 6]).toContain(result.bondDelta);
+    expect(result.summary).not.toContain("abstracted");
+    expect(result.detail).toBeDefined();
+    // Chips are conserved: nothing is created or destroyed at the table.
+    expect(result.detail!.scoreA + result.detail!.scoreB).toBe(1000);
   });
 
-  it("fletchers: a forced-high rng picks pilotB as the (abstracted) winner", () => {
-    const result = resolveAbstractedMinigameEncounter("fletchers", { pilotA: BOSK, pilotB: ANAND, bond: 0, aCommitted: false, bCommitted: false, rng: () => 0.9 });
+  it("poker states its own hand cap in the summary rather than hiding it", () => {
+    const result = resolveAbstractedMinigameEncounter("poker", { ...base });
+    expect(result.summary).toMatch(/\d+ hands/);
+  });
+
+  it("poker never runs away — the cap holds over many sessions", () => {
+    for (let i = 0; i < 40; i += 1) {
+      const result = resolvePokerEncounter({ ...base });
+      const hands = Number(/(\d+) hands/.exec(result.summary)![1]);
+      expect(hands).toBeLessThanOrEqual(NPC_POKER_HANDS);
+      expect(hands).toBeGreaterThan(0);
+    }
+  });
+
+  it("fletchers reports the real two totals, and they are a plausible darts score", () => {
+    const result = resolveAbstractedMinigameEncounter("fletchers", { ...base });
     expect(result.kind).toBe("fletchers");
-    expect(result.summary).toContain("Anand won");
+    expect(result.detail).toBeDefined();
+    for (const score of [result.detail!.scoreA, result.detail!.scoreB]) {
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(450); // 9 darts x 50 for a perfect session
+    }
+  });
+
+  it("fletchers names whoever actually threw higher", () => {
+    for (let i = 0; i < 25; i += 1) {
+      const result = resolveFletchersEncounter({ ...base });
+      const { scoreA, scoreB } = result.detail!;
+      if (scoreA === scoreB) {
+        expect(result.summary).toContain("draw");
+        expect(result.winner).toBe("draw");
+        expect(result.bondDelta).toBe(2);
+      } else {
+        expect(result.summary).toContain(scoreA > scoreB ? "Bosk" : "Anand");
+        expect(result.winner).toBe(scoreA > scoreB ? "a" : "b");
+        expect(result.bondDelta).toBe(6);
+      }
+    }
+  });
+
+  it("skill actually decides sessions — a 90 beats a 20 far more often than not", () => {
+    // The single most important check in this whole system: if skill does
+    // not move the result, the knobs are decorative and the standings
+    // board is theatre. A cheap version of it lives here so a regression
+    // shows up in the ordinary test run, not only in `npm run sim:recroom`.
+    let strongWins = 0;
+    const N = 120;
+    for (let i = 0; i < N; i += 1) {
+      const r = resolveFletchersEncounter({ ...base, skillA: { fletchers: 90 }, skillB: { fletchers: 20 } });
+      if (r.detail!.scoreA > r.detail!.scoreB) strongWins += 1;
+    }
+    expect(strongWins / N).toBeGreaterThan(0.7);
+  });
+
+  it("leaving the skills out keeps both sides on the shipped default", () => {
+    // The additive-option discipline: runSocialSim.ts's day-level harness
+    // passes no skills at all and must keep working exactly as before.
+    const result = resolvePokerEncounter({ ...base });
+    expect(result.detail).toBeDefined();
+    expect(result.kind).toBe("poker");
   });
 });
 

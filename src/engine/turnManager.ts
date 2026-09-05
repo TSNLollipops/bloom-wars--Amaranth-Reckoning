@@ -36,6 +36,17 @@
 // existed. Shock Claws (Meeps' 3rd branch) is the one consumer so far;
 // isStunned (below) and its one caller, engine/mission.ts's runHostileTurn,
 // are the piece that makes a stunned unit's own turn actually do nothing.
+//
+// 4 Sep 2026: applyMechOnHitEffect widened again for Riot Drum (Tank's 2nd
+// branch) — a "knockback" branch added alongside "stun," reusing
+// knockbackDestination()/isKnockbackImmune() exactly as applyBloomOnHitEffect
+// already does rather than a second implementation. That reuse is why the
+// signature grew a `map`/`occupied` pair it didn't need while only "stun"
+// existed — same two params applyBloomOnHitEffect has always taken, for the
+// same reason (knockback needs somewhere to check bounds/passability/
+// collision against). "Pin" (Riot Drum's other effect) is NOT a new kind —
+// see data/weaponBranches.ts's own header comment for why it deliberately
+// reuses "stun" outright.
 import type { Coord, MapDefinition } from "../data/types";
 import { TILES } from "../data/tiles";
 import { inBounds, tileAt, chebyshevDistance, coordKey } from "./grid";
@@ -125,25 +136,32 @@ export function applyBloomOnHitEffect(
  * and writes BattleUnit.statusEffects the same way applyBloomOnHitEffect
  * does, so a future effect that lands on a mech-shape defender (a hostile
  * mech, say) would work here unchanged. No-op if the defender didn't
- * survive the hit (nothing left to stun) or if `fxId` is undefined/
- * unrecognized, mirroring applyBloomOnHitEffect's own guards exactly.
+ * survive the hit (nothing left to stun/knock back) or if `fxId` is
+ * undefined/unrecognized, mirroring applyBloomOnHitEffect's own guards
+ * exactly.
  *
  * Deliberately does NOT roll any chance of its own — "does this hit even
  * try to apply an effect" is the CALLER's decision (engine/mission.ts reads
- * data/weaponBranches.ts's WEAPON_BRANCH_ON_HIT_EFFECT.chance and rolls it
- * before ever calling this), the same division of labor
+ * data/weaponBranches.ts's WEAPON_BRANCH_ON_HIT_EFFECT entries and rolls
+ * each one before ever calling this), the same division of labor
  * applyBloomOnHitEffect already has with its own caller (mission.ts decides
  * whether the hit landed at all; this file only applies the effect once
- * told to). `attacker` is unused for stun specifically (there's no
- * direction/magnitude to derive from it the way knockback needs the
- * attacker's position) but kept in the signature — matching
- * applyBloomOnHitEffect's own shape — for whichever future mech-side effect
- * does need it, so that isn't a second signature change later.
+ * told to).
+ *
+ * `map`/`occupied` added 4 Sep 2026 alongside the "knockback" branch below
+ * (Riot Drum) — unused for "stun," same as applyBloomOnHitEffect's own
+ * acid_dot/debuff_attack branches ignore them, kept on the shared signature
+ * rather than making knockback the odd one out. `attacker` was already kept
+ * in the original signature "for whichever future mech-side effect does
+ * need it" — knockback is that effect, using attacker.pos exactly the way
+ * applyBloomOnHitEffect's own knockback branch does.
  */
 export function applyMechOnHitEffect(
   fxId: string | undefined,
-  _attacker: BattleUnit,
-  defender: BattleUnit
+  attacker: BattleUnit,
+  defender: BattleUnit,
+  map: MapDefinition,
+  occupied: Set<string>
 ): OnHitApplyResult {
   if (!fxId || defender.downed) return {};
   const fx = MECH_ON_HIT_EFFECTS[fxId];
@@ -151,6 +169,16 @@ export function applyMechOnHitEffect(
 
   if (fx.kind === "stun") {
     applyStatusEffect(defender, { kind: "stun", magnitude: fx.magnitude, turnsRemaining: fx.duration });
+    return {};
+  }
+
+  if (fx.kind === "knockback") {
+    // Same cutting_room_sure_footing immunity gate as applyBloomOnHitEffect's
+    // own knockback branch — one shared isKnockbackImmune() check, not a
+    // second copy of the rule.
+    if (isKnockbackImmune(defender)) return {};
+    const dest = knockbackDestination(map, attacker.pos, defender.pos, fx.magnitude, occupied);
+    if (dest) defender.pos = dest;
     return {};
   }
 
@@ -192,7 +220,7 @@ export function applyCopiedOnHitEffect(
   map: MapDefinition,
   occupied: Set<string>
 ): OnHitApplyResult {
-  if (kind === "stun") return applyMechOnHitEffect("fx_shock_claws_stun", attacker, defender);
+  if (kind === "stun") return applyMechOnHitEffect("fx_shock_claws_stun", attacker, defender, map, occupied);
   const fxId = kind === "acid_dot" ? "fx_acid_dot" : kind === "debuff_attack" ? "fx_debuff_attack" : "fx_knockback_1";
   return applyBloomOnHitEffect(fxId, attacker, defender, defenderSameSide, map, occupied);
 }
@@ -255,12 +283,10 @@ export function isStunned(unit: BattleUnit): boolean {
  * whether `unit` currently has an active knockback/forced-movement
  * immunity window open (Mission.cuttingRoomSureFooting() sets it,
  * BattleUnit.sureFootingActive's own comment has the full clock shape).
- * The ONE caller today is applyBloomOnHitEffect's own knockback branch,
- * above — there is no mech-on-Bloom knockback in this engine yet (only
- * "stun" is a wired mech->Bloom on-hit kind, see applyMechOnHitEffect's own
- * header comment), so this immunity check has nothing else to gate against
- * right now; a future mech-side knockback effect should call this the same
- * way.
+ * Originally applyBloomOnHitEffect's own knockback branch was the one
+ * caller; as of 4 Sep 2026 applyMechOnHitEffect's own "knockback" branch
+ * (Riot Drum) calls this too — same one shared gate, not a second immunity
+ * rule for the mech->Bloom direction.
  */
 export function isKnockbackImmune(unit: BattleUnit): boolean {
   return !!unit.sureFootingActive;

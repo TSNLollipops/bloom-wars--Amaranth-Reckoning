@@ -319,10 +319,11 @@
     <h1>THE BLOOM WARS<br><span>FIELD MANUAL</span></h1>
     <p>Quick reference for Warden Company's front — <em>The Amaranth Reckoning</em>, Act I: The Fallow Line. Keep it open in a second tab while you play; nothing here is spoiler content, just the rules the game doesn't explain out loud.</p>
     <div class="meta">
-      <span><b>Build:</b> Amaranth Act I, missions 1&ndash;4</span>
+      <span><b>Build:</b> Amaranth Act I, missions 1&ndash;4 (Sec. 01&ndash;09 below)</span>
       <span><b>Engine:</b> placeholder-geometry pass, no sprites yet</span>
-      <span><b>Updated:</b> 22 Aug 2026</span>
+      <span><b>Updated:</b> 22 Aug 2026 &mdash; Sec. 10 (The Hub) added 4 Sep 2026</span>
     </div>
+    <p style="margin-top:10px;color:var(--text-faint);font-size:12px;">Honest flag: Sec. 01&ndash;09 below still describe the original 4-mission vertical slice &mdash; controls, roster and mission list haven't been re-checked against the current 36-mission build. Sec. 10 is current as of 4 Sep 2026. A fuller pass is owed but not done here.</p>
   </div>
 
   <nav class="quicknav" aria-label="Section jump links">
@@ -336,6 +337,7 @@
       <a class="navlink" href="#objectives">07 Objectives</a>
       <a class="navlink" href="#roster">08 Roster</a>
       <a class="navlink" href="#missions">09 Missions</a>
+      <a class="navlink" href="#hub">10 The Hub</a>
     </div>
   </nav>
 
@@ -586,8 +588,80 @@
     </div>
   </section>
 
+  <!-- ============ 10 THE HUB ============ -->
+  <section id="hub">
+    <div class="sec-label"><span class="sec-num">SEC. 10</span><h2>The Hub &mdash; Warden Company's ship</h2></div>
+    <p class="sec-dek">Between missions you're not looking at a menu &mdash; you're walking the ship. Real walls, real doors, a crew that wanders on its own. This section covers what didn't exist when the rest of this manual was written.</p>
+
+    <div class="card" style="margin-bottom:14px;">
+      <h3>Getting around</h3>
+      <p><b>WASD / arrow keys</b> to walk. <b>E</b> at a door, console or NPC to interact &mdash; click works too. <b>T</b> to type something real to whoever's near you. <b>H</b> = history, <b>L</b> = highlights. Walk to the <b>BAY</b> (Hangar Deck) and press E to muster the squad and launch a mission &mdash; the crew you've mustered holds position there until you deploy or cancel, they won't wander off.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <caption>Four decks, connected by stairs and corridors &mdash; nothing here is a menu, it's a place you walk to</caption>
+        <thead><tr><th>Deck</th><th>Rooms</th><th>What's there</th></tr></thead>
+        <tbody>
+          <tr><td>Lower</td><td>Rec Room &middot; Hangar Deck &middot; Berths (1st/2nd/3rd Lance) &middot; Heads</td><td>Crew quarters, the games corner, roster/gear/recruiting, the muster BAY</td></tr>
+          <tr><td>Grotto (mid)</td><td>The Grotto &middot; The Workshop (1st/2nd/3rd Lance) &middot; Engineering</td><td>The CO's post, carrier modules, the Generator/Fabricator/Restock Room bays</td></tr>
+          <tr><td>Upper</td><td>The Vault &middot; CIC/Bridge &middot; Forward Bays</td><td>Heirloom recruiting &amp; house standing, the Sensor Array/Weapons Bay/Beacon Control bays</td></tr>
+          <tr><td>Spar Room</td><td>The Spar Room</td><td>Off the Rec Room &mdash; where a bad night sometimes gets worked out with fists</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:26px 0 10px;font-size:14px;color:var(--text);">Talking to the crew</h3>
+    <div class="grid cards-2">
+      <div class="card">
+        <h3>Talk <span class="tag">E or click, broadcast</span></h3>
+        <p>Everyone in earshot reacts, in their own voice, catalyst-flavored. This is the room-wide default &mdash; no target needed.</p>
+      </div>
+      <div class="card">
+        <h3>Type something real <span class="tag">T</span></h3>
+        <p>Opens the chat box. The nearest crew member (or the CO, if you're asking him something CO-shaped) parses what you actually typed &mdash; see the table below for what lands.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <caption>Typed phrases that resolve to a real verb &mdash; not exhaustive, but the reliable ones</caption>
+        <thead><tr><th>Say something like&hellip;</th><th>Does this</th></tr></thead>
+        <tbody>
+          <tr><td>&ldquo;hey&rdquo; / &ldquo;bye&rdquo; / &ldquo;any advice&rdquo; / &ldquo;tell me a joke&rdquo;</td><td>Small talk &mdash; greeting, farewell, advice, banter. The CO has his own bespoke lines for all four.</td></tr>
+          <tr><td>&ldquo;drink&rdquo; / &ldquo;grab a drink&rdquo;</td><td><b>Share a Drink</b> &mdash; small Stress relief, sets them Drunk for a while.</td></tr>
+          <tr><td>&ldquo;peg&rdquo; / &ldquo;poker&rdquo; / &ldquo;dart(s)&rdquo; / &ldquo;fletchers&rdquo;</td><td>Starts that Rec Room minigame. Press <code>[ ? ]</code> inside any of them for the rules.</td></tr>
+          <tr><td>&ldquo;ask her/him/them out&rdquo; / &ldquo;go on a date&rdquo;</td><td><b>Ask Out</b> &mdash; a real accept/reject roll, not guaranteed.</td></tr>
+          <tr><td>&ldquo;here's a gift&rdquo; / &ldquo;got you something&rdquo;</td><td><b>Gift</b> &mdash; a small Favorability nudge, catalyst-flavored reaction.</td></tr>
+          <tr><td>&ldquo;great job&rdquo; / &ldquo;proud of you&rdquo;</td><td><b>Praise</b>.</td></tr>
+          <tr><td>&ldquo;you're useless&rdquo; / &ldquo;shut up&rdquo;</td><td><b>Insult</b> &mdash; has its own escalation ladder. Use with intent.</td></tr>
+          <tr><td>&ldquo;sorry&rdquo; / &ldquo;I take it back&rdquo;</td><td><b>Apology</b> &mdash; can walk an insult back, not guaranteed to fully.</td></tr>
+          <tr><td>&ldquo;congrats&rdquo; / &ldquo;you earned that&rdquo;</td><td><b>Congratulate</b> &mdash; lands best right after a hot-topic promotion or pairing.</td></tr>
+          <tr><td>&ldquo;wish me luck&rdquo; / &ldquo;watch my back out there&rdquo;</td><td><b>Send-Off</b> &mdash; a pre-mission ritual line from whoever you ask.</td></tr>
+          <tr><td>&ldquo;move it&rdquo; / &ldquo;make way&rdquo; / &ldquo;excuse me&rdquo;</td><td>Clears a doorway jam &mdash; nudges everyone clustered near whoever you're talking to.</td></tr>
+          <tr><td>&ldquo;build me a &hellip;&rdquo; (to the CO, in the Grotto)</td><td>Requests one of the buildable bays (Generator, Restock Room, Sensor Array, Beacon Control, Weapons Bay, Fabricator) &mdash; costs points, rank-gated. Ask about something not on that list and he'll tell you honestly it isn't built yet, rather than staying silent.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid cards-3" style="margin-top:14px;">
+      <div class="card">
+        <h3>The CO &amp; the check-in gate</h3>
+        <p>He's in the Grotto, always at his post. After your first mission ever finishes, he has to sign off before the next one launches &mdash; talk to him, ask him anything, or send a build request, any of the three clears it. Skip him and the BAY tells you why it won't let you deploy.</p>
+      </div>
+      <div class="card">
+        <h3>The Vault <span class="tag">Upper deck</span></h3>
+        <p>Walk to the plinth, press E. Recruit from the current Heirloom-bonded aristocrat shortlist, see what your company holds and every house's standing toward you, and rank up the (currently 5) Heirloom abilities that actually fire in combat &mdash; the rest are honestly labeled &ldquo;not implemented in combat yet,&rdquo; no buy button, no lie.</p>
+      </div>
+      <div class="card">
+        <h3>Standings board <span class="tag">Rec Room</span></h3>
+        <p>Press <b>B</b> anywhere in the Rec Room, or walk up to the board on the wall and press E. A real ranked table &mdash; peg board, poker, Fletchers and an overall tab &mdash; you and the whole crew on the same board, lost pilots kept in grey with the day they were lost.</p>
+      </div>
+    </div>
+  </section>
+
   <footer>
-    Compiled from the live ruleset in <code>bloom-wars/</code>, 22 Aug 2026. Numbers here are pulled straight from <code>data/combatTables.ts</code>, <code>data/tiles.ts</code>, <code>data/abilities.ts</code> and <code>engine/combat.ts</code> &mdash; if a number in-game ever disagrees with this manual, the code is right and this file is stale.
+    Compiled from the live ruleset in <code>bloom-wars/</code>, 22 Aug 2026 (Sec. 01&ndash;09) and 4 Sep 2026 (Sec. 10). Numbers here are pulled straight from <code>data/combatTables.ts</code>, <code>data/tiles.ts</code>, <code>data/abilities.ts</code>, <code>engine/combat.ts</code>, <code>data/verbs.ts</code> and <code>data/chatIntent.ts</code> &mdash; if a number in-game ever disagrees with this manual, the code is right and this file is stale.
   </footer>
 
 </div>

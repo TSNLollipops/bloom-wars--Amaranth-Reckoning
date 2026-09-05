@@ -33,11 +33,25 @@
 // bridges this to a real CampaignState (bonds/relationships persistence)
 // and prints the log.
 import { pairKey } from "../data/npcBonds";
+import type { RecGameId } from "../data/recRoomAptitude";
 import { gate0Reacts } from "../data/reactionGate";
 import { pickAmbientLine, type AmbientPilotState, type Catalyst, type Stage } from "../data/ambientLines";
 import { pickCatalystReaction } from "../data/catalystProfile";
 import { resolveAskOut } from "../data/romance";
-import { createPegGame, applyMove as applyPegMove, pickAiMove as pickPegAiMove } from "./pegBoard";
+import { createPegGame, applyMove as applyPegMove, pickMove as pickPegMove, pegSkillFor } from "./pegBoard";
+// Rec Room Standings & NPC Learning, slice 5 (3 Sep 2026) — the two
+// engines that used to be unreachable for an NPC-vs-NPC session, now
+// seat-agnostic and skill-parameterized. See each file's own "Skill
+// parameterization" block.
+import {
+  createHoldemGame,
+  startNextHand,
+  applyHoldemAction,
+  pickSeatAction,
+  pokerSkillFor,
+  type HoldemGameState,
+} from "./holdem";
+import { createDartsGame, throwDart, pickThrowValue, dartsSkillFor } from "./darts";
 
 export interface SocialSimPilot {
   pilotId: string;
@@ -97,6 +111,20 @@ export interface EncounterInput {
   // pool exactly as before; only Hub.ts's live runNpcEncounter passes this
   // explicitly, computed from both NPCs' actual npc.room === "recroom".
   minigamesEligible?: boolean;
+  // Rec Room Standings, slice 5 — each side's live 0..100 skill at whatever
+  // game gets rolled, supplied by the caller (Hub.ts reads it off the real
+  // per-pilot record). Optional and additive, exactly the way
+  // minigamesEligible was on 2 Sep: left out, both sides play at the same
+  // fixed default the shipped engines always used, so runSocialSim.ts's
+  // day-level harness keeps working untouched.
+  //
+  // Per GAME, not one number, because simulateEncounter picks which game
+  // gets played and the caller cannot know in advance which skill it will
+  // need. A pilot who is a shark at poker and hopeless at darts is the
+  // whole point of the aptitude table; collapsing that to one number here
+  // would quietly throw it away.
+  skillA?: Partial<Record<RecGameId, number>>;
+  skillB?: Partial<Record<RecGameId, number>>;
   rng: () => number;
 }
 
@@ -119,6 +147,20 @@ export interface EncounterResult {
   // those, same as before this change.
   lineA?: string;
   lineB?: string;
+  // Rec Room Standings, slice 5 — the real scoreline, when the game has
+  // one. Darts reports the two totals; poker reports the two stacks at the
+  // end of the sitting. The peg board leaves this undefined: it has an
+  // outcome and no score at all. The standings board's `best` column reads
+  // this, so a number here has to be a real result, never a stand-in.
+  detail?: { scoreA: number; scoreB: number };
+  // Who actually won, in the caller's own A/B terms. Added with slice 5
+  // because the standings board needs to record a result and the only
+  // previous statement of who won was inside the human-readable `summary`
+  // string. Parsing that back out would have been a real bug waiting for
+  // the first time somebody reworded a line. Set by the three minigame
+  // resolvers and by spar; undefined for talk and askOut, which have no
+  // winner.
+  winner?: "a" | "b" | "draw";
 }
 
 // Placeholder, not a locked number — same caveat as every other constant
@@ -244,9 +286,18 @@ export function resolveTalkEncounter(input: EncounterInput): EncounterResult {
 export function resolvePegBoardEncounter(input: EncounterInput): EncounterResult {
   let game = createPegGame();
   let guard = 0;
+  // Slice 5, 3 Sep 2026 — this loop already drove both sides through the
+  // engine; what is new is that the two sides can now be genuinely
+  // different players. Seat "a" is pilotA, seat "b" is pilotB. With no
+  // skills supplied the two skill objects are both the shipped default, so
+  // this is byte-for-byte the old behaviour.
+  const rawA = input.skillA?.pegBoard;
+  const rawB = input.skillB?.pegBoard;
+  const skillA = rawA === undefined ? undefined : pegSkillFor(rawA);
+  const skillB = rawB === undefined ? undefined : pegSkillFor(rawB);
   while (game.status === "playing" && guard < 200) {
     guard += 1;
-    const move = pickPegAiMove(game, game.turn);
+    const move = pickPegMove(game, game.turn, game.turn === "a" ? skillA : skillB);
     if (!move) break; // shouldn't happen — resolveEndConditions inside applyMove already ends the game the instant nobody has a legal move
     game = applyPegMove(game, move);
   }
@@ -262,6 +313,8 @@ export function resolvePegBoardEncounter(input: EncounterInput): EncounterResult
       bondDelta: 0,
       summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} sat down at the peg board, but the session never resolved (guard hit — this would be a real bug in pegBoard.ts, not expected). Bond +0.`,
       becameCouple: false,
+      // No winner deliberately: a session that never resolved is not a
+      // draw, and recording it as one would put a fake row on the board.
     };
   }
   if (status.winner === "draw") {
@@ -270,6 +323,7 @@ export function resolvePegBoardEncounter(input: EncounterInput): EncounterResult
       bondDelta: 2,
       summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} played the peg board to a draw. Bond +2.`,
       becameCouple: false,
+      winner: "draw",
     };
   }
   const winner = status.winner === "a" ? input.pilotA : input.pilotB;
@@ -278,29 +332,150 @@ export function resolvePegBoardEncounter(input: EncounterInput): EncounterResult
     bondDelta: 6,
     summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} played the peg board — ${winner.displayName} won. Bond +6.`,
     becameCouple: false,
+    winner: status.winner === "a" ? "a" : "b",
   };
 }
 
-// Poker and Fletchers — explicitly ABSTRACTED, not a real hand-by-hand or
-// throw-by-throw session. holdem.ts and darts.ts both hardcode a "human"
-// vs "ai" seat (SeatId / DartsPlayerId), with no exported decision function
-// for the "human" side the way pegBoard.ts's pickAiMove is genuinely
-// side-agnostic — holdem.ts's own AI logic (preflopStrength/
-// postflopStrength/decideAction) is module-private and not exported at
-// all. Making either of those two engines run a real NPC-vs-NPC session
-// would mean refactoring two other shipped, tested files — real, separate
-// scope, not undertaken in this pass. Stated plainly here AND in the log
-// line itself (this project's own "no silent caps" discipline), not hidden
-// behind a result that looks like a real session.
+// Poker and Fletchers — REAL sessions as of 3 Sep 2026 (Rec Room Standings
+// & NPC Learning, slice 5). Both used to be a `rng() < 0.5` coin flip,
+// because holdem.ts and darts.ts each hardcoded a "human" seat and neither
+// exported a decision function the second side could use. Slice 1 fixed
+// that in the engines themselves; this is the payoff.
+//
+// The bubble stops narrating a coin flip and starts reporting a scoreline:
+//
+//   before: "Bosk and Anand played Fletchers (abstracted - no real
+//            throw-by-throw session) - Bosk won. Bond +6."
+//   after:  "Bosk and Anand played Fletchers - Bosk took it 87-64."
+//
+// resolveAbstractedMinigameEncounter is kept as a thin router to the two
+// real resolvers below, rather than deleted, because it is the exported
+// name simulateEncounter and this file's own tests already call. Its
+// "abstracted" name is now wrong; renaming it is a separate, mechanical
+// change and is deliberately not bundled into a behaviour change.
 export function resolveAbstractedMinigameEncounter(kind: "poker" | "fletchers", input: EncounterInput): EncounterResult {
-  const aWon = input.rng() < 0.5;
+  return kind === "poker" ? resolvePokerEncounter(input) : resolveFletchersEncounter(input);
+}
+
+/**
+ * A real Hold'em sitting, capped at NPC_POKER_HANDS hands and scored on
+ * chips won rather than played to bust-out.
+ *
+ * The cap is a real design decision, not a shortcut, and it is stated in
+ * the summary line rather than hidden behind a result that looks like a
+ * full session — this codebase's own "no silent caps" discipline. Two
+ * reasons for it:
+ *
+ *   1. A full sitting to bust-out at 500 chips with 10/20 blinds can run
+ *      hundreds of hands. This resolver is called from Hub.ts inside a
+ *      single frame, and hundreds of hands there is a visible hitch. The
+ *      alternative (chunking a session across frames) is a lot more code
+ *      for a worse story.
+ *   2. It is better fiction anyway. Two crew on a break play a few hands.
+ *      They do not sit there until one of them is broke.
+ */
+export const NPC_POKER_HANDS = 8;
+
+export function resolvePokerEncounter(input: EncounterInput): EncounterResult {
+  const rawA = input.skillA?.poker;
+  const rawB = input.skillB?.poker;
+  const skillA = rawA === undefined ? undefined : pokerSkillFor(rawA);
+  const skillB = rawB === undefined ? undefined : pokerSkillFor(rawB);
+  let game: HoldemGameState = createHoldemGame();
+
+  // Seat 0 is pilotA, seat 1 is pilotB. The engine has no idea either of
+  // them is an NPC, which is the whole point of slice 1.
+  let handsPlayed = 0;
+  let guard = 0;
+  // The hand counter is incremented where the hand actually ENDS, not in
+  // the loop condition. First draft put `!game.bustedPlayer` in the while
+  // condition, which meant a session where someone busted on hand one
+  // exited before counting it and reported "0 hands" — caught by the
+  // cap-holds test in socialSim.test.ts, not by inspection.
+  for (;;) {
+    guard += 1;
+    if (guard > 5000) break; // engine bug guard; this harness runs unattended
+    if (game.status === "handOver") {
+      handsPlayed += 1;
+      if (handsPlayed >= NPC_POKER_HANDS || game.bustedPlayer) break;
+      game = startNextHand(game);
+      continue;
+    }
+    const seat = game.betting.actingIndex as 0 | 1;
+    const action = pickSeatAction(game, seat, seat === 0 ? skillA : skillB);
+    game = applyHoldemAction(game, seat, action);
+  }
+
+  const stackA = game.players[0].stack;
+  const stackB = game.players[1].stack;
+  const bustNote = game.bustedPlayer ? " (one of them ran out of chips early)" : "";
+  const capNote = `${handsPlayed} hands${bustNote}`;
+
+  if (stackA === stackB) {
+    return {
+      kind: "poker",
+      bondDelta: 2,
+      summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} played poker — dead even after ${capNote}, ${stackA} chips each. Bond +2.`,
+      becameCouple: false,
+      winner: "draw",
+      detail: { scoreA: stackA, scoreB: stackB },
+    };
+  }
+  const aWon = stackA > stackB;
   const winner = aWon ? input.pilotA : input.pilotB;
-  const label = kind === "poker" ? "played poker" : "played Fletchers";
   return {
-    kind,
+    kind: "poker",
     bondDelta: 6, // see resolvePegBoardEncounter's own header — same "decisive session" magnitude
-    summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} ${label} (abstracted — no real hand-by-hand/throw-by-throw session, see file header) — ${winner.displayName} won. Bond +6.`,
+    summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} played poker — ${winner.displayName} came out ahead after ${capNote}, ${Math.max(stackA, stackB)} to ${Math.min(stackA, stackB)}. Bond +6.`,
     becameCouple: false,
+    winner: aWon ? "a" : "b",
+    detail: { scoreA: stackA, scoreB: stackB },
+  };
+}
+
+/**
+ * A real Fletchers session — three rounds, three darts a round, both sides
+ * throwing through the same engine and the same hand-jitter a player's own
+ * throw gets.
+ *
+ * Darts needed no seat refactor at all: DartsPlayerId's "human" / "ai" were
+ * only ever two labels, and nothing in the engine did anything
+ * human-specific with them. Here "human" is seat A and "ai" is seat B, and
+ * the engine never knows the difference. It only ever needed the skill.
+ */
+export function resolveFletchersEncounter(input: EncounterInput): EncounterResult {
+  const rawA = input.skillA?.fletchers;
+  const rawB = input.skillB?.fletchers;
+  const skillA = rawA === undefined ? undefined : dartsSkillFor(rawA);
+  const skillB = rawB === undefined ? undefined : dartsSkillFor(rawB);
+  let game = createDartsGame();
+  let guard = 0;
+  while (game.status === "playing" && guard < 100) {
+    guard += 1;
+    const aim = pickThrowValue(game.turn === "human" ? skillA : skillB);
+    game = throwDart(game, aim).state;
+  }
+
+  const scoreA = game.totals.human;
+  const scoreB = game.totals.ai;
+  if (game.winner === "draw" || game.status !== "over") {
+    return {
+      kind: "fletchers",
+      bondDelta: 2,
+      summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} threw Fletchers to a draw, ${scoreA}-${scoreB}. Bond +2.`,
+      becameCouple: false,
+      winner: "draw",
+      detail: { scoreA, scoreB },
+    };
+  }
+  const winner = game.winner === "human" ? input.pilotA : input.pilotB;
+  return {
+    kind: "fletchers",
+    bondDelta: 6,
+    summary: `${input.pilotA.displayName} and ${input.pilotB.displayName} played Fletchers — ${winner.displayName} took it ${Math.max(scoreA, scoreB)}-${Math.min(scoreA, scoreB)}. Bond +6.`,
+    becameCouple: false,
+    winner: game.winner === "human" ? "a" : "b",
+    detail: { scoreA, scoreB },
   };
 }
 

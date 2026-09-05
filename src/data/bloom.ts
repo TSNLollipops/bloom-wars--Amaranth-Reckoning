@@ -92,6 +92,11 @@ export const BLOOM: Record<string, BloomArchetype> = {
     movementType: "burrow",
     perception: "seismic",
     intelligence: "reflexive",
+    // 3 Sep 2026 — the only archetype that sets this. See
+    // BloomArchetype.holdWhenIdle (data/types.ts) for the full account:
+    // an ambusher that walks at you in the open is not an ambusher, and
+    // "hold position" was unreachable on every protect_asset map.
+    holdWhenIdle: true,
     endurance: 60,
     vitality: 50,
     moveRange: 4,

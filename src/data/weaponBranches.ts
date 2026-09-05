@@ -114,6 +114,78 @@
 // entry to each of these two tables — no new engine surface required, the
 // same "plumbing already built" promise the note above made for the Bloom
 // side now holds for this side too.
+//
+// Riot Drum added 4 Sep 2026 — Tank's 2nd branch (Bloom_Wars_Mek_Workshop_
+// And_Weapon_Progression_v1.md: "melee plus a knockback/pin effect on
+// hit, echoing Interdict's own flavor"). Two real decisions got made
+// before this was buildable, both Maxime's own call, not guessed:
+//
+// 1. What "pin" actually means. abil_interdict's own triggerInterdiction()
+//    (engine/mission.ts) already uses the word "pin" in this codebase to
+//    mean "zero the target's actionsRemaining for the turn" — mechanically
+//    IDENTICAL to what the "stun" StatusEffect kind already does. Rather
+//    than invent a second, different mechanic for the same word, Riot
+//    Drum's pin reuses the "stun" StatusEffect kind outright (fx_riot_drum_pin
+//    below) — same isStunned()/runHostileTurn skip, same tickStatusEffects
+//    decay, zero new engine surface. The one honest cost of that reuse:
+//    runHostileTurn's own skip-turn log line ("X is stunned and skips its
+//    turn") is worded generically off isStunned(), not off which fxId
+//    caused it — so a Riot Drum pin proc reads as "stunned" in that one
+//    log line next turn, even though the HIT-LANDING line below (mission.ts)
+//    correctly says "is pinned!" the turn it actually happens. Not fixed
+//    here — would mean carrying a source label through StatusEffect for a
+//    text-only difference — flagged instead as a known, deliberately
+//    accepted cosmetic gap.
+// 2. Whether knockback and pin roll independently or as one either/or
+//    proc. This file's array shape for WEAPON_BRANCH_ON_HIT_EFFECT (widened
+//    from a single {fxId,chance} to a list, below) rolls each entry on its
+//    own — so a single landed hit can knock back, pin, both, or neither,
+//    same "each effect is its own placeholder chance" convention already
+//    governing every other number in this file. Not run through
+//    combat_sim.py; RIOT_DRUM_KNOCKBACK_CHANCE/RIOT_DRUM_PIN_CHANCE below
+//    are deliberately each set lower than Shock Claws' single 25% (since a
+//    hit here can proc up to two effects, not one), a judgment call worth
+//    a real playtest pass, not a locked number.
+//
+// Maser Lance added 5 Sep 2026 — Tank's 3rd branch (Bloom_Wars_Mek_Workshop_
+// And_Weapon_Progression_v1.md's Tier-3 slot). Same "SOFT pass, granted
+// ability" precedent Missiles (reeps_missiles) already set, and a genuine
+// three-question design fork, resolved by Maxime via AskUserQuestion rather
+// than guessed (see data/abilities.ts's own abil_maser_lance header for the
+// full write-up of all three):
+//   1. Architecture: a separate granted ability (own action-bar button, own
+//      per-mission charge budget, ends the turn) — same shape as Missiles,
+//      not a modifier on the Tank's ordinary attack.
+//   2. Shape: a REAL expanding cone (1/3/5 tiles wide at forward-steps
+//      1/2/3), not a simpler frontal rectangle.
+//   3. Friendly fire: yes, no side filter — same family as Missiles.
+// MASER_LANCE_GRANT_ABILITY mirrors MISSILE_GRANT_ABILITY exactly (below);
+// this file owns none of the cone geometry or charge-count numbers
+// themselves (MASER_LANCE_CONE_RANGE/MASER_LANCE_CHARGES_PER_MISSION both
+// live in data/combatTables.ts, same file Missiles' own two numbers do) —
+// this branch's only job is granting the ability to whichever Tank equips
+// it, same division of labor reeps_missiles already established.
+//
+// One purchase-order question worth flagging explicitly rather than
+// silently assuming: this system's cost/tier gate (WEAPON_BRANCH_COSTS/
+// WEAPON_BRANCH_TIER_GATE just below) is keyed by PURCHASE ORDER —
+// how many branches a pilot already owns — NOT by which specific branch,
+// and scenes/shop/ShopPanel.ts's drawWeaponBranchesRow already renders
+// every unowned branch in WEAPON_BRANCHES_BY_PATH[path] as its own BUY
+// button, all priced/gated identically off owned.length. That means a
+// fresh Tank pilot COULD buy Maser Lance as their very first branch,
+// skipping Grinder Claw/Riot Drum entirely — checked directly against the
+// live purchaseWeaponBranch/ShopPanel code rather than assumed, and this is
+// NOT a Maser-Lance-specific gap: Meeps' Shock Claws and Tank's own Riot
+// Drum are already buyable first too, ahead of each path's "earlier" branch
+// in WEAPON_BRANCHES_BY_PATH's own array order. That's this system's actual
+// designed shape per its own source doc (§3/§9: "cost and tier-gate depend
+// on purchase order... not on which specific branch") — not a bug this
+// branch introduces, so no special-case override was added here to force
+// Maser Lance behind Grinder Claw/Riot Drum. Worth knowing, not worth
+// fixing alone: if "no skipping the starter branch" ever becomes a real
+// design goal, it needs a system-wide purchase-order lock touching every
+// path's branches at once, not a one-branch patch.
 import type { Path } from "./types";
 import { MUNTI_REGEN_RADIUS } from "./combatTables";
 
@@ -122,6 +194,8 @@ export type WeaponBranchId =
   | "meeps_scattershot_pistols"
   | "meeps_shock_claws"
   | "tank_grinder_claw"
+  | "tank_riot_drum"
+  | "tank_maser_lance"
   | "reeps_missiles"
   | "reeps_rail_lance"
   | "munti_rapid_response"
@@ -158,33 +232,63 @@ export const SHOCK_CLAWS_STUN_CHANCE = 0.25;
 /** Meeps — Shock Claws' stun duration, in turns, same convention as every duration elsewhere in this system (BLOOM_ON_HIT_EFFECTS' own acid_dot/debuff_attack durations, data/bloom.ts). Placeholder, same status as SHOCK_CLAWS_STUN_CHANCE above — picked at the shortest duration this status-effect vocabulary supports, matching the spec's own "briefly." */
 export const SHOCK_CLAWS_STUN_DURATION_TURNS = 1;
 
+/** Tank — Riot Drum's knockback chance, 4 Sep 2026. See this file's header comment (Riot Drum section) for why this and RIOT_DRUM_PIN_CHANCE are each lower than Shock Claws' single 25% — a hit here can independently proc knockback, pin, both, or neither. Placeholder — not run through combat_sim.py, one line to retune. */
+export const RIOT_DRUM_KNOCKBACK_CHANCE = 0.3;
+
+/** Tank — Riot Drum's knockback distance, in tiles. Matches fx_knockback_1's own magnitude (data/bloom.ts, the Heartwood/Unnamed's push) for consistency — one tile is this engine's one existing knockback "unit," not a new distance invented just for this branch. */
+export const RIOT_DRUM_KNOCKBACK_MAGNITUDE = 1;
+
+/** Tank — Riot Drum's pin chance, 4 Sep 2026. See RIOT_DRUM_KNOCKBACK_CHANCE's own comment for why this is lower than Shock Claws' 25%. Placeholder — not run through combat_sim.py, one line to retune. */
+export const RIOT_DRUM_PIN_CHANCE = 0.15;
+
+/** Tank — Riot Drum's pin duration, in turns. "Pin" is implemented as the "stun" StatusEffect kind outright (see this file's header comment) — same 1-turn floor SHOCK_CLAWS_STUN_DURATION_TURNS uses, for the same "brief" reasoning, kept as its own named constant rather than reusing that one so the two branches' numbers can diverge later without one accidentally dragging the other along. */
+export const RIOT_DRUM_PIN_DURATION_TURNS = 1;
+
 /**
  * Mech-side on-hit effects (engine/turnManager.ts's applyMechOnHitEffect) —
  * this system's analogue of data/bloom.ts's BLOOM_ON_HIT_EFFECTS, same
  * shape (a table of fxId -> {kind, magnitude, duration}, dispatched on
  * `kind`). `magnitude` is unused for "stun" (there's no "how much" the way
  * acid_dot/debuff_attack have one) but kept on the shared shape so this
- * table's entries stay structurally identical to BLOOM_ON_HIT_EFFECTS'
- * rather than inventing a second, effect-kind-specific shape for a table of
- * exactly one entry today.
+ * table's entries stay structurally identical to BLOOM_ON_HIT_EFFECTS'.
+ * Widened 4 Sep 2026 (Riot Drum) to also allow a "knockback"-kind entry,
+ * dispatched by applyMechOnHitEffect exactly like applyBloomOnHitEffect's
+ * own knockback branch (same knockbackDestination()/isKnockbackImmune()
+ * reuse, not a second implementation).
  */
-export const MECH_ON_HIT_EFFECTS: Record<string, { kind: "stun"; magnitude: number; duration: number }> = {
+export const MECH_ON_HIT_EFFECTS: Record<
+  string,
+  { kind: "stun"; magnitude: number; duration: number } | { kind: "knockback"; magnitude: number; duration: number }
+> = {
   fx_shock_claws_stun: { kind: "stun", magnitude: 0, duration: SHOCK_CLAWS_STUN_DURATION_TURNS },
+  fx_riot_drum_knockback: { kind: "knockback", magnitude: RIOT_DRUM_KNOCKBACK_MAGNITUDE, duration: 0 },
+  fx_riot_drum_pin: { kind: "stun", magnitude: 0, duration: RIOT_DRUM_PIN_DURATION_TURNS },
 };
 
 /**
- * Which weapon branch grants which mech-side on-hit effect, and at what
- * chance to fire on a landed hit — the piece BLOOM_ON_HIT_EFFECTS doesn't
- * need an equivalent of, since a Bloom archetype's onHit is baked into the
- * archetype itself (data/bloom.ts) rather than depending on anything the
- * player equips. Read by engine/mission.ts's mech-attacks-Bloom resolution,
- * keyed by the ATTACKER's own weaponBranchId — not present in this record
- * at all for every branch that doesn't grant an on-hit effect (the common
- * case; Partial, not Record, deliberately, so a branch with nothing to add
- * here needs no entry rather than an explicit `undefined`).
+ * Which weapon branch grants which mech-side on-hit effect(s), and at what
+ * chance each fires independently on a landed hit — the piece
+ * BLOOM_ON_HIT_EFFECTS doesn't need an equivalent of, since a Bloom
+ * archetype's onHit is baked into the archetype itself (data/bloom.ts)
+ * rather than depending on anything the player equips. Read by
+ * engine/mission.ts's mech-attacks-Bloom resolution, keyed by the
+ * ATTACKER's own weaponBranchId — not present in this record at all for
+ * every branch that doesn't grant an on-hit effect (the common case;
+ * Partial, not Record, deliberately, so a branch with nothing to add here
+ * needs no entry rather than an explicit `undefined`).
+ *
+ * Widened 4 Sep 2026 from a single {fxId,chance} to a LIST of them, purely
+ * for Riot Drum (the first branch that grants more than one on-hit effect)
+ * — engine/mission.ts's call site rolls every entry in a branch's list
+ * independently, so Shock Claws' own single-entry list behaves exactly as
+ * before (still one roll, same chance, same fxId).
  */
-export const WEAPON_BRANCH_ON_HIT_EFFECT: Partial<Record<WeaponBranchId, { fxId: string; chance: number }>> = {
-  meeps_shock_claws: { fxId: "fx_shock_claws_stun", chance: SHOCK_CLAWS_STUN_CHANCE },
+export const WEAPON_BRANCH_ON_HIT_EFFECT: Partial<Record<WeaponBranchId, { fxId: string; chance: number }[]>> = {
+  meeps_shock_claws: [{ fxId: "fx_shock_claws_stun", chance: SHOCK_CLAWS_STUN_CHANCE }],
+  tank_riot_drum: [
+    { fxId: "fx_riot_drum_knockback", chance: RIOT_DRUM_KNOCKBACK_CHANCE },
+    { fxId: "fx_riot_drum_pin", chance: RIOT_DRUM_PIN_CHANCE },
+  ],
 };
 
 /** Tank — melee plus self-heal on a successful hit. A fraction of damage DEALT, not received; only fires when the hit actually lands (a dodge or a miss heals nothing). */
@@ -192,6 +296,9 @@ export const GRINDER_CLAW_HEAL_PCT = 0.2;
 
 /** Reeps — grants abil_missile (engine/mission.ts, built 26 Aug 2026, previously attached to zero archetypes — see claude/Bloom_Wars_Missile_Weapon_Live_Test_v1.md for the live-engine test this branch is built from). No new numbers here; the ability's own MISSILE_SPLASH_RADIUS/MISSILE_CHARGES_PER_MISSION (data/combatTables.ts) are unchanged. */
 export const MISSILE_GRANT_ABILITY = "abil_missile";
+
+/** Tank — grants abil_maser_lance (engine/mission.ts, built 5 Sep 2026), same "no new numbers here" shape as MISSILE_GRANT_ABILITY above — the ability's own MASER_LANCE_CONE_RANGE/MASER_LANCE_CHARGES_PER_MISSION (data/combatTables.ts) are unchanged by which Tank equips it. */
+export const MASER_LANCE_GRANT_ABILITY = "abil_maser_lance";
 
 /** Reeps — armor-piercing. Ignores a fraction of the DEFENDER's effective defense, but ONLY against a Tank-path defender (data/types.ts Path) — sharpens Reeps-beats-Tank rather than a flat damage buff that would blur the triangle. */
 export const RAIL_LANCE_DEF_IGNORE_PCT = 0.25;
@@ -232,6 +339,18 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
     path: "tank",
     description: `Melee plus self-heal on hit (${Math.round(GRINDER_CLAW_HEAL_PCT * 100)}% of damage dealt).`,
   },
+  tank_riot_drum: {
+    id: "tank_riot_drum",
+    displayName: "Riot Drum",
+    path: "tank",
+    description: `Melee. A landed hit independently rolls a ${Math.round(RIOT_DRUM_KNOCKBACK_CHANCE * 100)}% chance to knock the target back ${RIOT_DRUM_KNOCKBACK_MAGNITUDE} tile and a ${Math.round(RIOT_DRUM_PIN_CHANCE * 100)}% chance to pin it in place for ${RIOT_DRUM_PIN_DURATION_TURNS} turn.`,
+  },
+  tank_maser_lance: {
+    id: "tank_maser_lance",
+    displayName: "Maser Lance",
+    path: "tank",
+    description: "Fires a widening cone in one of 8 directions, friendly-fire capable, 2 charges/mission. Ends your turn.",
+  },
   reeps_missiles: {
     id: "reeps_missiles",
     displayName: "Missiles",
@@ -264,10 +383,10 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
   },
 };
 
-/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy). Riot Drum/Maser Lance/Suppression Autocannon/Combat Medic still wait on further design work (see the source doc's own §5/§10 Tier-3 split) and are not listed here so the shop never offers something the engine can't back yet. Reeps gets two (Missiles, then Rail Lance) since both are numbers-only and this exercises the real "collect more than one, swap for free" mechanic end to end; Munti now gets three for the same reason (Rapid Response, Aegis Ward, Field Doctor). Meeps now gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. */
+/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy — see this file's own header comment for why that's a hint, not an enforced sequence: any listed branch is buyable at any purchase-order slot). Suppression Autocannon/Combat Medic still wait on further design work (see the source doc's own §5/§10 Tier-3 split) and are not listed here so the shop never offers something the engine can't back yet. Reeps gets two (Missiles, then Rail Lance) since both are numbers-only and this exercises the real "collect more than one, swap for free" mechanic end to end; Munti now gets three for the same reason (Rapid Response, Aegis Ward, Field Doctor). Meeps now gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. Tank now gets three (Grinder Claw, Riot Drum, then Maser Lance, 5 Sep 2026) — Riot Drum was the second branch to use that same status-effect infrastructure and the first to grant more than one on-hit effect off a single hit; Maser Lance is this file's second GRANTED-ABILITY branch after Missiles (MASER_LANCE_GRANT_ABILITY above), and its first non-radius, direction-picked shape. */
 export const WEAPON_BRANCHES_BY_PATH: Record<Path, WeaponBranchId[]> = {
   meeps: ["meeps_impact_lance", "meeps_scattershot_pistols", "meeps_shock_claws"],
-  tank: ["tank_grinder_claw"],
+  tank: ["tank_grinder_claw", "tank_riot_drum", "tank_maser_lance"],
   reeps: ["reeps_missiles", "reeps_rail_lance"],
   munti: ["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor"],
 };

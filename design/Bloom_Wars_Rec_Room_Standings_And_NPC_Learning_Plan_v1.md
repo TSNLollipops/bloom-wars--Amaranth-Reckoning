@@ -1,5 +1,35 @@
 # THE BLOOM WARS — Rec Room Standings & NPC Learning Plan v1
 
+> ## STATUS — BUILT, 3–4 Sep 2026. Slices 1 through 6 are shipped.
+>
+> Built overnight, verified, and committed to the device. Full account:
+> `claude/Bloom_Wars_Build_Log_Addendum_RecRoomStandings_NpcLearning_04Sep2026.md`.
+>
+> **Slice 7 (banter slot, hot topic on a #1 change, Highlights milestone,
+> codex entry) is deliberately NOT built** — it is the one slice that is
+> content rather than mechanism, and it wants Maxime's own voice.
+>
+> **Three things in this plan changed under measurement, and the plan text
+> below is left as written rather than quietly corrected — the divergences
+> are the interesting part:**
+>
+> - §3's `PegSkill.lookahead` knob **does not exist**. Built as specified, it
+>   made whoever used it play markedly worse (seat A 51% → 10.7% at equal
+>   skill), so it was removed rather than repaired. `bestMoveChance` alone
+>   carries the peg board.
+> - §8's check 1 passes for poker at **52.4%**, not the "clearly more than
+>   half" this doc pictured. The edge is statistically solid and honestly
+>   small; raising it needs a design decision that is Maxime's, written up in
+>   the addendum.
+> - §8's check 4 line of 1 ms is **not met by the peg board and never was** —
+>   the shipped pre-change path already cost 1.45 ms. The harness now uses a
+>   soft note at 1 ms and a hard 4 ms hitch budget rather than moving the
+>   goalpost silently.
+>
+> Also built and NOT in this plan: `CampaignPilotEntry.lostContext.lostOnDay`,
+> because the board wanted to say which day a pilot was lost and that date
+> existed nowhere in the save.
+
 **Written 2 Sep 2026.** Nothing in this doc is built yet. This is the plan for
 replacing `resolveAbstractedMinigameEncounter`'s coin flip with real NPC-vs-NPC
 minigame sessions, giving every pilot a skill that grows with practice, and

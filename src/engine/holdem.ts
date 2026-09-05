@@ -265,13 +265,101 @@ function postflopStrength(hole: Card[], community: Card[]): number {
   return Math.min(1, categoryScore * 0.85 + kickerScore * 0.15);
 }
 
-function decideAction(strength: number, legal: LegalActions, potBeforeAction: number): BettingAction {
+// ---- Skill parameterization (Rec Room Standings & NPC Learning, slice 1)
+//
+// This was the one engine of the three that genuinely knew there was a
+// human on the other side of the screen: pickAiAction hardcoded seat 1.
+// The rules of Hold'em do not change based on who is sitting there, so
+// that was the engine knowing something it had no business knowing.
+//
+// Four knobs, and each one is a real, nameable poker leak rather than a
+// vague "difficulty" dial — which is what makes "getting better" here
+// something a test can actually check instead of a vibe:
+//
+//   noise            a weak player is inconsistent; they play the same
+//                    hand two different ways on two different days
+//   potOddsRespect   a weak player calls too much, because the price they
+//                    are being offered does not really change their mind
+//   bluffRate        a weak player either never fires without a hand or
+//                    fires at random
+//   valueSizing      a weak player min-bets or shoves, with no middle
+//                    ground between the two
+//
+// Getting better *is* those four converging on well-calibrated values.
+//
+// DEFAULT_POKER_SKILL reproduces the shipped heuristic exactly — same
+// numbers, same branches, same sequence of Math.random() calls — so
+// pickAiAction is unchanged and every existing holdem test stays green
+// with zero edits.
+export interface PokerSkill {
+  noise: number; // width of the decision jitter applied to hand strength
+  potOddsRespect: number; // 0..1 — how much the price offered moves them
+  bluffRate: number; // how often they fire without a hand
+  valueSizing: number; // 0..1 — how much of the legal raise span a strong hand takes
+  /**
+   * Largest raise, as a multiple of the current pot, on top of the minimum.
+   * Infinity means "no cap" — which is what the shipped table has always
+   * done, because the legal raise span runs all the way to a player's
+   * whole stack and `span * effective` reaches it on a strong hand.
+   *
+   * Added 3 Sep 2026 for NPC-vs-NPC sessions specifically. An uncapped
+   * sitting turns into one or two all-ins and is then decided by cards:
+   * measured at a mean chip swing of ~360 out of a 500 stack over eight
+   * hands, which drowned the skill signal almost completely. Pot-relative
+   * sizing is also just better poker.
+   */
+  potCapMultiple: number;
+}
+
+export const DEFAULT_POKER_SKILL: PokerSkill = { noise: 0.16, potOddsRespect: 1, bluffRate: 0.2, valueSizing: 1, potCapMultiple: Number.POSITIVE_INFINITY };
+
+// The price threshold a medium hand folds to, derived from potOddsRespect
+// rather than stored separately. At respect 1 this is the shipped 0.45; at
+// respect 0.5 it is 0.9, i.e. a player who will call almost any price; at
+// 0 it is Infinity, a pure calling station who never folds to the odds.
+function potOddsFloor(respect: number): number {
+  return respect <= 0 ? Number.POSITIVE_INFINITY : 0.45 / respect;
+}
+
+// 0..100 skill onto the four knobs. A beginner is noisy, ignores the
+// price, barely bluffs, and has no sizing; an expert is steady, prices
+// their calls, bluffs at a real frequency, and sizes proportionally.
+export function pokerSkillFor(skill: number): PokerSkill {
+  const t = Math.max(0, Math.min(100, skill)) / 100;
+  return {
+    // Retuned 3 Sep 2026 against `npm run sim:recroom`'s check 1, not
+    // guessed: the first pass had all four knobs on narrow ranges and
+    // measured 50.3% for a skill-70 against a skill-30, i.e. skill did
+    // nothing. Widened, and potOddsRespect now bottoms out low enough to
+    // make a beginner a genuine calling station (see decideAction).
+    noise: 0.5 - t * 0.44,
+    potOddsRespect: 0.1 + t * 1.0,
+    bluffRate: 0.02 + t * 0.26,
+    valueSizing: 0.15 + t * 0.9,
+    // Every NPC sizes to the pot. Not a skill knob — a house rule for the
+    // ambient table, so a crew session is a session rather than a coin
+    // flip on one shoved hand.
+    potCapMultiple: 1.5,
+  };
+}
+
+function decideAction(strength: number, legal: LegalActions, potBeforeAction: number, skill: PokerSkill = DEFAULT_POKER_SKILL): BettingAction {
   // Random jitter so the AI doesn't play as a fully deterministic script —
   // occasionally calls slightly light, occasionally passes on a marginal
   // raise. Same "small random tiebreak keeps it from being fully
-  // predictable" spirit as pegBoard.ts's own AI scorer.
-  const noise = (Math.random() - 0.5) * 0.16;
-  const effective = Math.min(1, Math.max(0, strength + noise));
+  // predictable" spirit as pegBoard.ts's own AI scorer. How *much* jitter
+  // is now the single biggest thing separating a good player from a bad
+  // one: a beginner's read of their own hand wanders enormously.
+  const noise = (Math.random() - 0.5) * skill.noise;
+  // Beginners do not just read their hand imprecisely, they read it
+  // OPTIMISTICALLY — systematically, in one direction. That asymmetry is
+  // the classic amateur error and, unlike symmetric jitter, it actually
+  // transfers chips: a player who consistently thinks a middling hand is
+  // a good one pays off the player who has the good one. Symmetric noise
+  // alone was measured at 50.3% for a skill-70 against a skill-30, i.e.
+  // no edge at all. Zero at the default, so pickAiAction is unchanged.
+  const overvalue = (1 - skill.potOddsRespect) * 0.14;
+  const effective = Math.min(1, Math.max(0, strength + noise + overvalue));
 
   if (!legal.call && !legal.raise) return legal.check ? { type: "check" } : { type: "fold" };
 
@@ -281,6 +369,20 @@ function decideAction(strength: number, legal: LegalActions, potBeforeAction: nu
   if (effective < 0.28) {
     // A weak hand takes a free card but won't pay for one.
     if (toCall === 0) return legal.check ? { type: "check" } : { type: "fold" };
+    // ...unless they are a calling station, which is the single biggest
+    // leak in amateur poker and the one that actually moves chips. Added
+    // after `npm run sim:recroom` measured skill-70 vs skill-30 at 50.3%
+    // — a coin flip. The four original knobs were all real leaks but none
+    // of them TRANSFERRED anything over an eight-hand sitting: a weak
+    // player who folds his weak hands correctly loses nothing. Paying off
+    // with a hand he should have folded is what hands the stronger player
+    // the pot.
+    //
+    // Note the guard: at potOddsRespect 1 (the default) stationChance is
+    // 0 and no random number is drawn at all, so pickAiAction's behaviour
+    // and its RNG call sequence are both byte-identical to before.
+    const stationChance = (1 - skill.potOddsRespect) * 0.9;
+    if (stationChance > 0 && legal.call && Math.random() < stationChance) return { type: "call" };
     return { type: "fold" };
   }
 
@@ -288,10 +390,10 @@ function decideAction(strength: number, legal: LegalActions, potBeforeAction: nu
     // A medium hand calls a reasonable price, folds to a bad one, and
     // occasionally raises as a semi-bluff rather than only ever calling.
     if (toCall === 0) {
-      if (legal.raise && Math.random() < 0.2) return { type: "raise", to: legal.raise.minTo };
+      if (legal.raise && Math.random() < skill.bluffRate) return { type: "raise", to: legal.raise.minTo };
       return { type: "check" };
     }
-    if (potOdds > 0.45 && effective < potOdds + 0.15) return { type: "fold" };
+    if (potOdds > potOddsFloor(skill.potOddsRespect) && effective < potOdds + 0.15) return { type: "fold" };
     return legal.call ? { type: "call" } : { type: "fold" };
   }
 
@@ -299,7 +401,11 @@ function decideAction(strength: number, legal: LegalActions, potBeforeAction: nu
   // proportionally to how strong, not just always shoving.
   if (legal.raise && Math.random() < 0.75) {
     const span = legal.raise.maxTo - legal.raise.minTo;
-    const to = Math.min(legal.raise.maxTo, legal.raise.minTo + Math.round(span * effective));
+    const raw = legal.raise.minTo + Math.round(span * effective * skill.valueSizing);
+    // At the default potCapMultiple of Infinity the cap term is Infinity
+    // and this whole line collapses back to the shipped expression.
+    const capped = Math.min(raw, legal.raise.minTo + skill.potCapMultiple * potBeforeAction);
+    const to = Math.min(legal.raise.maxTo, Math.max(legal.raise.minTo, Math.round(capped)));
     return { type: "raise", to };
   }
   if (legal.call) return { type: "call" };
@@ -307,8 +413,18 @@ function decideAction(strength: number, legal: LegalActions, potBeforeAction: nu
   return { type: "fold" };
 }
 
+// Unchanged signature, unchanged behaviour — seat 1 at the default skill.
 export function pickAiAction(state: HoldemGameState): BettingAction {
-  const strength = state.community.length === 0 ? preflopStrength(state.players[1].holeCards) : postflopStrength(state.players[1].holeCards, state.community);
-  const legal = legalActionsFor(state, 1);
-  return decideAction(strength, legal, potTotal(state));
+  return pickSeatAction(state, 1, DEFAULT_POKER_SKILL);
+}
+
+// The seat-agnostic version. The engine says "it is seat X's turn, here is
+// the legal state"; this answers "here is the move," and it does not care
+// whether the thing behind that seat is a person, a crewmate, or a batch
+// harness.
+export function pickSeatAction(state: HoldemGameState, seatIndex: 0 | 1, skill: PokerSkill = DEFAULT_POKER_SKILL): BettingAction {
+  const hole = state.players[seatIndex].holeCards;
+  const strength = state.community.length === 0 ? preflopStrength(hole) : postflopStrength(hole, state.community);
+  const legal = legalActionsFor(state, seatIndex);
+  return decideAction(strength, legal, potTotal(state), skill);
 }

@@ -2302,8 +2302,15 @@ export const AMARANTH_MISSION_27: CampaignMission = {
   id: "mission_amaranth_27",
   displayName: "Amaranth III.27 — Falling Back to Meridian",
   mapId: "map_amaranth_falling_back_to_meridian",
+  // Trimmed 4 Sep 2026 (Claude) — the pre-trim version (284 chars) left no
+  // room in drawHud's fixed HUD_TOP..LOG_TOP panel for this mission's own
+  // "Hold Zone" status line once fitLines' line-count estimate was fixed to
+  // be accurate (see Bloom_Wars_UI_Improvement_Plan_v1.md, Track 1 — the old
+  // estimate under-counted wrapped height and let the status line overlap
+  // the log below it instead of just disappearing). Same story beats, just
+  // terser; full original text is in that doc if it's ever wanted back.
   briefing:
-    "Two lines already fell getting the company this far back. This is the one Meridian itself is dug in behind, and it's the one Command's told Warden Company not to lose. Everything the surge has been building toward since The Reckoning is still coming — it's just further out this time.",
+    "Two lines already fell. This one's Meridian's own — Command said don't lose it. The surge that's been building since The Reckoning is still coming, just further out this time.",
   objective: "hold_zone",
   // FALLING_BACK_TO_MERIDIAN_TILES' own comment (mapsAmaranth.ts) already
   // flags this as the scope call: three visually distinct trench lines
@@ -3132,8 +3139,12 @@ export const AMARANTH_MISSION_35: CampaignMission = {
   id: "mission_amaranth_35",
   displayName: "Amaranth III.35 — The Last Ring",
   mapId: "map_amaranth_the_last_ring",
+  // Trimmed 4 Sep 2026 (Claude) — same reason as mission_amaranth_27's own
+  // comment just above its briefing: this was 341 chars, long enough to
+  // crowd out the Hold Zone status line once fitLines' estimate got fixed.
+  // Full original text is in Bloom_Wars_UI_Improvement_Plan_v1.md.
   briefing:
-    "Anand's reading the same heartbeat signature Cut the Root found under House Amaranth's terraces, except this one's the size of the chamber it's grown in — and it's not staying under Meridian anymore. Hold the innermost line while it breaches. Nobody's asking the company to put it down. Just to still be standing here after it's done trying.",
+    "Anand's reading the same signature Cut the Root gave off, but bigger. Hold the innermost line while it breaches. Nobody's asking the company to kill it. Just stand here.",
   objective: "hold_zone",
   // See this batch's own header comment (above AMARANTH_MISSION_33) for
   // the full hold_zone-not-eliminate_all reasoning — this is where that

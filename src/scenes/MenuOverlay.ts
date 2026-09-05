@@ -147,10 +147,16 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   // Forgotten Plans Audit, 1 Sep 2026 — the field-manual codex, reachable
   // from the pause menu (this was the audit's original ask — a link to
   // HOW_TO_PLAY.html — built out as an in-game codex instead per Maxime's
-  // own call).
+  // own call). Codex Rebuild & Live Briefing Plan v1, Part A, 4 Sep 2026 —
+  // now also passes this overlay's own `state` through, so an in-play
+  // Codex opens with real, live Personnel/Bestiary/World content gated on
+  // wherever this actual save has gotten to. `state` is whatever the host
+  // scene's own getState() returns — null for a House Amaranth save
+  // (Hangar has no CampaignState shaped like this), which Codex.ts's own
+  // hasWardenSave check already treats as "no save."
   makeShopButton(scene, layer, 480, y, 260, 36, "CODEX", true, () => {
     layer.destroy();
-    scene.scene.start("Codex", { returnScene: scene.scene.key });
+    scene.scene.start("Codex", { returnScene: scene.scene.key, campaignState: state });
   });
   y += rowGap;
 

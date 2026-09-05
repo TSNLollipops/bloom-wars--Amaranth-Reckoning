@@ -12,6 +12,7 @@ import {
   unitsVisibleToSide,
   decideHostileAction,
   ENABLE_ENEMY_ROAM_FALLBACK,
+  __setEnableUndertowAmbushHoldForTests,
   __setEnableEnemyRoamFallbackForTests,
 } from "../ai";
 import { Mission } from "../mission";
@@ -19,6 +20,7 @@ import { MISSION_1A } from "../../data/campaign";
 import { testUnit, makeUniformMap } from "./testHelpers";
 import { createHostileMechUnit, createBloomUnit } from "../units";
 import { IRON_WORD_RADIUS } from "../../data/combatTables";
+import { BLOOM } from "../../data/bloom";
 
 describe("unitsVisibleToSide", () => {
   it("counts a hostile visible to only ONE of several player units (union, not intersection or single-observer)", () => {
@@ -678,5 +680,61 @@ describe("decideHostileAction — isExtractionTarget: a hostile never attacks or
 
     const decision = decideHostileAction(map, choir, [choir, okafor, anand]);
     expect(decision.attackTargetId).not.toBe(okafor.instanceId);
+  });
+});
+
+// Undertow ambush hold, 3 Sep 2026 — Bloom_Wars_Undertow_Ambush_Hold_Scoping_v1.
+// The bug this closes: idleRoamTarget checks map.defendZone FIRST and
+// unconditionally, and every protect_asset map has one, so "hold position"
+// was not a reachable outcome on those maps at all. An ambusher that walks
+// at you in the open is not an ambusher.
+describe("holdWhenIdle — the ambush hold", () => {
+  // Shipped OFF (see ENABLE_UNDERTOW_AMBUSH_HOLD's own doc comment in
+  // ai.ts for the measured reason), so these tests turn it on and put it
+  // back — the same shape the ENABLE_ENEMY_ROAM_FALLBACK block above uses
+  // to exercise a mechanism regardless of its live default.
+  beforeAll(() => __setEnableUndertowAmbushHoldForTests(true));
+  afterAll(() => __setEnableUndertowAmbushHoldForTests(false));
+
+  function holdMap() {
+    const map = makeUniformMap("plain", 12, 12);
+    map.defendZone = [{ x: 1, y: 1 }];
+    return map;
+  }
+
+  it("an Undertow with nothing visible holds instead of walking the defendZone", () => {
+    const map = holdMap();
+    const undertow = createBloomUnit("bloom_undertow", { x: 8, y: 8 });
+    const decision = decideHostileAction(map, undertow, [undertow]);
+    expect(decision.path).toBeUndefined();
+    expect(decision.attackTargetId).toBeUndefined();
+  });
+
+  it("but still attacks the moment something IS visible — holding is not passivity", () => {
+    const map = holdMap();
+    const undertow = createBloomUnit("bloom_undertow", { x: 8, y: 8 });
+    const prey = testUnit("tank", { x: 8, y: 9 });
+    const decision = decideHostileAction(map, undertow, [undertow, prey]);
+    expect(decision.attackTargetId).toBe(prey.instanceId);
+  });
+
+  it("a Crawlmass on the same map still roams — the flag is opt-in, not a change for everyone", () => {
+    const map = holdMap();
+    const crawl = createBloomUnit("bloom_crawlmass", { x: 8, y: 8 });
+    const decision = decideHostileAction(map, crawl, [crawl]);
+    expect(decision.path).toBeDefined();
+  });
+
+  it("holds nothing when the feature flag is off — the shipped default", () => {
+    __setEnableUndertowAmbushHoldForTests(false);
+    const map = holdMap();
+    const undertow = createBloomUnit("bloom_undertow", { x: 8, y: 8 });
+    expect(decideHostileAction(map, undertow, [undertow]).path).toBeDefined();
+    __setEnableUndertowAmbushHoldForTests(true);
+  });
+
+  it("only the Undertow carries the flag today", () => {
+    const flagged = Object.values(BLOOM).filter((b) => b.holdWhenIdle);
+    expect(flagged.map((b) => b.id)).toEqual(["bloom_undertow"]);
   });
 });

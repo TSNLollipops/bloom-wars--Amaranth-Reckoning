@@ -493,6 +493,34 @@ export function detectRemovePilotIntent(raw: string): boolean {
   return countHits(text, REMOVE_PILOT_KEYWORDS) > 0;
 }
 
+// Move It — Move It Verb Proposal, 3 Sep 2026 (doorway/corridor jams,
+// flagged open in the Ship Interior addendum's own "known gap" note: the
+// stuck-timeout sidestep resolves a jam but it's a shove, not manners — a
+// real "wait your turn" queueing rule is a separate, still-unbuilt follow-
+// up). This is the forced-clear half: the player asking for one on demand,
+// same trigger shape as the NPC's own self-resolve (Hub.ts's clearCluster),
+// just player-initiated instead of stuckMs-gated.
+//
+// Deliberately NOT a VerbDef/VERB_REQUEST_KEYWORDS entry — see the proposal
+// doc's own header: no Cost, no Requirements, no Outcome, nothing written to
+// SocialLogEntry. This patches an engine limitation from inside the fiction,
+// it isn't a relationship beat, so it gets its own boolean check instead,
+// same shape as detectHistoryRequest/detectConfideRequest above. Checked by
+// inspection against every keyword bucket in this file before shipping —
+// none of these six phrases appear, whole or as a substring another
+// keyword's own \b-anchoring would catch, in MUSTER_KEYWORDS,
+// EMOTION_KEYWORDS, HISTORY_KEYWORDS, HIGHLIGHTS_KEYWORDS,
+// BUILDABLE_BAY_KEYWORDS/UNBUILDABLE_KEYWORDS, DEBRIEF/BRIEF_KEYWORDS,
+// CO_ALIASES, CONFIDE_KEYWORDS, REMOVE_PILOT_KEYWORDS,
+// VERB_REQUEST_KEYWORDS, or the small-talk buckets below.
+const MOVE_IT_KEYWORDS = ["move it", "make way", "get out of the way", "excuse me", "clear the way", "outta my way"];
+
+export function detectMoveItRequest(raw: string): boolean {
+  const text = raw.trim().toLowerCase();
+  if (!text) return false;
+  return countHits(text, MOVE_IT_KEYWORDS) > 0;
+}
+
 // Small talk — Chat Keyword Categories Plan v1, 26 Aug 2026
 // (claude/Bloom_Wars_Chat_Keyword_Categories_Plan_v1.md), recognizer spec
 // first drafted the next day in Bloom_Wars_Chat_Keyword_Categories_

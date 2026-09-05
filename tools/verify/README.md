@@ -262,6 +262,89 @@ first run of this script failed.
 Writes `actionbar_base.png`, `actionbar_page1.png`, `actionbar_page2.png`
 and `actionbar_paging.png`.
 
+### `auditUiText.mjs` + `sweepUi.mjs` + `checkUiAuditSelfTest.mjs` — the whole-game UI text audit (3 Sep 2026)
+
+Not a check of one feature. A **lint over every screen in the game**, and the
+first tool here that can find a bug nobody went looking for.
+
+`sweepUi.mjs` walks 28 screens — every menu, the Codex, Map Select, the
+Hangar, the Transporter Pad, Battle (deployed, unit selected, end-turn
+prompt), all four Hub decks, and all twelve Hub overlays — screenshots each
+one into `ui_sweep/`, and runs `auditUiText.mjs` against the live Phaser
+display list at each stop. Four questions, asked everywhere:
+
+| check | question | how |
+| --- | --- | --- |
+| `OVERRUN` | is a label wider than its button? | geometry |
+| `COLLIDE` | do two sibling labels overlap? | geometry |
+| `OFFSCREEN` | is pinned text outside the canvas? | geometry |
+| `PAINTEDOVER` | did this label's pixels ever reach the screen? | **pixels** |
+
+`PAINTEDOVER` is the one that earns the file. A label can be visible,
+opaque, correctly positioned and live-updating, and still be completely
+invisible because something drew over it — geometry cannot see that, only
+pixels can. It screenshots, hides every candidate label, screenshots again,
+and diffs each label's own box.
+
+**What the first full run found**, all live in the shipping game, all with
+`tsc`, `eslint` and 1966 unit tests passing:
+
+- **Six invisible Hub HUD readouts** — the room title, the controls line,
+  THREAT, Rourke's rank, `Day N` and the DECK indicator, all created at
+  depth 0 and painted over by deck floors added later at the same depth.
+  `Day N` is the calendar economy's only on-screen output. The controls
+  line is the only place the game tells a new player how to move.
+  `checkHubCameraScroll.mjs` had been asserting some of those same labels'
+  *positions* and passing the whole time.
+- **The Transporter Pad unreadable at a full roster** — card pitch is
+  available-height ÷ roster-size with no floor, so sixteen pilots got 27px
+  each and three lines of type drew through each other and their
+  neighbours. The screen you pass through before every mission.
+- **`< PREV`/`NEXT >` drawn over the WALKABLE HUB button** in the Campaign
+  Shop, clipping it to `BLE HUB (PROTO` — only once the shop needs a second
+  page, i.e. only on a mid-campaign roster.
+- **"House House Dunmoor"** on the Heirloom shortlist.
+
+Two of those only appear on a **mid-campaign save**, which is why the sweep
+runs against `genActionBarSave.ts`'s three-lance roster and not a fresh
+one. A fresh save hides exactly the bugs a player hits after twenty hours.
+
+#### Run the self-test whenever you touch the audit
+
+```
+node tools/verify/checkUiAuditSelfTest.mjs
+```
+
+It breaks the game on purpose — covers a readout, over-wide a button label,
+overlaps two siblings, pushes a label off-canvas — and fails if the audit
+does not notice, then confirms the real game is clean afterwards.
+
+This is not ceremony. **The audit reported all-clear three separate times
+while being broken**: once comparing world coordinates against screen
+pixels, once with a grouping key that was not unique so nothing was ever
+compared, and once after pausing the scenes *before* enumerating them —
+which made `getScenes(true)` return nothing, so it examined zero labels and
+reported zero problems. All three looked exactly like success. A green
+sweep with a red self-test means nothing.
+
+#### Things learned that will bite the next script
+
+- **The game's coordinate space is 1074x640** (`src/main.ts`), not 960x600.
+- **The Hub's OVERHEARD dock renders through a second camera** with its own
+  viewport, so its objects' bounds are **dock-local**. Dock and world
+  coordinates are different spaces using similar small numbers; comparing
+  across them produces confident nonsense. `auditUiText.mjs` partitions by
+  `scene.uiCameraObjects` — and note that what gets pushed there is usually
+  the *container*, so the space has to be inherited by its children.
+- **The Hub re-asserts `.visible` every frame** (`refreshRoomVisibility`),
+  so anything that hides an object to measure it must pause the scene first
+  — after enumerating, not before.
+- **There is no `setDeck()`**: the Hub derives the deck from
+  `currentRoomId`, so visiting a deck means setting a room on it and
+  calling `refreshRoomVisibility()`.
+- **Close overlays between stops.** Leaving them stacked made the sweep
+  report 118 buried labels that were only buried by the harness.
+
 ## A note on speed in the cloud sandbox
 
 Headless Chromium here renders in software and runs the game at roughly
@@ -292,6 +375,9 @@ node tools/verify/checkDockCameraSplit.mjs
 
 npx tsx tools/verify/genActionBarSave.ts     # its own save, not genSave's
 node tools/verify/checkActionBarPaging.mjs
+
+node tools/verify/checkUiAuditSelfTest.mjs  # prove the audit can fail...
+node tools/verify/sweepUi.mjs               # ...then sweep all 28 screens
 ```
 
 Chromium's already installed in the cloud sandbox at a fixed path (see

@@ -24,6 +24,7 @@ import {
   mentionsCoByAlias,
   detectConfideRequest,
   detectRemovePilotIntent,
+  detectMoveItRequest,
   extractNamedTarget,
 } from "../chatIntent";
 
@@ -423,6 +424,31 @@ describe("detectRemovePilotIntent — CO-specific, 2 Sep 2026 (Insult Tier-3 res
   it("returns false for empty or whitespace-only input", () => {
     expect(detectRemovePilotIntent("")).toBe(false);
     expect(detectRemovePilotIntent("   ")).toBe(false);
+  });
+});
+
+describe("detectMoveItRequest — Move It Verb Proposal, 3 Sep 2026", () => {
+  it("recognizes all six candidate phrases", () => {
+    expect(detectMoveItRequest("move it")).toBe(true);
+    expect(detectMoveItRequest("make way")).toBe(true);
+    expect(detectMoveItRequest("get out of the way")).toBe(true);
+    expect(detectMoveItRequest("excuse me")).toBe(true);
+    expect(detectMoveItRequest("clear the way")).toBe(true);
+    expect(detectMoveItRequest("outta my way")).toBe(true);
+  });
+
+  it("returns false for ordinary text and for muster/emotion/verb-request/history text — no collision with any other keyword bucket", () => {
+    expect(detectMoveItRequest("what's the weather like today")).toBe(false);
+    expect(detectMoveItRequest("muster up")).toBe(false);
+    expect(detectMoveItRequest("move out")).toBe(false); // MUSTER_KEYWORDS entry — distinct phrase, no substring overlap
+    expect(detectMoveItRequest("let's play poker")).toBe(false);
+    expect(detectMoveItRequest("show me the history")).toBe(false);
+    expect(detectMoveItRequest("watch out for that")).toBe(false); // EMOTION_KEYWORDS.fear entry, not a Move It phrase
+  });
+
+  it("returns false for empty or whitespace-only input", () => {
+    expect(detectMoveItRequest("")).toBe(false);
+    expect(detectMoveItRequest("   ")).toBe(false);
   });
 });
 

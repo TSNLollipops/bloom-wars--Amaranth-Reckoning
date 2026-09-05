@@ -21,7 +21,7 @@ import { HEIRLOOMS } from "../data/heirlooms";
 // on the same ckock."
 import { accrueRealMs, creditRealMs, measureRealDelta } from "../engine/calendarClock";
 import { TILES } from "../data/tiles";
-import { tierPipCount, CINDER_LINE_DAMAGE_PER_TURN, CINDER_LINE_MAX_TILES, CUTTING_ROOM_CHARGE_MAX_LINE_TILES } from "../data/combatTables";
+import { tierPipCount, CINDER_LINE_DAMAGE_PER_TURN, CINDER_LINE_MAX_TILES, CUTTING_ROOM_CHARGE_MAX_LINE_TILES, MASER_LANCE_CONE_RANGE } from "../data/combatTables";
 // requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — SEVERANCE.maxCharge for the HUD's own charge-meter line, same locked-numbers reuse engine/mission.ts's own Requiem section already does rather than a second placeholder constant.
 import { SEVERANCE } from "../data/abilities";
 import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry";
@@ -106,6 +106,14 @@ const LAST_RITES_TARGET_COLOR = 0xfbbf24;
 // attackable's red (this isn't a damage option) and from every other hue
 // already claimed.
 const LEDGERHALL_STATIC_TARGET_COLOR = 0x8b5cf6;
+// Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built 4
+// Sep 2026) — also a downed-ally, full-revive target set, same category as
+// LAST_WORD_SIGNATURE_TARGET_COLOR's own emerald just above, but this is a
+// purchased/logistics revive, not an Heirloom's personal-cost one — a
+// distinct sky-blue reads as "called in," matching the "beacon"/signal
+// framing, rather than reusing emerald and implying the same permanent-cost
+// mechanic Migawari's own ability actually carries.
+const BEACON_TARGET_COLOR = 0x38bdf8;
 // requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — a bone-
 // white, deliberately unlike every warm hue claimed above (every existing
 // target wash reads as "an ordinary tactical option," red/orange/pink/
@@ -114,6 +122,15 @@ const LEDGERHALL_STATIC_TARGET_COLOR = 0x8b5cf6;
 // look like nothing else here rather than borrow a color that already
 // means "safe to click."
 const REQUIEM_TARGET_COLOR = 0xfafaf9;
+// abil_maser_lance (Tank's 3rd weapon branch, 5 Sep 2026) — this engine's
+// first direction-picked strike that ISN'T Requiem (a hostile-and-friendly
+// unconditional beam), so it needs its own tell rather than borrowing
+// REQUIEM_TARGET_COLOR's deliberately "unlike anything else" bone-white,
+// which that comment reserves for the one attack with no ally carve-out at
+// all. A hot rose/crimson instead — reads as a heat weapon, distinct from
+// attackable's red (0xef4444), Screen's pink (0xf472b6), and Deadfall's
+// fuchsia (0xd946ef), the three nearest warm hues already in use.
+const MASER_LANCE_TARGET_COLOR = 0xf43f5e;
 
 // Right-hand panel layout. The log occupies the band between the HUD block
 // and the contextual action bar; drawHud() budgets its lines against it.
@@ -433,6 +450,13 @@ export class Battle extends Phaser.Scene {
   private lastWordSignatureTargets: BattleUnit[] = [];
   private lastRitesTargeting = false;
   private lastRitesTargets: BattleUnit[] = [];
+  // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built 4
+  // Sep 2026) — same click-a-unit arm-then-click shape as
+  // lastWordSignatureTargeting/lastRitesTargeting directly above (a downed
+  // ally, range-limited — see engine/mission.ts's getBeaconTargetsFrom for
+  // what fills this list and beaconTargetInRange for the range rule).
+  private beaconTargeting = false;
+  private beaconTargets: BattleUnit[] = [];
   // seal_ledgerhall_static (Simulacrum/The Stolen Seal, Vault Phase 2 slice
   // 6, 3 Sep 2026) — same click-a-unit arm-then-click shape as
   // deadfallTargeting/deadfallTargets above, except the target pool is
@@ -455,6 +479,17 @@ export class Battle extends Phaser.Scene {
   // nothing to enumerate per-step here.
   private requiemTargeting = false;
   private requiemDirectionTargets: Coord[] = [];
+  // abil_maser_lance (Tank's 3rd weapon branch, 5 Sep 2026) — same
+  // arm-then-click-a-direction shape as requiemTargeting/
+  // requiemDirectionTargets directly above: TANK's MASER LANCE button fills
+  // maserLanceDirectionTargets from engine/mission.ts's
+  // getMaserLanceDirectionTargets (every in-bounds tile along each of the 8
+  // legal directions, out to the board edge — the clickable set, not the
+  // narrower actual cone footprint a given click resolves to), and
+  // handleBoardClick's own branch checks membership in it the same way the
+  // Gjallar branch checks requiemDirectionTargets.
+  private maserLanceTargeting = false;
+  private maserLanceDirectionTargets: Coord[] = [];
   private endTurnPrompt: Phaser.GameObjects.Container | null = null;
 
   constructor() {
@@ -486,6 +521,13 @@ export class Battle extends Phaser.Scene {
         // single loadCampaignState() call. See CampaignState.foughtOnHitEffectKinds'
         // own comment for the full design.
         foughtOnHitEffectKinds: campaignForMission?.foughtOnHitEffectKinds ?? [],
+        // Beacon Control (4 Sep 2026) — same single-load snapshot as
+        // builtBays/builtModules/foughtOnHitEffectKinds above, from the
+        // same campaignForMission read. Absent (?? 0) on any save from
+        // before this field existed, same "no stock" default
+        // MissionOptions' own comment already explains.
+        beaconCratesRemaining: campaignForMission?.beaconCrates ?? 0,
+        beaconChargesRemaining: campaignForMission?.beaconCharges ?? 0,
       }
     );
     // Vital Signs Uplink (2 Sep 2026, data/carrierModules.ts) — snapshotted
@@ -971,7 +1013,9 @@ export class Battle extends Phaser.Scene {
         this.cuttingRoomChargeTargeting ||
         this.lastWordSignatureTargeting ||
         this.lastRitesTargeting ||
-        this.requiemTargeting) &&
+        this.beaconTargeting ||
+        this.requiemTargeting ||
+        this.maserLanceTargeting) &&
       this.selectedUnitId
     ) {
       this.fireSupportTargeting = false;
@@ -986,8 +1030,12 @@ export class Battle extends Phaser.Scene {
       this.lastWordSignatureTargets = [];
       this.lastRitesTargeting = false;
       this.lastRitesTargets = [];
+      this.beaconTargeting = false;
+      this.beaconTargets = [];
       this.requiemTargeting = false;
       this.requiemDirectionTargets = [];
+      this.maserLanceTargeting = false;
+      this.maserLanceDirectionTargets = [];
       this.recomputeSelectionHighlights(this.selectedUnitId);
       this.render();
       return;
@@ -1118,6 +1166,27 @@ export class Battle extends Phaser.Scene {
       this.recomputeSelectionHighlights(this.selectedUnitId);
     }
 
+    // Maser Lance, armed (Tank's 3rd weapon branch, 5 Sep 2026) — same
+    // "armed strike wins the click" reasoning as Gjallar's own block just
+    // above, and the same shape: a click matching maserLanceDirectionTargets
+    // resolves a direction and fires the FULL cone footprint in it
+    // (mission.maserLanceStrike), not just the clicked tile.
+    if (this.selectedUnitId && this.maserLanceTargeting) {
+      if (this.maserLanceDirectionTargets.some((c) => coordKey(c) === coordKey(tile))) {
+        this.mission.maserLanceStrike(this.selectedUnitId, tile);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      // Clicked outside the legal direction set — cancel targeting, same
+      // escape hatch every other armed-strike branch here uses, then fall
+      // through to ordinary click handling on this same tile.
+      this.maserLanceTargeting = false;
+      this.maserLanceDirectionTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
     // Zanretsu, armed (cutting_room_charge, Vault Phase 2 slice 4, 3 Sep
     // 2026) — same "checked first, ahead of every other armed-strike
     // branch" shape Cinder Line's own block above just established, for the
@@ -1177,6 +1246,23 @@ export class Battle extends Phaser.Scene {
       }
       this.lastRitesTargeting = false;
       this.lastRitesTargets = [];
+      this.recomputeSelectionHighlights(this.selectedUnitId);
+    }
+
+    // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built
+    // 4 Sep 2026) — same shape as Migawari's/Last Rites' own blocks just
+    // above (a downed-ally target, matched by position).
+    if (this.selectedUnitId && this.beaconTargeting) {
+      const target = this.beaconTargets.find((t) => coordKey(t.pos) === coordKey(tile));
+      if (target) {
+        this.mission.useBeaconControl(this.selectedUnitId, target.instanceId);
+        this.selectedUnitId = null;
+        this.clearSelectionHighlights();
+        this.render();
+        return;
+      }
+      this.beaconTargeting = false;
+      this.beaconTargets = [];
       this.recomputeSelectionHighlights(this.selectedUnitId);
     }
 
@@ -1453,10 +1539,14 @@ export class Battle extends Phaser.Scene {
     this.lastWordSignatureTargets = [];
     this.lastRitesTargeting = false;
     this.lastRitesTargets = [];
+    this.beaconTargeting = false;
+    this.beaconTargets = [];
     this.ledgerhallStaticTargeting = false;
     this.ledgerhallStaticTargets = [];
     this.requiemTargeting = false;
     this.requiemDirectionTargets = [];
+    this.maserLanceTargeting = false;
+    this.maserLanceDirectionTargets = [];
   }
 
   /**
@@ -1482,8 +1572,10 @@ export class Battle extends Phaser.Scene {
       this.cuttingRoomChargeTargeting ||
       this.lastWordSignatureTargeting ||
       this.lastRitesTargeting ||
+      this.beaconTargeting ||
       this.ledgerhallStaticTargeting ||
-      this.requiemTargeting
+      this.requiemTargeting ||
+      this.maserLanceTargeting
     )
       return;
     const unit = this.mission.unitById(unitId);
@@ -1611,6 +1703,31 @@ export class Battle extends Phaser.Scene {
         run: () => {
           this.missileTargeting = true;
           this.missileRange = m.getMissileAreaFrom(id, unit.pos);
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    if (unit.abilities.includes("abil_maser_lance")) {
+      // abil_maser_lance (Tank's 3rd weapon branch, 5 Sep 2026) — same
+      // per-unit-charges shape as MISSILE just above, but an arm-then-
+      // click-a-DIRECTION flow (mirrors GJALLAR below), not arm-then-click-
+      // a-tile: run() fills maserLanceDirectionTargets, not a range.
+      const charges = m.maserLanceChargesRemaining(id);
+      out.push({
+        label: `MASER LANCE ×${charges}`,
+        usable: m.canMaserLanceStrike(id),
+        endsTurn: false,
+        run: () => {
+          this.maserLanceTargeting = true;
+          this.maserLanceDirectionTargets = m.getMaserLanceDirectionTargets(id);
           this.reachable = [];
           this.attackable = [];
           this.repairable = [];
@@ -1787,6 +1904,36 @@ export class Battle extends Phaser.Scene {
         run: () => {
           this.lastRitesTargeting = true;
           this.lastRitesTargets = m.getLastRitesTargetsFrom(id);
+          this.reachable = [];
+          this.attackable = [];
+          this.repairable = [];
+          this.sweepArea = [];
+          this.interdictZone = [];
+          this.screenable = [];
+          this.rescuableNpc = [];
+          this.clearableBloom = [];
+          this.fieldTriageTargets = [];
+        },
+      });
+    }
+    // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built
+    // 4 Sep 2026) — deliberately NOT gated by unit.abilities.includes(...)
+    // like every other button in this list: the ability is dynamically
+    // owned by whichever deployed pilot currently holds the highest
+    // chassis/gear grade (engine/mission.ts's beaconHolderId(), computed
+    // live), not tagged onto a fixed archetype/Heirloom kit. Shown only on
+    // the current holder's own action bar — canPlaceBeacon(id) already
+    // fails for anyone else, but checking id === m.beaconHolderId() here
+    // too avoids drawing a permanently-greyed-out button on every OTHER
+    // unit's bar for a mission that has no stock/bays/holder at all.
+    if (id === m.beaconHolderId()) {
+      out.push({
+        label: `BEACON ×${m.beaconsRemaining}`,
+        usable: m.canPlaceBeacon(id),
+        endsTurn: false,
+        run: () => {
+          this.beaconTargeting = true;
+          this.beaconTargets = m.getBeaconTargetsFrom(id);
           this.reachable = [];
           this.attackable = [];
           this.repairable = [];
@@ -2110,6 +2257,12 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(LAST_RITES_TARGET_COLOR, 0.45);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
     }
+    // Beacon Control target preview (built 4 Sep 2026) — same shape as
+    // Migawari/Last Rites' own unit-position washes directly above.
+    for (const u of this.beaconTargets) {
+      g.fillStyle(BEACON_TARGET_COLOR, 0.45);
+      g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
     // Ledgerhall Static target preview (Vault Phase 2 slice 6, 3 Sep 2026) —
     // a hostile-unit wash, same shape as deadfallTargets above, own violet.
     for (const u of this.ledgerhallStaticTargets) {
@@ -2124,6 +2277,15 @@ export class Battle extends Phaser.Scene {
     // fixed 8-tile hit-list (see getRequiemDirectionTargets' own comment).
     for (const c of this.requiemDirectionTargets) {
       g.fillStyle(REQUIEM_TARGET_COLOR, 0.22);
+      g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
+    }
+    // Maser Lance targeting (Tank's 3rd weapon branch, 5 Sep 2026) — same
+    // filled-wash treatment as Gjallar just above, own colour: this IS the
+    // click target set (every direction, out to the board edge), not the
+    // narrower actual cone footprint a given click resolves to (see the
+    // preview outline just below for that).
+    for (const c of this.maserLanceDirectionTargets) {
+      g.fillStyle(MASER_LANCE_TARGET_COLOR, 0.22);
       g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
     // Splash preview: while a strike is armed and the pointer sits on a
@@ -2183,6 +2345,23 @@ export class Battle extends Phaser.Scene {
       if (preview) {
         for (const c of preview) {
           g.lineStyle(2, REQUIEM_TARGET_COLOR, 0.95);
+          g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
+        }
+      }
+    }
+    // Maser Lance preview: same "outline the real footprint" treatment as
+    // Cinder Line/Zanretsu/Gjallar's own previews above, for the identical
+    // reason — the direction-set wash above only says which way the cone
+    // points, not the actual widening footprint a click there would fire
+    // (previewMaserLanceCone re-derives that from the hovered tile). Drawn
+    // in MASER_LANCE_TARGET_COLOR, not the neutral white Cinder Line/
+    // Zanretsu use, so it reads as "this specific ability's shape," matching
+    // Gjallar's own reasoning for using its own colour rather than white.
+    if (this.selectedUnitId && this.hoverTile && this.maserLanceTargeting) {
+      const preview = this.mission.previewMaserLanceCone(this.selectedUnitId, this.hoverTile);
+      if (preview) {
+        for (const c of preview) {
+          g.lineStyle(2, MASER_LANCE_TARGET_COLOR, 0.95);
           g.strokeRect(this.boardX + c.x * ts + 1, this.boardY + c.y * ts + 1, ts - 3, ts - 3);
         }
       }
@@ -2892,13 +3071,55 @@ export class Battle extends Phaser.Scene {
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   }
 
+  /**
+   * How many visual lines `text` will actually render as once word-wrapped at `charsPerLine` — a greedy
+   * word-wrap simulation (break on spaces, respect existing "\n" breaks), not a flat character-count
+   * division. Both hudText and logText are monospace, so this matches Phaser's own wordWrap layout closely:
+   * every character is the same width, so wrapping by character count is equivalent to Phaser's real
+   * pixel-width wrapping for this font.
+   *
+   * Claude, 4 Sep 2026: added while chasing a real bug found in the Track 1 screenshot pass (see
+   * Bloom_Wars_UI_Improvement_Plan_v1.md). fitLines used to estimate a long entry's height as
+   * `Math.ceil(line.length / charsPerLine)`, which assumes every wrapped line is packed to the last
+   * character. Real word-wrap breaks at word boundaries and routinely leaves several characters unused per
+   * line, so that flat estimate under-counted the true height of any long prose entry (worst case: the
+   * mission briefing, which can run several hundred characters). fitLines let more content through than
+   * actually fit between HUD_TOP and LOG_TOP, and since hudText has no mask or hard bottom clip, the real
+   * (correctly wrapped) text just kept growing past LOG_TOP and started drawing over logText's own content —
+   * visible as the HUD's "Objective:" line overlapping turn 1's own "(dialogue) ..." log entry on any
+   * mission with both a long briefing and an extra objective-status line (hold_zone, extract_unit with
+   * civilianSpawns) pushing it over the old, too-generous budget.
+   */
+  private wrappedLineCount(text: string, charsPerLine: number): number {
+    let total = 0;
+    for (const paragraph of text.split("\n")) {
+      if (paragraph.length === 0) {
+        total += 1;
+        continue;
+      }
+      let lineLen = 0;
+      let lines = 1;
+      for (const word of paragraph.split(" ")) {
+        const candidate = lineLen === 0 ? word.length : lineLen + 1 + word.length;
+        if (candidate > charsPerLine && lineLen > 0) {
+          lines += 1;
+          lineLen = word.length;
+        } else {
+          lineLen = candidate;
+        }
+      }
+      total += lines;
+    }
+    return Math.max(1, total);
+  }
+
   /** Takes as many leading entries as fit in `top..bottom` once wrapped at `charsPerLine`. */
   private fitLines(lines: string[], top: number, bottom: number, lineH: number, charsPerLine: number): string[] {
     const budget = Math.floor((bottom - top) / lineH);
     const out: string[] = [];
     let used = 0;
     for (const line of lines) {
-      const wrapped = Math.max(1, Math.ceil(line.length / charsPerLine));
+      const wrapped = this.wrappedLineCount(line, charsPerLine);
       if (used + wrapped > budget) break;
       out.push(line);
       used += wrapped;
@@ -3081,10 +3302,22 @@ export class Battle extends Phaser.Scene {
       lines.push("", "Emerald tile = MIGAWARI target — fully restores a downed ally, permanently reduces the wielder's own max HP. Esc/right-click to cancel");
     if (this.lastRitesTargeting)
       lines.push("", "Amber tile = LAST RITES target — one final action for an ally downed this turn, then they go back down. Esc/right-click to cancel");
+    if (this.beaconTargeting)
+      lines.push(
+        "",
+        `Sky-blue tile = BEACON target — fully restocks a downed ally, costs a Fabricator crate${
+          m.beaconChargesRemaining > 0 ? " and a Restock Room charge (waived with a living Munti on the field)" : " (no Restock Room charges left — needs a living Munti on the field to use anyway)"
+        }. Esc/right-click to cancel`
+      );
     if (this.requiemTargeting)
       lines.push(
         "",
         `Bone-white tiles = GJALLAR direction — an unconditional ${SEVERANCE.shape.length}-tile beam, ${SEVERANCE.damage} fixed damage, EVERYONE on it including your own unit, no exception. Click to fire, Esc/right-click to cancel`
+      );
+    if (this.maserLanceTargeting && this.selectedUnitId)
+      lines.push(
+        "",
+        `Rose tiles = MASER LANCE direction (${m.maserLanceChargesRemaining(this.selectedUnitId)} charge(s) left) — click one to fire a widening cone that way, ${MASER_LANCE_CONE_RANGE} tiles deep, allies included. Esc/right-click to cancel`
       );
     // Gjallar's charge meter — shown whenever the party actually holds it
     // this mission (a living player unit carries requiem_severance),
@@ -3243,6 +3476,25 @@ export class Battle extends Phaser.Scene {
           "",
           `GJALLAR at (${h.x},${h.y}): ${preview.length} tile(s), ${SEVERANCE.damage} dmg fixed — ${hit.length} hit (${allies} of yours, ${hostiles} hostile), no exception`
         );
+      }
+      return out;
+    }
+
+    // Maser Lance, armed: same "the direction wash can't show WHO gets hit
+    // or for how much" reasoning as Gjallar's own hover block just above,
+    // sharpened the other way — unlike Gjallar's fixed damage, Maser Lance
+    // runs the ordinary combat formula per victim (own stats, own terrain),
+    // so this is a REAL per-target forecast (forecastMaserLance), the same
+    // "see the number before you commit" BLAST readout Fire Support/Missile
+    // already give, not just a tile/hit count.
+    if (selectedId && this.maserLanceTargeting) {
+      const preview = this.mission.previewMaserLanceCone(selectedId, h);
+      if (preview) {
+        const victims = this.mission.forecastMaserLance(selectedId, h);
+        out.push("", `MASER LANCE at (${h.x},${h.y}): ${preview.length} tile(s)${victims.length === 0 ? ", nobody inside" : ""}`);
+        for (const v of victims) {
+          out.push(`  ${v.displayName}${v.side === "player" ? " [FRIENDLY]" : ""}: ${v.damage} dmg${v.downed ? " — DOWNED" : ""}`);
+        }
       }
       return out;
     }

@@ -145,8 +145,14 @@ export class MainMenu extends Phaser.Scene {
     // Forgotten Plans Audit, 1 Sep 2026 — the field-manual codex, reachable
     // from the title screen too (not just the in-play pause menu) so a
     // brand-new player who hasn't started a campaign yet can still find it.
+    // Codex Rebuild & Live Briefing Plan v1, Part A, 4 Sep 2026 — now also
+    // passes this menu's own already-loaded `state` through, so a returning
+    // player with a real save gets live Personnel/Bestiary/World content
+    // even from the title screen, not just the in-play pause menu. `state`
+    // is null for a brand-new install, which Codex.ts's own hasWardenSave
+    // check already handles as "no save" — same object, no new lookup.
     makeShopButton(this, layer, cx, y, w, h, "CODEX", true, () => {
-      this.scene.start("Codex", { returnScene: "MainMenu" });
+      this.scene.start("Codex", { returnScene: "MainMenu", campaignState: state });
     });
 
     if (!hasLiveSave) {

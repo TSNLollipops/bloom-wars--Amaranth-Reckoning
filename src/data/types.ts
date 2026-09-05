@@ -155,6 +155,25 @@ export interface BloomArchetype {
   attackPower: number; // damage vs a 100-defence target at full endurance
   vision: number;
   swarmSize?: [number, number];
+  /**
+   * Hold position when nothing is visible, instead of walking toward the
+   * map's defendZone / the player's deploy zone. Opt-in, and true for
+   * exactly one archetype today: bloom_undertow (data/bloom.ts).
+   *
+   * The Undertow is an ambusher — it burrows, is invisible while burrowed,
+   * and hits for 1.5x on the turn it surfaces. Every part of that already
+   * worked EXCEPT that it never stayed still long enough to ambush
+   * anything: engine/ai.ts's idleRoamTarget checks defendZone first and
+   * unconditionally, and every protect_asset map has one, so on those maps
+   * "hold position" was not a reachable outcome at all. It walked at the
+   * squad in plain sight, surfaced, and by then nobody was surprised.
+   *
+   * Scoped as a per-archetype flag rather than a change to idleRoamTarget
+   * itself, because the roaming behaviour is right for everything else —
+   * a Crawlmass pack that freezes when it loses sight of you is a worse
+   * enemy, not a better one.
+   */
+  holdWhenIdle?: boolean;
   onHit?: string; // effect id
   colorPalette: string[];
   spriteKey: string;

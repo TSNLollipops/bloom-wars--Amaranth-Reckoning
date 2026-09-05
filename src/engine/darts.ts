@@ -87,6 +87,58 @@ const HAND_JITTER = 0.05;
 const AI_SKILL_MEAN = 0.62;
 const AI_SKILL_SPREAD = 0.28;
 
+// ---- Skill parameterization (Rec Room Standings & NPC Learning, slice 1)
+//
+// The engine used to know exactly one thing about the thrower: nothing.
+// pickAiThrowValue() took no arguments and read two module constants, so
+// every AI throw in the game came from the same distribution forever.
+// That is fine for one hardcoded opponent and useless the moment two
+// NPCs of different ability sit down against each other.
+//
+// The fix is the same "policy" split pegBoard.ts already had by accident:
+// the engine says what a throw at a given skill looks like, and something
+// outside it decides whose skill that is. Skill here is exactly the two
+// numbers the throw already depended on — a better thrower aims closer to
+// the bullseye (higher mean) and is more consistent about it (tighter
+// spread).
+//
+// DEFAULT_DARTS_SKILL is the old pair, byte for byte, so pickAiThrowValue()
+// keeps its exact previous behaviour and every existing darts test stays
+// green without a single edit. That equivalence is the whole safety net
+// for touching a shipped, working file — if a test needed changing, the
+// refactor changed behaviour, and that would be a bug in the refactor.
+export interface DartsSkill {
+  mean: number; // 0..1 — where this thrower's aim centers
+  spread: number; // 0..1 — how far it wanders either side of that
+}
+
+export const DEFAULT_DARTS_SKILL: DartsSkill = { mean: AI_SKILL_MEAN, spread: AI_SKILL_SPREAD };
+
+// Maps a 0..100 skill number (recRoomRecord.ts's derived skill) onto the
+// two throw parameters. Kept here rather than in the record store because
+// what "skill" means for darts is a fact about darts, not about the
+// record-keeping: it is this file that knows a thrower's ability shows up
+// as aim center and consistency.
+//
+// The endpoints are deliberately not 0 and 1. A skill-0 thrower still
+// lands the odd outer ring by luck, and a skill-100 thrower still misses
+// bullseye sometimes — a dartboard with a guaranteed winner is not a game
+// anybody would keep playing.
+export function dartsSkillFor(skill: number): DartsSkill {
+  const t = Math.max(0, Math.min(100, skill)) / 100;
+  // Retuned 3 Sep 2026 against `npm run sim:recroom`. The first pass had
+  // mean 0.35..0.85 with spread 0.34..0.14, and measured a skill-70
+  // beating a skill-30 in 99.9% of sessions. That is not a game — the
+  // underdog never has a night, and a standings board where the result
+  // was decided before anyone threw is a table of aptitudes, not a
+  // record.
+  //
+  // Nine darts averages hard, so the fix is a narrower mean gap and a
+  // spread that stays wide even at the top: a good thrower is better, not
+  // immune to a bad round.
+  return { mean: 0.42 + t * 0.34, spread: 0.44 - t * 0.14 };
+}
+
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
@@ -197,6 +249,12 @@ export function throwDart(state: DartsGameState, aim: number): { state: DartsGam
 // the board/hand to decide anything) — no unused parameter kept around
 // for a hook nothing uses yet.
 export function pickAiThrowValue(): number {
-  const jitter = (Math.random() * 2 - 1) * AI_SKILL_SPREAD;
-  return clamp01(AI_SKILL_MEAN + jitter);
+  return pickThrowValue();
+}
+
+// The parameterized version pickAiThrowValue now delegates to. Called
+// directly by NPC-vs-NPC sessions, which supply a real per-pilot skill.
+export function pickThrowValue(skill: DartsSkill = DEFAULT_DARTS_SKILL): number {
+  const jitter = (Math.random() * 2 - 1) * skill.spread;
+  return clamp01(skill.mean + jitter);
 }

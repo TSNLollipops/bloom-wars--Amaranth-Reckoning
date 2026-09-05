@@ -476,6 +476,38 @@ export function acquireAberration(state: CampaignState, heirloomId: HeirloomId, 
   return { ok: true, heirloomId, cost: 0, pilot: entry.pilot };
 }
 
+/**
+ * Bosk's own Requiem, live from Mission 2 (Maxime, 4 Sep 2026: "ship
+ * ability to allow bosk to equip requiem as soon as mission 2" — then, a
+ * beat later, "heirloom are not an upgrade you buy but one u can use from
+ * start," which is the actual design call this implements: handed to him
+ * outright the moment he's eligible, no points, no purchase, matching the
+ * "granted, not bought" rule campaignEconomy.ts already enforces for every
+ * other route onto S tier).
+ *
+ * Trigger: Mission 1 won. There is no "which mission number is next" field
+ * anywhere on CampaignState to gate on directly — scenes/Debrief.ts's own
+ * mission-id checks (Second/Third Lance, and resolveVaultDedication's own
+ * trigger one function up) are the established pattern for a beat that
+ * unlocks the mission after a specific win, so this reads "as soon as
+ * mission 2" the same way: call this from Debrief on
+ * `mission.mission.id === "mission_amaranth_1" && win`, which is the exact
+ * instant Mission 2 becomes reachable.
+ *
+ * No new one-shot marker field. `acquireAberration` is already a no-op
+ * once Bosk holds Requiem (see its own doc comment), so the only thing
+ * worth guarding against here is a call arriving AFTER Requiem has since
+ * moved on — specifically the Mission-12 Vault dedication transferring it
+ * to Rourke, above, if Bosk falls there. Checking
+ * `heirloomState(state).assignedPilotId.requiem` directly (rather than
+ * adding a parallel flag) means this can never re-grant Requiem to Bosk
+ * after that transfer, and needs nothing new persisted to do it.
+ */
+export function resolveRequiemEarlyEquip(state: CampaignState): void {
+  if (heirloomState(state).assignedPilotId.requiem) return;
+  acquireAberration(state, "requiem", "pilot_bosk");
+}
+
 export interface VaultDedicationResult {
   /** The pilot memorialised — undefined means nobody fell at Mission 12. */
   fallenId?: string;

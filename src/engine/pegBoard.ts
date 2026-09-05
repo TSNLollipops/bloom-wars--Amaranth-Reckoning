@@ -296,13 +296,70 @@ function cloneState(state: PegGameState): PegGameState {
   };
 }
 
+// ---- Skill parameterization (Rec Room Standings & NPC Learning, slice 1)
+//
+// This engine was already the one of the three that could run NPC vs NPC,
+// because pickAiMove takes a *side* rather than assuming seat 1 is the
+// computer. What it could not do was let two NPCs of different ability
+// play each other — every caller got the same one-ply greedy player.
+//
+// Skill on a peg board is not "aims better," it is "picks the best move
+// more often, and sees further ahead." Those are the two knobs below.
+// DEFAULT_PEG_SKILL reproduces the shipped behaviour exactly: always take
+// the top-scored move, search one ply. Both knobs are also written so
+// that at the default value they execute the identical code path AND make
+// the identical sequence of Math.random() calls as before — no extra roll
+// is taken unless bestMoveChance is actually below 1. That matters more
+// than it looks: a test that stubs Math.random would otherwise see its
+// values consumed in a different order and fail for a reason that has
+// nothing to do with what it was testing.
+export interface PegSkill {
+  bestMoveChance: number; // 0..1 — how often they actually play their best line
+}
+
+export const DEFAULT_PEG_SKILL: PegSkill = { bestMoveChance: 1 };
+
+// 0..100 skill onto that one knob. A skill-0 player still finds their best
+// line 40% of the time — on a board this small a random legal move is
+// often the same move anyway, and a floor of 0 would make a beginner look
+// broken rather than bad.
+//
+// ONE KNOB, NOT TWO, AND THIS IS WHY. The first version of this had a
+// second knob, `lookahead: 1 | 2`, switching on a two-ply search for
+// strong players. `npm run sim:recroom` killed it: at 90-vs-90, where BOTH
+// sides used it, seat A's win rate collapsed from a healthy 51% to 10.7%.
+// The extra ply was not making anyone play better, it was making whoever
+// used it play markedly worse, and asymmetrically. The heuristic that
+// scored the opponent's replies was mine and was never validated against
+// anything; nearly every move lets the opponent set up a Reach, so it
+// subtracted roughly the same penalty from every candidate while
+// occasionally sinking the genuinely good ones.
+//
+// It came out rather than getting patched. A knob that has to be repaired
+// before it helps is not a knob, and shipping it as decoration would have
+// been worse than not having it: the plan's own most important check is
+// that skill actually decides sessions, and a broken second knob makes
+// that harder to reason about, not easier. bestMoveChance alone gives the
+// stronger player a clear, measured edge (see the harness output).
+export function pegSkillFor(skill: number): PegSkill {
+  const t = Math.max(0, Math.min(100, skill)) / 100;
+  return { bestMoveChance: 0.4 + t * 0.6 };
+}
+
 // Simple, greedy AI — not a lookahead solver, just enough to make the NPC
 // opponent play like it's actually trying: take a winning Reach if one's
 // on offer, otherwise prefer building a Knot, otherwise prefer a move
 // that doesn't hand the human an immediate Reach next turn, otherwise
 // whatever's left. Good enough for a Rec Room minigame, not meant to be
 // unbeatable.
+//
+// Unchanged signature and unchanged behaviour — delegates to pickMove at
+// the default skill.
 export function pickAiMove(state: PegGameState, aiSide: PegSide): PegMove | null {
+  return pickMove(state, aiSide, DEFAULT_PEG_SKILL);
+}
+
+export function pickMove(state: PegGameState, aiSide: PegSide, skill: PegSkill = DEFAULT_PEG_SKILL): PegMove | null {
   const moves = legalMovesForTurn(state);
   if (moves.length === 0) return null;
   if (moves.length === 1) return moves[0];
@@ -336,5 +393,12 @@ export function pickAiMove(state: PegGameState, aiSide: PegSide): PegMove | null
   });
 
   scored.sort((x, y) => y.score - x.score);
+
+  // A weak player does not reliably play the line they can see. Note the
+  // guard: at bestMoveChance 1 no roll is taken at all, so the default
+  // path consumes exactly the same random numbers it always did.
+  if (skill.bestMoveChance < 1 && Math.random() >= skill.bestMoveChance) {
+    return scored[1 + Math.floor(Math.random() * (scored.length - 1))].m;
+  }
   return scored[0].m;
 }

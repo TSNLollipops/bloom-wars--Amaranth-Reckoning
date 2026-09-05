@@ -26,6 +26,7 @@ import { clearStats, exportStatsJson, listMissionSummaries } from "../engine/sta
 import { currentGameVersion } from "../engine/telemetry";
 import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getStoredDisplayScaleId, setStoredDisplayScaleId } from "../engine/displayScale";
 import { makeShopButton } from "./shop/ShopPanel";
+import { showCopyTextPanel } from "./ui/CopyTextPanel";
 
 export class Options extends Phaser.Scene {
   private returnScene = "MainMenu";
@@ -174,48 +175,13 @@ export class Options extends Phaser.Scene {
     if (this.exportPanel) return;
     const header = `The Bloom Wars — bug report / statistics\nversion: v${currentGameVersion()}\nexported: ${new Date().toISOString()}\nwhat happened (fill in): \n\n`;
     const blob = header + exportStatsJson();
-    const nav = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator;
-    let copied = false;
-    try {
-      const p = nav?.clipboard?.writeText?.(blob);
-      if (p) {
-        copied = true;
-        p.catch(() => {
-          /* refused — the textarea below is the fallback */
-        });
-      }
-    } catch {
-      copied = false;
-    }
-    const bg = this.add.rectangle(480, 320, 880, 520, 0x0c0f12, 0.97).setStrokeStyle(2, 0x4a7a9a).setInteractive();
-    const title = this.add
-      .text(480, 84, copied ? "Copied to clipboard — or select all in the box and copy it yourself" : "Select all in the box (Ctrl+A) and copy (Ctrl+C)", {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#facc15",
-      })
-      .setOrigin(0.5);
-    const area = this.add.dom(480, 320, "textarea", {
-      width: "840px",
-      height: "400px",
-      background: "#0a0d10",
-      color: "#e8e2d4",
-      border: "1px solid #3a4552",
-      font: "11px monospace",
-      padding: "8px",
-      resize: "none",
-    }) as Phaser.GameObjects.DOMElement;
-    const el = area.node as HTMLTextAreaElement;
-    el.value = blob;
-    el.readOnly = true;
-    el.addEventListener("focus", () => el.select());
-    el.focus();
-    el.select();
-    const closeLayer = this.add.container(0, 0);
-    makeShopButton(this, closeLayer, 480, 556, 200, 30, "CLOSE", true, () => {
-      this.exportPanel?.destroy(true);
+    // The panel body moved to scenes/ui/CopyTextPanel.ts on 5 Sep 2026, when
+    // Debrief's COPY MISSION LOG (B7) needed the same thing — behavior here
+    // is unchanged, including the always-show-the-textarea rule that exists
+    // because itch.io's iframe can refuse a clipboard write silently. See
+    // that file's header.
+    this.exportPanel = showCopyTextPanel(this, blob, () => {
       this.exportPanel = null;
     });
-    this.exportPanel = this.add.container(0, 0, [bg, title, area, closeLayer]);
   }
 }

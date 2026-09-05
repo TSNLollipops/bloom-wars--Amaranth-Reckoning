@@ -35,7 +35,7 @@ import type { CampaignMission, MekArchetype, Path, PilotRecord } from "../data/t
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { canLaunchMission, createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
+import { canLaunchMission, companyNameOf, createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
 import { equipWeaponBranch } from "../engine/campaignEconomy";
 import { WEAPON_BRANCHES, type WeaponBranchId } from "../data/weaponBranches";
 
@@ -162,6 +162,58 @@ export function pilotInitials(displayName: string): string {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
+/**
+ * Deploy-list geometry, and the floor under it (3 Sep 2026).
+ *
+ * THE BUG. This list used to space its cards at
+ * `Math.floor((PAD_LIST_BOTTOM - PAD_LIST_TOP) / rosterSize)` with no
+ * minimum, and set each card's height to `pitch - 14`. That is fine while
+ * the roster is small. At Act I's five pilots the pitch is 86 and each card
+ * gets 72px, which comfortably holds its three lines: the pad name at 14px,
+ * the path/tier/mek line at 11px, and the loadout line at 10px.
+ *
+ * At sixteen pilots — three lances, which is simply what a mid-campaign
+ * Warden Company IS — the pitch collapses to 27 and the card height to 13.
+ * The three lines are positioned at `y - cardH/2 + 8`, `y - 2` and
+ * `y + cardH/2 - 18`, which at cardH 13 puts them at y+1.5, y-2 and y-11.5:
+ * three lines of 17px, 14px and 13px type stacked inside 13 pixels. They
+ * drew through each other AND through the cards above and below. The screen
+ * was not tight or ugly, it was unreadable — and it is the screen the player
+ * passes through before every single mission.
+ *
+ * WHY IT SURVIVED THIS LONG. Nothing failed. The arithmetic is correct, the
+ * types are right, every unit test passes, and no console error is emitted.
+ * A fresh save is five pilots, so anyone opening this screen to check a
+ * change sees it looking perfectly fine. It only breaks after the player
+ * has earned two more lances — the worst possible time to find out.
+ *
+ * THE FLOOR. PAD_MIN_PITCH is the smallest spacing that still fits those
+ * three lines with air between them. Once the roster needs more room than
+ * the list has, the list pages instead of shrinking. Paging rather than
+ * scrolling is a deliberate, reversible choice: the shop panel already
+ * pages (scenes/shop/ShopPanel.ts) so the control is one a player has met,
+ * and it needs no scrollbar, no wheel handling and no mask. Scrolling would
+ * show the whole roster at once and is the better answer if this ever feels
+ * cramped — flagged rather than assumed, since which one is right is a
+ * design call, not an engineering one.
+ */
+const PAD_LIST_TOP = 118;
+const PAD_LIST_BOTTOM = 552;
+const PAD_MIN_PITCH = 70; // cardH 56 — the 51px three-line block plus margin
+/**
+ * Vertical strip the pager reserves out of the list when it is showing.
+ * Reserved unconditionally when computing rows-per-page (so the row count
+ * cannot depend on whether paging is on, which would be circular), but only
+ * actually subtracted from the list's height when a pager is drawn — so an
+ * unpaginated five-pilot roster keeps every pixel it had before.
+ *
+ * 30 rather than the pager's own 24px button height: BEAM DOWN's top edge
+ * is at 568 (centre 590, 44 tall), and the first version of this put the
+ * pager's counter text at 566, running it straight under that button. The
+ * fix for a layout collision that leaves six pixels of margin is not a fix.
+ */
+const PAD_PAGER_ROW_H = 30;
+
 export class TransporterPad extends Phaser.Scene {
   private missionId!: string;
   private missionDef!: CampaignMission;
@@ -182,6 +234,8 @@ export class TransporterPad extends Phaser.Scene {
   private deployCap = ACT1_DEPLOY_CAP;
 
   private squadLayer!: Phaser.GameObjects.Container;
+  /** Which page of the deploy list is showing. Only meaningful once the roster outgrows one page — see PAD_MIN_PITCH. */
+  private padPage = 0;
   private launchLayer!: Phaser.GameObjects.Container;
 
   constructor() {
@@ -196,7 +250,29 @@ export class TransporterPad extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor("#0c0f12");
 
-    this.add.text(480, 44, "TRANSPORTER PAD — WARDEN COMPANY", { fontFamily: "monospace", fontSize: "30px", color: "#e8e2d4" }).setOrigin(0.5);
+    // State loads BEFORE the header now (5 Sep 2026, B6) — the header reads
+    // the company's name out of it, so the old order (header first, state at
+    // the bottom of this block) would have drawn against an unset field.
+    // Moved rather than duplicated: this is the same single load the rest of
+    // create() already depended on, just hoisted above the first thing that
+    // needs it. See the fallback reasoning in its original comment, kept
+    // verbatim below.
+    //
+    // Prefer the live, campaign-persistent copy of each pilot/mek (gear
+    // tier purchases, mek secondary specializations, recruit-phase
+    // additions) when a save exists; fall back to a fresh Warden state
+    // otherwise. Same fallback shape engine/campaignState.ts documents for
+    // its own CampaignPilotEntry.
+    this.state = loadCampaignState() ?? createWardenCampaignState();
+
+    // B6 — was the hardcoded literal "TRANSPORTER PAD — WARDEN COMPANY".
+    // Uppercased to match this header's existing visual register whatever
+    // the player typed, and it quietly fixes a real pre-existing wrong-side
+    // bug on the way past: a House Amaranth campaign has always been shown
+    // "WARDEN COMPANY" here, because the string never knew which side it was.
+    this.add
+      .text(480, 44, `TRANSPORTER PAD — ${companyNameOf(this.state).toUpperCase()}`, { fontFamily: "monospace", fontSize: "30px", color: "#e8e2d4" })
+      .setOrigin(0.5);
     this.add
       .text(480, 78, `deploying to: ${this.missionDef.displayName}`, { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
@@ -208,12 +284,8 @@ export class TransporterPad extends Phaser.Scene {
       .on("pointerdown", () => this.scene.start("MapSelect"));
     this.add.text(835, 20, "< mission select", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
 
-    // Prefer the live, campaign-persistent copy of each pilot/mek (gear
-    // tier purchases, mek secondary specializations, recruit-phase
-    // additions) when a save exists; fall back to a fresh Warden state
-    // otherwise. Same fallback shape engine/campaignState.ts documents for
-    // its own CampaignPilotEntry.
-    this.state = loadCampaignState() ?? createWardenCampaignState();
+    // (The campaign state load that used to sit here was hoisted to the top
+    // of create() on 5 Sep 2026 — see its comment there for why.)
 
     // `&& !entry.social?.refusesDeployment` added 2 Sep 2026 — the Insult
     // Tier-3 standoff (Praise/Insult/Apology Proposal §3a, Maxime: "wont
@@ -332,25 +404,113 @@ export class TransporterPad extends Phaser.Scene {
     this.redrawLaunchSection();
   }
 
+  /**
+   * The deploy list's page controls. Drawn into squadLayer so it is cleared
+   * and rebuilt with the list itself, and sits between the last card
+   * (PAD_LIST_BOTTOM) and BEAM DOWN at y=590.
+   *
+   * Selection is stored by pilot id, not by row, so paging never disturbs
+   * who is deployed — a pilot toggled in on page 1 stays in while the
+   * player reads page 3, and the BEAM DOWN gate keeps counting them.
+   */
+  private drawSquadPager(pageCount: number, rowsPerPage: number, cardLeft: number, cardW: number, usableBottom: number) {
+    const y = usableBottom + PAD_PAGER_ROW_H / 2;
+    const mk = (x: number, label: string, enabled: boolean, onClick: () => void) => {
+      const btn = this.add
+        .rectangle(x, y, 90, 24, enabled ? 0x2e5c7a : 0x1a2028, 1)
+        .setStrokeStyle(1, enabled ? 0x4a7a9a : 0x3a4552);
+      this.squadLayer.add(btn);
+      this.squadLayer.add(
+        this.add
+          .text(x, y, label, { fontFamily: "monospace", fontSize: "11px", color: enabled ? "#ffffff" : "#5a6472" })
+          .setOrigin(0.5),
+      );
+      if (enabled) btn.setInteractive({ useHandCursor: true }).on("pointerdown", onClick);
+    };
+    mk(cardLeft + 80, "< PREV", this.padPage > 0, () => {
+      this.padPage -= 1;
+      this.redrawSquadList();
+    });
+    mk(cardLeft + cardW - 80, "NEXT >", this.padPage < pageCount - 1, () => {
+      this.padPage += 1;
+      this.redrawSquadList();
+    });
+    // The count of who is deployed belongs here, not only under BEAM DOWN:
+    // once the roster pages, the player can be looking at a page where none
+    // of their picks are visible, and "5/5 selected" three hundred pixels
+    // away is not an answer to "did I already pick someone."
+    const first = this.padPage * rowsPerPage + 1;
+    const last = Math.min(this.rosterIds.length, (this.padPage + 1) * rowsPerPage);
+    this.squadLayer.add(
+      this.add
+        .text(480, y, `${first}–${last} of ${this.rosterIds.length}  ·  page ${this.padPage + 1}/${pageCount}  ·  ${this.currentDeployIds().length} deploying`, {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#6b7a8a",
+        })
+        .setOrigin(0.5),
+    );
+  }
+
   // ---- Deploying squad --------------------------------------------------
   private redrawSquadList() {
     this.squadLayer.removeAll(true);
 
-    const listTop = 118;
-    const listBottom = 552;
-    const pitch = Math.min(92, Math.floor((listBottom - listTop) / this.rosterIds.length));
+    const listTop = PAD_LIST_TOP;
+    const listBottom = PAD_LIST_BOTTOM;
+
+    // PAGINATION, 3 Sep 2026 — see PAD_MIN_PITCH's own header for the bug.
+    // Short version: pitch used to be (available height / roster size) with
+    // no floor, so a 16-pilot roster got 27px per card and the three text
+    // lines drew straight through each other and through their neighbours.
+    // A roster that fits still takes exactly the old path, pager and all
+    // absent, so a five-pilot Act I deploy screen is unchanged.
+    const rowsPerPage = Math.max(1, Math.floor((listBottom - PAD_PAGER_ROW_H - listTop) / PAD_MIN_PITCH));
+    const pageCount = Math.max(1, Math.ceil(this.rosterIds.length / rowsPerPage));
+    this.padPage = Math.min(Math.max(0, this.padPage), pageCount - 1);
+    const paged = pageCount > 1;
+    const pageIds = paged
+      ? this.rosterIds.slice(this.padPage * rowsPerPage, this.padPage * rowsPerPage + rowsPerPage)
+      : this.rosterIds;
+    const indexOffset = paged ? this.padPage * rowsPerPage : 0;
+
+    // Only a paged list gives up the pager's strip; an unpaginated one uses
+    // the full height exactly as it always did.
+    const usableBottom = paged ? listBottom - PAD_PAGER_ROW_H : listBottom;
+    const pitch = Math.min(92, Math.floor((usableBottom - listTop) / Math.max(1, pageIds.length)));
     const cardH = Math.min(74, pitch - 14);
     const cardW = 860;
+    // The three text lines used to be anchored three DIFFERENT ways — the
+    // name from the card's top, the path/tier line from its centre, the
+    // loadout line from its bottom. At the old 72px card height that
+    // happened to look fine, which is the only reason it survived. It means
+    // the gaps between the lines change size as cardH changes, and at any
+    // smaller card they close and then cross. Anchoring all three from one
+    // origin with fixed spacing makes the block a fixed 51px tall that
+    // either fits or doesn't, instead of one that silently degrades — and
+    // PAD_MIN_PITCH guarantees it fits. Centred in whatever height the card
+    // has, so a roomy card still looks centred rather than top-heavy.
+    const LINE_BLOCK_H = 51;
+    const lineTop = -cardH / 2 + Math.max(4, (cardH - LINE_BLOCK_H) / 2);
+    const NAME_DY = lineTop;
+    const INFO_DY = lineTop + 18;
+    const TRACK_DY = lineTop + 34;
     const cardLeft = 480 - cardW / 2;
     const padCenterX = cardLeft + 60;
 
-    this.rosterIds.forEach((pilotId, i) => {
+    if (paged) this.drawSquadPager(pageCount, rowsPerPage, cardLeft, cardW, usableBottom);
+
+    pageIds.forEach((pilotId, row) => {
+      // The pad NUMBER is the pilot's place in the whole roster, not on this
+      // page — "PAD 07" has to stay PAD 07 on page 2, or the number stops
+      // meaning anything the moment the list is long enough to paginate.
+      const i = indexOffset + row;
       const entry = this.state.pilots[pilotId];
       const pilot: PilotRecord | undefined = entry?.pilot ?? findPilot(pilotId);
       if (!pilot) return; // defensive — shouldn't happen for a well-formed roster
       const mek: MekArchetype | undefined = this.state.meks[pilot.mekId] ?? findMek(pilot.mekId);
       const path = UNIT_ARCHETYPES[pilot.archetypeId]?.path;
-      const y = listTop + pitch * i + pitch / 2;
+      const y = listTop + pitch * row + pitch / 2;
 
       // Only meaningful when showPicker — otherwise everyone's "in," same
       // as before this pass, and dimming/toggling never applies.
@@ -403,7 +563,7 @@ export class TransporterPad extends Phaser.Scene {
       // glance. Blank prefix (unchanged layout) when there's no picker.
       const tag = this.showPicker ? (isIn ? "[X] " : "[ ] ") : "";
       const nameText = this.add
-        .text(textX, y - cardH / 2 + 8, `${tag}PAD ${String(i + 1).padStart(2, "0")} — ${pilot.displayName}`, {
+        .text(textX, y + NAME_DY, `${tag}PAD ${String(i + 1).padStart(2, "0")} — ${pilot.displayName}`, {
           fontFamily: "monospace",
           fontSize: "14px",
           color: "#e8e2d4",
@@ -413,7 +573,7 @@ export class TransporterPad extends Phaser.Scene {
 
       const pathLabel = path ? capitalize(path) : "Unknown";
       const infoText = this.add
-        .text(textX, y - 2, `${pathLabel} · Tier ${pilot.tier}${mek ? ` · ${mek.displayName}` : ""}`, {
+        .text(textX, y + INFO_DY, `${pathLabel} · Tier ${pilot.tier}${mek ? ` · ${mek.displayName}` : ""}`, {
           fontFamily: "monospace",
           fontSize: "11px",
           color: "#8a97a6",
@@ -436,7 +596,7 @@ export class TransporterPad extends Phaser.Scene {
         const weaponLabel = equippedId ? WEAPON_BRANCHES[equippedId]?.displayName ?? equippedId : "None (default)";
         const trackLine = owned.length > 0 ? `${trackBase}  ·  Weapon: ${weaponLabel}` : trackBase;
         const trackText = this.add
-          .text(textX, y + cardH / 2 - 18, trackLine, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
+          .text(textX, y + TRACK_DY, trackLine, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
           .setAlpha(rowAlpha);
         this.squadLayer.add(trackText);
         if (owned.length > 0) {

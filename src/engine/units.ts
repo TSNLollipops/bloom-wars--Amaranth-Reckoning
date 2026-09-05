@@ -6,8 +6,8 @@ import { UNIT_ARCHETYPES, ALL_HOSTILE_MECHS } from "../data/units";
 import { MEK_TRACK_EFFECTS } from "../data/meks";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { BLOOM } from "../data/bloom";
-import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION } from "../data/combatTables";
-import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, SCATTERSHOT_PISTOLS_ATTACK_RANGE, type WeaponBranchId } from "../data/weaponBranches";
+import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION, MASER_LANCE_CHARGES_PER_MISSION } from "../data/combatTables";
+import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, MASER_LANCE_GRANT_ABILITY, SCATTERSHOT_PISTOLS_ATTACK_RANGE, type WeaponBranchId } from "../data/weaponBranches";
 import { SEND_OFF_DEFENSE_BONUS } from "../data/socialActions";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
@@ -214,6 +214,16 @@ export interface BattleUnit {
    * field and the method deliberately don't share a name.
    */
   missileUsesRemaining?: number;
+  /**
+   * Tank abil_maser_lance (5 Sep 2026, SOFT pass — see data/abilities.ts's
+   * own comment). MASER_LANCE_CHARGES_PER_MISSION uses per mission (data/
+   * combatTables.ts), identical per-unit-budget shape and naming convention
+   * to missileUsesRemaining directly above (Mission's own accessor is
+   * maserLanceChargesRemaining(unitId), same field/method name split).
+   * Undefined reads as a full, unspent budget, same convention as every
+   * other charge field here.
+   */
+  maserLanceUsesRemaining?: number;
 
   // ---- Vault Phase 2, slice 1 (2 Sep 2026) — see data/heirlooms.ts's own
   // "VAULT PHASE 2, SLICE 1" header note and claude/Bloom_Wars_Build_Log_
@@ -602,9 +612,10 @@ function weaponBranchAttackRange(branchId: WeaponBranchId | undefined, archetype
   return [archetypeRange[0], archetypeRange[1]];
 }
 
-/** The ability id a branch grants on top of the archetype's own list, if any — currently only Missiles (abil_missile, see data/weaponBranches.ts's own header for why the engine side of that ability already existed and just needed a real owner). */
+/** The ability id a branch grants on top of the archetype's own list, if any — Missiles (abil_missile) and, as of 5 Sep 2026, Maser Lance (abil_maser_lance) — see data/weaponBranches.ts's own header for why the engine side of each ability already existed independent of who grants it. */
 function weaponBranchGrantedAbility(branchId: WeaponBranchId | undefined): string | undefined {
   if (branchId === "reeps_missiles") return MISSILE_GRANT_ABILITY;
+  if (branchId === "tank_maser_lance") return MASER_LANCE_GRANT_ABILITY;
   return undefined;
 }
 
@@ -731,6 +742,7 @@ export function createPlayerUnit(
     usedScreenThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
+    maserLanceUsesRemaining: MASER_LANCE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
     heirloomAbilityRanks,
   };
@@ -780,6 +792,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord): Battle
     usedScreenThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
+    maserLanceUsesRemaining: MASER_LANCE_CHARGES_PER_MISSION,
     spriteKey: archetype.spriteKey,
   };
 }
@@ -867,6 +880,7 @@ export function createRescuableNpcUnit(pos: Coord, displayName: string): BattleU
     usedScreenThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
+    maserLanceUsesRemaining: MASER_LANCE_CHARGES_PER_MISSION,
     spriteKey: "shape_npc_downed",
   };
 }
@@ -938,6 +952,7 @@ export function createCivilianUnit(pos: Coord, displayName: string): BattleUnit 
     usedScreenThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
+    maserLanceUsesRemaining: MASER_LANCE_CHARGES_PER_MISSION,
     spriteKey: "shape_civilian",
   };
 }
@@ -977,6 +992,7 @@ export function createBloomUnit(bloomArchetypeId: string, pos: Coord, opts?: { b
     usedScreenThisMission: false,
     sensorSweepUsesRemaining: SENSOR_SWEEP_CHARGES_PER_MISSION,
     missileUsesRemaining: MISSILE_CHARGES_PER_MISSION,
+    maserLanceUsesRemaining: MASER_LANCE_CHARGES_PER_MISSION,
     spriteKey: arch.spriteKey,
   };
 }

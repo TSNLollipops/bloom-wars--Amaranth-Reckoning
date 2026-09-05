@@ -31,6 +31,20 @@
 // here") rather than inventing a new scroll idiom for one screen.
 import Phaser from "phaser";
 import { makeShopButton } from "./shop/ShopPanel";
+import type { CampaignState, CampaignPilotEntry } from "../engine/campaignState";
+import { highestWardenMissionIndexReached } from "../data/missionBriefing";
+import {
+  PERSONNEL,
+  personnelStatusText,
+  BESTIARY,
+  isBestiaryEntryUnlocked,
+  WORLD,
+  latestUnlockedWorldRevision,
+  SYSTEMS,
+  RANKS,
+  GLOSSARY,
+  type LivePilotStatus,
+} from "../data/codex";
 
 // ---- Palette — the game's existing UI chrome colors (panel/card/border/
 // text) plus HOW_TO_PLAY.html's own semantic colors for anything that's
@@ -235,17 +249,35 @@ interface CodexSection {
   title: string;
   dek: string;
   pageCount: number;
+  /**
+   * Codex Rebuild & Live Briefing Plan v1, Part A — true for the three
+   * categories that need a live Warden Company save to mean anything
+   * (Personnel, Bloom Bestiary, World). Reached from the Main Menu with no
+   * save loaded, or from a House Amaranth save's own pause menu (Hangar.ts
+   * uses the same MenuOverlay Hub.ts does — see data/codex.ts's own header
+   * for why these three are Warden-scoped), these render one honest
+   * placeholder message instead of pagination. Systems, Ranks & Command,
+   * and Glossary are flavor-only and always fully browsable — see that
+   * same header's gate note #3 for why.
+   */
+  needsSave: boolean;
 }
 const SECTIONS: CodexSection[] = [
-  { id: "controls", num: "01", title: "Controls", dek: "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.", pageCount: 1 },
-  { id: "units", num: "02", title: "Reading the Board", dek: "No sprites yet — every unit is a shape. Shape says class, fill says side, outline says chassis.", pageCount: 1 },
-  { id: "terrain", num: "03", title: "Terrain", dek: "Tile colour on the board is the actual rules data, not decoration.", pageCount: 2 },
-  { id: "bars", num: "04", title: "Health, Shield & Collapse", dek: "Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.", pageCount: 1 },
-  { id: "triangle", num: "05", title: "The Class Triangle", dek: "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.", pageCount: 1 },
-  { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "A few of these aren't in the original design docs — added during Maxime's own playtesting.", pageCount: 2 },
-  { id: "objectives", num: "07", title: "Objectives", dek: "Three objective types across these four missions. Only one still has a hard clock.", pageCount: 1 },
-  { id: "roster", num: "08", title: "Warden Company Roster", dek: "All five deploy on every Act I mission. All tier G, no Heirloom charge yet.", pageCount: 1 },
-  { id: "missions", num: "09", title: "Mission Briefings — Act I", dek: "The four Amaranth missions currently in the build, with one tactical note each.", pageCount: 2 },
+  { id: "controls", num: "01", title: "Controls", dek: "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.", pageCount: 1, needsSave: false },
+  { id: "units", num: "02", title: "Reading the Board", dek: "No sprites yet — every unit is a shape. Shape says class, fill says side, outline says chassis.", pageCount: 1, needsSave: false },
+  { id: "terrain", num: "03", title: "Terrain", dek: "Tile colour on the board is the actual rules data, not decoration.", pageCount: 2, needsSave: false },
+  { id: "bars", num: "04", title: "Health, Shield & Collapse", dek: "Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.", pageCount: 1, needsSave: false },
+  { id: "triangle", num: "05", title: "The Class Triangle", dek: "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.", pageCount: 1, needsSave: false },
+  { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "A few of these aren't in the original design docs — added during Maxime's own playtesting.", pageCount: 2, needsSave: false },
+  { id: "objectives", num: "07", title: "Objectives", dek: "Three objective types across these four missions. Only one still has a hard clock.", pageCount: 1, needsSave: false },
+  { id: "roster", num: "08", title: "Warden Company Roster", dek: "All five deploy on every Act I mission. All tier G, no Heirloom charge yet.", pageCount: 1, needsSave: false },
+  { id: "missions", num: "09", title: "Mission Briefings — Act I", dek: "The four Amaranth missions currently in the build, with one tactical note each.", pageCount: 2, needsSave: false },
+  { id: "personnel", num: "10", title: "Personnel", dek: "Warden Company's own roster — real bios, real Meks, and a live read of how each of them is actually doing in your save.", pageCount: Math.ceil(PERSONNEL.length / 2), needsSave: true },
+  { id: "bestiary", num: "11", title: "Bloom Bestiary", dek: "The Bloom, catalogued the way a soldier would write it up. Unlocks as you actually meet each one.", pageCount: Math.ceil(BESTIARY.length / 3), needsSave: true },
+  { id: "world", num: "12", title: "World", dek: "The Amaranth Reach, House Amaranth, Meridian, and the wider Coalition — updates as your campaign moves forward.", pageCount: Math.ceil(WORLD.length / 2), needsSave: true },
+  { id: "systemsLore", num: "13", title: "Systems", dek: "How the war's own systems actually work, told straight rather than as a stat sheet.", pageCount: Math.ceil(SYSTEMS.length / 2), needsSave: false },
+  { id: "ranksLore", num: "14", title: "Ranks & Command", dek: "How rank and command actually work in Warden Company. Paper only for now — nothing here changes a pilot's numbers yet.", pageCount: 1, needsSave: false },
+  { id: "glossary", num: "15", title: "Glossary", dek: "Quick lookups for the jargon the game already uses on you from Mission 1.", pageCount: Math.ceil(GLOSSARY.length / 5), needsSave: false },
 ];
 
 export class Codex extends Phaser.Scene {
@@ -256,6 +288,13 @@ export class Codex extends Phaser.Scene {
   private contentLayer!: Phaser.GameObjects.Container;
   private navLayer!: Phaser.GameObjects.Container;
 
+  // Codex Rebuild & Live Briefing Plan v1, Part A — whatever save (if any)
+  // this Codex was opened against. MainMenu.ts and MenuOverlay.ts both
+  // already have a live `CampaignState | null` in scope at their own
+  // Codex-launch call sites (loadCampaignState() / getState() respectively)
+  // — see this file's own SECTIONS.needsSave comment for how it's used.
+  private campaignState: CampaignState | null = null;
+
   private readonly contentX = 262;
   private readonly contentY = 96;
   private readonly contentW = 788;
@@ -265,10 +304,48 @@ export class Codex extends Phaser.Scene {
     super("Codex");
   }
 
-  init(data: { returnScene?: string }) {
+  init(data: { returnScene?: string; campaignState?: CampaignState | null }) {
     this.returnScene = data.returnScene ?? "MainMenu";
+    this.campaignState = data.campaignState ?? null;
     this.sectionIndex = 0;
     this.page = 0;
+  }
+
+  // Personnel/Bestiary/World are Warden-scoped (data/codex.ts's own header)
+  // — a Warden save is identified the same cheap way
+  // engine/campaignState.ts's own baseSceneKeyFor does: pilot_rourke's
+  // presence on the roster. False for no save at all (Main Menu, no
+  // CONTINUE yet) and for a House Amaranth save (Hangar has no
+  // pilot_rourke and never will — see missionBriefing.ts's own header).
+  private get hasWardenSave(): boolean {
+    return !!this.campaignState && "pilot_rourke" in this.campaignState.pilots;
+  }
+
+  private get highestMissionIndexReached(): number {
+    return highestWardenMissionIndexReached(this.campaignState?.lastMissionEcho);
+  }
+
+  /**
+   * The minimal LivePilotStatus data/codex.ts's own personnelStatusText
+   * needs, extracted from the real CampaignPilotEntry — see codex.ts's own
+   * header for why that extraction happens here rather than importing the
+   * engine type into src/data. Undefined pilotId (shouldn't happen for any
+   * of the four ordinary roster entries on a real Warden save — they're
+   * seeded at creation) reads the same as "active" in personnelStatusText.
+   */
+  private liveStatusFor(pilotId: string): LivePilotStatus | undefined {
+    const entry: CampaignPilotEntry | undefined = this.campaignState?.pilots[pilotId];
+    if (!entry) return undefined;
+    if (entry.status === "active") return { kind: "active" };
+    if (entry.status === "reassigned") return { kind: "reassigned" };
+    // status === "permanently_lost" from here down. lostContext is only
+    // truly optional for a save from before that field existed, or a
+    // status flip through the test-only applyPermadeathCheck path rather
+    // than the real Debrief-driven applyMissionLosses (see that function's
+    // own header) — "unknown"/turn 0 is a defensive fallback for a state
+    // that shouldn't occur on any real save, not an expected case.
+    if (entry.lostContext) return { kind: "permanently_lost", missionId: entry.lostContext.missionId, turn: entry.lostContext.turn };
+    return { kind: "permanently_lost", missionId: "unknown", turn: 0 };
   }
 
   create() {
@@ -302,8 +379,25 @@ export class Codex extends Phaser.Scene {
     this.categoryLayer = this.add.container(0, 0);
     const cx = 135;
     const w = 204;
-    const h = 42;
-    let y = 104;
+    // Codex Rebuild & Live Briefing Plan v1, Part A, 4 Sep 2026 — this list
+    // grew from 9 sections to 15 the day this was written. At the original
+    // fixed 50px row spacing starting from y=104, row 11 onward (World
+    // through Glossary) lands below y=640 — off the bottom of the game's
+    // own 1074x640 logical canvas (src/main.ts) — which doesn't scroll or
+    // clip visibly, it just puts those four categories' own click targets
+    // somewhere the player's mouse can never reach. Caught by this pass's
+    // own Playwright verification, not by eye — a static 42px/50px layout
+    // tuned for 9 rows silently stopped being enough the moment a tenth
+    // one was added, with no error or visual sign that anything broke.
+    // Spacing (and row height with it) now shrinks to fit however many
+    // sections actually exist, capped at the original 50/42 so a shorter
+    // list still looks exactly as it always did.
+    const topY = 100;
+    const bottomY = 600; // stays clear of the BACK button's own row at y=616
+    const spacing = SECTIONS.length > 1 ? Math.min(50, (bottomY - topY) / (SECTIONS.length - 1)) : 50;
+    const h = Math.min(42, spacing - 4);
+    const fontSize = spacing < 45 ? "9px" : "10px";
+    let y = topY;
     SECTIONS.forEach((sec, i) => {
       const active = i === this.sectionIndex;
       const bg = this.add
@@ -313,7 +407,7 @@ export class Codex extends Phaser.Scene {
       const txt = this.add
         .text(cx, y, `${sec.num}  ${sec.title.toUpperCase()}`, {
           fontFamily: "monospace",
-          fontSize: "10px",
+          fontSize,
           color: active ? "#ffffff" : PAL.textMuted,
           align: "center",
           wordWrap: { width: w - 14 },
@@ -329,7 +423,7 @@ export class Codex extends Phaser.Scene {
         this.drawCategoryList();
         this.renderSection();
       });
-      y += 50;
+      y += spacing;
     });
   }
 
@@ -369,9 +463,32 @@ export class Codex extends Phaser.Scene {
       case "objectives": this.renderObjectives(bodyX, bodyTop, bodyW, bodyH); break;
       case "roster": this.renderRoster(bodyX, bodyTop, bodyW, bodyH); break;
       case "missions": this.renderMissions(bodyX, bodyTop, bodyW, bodyH); break;
+      case "personnel": this.renderPersonnel(bodyX, bodyTop, bodyW, bodyH); break;
+      case "bestiary": this.renderBestiary(bodyX, bodyTop, bodyW, bodyH); break;
+      case "world": this.renderWorld(bodyX, bodyTop, bodyW, bodyH); break;
+      case "systemsLore": this.renderSystemsLore(bodyX, bodyTop, bodyW, bodyH); break;
+      case "ranksLore": this.renderRanksLore(bodyX, bodyTop, bodyW, bodyH); break;
+      case "glossary": this.renderGlossary(bodyX, bodyTop, bodyW, bodyH); break;
     }
 
-    if (sec.pageCount > 1) this.drawPageNav(sec.pageCount);
+    // A needsSave section with no usable save shows one honest placeholder
+    // message (renderXxx itself draws it) instead of paginated content —
+    // no page nav makes sense over a single static message, regardless of
+    // that section's own nominal pageCount.
+    const showPageNav = sec.pageCount > 1 && (!sec.needsSave || this.hasWardenSave);
+    if (showPageNav) this.drawPageNav(sec.pageCount);
+  }
+
+  /** The shared "no save, or the wrong campaign" message for a needsSave section. */
+  private renderNoSavePlaceholder(x: number, y: number, w: number, h: number, categoryLabel: string) {
+    this.txt(x, y + h / 2 - 24, `${categoryLabel} is Warden Company's own record.`, { fontFamily: "monospace", fontSize: "12px", color: PAL.text, wordWrap: { width: w } });
+    this.txt(x, y + h / 2, "Start or load a Warden Company campaign to see it — a House Amaranth save, or no save at all, doesn't have one yet.", {
+      fontFamily: "monospace",
+      fontSize: "10px",
+      color: PAL.textMuted,
+      wordWrap: { width: w },
+      lineSpacing: 3,
+    });
   }
 
   private drawPageNav(pageCount: number) {
@@ -707,6 +824,119 @@ export class Codex extends Phaser.Scene {
         wordWrap: { width: w - 24 },
         lineSpacing: 2,
       });
+    });
+  }
+
+  // ---- SEC. 10 — Personnel (paged, 2/page) -----------------------------
+  private renderPersonnel(x: number, y: number, w: number, h: number) {
+    if (!this.hasWardenSave) { this.renderNoSavePlaceholder(x, y, w, h, "Personnel"); return; }
+    const perPage = 2;
+    const items = PERSONNEL.slice(this.page * perPage, this.page * perPage + perPage);
+    const cardH = (h - 12) / perPage;
+
+    items.forEach((p, i) => {
+      const cy = y + i * (cardH + 12);
+      this.drawCard(x, cy, w, cardH, "");
+      this.txt(x + 12, cy + 8, p.displayName, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
+      const status = personnelStatusText(p, this.liveStatusFor(p.id));
+      this.txt(x + 12, cy + 28, status, { fontFamily: "monospace", fontSize: "9px", color: PAL.accent, wordWrap: { width: w - 24 }, lineSpacing: 2 });
+      this.txt(x + 12, cy + 48, p.bio.join("\n\n"), {
+        fontFamily: "monospace",
+        fontSize: "9px",
+        color: PAL.textMuted,
+        wordWrap: { width: w - 24 },
+        lineSpacing: 3,
+      });
+      const tailY = cy + cardH - 40;
+      if (p.mek) {
+        this.txt(x + 12, tailY, `MEK — ${p.mek.idLine}`, { fontFamily: "monospace", fontSize: "8px", color: PAL.accent });
+        this.txt(x + 12, tailY + 12, p.mek.bio, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 2 });
+      } else if (p.catalystLine) {
+        this.txt(x + 12, tailY, "CATALYST", { fontFamily: "monospace", fontSize: "8px", color: PAL.accent });
+        this.txt(x + 12, tailY + 12, p.catalystLine, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 2 });
+      }
+    });
+  }
+
+  // ---- SEC. 11 — Bloom Bestiary (paged, 3/page) -------------------------
+  private renderBestiary(x: number, y: number, w: number, h: number) {
+    if (!this.hasWardenSave) { this.renderNoSavePlaceholder(x, y, w, h, "The Bloom Bestiary"); return; }
+    const perPage = 3;
+    const items = BESTIARY.slice(this.page * perPage, this.page * perPage + perPage);
+    const cardH = (h - 24) / perPage;
+    const highestIdx = this.highestMissionIndexReached;
+
+    items.forEach((b, i) => {
+      const cy = y + i * (cardH + 12);
+      const unlocked = isBestiaryEntryUnlocked(b, highestIdx);
+      this.drawCard(x, cy, w, cardH, "");
+      this.txt(x + 12, cy + 8, unlocked ? b.displayName : "??? — not yet encountered", { fontFamily: "monospace", fontSize: "12px", color: unlocked ? PAL.text : PAL.textFaint });
+      if (unlocked) {
+        this.txt(x + 12, cy + 26, b.body, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
+      } else {
+        this.txt(x + 12, cy + 26, "Scans haven't turned up anything matching this signature yet.", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint, wordWrap: { width: w - 24 } });
+      }
+    });
+  }
+
+  // ---- SEC. 12 — World (paged, 2/page) -----------------------------------
+  private renderWorld(x: number, y: number, w: number, h: number) {
+    if (!this.hasWardenSave) { this.renderNoSavePlaceholder(x, y, w, h, "World"); return; }
+    const perPage = 2;
+    const items = WORLD.slice(this.page * perPage, this.page * perPage + perPage);
+    const cardH = (h - 12) / perPage;
+    const highestIdx = this.highestMissionIndexReached;
+
+    items.forEach((entry, i) => {
+      const cy = y + i * (cardH + 12);
+      const rev = latestUnlockedWorldRevision(entry, highestIdx);
+      this.drawCard(x, cy, w, cardH, "");
+      this.txt(x + 12, cy + 8, entry.title, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
+      if (rev) {
+        this.txt(x + 12, cy + 28, rev.text, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
+      } else {
+        this.txt(x + 12, cy + 28, "Not yet encountered.", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint });
+      }
+    });
+  }
+
+  // ---- SEC. 13 — Systems (lore, paged 2/page) ----------------------------
+  private renderSystemsLore(x: number, y: number, w: number, h: number) {
+    const perPage = 2;
+    const items = SYSTEMS.slice(this.page * perPage, this.page * perPage + perPage);
+    const cardH = (h - 12) / perPage;
+    items.forEach((s, i) => {
+      const cy = y + i * (cardH + 12);
+      this.drawCard(x, cy, w, cardH, "");
+      this.txt(x + 12, cy + 8, s.title, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
+      this.txt(x + 12, cy + 28, s.body.join("\n\n"), { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
+    });
+  }
+
+  // ---- SEC. 14 — Ranks & Command (single page) ---------------------------
+  private renderRanksLore(x: number, y: number, w: number, h: number) {
+    const cardH = (h - 12) / RANKS.length;
+    RANKS.forEach((r, i) => {
+      const cy = y + i * (cardH + 12);
+      this.drawCard(x, cy, w, cardH, "");
+      this.txt(x + 12, cy + 8, r.title, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
+      this.txt(x + 12, cy + 28, r.body.join("\n\n"), { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
+    });
+  }
+
+  // ---- SEC. 15 — Glossary (paged, 5/page) --------------------------------
+  private renderGlossary(x: number, y: number, w: number, h: number) {
+    const perPage = 5;
+    const items = GLOSSARY.slice(this.page * perPage, this.page * perPage + perPage);
+    const rowH = Math.floor(h / perPage);
+    items.forEach((g, i) => {
+      const ry = y + i * rowH;
+      this.txt(x, ry, g.term, { fontFamily: "monospace", fontSize: "11px", color: PAL.accent });
+      this.txt(x + 150, ry, g.def, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 150 }, lineSpacing: 2 });
+      if (i < items.length - 1) {
+        const line = this.add.rectangle(x + w / 2, ry + rowH - 6, w, 1, PAL.cardBorder, 0.6);
+        this.contentLayer.add(line);
+      }
     });
   }
 }

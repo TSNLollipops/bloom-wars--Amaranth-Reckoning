@@ -860,6 +860,14 @@ function buildSpar(): DeckLayout {
 // ---------------------------------------------------------------------------
 
 export const RECROOM_TABLE_POINT = { x: 300, y: 800 };
+// Rec Room Standings, 3 Sep 2026 — the board on the wall, in the games
+// corner alongside CARDS / PEGS / DARTS rather than off on its own, since
+// it is the record of exactly those three. Sits clear to the west of the
+// CARDS table (x 300-390) with the booths well above it, so no body can be
+// pinched between the two — the "no trap gaps" rule this file's own test
+// enforces. A walk-up point like the Vault plinth and the Workshop bench,
+// not a solid: the board is on the wall, you do not walk into it.
+export const RECROOM_BOARD_POINT = { x: 180, y: 1010 };
 export const MUSTER_POINT = { x: 1200, y: 930 };
 export const HANGAR_SHOP_POINT = { x: 850, y: 600 };
 export const WORKSHOP_BENCH_POINT = { x: 150, y: 600 };

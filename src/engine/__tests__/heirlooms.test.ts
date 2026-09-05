@@ -48,6 +48,7 @@ import {
   currentShortlist,
   acquireAberration,
   resolveVaultDedication,
+  resolveRequiemEarlyEquip,
 } from "../heirlooms";
 import {
   HEIRLOOMS,
@@ -1019,5 +1020,78 @@ describe("resolveVaultDedication — Mission 12's Vault scene, one-shot", () => 
     const second = resolveVaultDedication(state);
     expect(second).toBeUndefined();
     expect(state.vaultDedication).toEqual({ fallenId: "pilot_bosk", seen: false });
+  });
+});
+
+describe("resolveRequiemEarlyEquip — Bosk's own door, live from Mission 2 (4 Sep 2026)", () => {
+  it("hands Requiem to Bosk outright — no points, no pick spent, no roster/points mutation", () => {
+    const state = createWardenCampaignState();
+    const pointsBefore = state.points;
+    const picksBefore = heirloomPicksRemaining(state);
+    resolveRequiemEarlyEquip(state);
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_bosk");
+    expect(heirloomState(state).recruited).toContain("requiem");
+    expect(state.points).toBe(pointsBefore);
+    expect(heirloomPicksRemaining(state)).toBe(picksBefore);
+  });
+
+  it("works before Act II unlocks Heirlooms — Gjallar is the deliberate exception to that gate", () => {
+    const state = createWardenCampaignState();
+    expect(heirloomsUnlocked(state)).toBe(false);
+    resolveRequiemEarlyEquip(state);
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_bosk");
+  });
+
+  it("is a no-op the second time — same holder, recruited list not duplicated", () => {
+    const state = createWardenCampaignState();
+    resolveRequiemEarlyEquip(state);
+    resolveRequiemEarlyEquip(state);
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_bosk");
+    expect(heirloomState(state).recruited.filter((id) => id === "requiem").length).toBe(1);
+  });
+
+  it("does not reassign Requiem back to Bosk once it has already moved on to someone else", () => {
+    // Simulates a save where Requiem has already been transferred away from
+    // Bosk (e.g. by resolveVaultDedication, above) before this ever gets a
+    // chance to run — see the full-sequence test below for the real path
+    // that produces this.
+    const state = actTwoState();
+    acquireAberration(state, "requiem", "pilot_rourke");
+    resolveRequiemEarlyEquip(state);
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_rourke");
+  });
+
+  it("full sequence: Bosk gets it early, falls at Mission 12, Vault dedication moves it to Rourke, and a later replay of Mission 1 does not undo that", () => {
+    const state = actTwoState();
+    resolveRequiemEarlyEquip(state);
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_bosk");
+
+    state.pilots["pilot_bosk"].status = "permanently_lost";
+    state.pilots["pilot_bosk"].lostContext = {
+      missionId: "mission_amaranth_12",
+      outcome: "win",
+      turn: 9,
+      turnsWithoutMunti: 0,
+      muntisDeployed: 1,
+      wasLastMunti: false,
+    };
+    const dedication = resolveVaultDedication(state);
+    expect(dedication).toEqual({ fallenId: "pilot_bosk", transferred: true });
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_rourke");
+
+    // Missions are freely selectable at any point in a save (see
+    // scenes/MapSelect.ts — no won/locked gating), so Mission 1's own
+    // Debrief, and therefore this call, can legitimately be reached again
+    // long after Requiem has moved on. Must not claw it back to a
+    // now-dead Bosk.
+    resolveRequiemEarlyEquip(state);
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBe("pilot_rourke");
+  });
+
+  it("does nothing and does not throw if Bosk is somehow not active", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_bosk"].status = "permanently_lost";
+    expect(() => resolveRequiemEarlyEquip(state)).not.toThrow();
+    expect(heirloomState(state).assignedPilotId["requiem"]).toBeUndefined();
   });
 });

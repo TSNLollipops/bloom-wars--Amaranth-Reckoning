@@ -7,7 +7,14 @@
 // menu, not changeable mid-run." This screen just gives that decision an
 // actual place to live.
 import Phaser from "phaser";
-import { createWardenCampaignState, createHouseAmaranthCampaignState, saveCampaignState } from "../engine/campaignState";
+import {
+  createWardenCampaignState,
+  createHouseAmaranthCampaignState,
+  saveCampaignState,
+  DEFAULT_WARDEN_COMPANY_NAME,
+  DEFAULT_HOUSE_AMARANTH_COMPANY_NAME,
+  COMPANY_NAME_MAX_LENGTH,
+} from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 import { AMARANTH_ACT1 } from "../data/campaignAmaranth";
 import { HOUSE_AMARANTH_ACT1 } from "../data/campaignHouseAmaranth";
@@ -24,6 +31,19 @@ export class CampaignSetup extends Phaser.Scene {
   private selectedSide: Side = "warden";
   private wardenBg!: Phaser.GameObjects.Rectangle;
   private houseAmaranthBg!: Phaser.GameObjects.Rectangle;
+  // B6, "name your company" (5 Sep 2026). The DOM input follows Hub.ts's own
+  // chat-box idiom (buildChatBox) — this.add.dom with an inline style string,
+  // which main.ts's `dom: { createContainer: true }` exists to allow. No
+  // addCapture/removeCapture dance is needed here the way Hub needs one:
+  // this scene registers no keyboard input at all, so there's nothing for a
+  // keystroke to leak into. The keydown listener still stops propagation
+  // anyway, matching Hub's pattern rather than relying on that staying true.
+  private companyInput!: Phaser.GameObjects.DOMElement;
+  // Whether the player has actually typed their own name. While false, the
+  // field tracks whichever side is selected, so clicking HOUSE AMARANTH
+  // doesn't leave "Warden Company" sitting in the box; the moment they edit
+  // it, side changes stop overwriting what they wrote.
+  private companyNameEdited = false;
 
   constructor() {
     super("CampaignSetup");
@@ -35,7 +55,9 @@ export class CampaignSetup extends Phaser.Scene {
 
     this.add.text(480, 50, "NEW CAMPAIGN", { fontFamily: "monospace", fontSize: "26px", color: "#e8e2d4" }).setOrigin(0.5);
 
+    this.companyNameEdited = false;
     this.drawSideSelect();
+    this.drawCompanyNameField();
     this.drawIronmanCheckbox();
     this.drawBeginButton();
 
@@ -69,8 +91,15 @@ export class CampaignSetup extends Phaser.Scene {
     this.wardenBg.on("pointerdown", () => this.setSide("warden"));
     this.houseAmaranthBg.on("pointerdown", () => this.setSide("house_amaranth"));
 
+    // y=178, not 168 (Claude, 5 Sep 2026 — pre-existing, found by screenshot
+    // during the B6 pass, not caused by it). This string is 94 characters,
+    // which at 10px monospace is just past the 560px wrap width, so it has
+    // always rendered as TWO lines: 26px tall, centered at 168, spanning
+    // 155-181 — while the side buttons above end at 160. It has been
+    // overlapping them by ~5px the whole time. Nudged clear rather than
+    // rewrapped, since the wrap itself reads fine.
     this.add
-      .text(480, 168, "House Amaranth has no Hub of its own to walk around in yet — missions and roster only for now.", {
+      .text(480, 178, "House Amaranth has no Hub of its own to walk around in yet — missions and roster only for now.", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#5a6472",
@@ -84,10 +113,73 @@ export class CampaignSetup extends Phaser.Scene {
     this.selectedSide = side;
     this.wardenBg.setFillStyle(side === "warden" ? 0x2e5c7a : 0x1a2028);
     this.houseAmaranthBg.setFillStyle(side === "house_amaranth" ? 0x2e5c7a : 0x1a2028);
+    // Untouched field follows the side; an edited one is left alone — see
+    // companyNameEdited's own comment.
+    if (!this.companyNameEdited && this.companyInput) {
+      (this.companyInput.node as HTMLInputElement).value = this.defaultNameForSide();
+    }
+  }
+
+  private defaultNameForSide(): string {
+    return this.selectedSide === "house_amaranth" ? DEFAULT_HOUSE_AMARANTH_COMPANY_NAME : DEFAULT_WARDEN_COMPANY_NAME;
+  }
+
+  /**
+   * B6 (First Game Dev Feature Gap Report §B6, "Players name things they
+   * intend to lose"), built 5 Sep 2026. One text field, pre-filled with the
+   * side's real default so a player who doesn't care can ignore it entirely
+   * and get exactly today's behavior — the name is never a required step.
+   */
+  private drawCompanyNameField() {
+    this.add.text(480, 206, "COMPANY NAME", { fontFamily: "monospace", fontSize: "12px", color: "#6b7a8a" }).setOrigin(0.5);
+
+    this.companyInput = this.add
+      .dom(
+        480,
+        236,
+        "input",
+        "width: 300px; padding: 7px 9px; font-family: monospace; font-size: 14px; text-align: center; " +
+          "background: #1a2028; color: #e8e2d4; border: 1px solid #4a7a9a; outline: none;"
+      )
+      .setOrigin(0.5);
+
+    const node = this.companyInput.node as HTMLInputElement;
+    node.value = this.defaultNameForSide();
+    node.maxLength = COMPANY_NAME_MAX_LENGTH;
+    node.addEventListener("input", () => {
+      this.companyNameEdited = true;
+    });
+    node.addEventListener("keydown", (e: KeyboardEvent) => {
+      // Enter shouldn't submit anything here (there's no form, and BEGIN
+      // CAMPAIGN is a deliberate second click, not something a stray Enter
+      // in a name box should trigger). stopPropagation matches Hub.ts's own
+      // chat-input handling — see companyInput's field comment.
+      if (e.key === "Enter") e.preventDefault();
+      e.stopPropagation();
+    });
+
+    this.add
+      .text(480, 266, `Whatever you call them is what the roster, the pad, and the record will call them. ${COMPANY_NAME_MAX_LENGTH} characters.`, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#5a6472",
+        align: "center",
+        wordWrap: { width: 560 },
+      })
+      .setOrigin(0.5);
+  }
+
+  /** The typed name, trimmed — or the side's default if the player blanked the box, so a campaign can never start nameless. */
+  private resolveCompanyName(): string {
+    const typed = (this.companyInput?.node as HTMLInputElement | undefined)?.value ?? "";
+    const trimmed = typed.trim();
+    return trimmed.length > 0 ? trimmed : this.defaultNameForSide();
   }
 
   private drawIronmanCheckbox() {
-    const y = 260;
+    // Moved down from 260 to 320 (5 Sep 2026) to clear B6's company-name
+    // field above it — drawCompanyNameField's help text ends around y=272.
+    const y = 320;
     this.checkboxBg = this.add.rectangle(370, y, 26, 26, 0x1a2028, 1).setStrokeStyle(1, 0x4a7a9a).setInteractive({ useHandCursor: true });
     this.checkboxMark = this.add.text(370, y, "X", { fontFamily: "monospace", fontSize: "16px", color: "#facc15" }).setOrigin(0.5);
     this.add.text(392, y, "IRONMAN", { fontFamily: "monospace", fontSize: "15px", color: "#e8e2d4" }).setOrigin(0, 0.5);
@@ -127,6 +219,7 @@ export class CampaignSetup extends Phaser.Scene {
     makeShopButton(this, this.add.container(0, 0), 480, 540, 320, 48, "BEGIN CAMPAIGN", true, () => {
       const state = this.selectedSide === "house_amaranth" ? createHouseAmaranthCampaignState() : createWardenCampaignState();
       state.ironman = this.ironmanChecked;
+      state.companyName = this.resolveCompanyName(); // B6 — same "overwrite the factory default before the first save" shape as ironman right above
       saveCampaignState(state);
       const missionId = this.selectedSide === "house_amaranth" ? HOUSE_AMARANTH_ACT1[0].id : AMARANTH_ACT1[0].id;
       this.scene.start("TransporterPad", { missionId });

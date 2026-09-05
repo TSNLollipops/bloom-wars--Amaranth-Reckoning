@@ -375,6 +375,57 @@ export function __setEnableEnemyRoamFallbackForTests(value: boolean): void {
   ENABLE_ENEMY_ROAM_FALLBACK = value;
 }
 
+/**
+ * The Undertow ambush hold — BUILT, VERIFIED, AND SHIPPED OFF, 3 Sep 2026.
+ *
+ * `Bloom_Wars_Undertow_Ambush_Hold_Scoping_v1.md` diagnosed a real bug and
+ * prescribed an exact fix: an Undertow is an ambusher (burrowed, invisible,
+ * 1.5x on the turn it surfaces) that never actually ambushes anything,
+ * because idleRoamTarget checks map.defendZone first and unconditionally,
+ * and every protect_asset map has one — so "hold position" was not a
+ * reachable outcome on those maps at all. The diagnosis is correct and the
+ * fix below is exactly what that doc specified.
+ *
+ * It ships OFF anyway, and the reason is the doc's own verification plan,
+ * which was run in full (seeded A/B, identical seeds both sides):
+ *
+ *   - Mission 22, the mission this was actually FOR, at n=500 per tier:
+ *     0% / 0% / 2% both with and without. Completely unmoved. The fix does
+ *     not do the thing it was scoped to do.
+ *   - The full 76-mission sweep at n=25 moved 9 missions, six up and three
+ *     down, with the aggregate barely changing (48% -> 50%).
+ *   - Re-measuring the five biggest movers at n=200 confirmed they are
+ *     signal, not sampling noise:
+ *         mission_amaranth_4          27% ->  0%   (and 122/200 TIMEOUT, from 0)
+ *         mission_amaranth_26        100% -> 82%
+ *         mission_amaranth_29         61% -> 33%
+ *         mission_house_amaranth_15    0% -> 53%
+ *         mission_house_amaranth_21    5% -> 95%
+ *
+ * mission_amaranth_4 is the one that decides this. Timing out 61% of runs,
+ * from zero timeouts before, is the signature of exactly the failure the
+ * scoping doc warned about by name: enemies that hold position on a map
+ * whose premise is that they come to you. That is a real design change to
+ * that mission, and rebalancing five missions — one of them into a timeout
+ * — is not a call to make while nobody is around to have an opinion.
+ *
+ * Flip this to `true` to turn it on. Nothing else needs to change: the
+ * flag on bloom_undertow, the checks below, and the tests all exist and
+ * pass. Same killswitch shape as ENABLE_ENEMY_ROAM_FALLBACK above, which
+ * has its own history of being shipped off, measured, and then turned on.
+ */
+export let ENABLE_UNDERTOW_AMBUSH_HOLD = false;
+
+/** Test-only setter — same reasoning as __setEnableEnemyRoamFallbackForTests. */
+export function __setEnableUndertowAmbushHoldForTests(value: boolean): void {
+  ENABLE_UNDERTOW_AMBUSH_HOLD = value;
+}
+
+/** Does this unit hold position rather than roam when it has nothing in sight? */
+function holdsWhenIdle(unit: BattleUnit): boolean {
+  return ENABLE_UNDERTOW_AMBUSH_HOLD && unit.kind === "bloom" && (BLOOM[unit.archetypeId]?.holdWhenIdle ?? false);
+}
+
 function nearestZoneTile(unit: BattleUnit, zone: Coord[]): Coord {
   return zone.reduce((best, c) => (chebyshevDistance(unit.pos, c) < chebyshevDistance(unit.pos, best) ? c : best));
 }
@@ -389,6 +440,11 @@ function idleRoamTarget(map: MapDefinition): Coord[] | undefined {
 function reflexiveDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const targets = visibleEnemiesOf(unit, allUnits);
   if (!targets.length) {
+    // Ambushers hold. Checked BEFORE idleRoamTarget, deliberately — that
+    // function returns defendZone unconditionally on any map that has one,
+    // so a check placed after it would never run. Off by default; see
+    // ENABLE_UNDERTOW_AMBUSH_HOLD above for the measured reason.
+    if (holdsWhenIdle(unit)) return {};
     // See nearestZoneTile's own comment above.
     const roamZone = idleRoamTarget(map);
     if (roamZone) return { path: moveToward(map, unit, nearestZoneTile(unit, roamZone), allUnits) };
@@ -453,6 +509,11 @@ function sharedPackTarget(_map: MapDefinition, unit: BattleUnit, allUnits: Battl
 function packDecision(map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[]): AiDecision {
   const target = sharedPackTarget(map, unit, allUnits);
   if (!target) {
+    // Same ambusher hold as reflexiveDecision above, for the same reason.
+    // No live archetype is both pack-intelligent and holdWhenIdle today
+    // (the Undertow is reflexive), but leaving this out would make the
+    // flag silently mean different things depending on an unrelated field.
+    if (holdsWhenIdle(unit)) return {};
     // Same idleRoamTarget fallback as reflexiveDecision above, for the same
     // reason — a pack with nothing spotted (by itself or any packmate)
     // shouldn't freeze in place either.
