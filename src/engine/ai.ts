@@ -31,6 +31,7 @@ import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
 import { BLOOM, SPLITFANG_PACK_RADIUS } from "../data/bloom";
 import { chebyshevDistance, chassisToMovementKind, reachableTiles, reconstructPath, coordKey, isStraightLineCharge, distanceField } from "./grid";
+import { movementKindOf } from "./frameSystems";
 import { resolveMechAttack, resolveAttackOnBloom, bloomDamage } from "./combat";
 
 export interface AiDecision {
@@ -109,9 +110,9 @@ function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
  * a sweep is the player's intelligence, not a broadcast — nothing should be
  * able to make a player unit visible to the Bloom by revealing it.
  *
- * Still not covered: burrow-surfacing on adjacency, and the Runemaster
- * track's own `burrowDetection: true` (data/meks.ts), which remains a data
- * field nothing reads.
+ * Still not covered: burrow-surfacing on adjacency. The Runemaster track's
+ * `burrowDetection: true` (data/meks.ts) IS covered as of 6 Sep 2026 — it
+ * arrives here as `detectsBurrowedRadius` on the unit, see the block below.
  */
 export function isVisibleTo(observer: BattleUnit, target: BattleUnit, currentTurn?: number): boolean {
   // Ambush stealth cloak redesign (30 Aug 2026) — a sweep's paint now beats
@@ -123,7 +124,21 @@ export function isVisibleTo(observer: BattleUnit, target: BattleUnit, currentTur
   // below, for the identical reason: revealing is what a sweep is for.
   if (currentTurn !== undefined && target.revealedUntilTurn !== undefined && target.revealedUntilTurn >= currentTurn) return true;
   if (target.concealed) return false;
-  if (target.burrowed) return false;
+  // Passive burrow detection within the observer's own
+  // detectsBurrowedRadius (engine/units.ts), still bounded by its vision —
+  // Seismic Tap's fixed radius (Frame Systems Layer, 6 Sep 2026) and, since
+  // the same day's second pass, a Runemaster-PRIMARY mek's "anywhere inside
+  // the pilot's vision" (Data Pack §5; radius = the unit's own vision).
+  // Undefined on every unit with neither, which keeps the pre-existing
+  // "burrowed is invisible, full stop" behaviour byte-identical for them.
+  // The Runemaster half is the real balance change: Rourke's own mek is
+  // Runemaster-primary, so every Warden mission now has one unit that sees
+  // a burrowed Undertow from 6 tiles out.
+  if (target.burrowed) {
+    if (observer.detectsBurrowedRadius === undefined) return false;
+    const d = chebyshevDistance(observer.pos, target.pos);
+    return d <= observer.detectsBurrowedRadius && d <= observer.vision;
+  }
   return chebyshevDistance(observer.pos, target.pos) <= observer.vision;
 }
 
@@ -229,9 +244,9 @@ export function bestAttackTargetInRange(map: MapDefinition, unit: BattleUnit, fr
 }
 
 export function moveToward(map: MapDefinition, unit: BattleUnit, target: Coord, allUnits: BattleUnit[]): Coord[] {
-  const kind = chassisToMovementKind(unit.chassis ?? "bipedal", unit.kind === "bloom" ? false : false);
-  const flying = unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane";
-  const movementKind = flying ? "flying" : kind;
+  // Frame Systems Layer (6 Sep 2026): one movement-kind rule for every mover
+  // — see engine/frameSystems.ts's movementKindOf. A no-op for hostiles/Bloom.
+  const movementKind = movementKindOf(unit);
   const reachable = reachableTiles(map, unit.pos, unit.moveRange, movementKind, occupiedSet(allUnits, unit.instanceId));
 
   // Rank this turn's reachable tiles by TRUE walls-aware path-distance to
@@ -259,8 +274,7 @@ export function moveToward(map: MapDefinition, unit: BattleUnit, target: Coord, 
 }
 
 export function reachableWithinRangeTile(map: MapDefinition, unit: BattleUnit, target: Coord, allUnits: BattleUnit[]): Coord[] | null {
-  const flying = unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane";
-  const movementKind = flying ? "flying" : chassisToMovementKind(unit.chassis ?? "bipedal", false);
+  const movementKind = movementKindOf(unit);
   const reachable = reachableTiles(map, unit.pos, unit.moveRange, movementKind, occupiedSet(allUnits, unit.instanceId));
   const [minR, maxR] = unit.attackRange;
   let bestTile: Coord | null = null;
@@ -706,7 +720,7 @@ export function moveAwayFrom(
   allUnits: BattleUnit[],
   preferToward: Coord[] = []
 ): Coord[] {
-  const kind = chassisToMovementKind(unit.chassis ?? "bipedal", false);
+  const kind = movementKindOf(unit);
   const reachable = reachableTiles(map, unit.pos, unit.moveRange, kind, occupiedSet(allUnits, unit.instanceId));
   const threatScoreOf = (c: Coord) => Math.min(...threats.map((t) => chebyshevDistance(c, t.pos)));
   const towardDistanceOf = (c: Coord) =>

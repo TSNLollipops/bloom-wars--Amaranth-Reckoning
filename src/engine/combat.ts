@@ -17,8 +17,15 @@ import {
   LEDGER_ENTRY_RANK5_STACK_CAP,
   OATHKEEPER_HP_FLOOR,
 } from "../data/combatTables";
-import { RAIL_LANCE_DEF_IGNORE_PCT } from "../data/weaponBranches";
 import { TILES } from "../data/tiles";
+import {
+  overshieldRadius,
+  counterDamageTakenMultiplier,
+  terrainStarBonus,
+  focusingOpticsAttackBonus,
+  defenseIgnoreFraction,
+  firstAttackMultiplier,
+} from "./frameSystems";
 import { chebyshevDistance, tileAt } from "./grid";
 import type { BattleUnit } from "./units";
 import { UNDERTOW_SURFACE_DAMAGE_MULT, BLOOM } from "../data/bloom";
@@ -100,9 +107,13 @@ export interface AttackResult {
   attackerDowned?: boolean;
   dodged?: boolean; // defender dodged the primary hit (Meeps house rule)
   counterDodged?: boolean; // attacker dodged the counter-hit (Meeps house rule)
+  // Runemaster initiative (6 Sep 2026): the counter landed BEFORE the primary
+  // hit — `counterDamage` was computed at the defender's untouched HP, and
+  // `damage` at the attacker's post-counter HP (0 if the counter downed them).
+  defenderStruckFirst?: boolean;
 }
 
-/** +1 defence star per adjacent, non-downed, same-side Tank (abil_overshield). Does not stack. */
+/** +1 defence star per adjacent, non-downed, same-side Tank (abil_overshield). Does not stack. "Adjacent" is the Tank's own overshieldRadius (engine/frameSystems.ts) — 1, or 2 on a Bastion refit (Frame Systems Layer, 6 Sep 2026). */
 export function overshieldBonus(defender: BattleUnit, sameSideUnits: BattleUnit[]): number {
   const hasAdjacentTank = sameSideUnits.some(
     (u) =>
@@ -110,13 +121,21 @@ export function overshieldBonus(defender: BattleUnit, sameSideUnits: BattleUnit[
       !u.downed &&
       u.path === "tank" &&
       u.abilities.includes("abil_overshield") &&
-      chebyshevDistance(u.pos, defender.pos) <= 1
+      chebyshevDistance(u.pos, defender.pos) <= overshieldRadius(u)
   );
   return hasAdjacentTank ? 1 : 0;
 }
 
+/**
+ * The tile's own defence stars, plus Low-Profile Gait's +1 when the unit
+ * carries it AND the tile already gives cover (Frame Systems Layer, 6 Sep
+ * 2026 — engine/frameSystems.ts's terrainStarBonus is 0 for everyone else
+ * and 0 on open ground even with the system, so every pre-existing
+ * sim_output.txt case is byte-identical).
+ */
 function terrainStars(map: MapDefinition, unit: BattleUnit): number {
-  return TILES[tileAt(map, unit.pos)].defenceStars;
+  const base = TILES[tileAt(map, unit.pos)].defenceStars;
+  return base + terrainStarBonus(unit, base);
 }
 
 /**
@@ -131,7 +150,7 @@ export function tankShieldEligible(unit: BattleUnit, sameSideUnits: BattleUnit[]
   const isEligibleTank = (u: BattleUnit) => u.path === "tank" && !u.downed && u.abilities.includes("abil_overshield");
   if (isEligibleTank(unit)) return true;
   return sameSideUnits.some(
-    (u) => u.instanceId !== unit.instanceId && isEligibleTank(u) && chebyshevDistance(u.pos, unit.pos) <= 1
+    (u) => u.instanceId !== unit.instanceId && isEligibleTank(u) && chebyshevDistance(u.pos, unit.pos) <= overshieldRadius(u)
   );
 }
 
@@ -170,69 +189,84 @@ export function resolveMechAttack(
     throw new Error("resolveMechAttack requires mech-shape units (with a Path)");
   }
   const terrain = terrainStars(map, defender) + overshieldBonus(defender, defenderSameSide);
-  let dmg = POWER[attacker.path][defender.path];
-  dmg *= attacker.currentHp / attacker.maxHp;
-  dmg *= attacker.effectiveAttack / 100;
-  // Bloom on-hit effects engine (engine/turnManager.ts, 27 Aug 2026) —
-  // fx_debuff_attack/fx_choir_dissonance (Sirenmaw/Choir). 1 when no such
-  // effect is active, so this is a no-op for every attacker without one —
-  // every pre-existing sim_output.txt test case stays byte-identical.
-  dmg *= attackDebuffMultiplier(attacker);
-  // Vault Phase 2, slice 1 (2 Sep 2026) — both 1 (no-op) for every attacker
-  // that doesn't carry the ability/posture, same "1 when inactive" shape
-  // attackDebuffMultiplier already establishes just above, so every
-  // pre-existing sim_output.txt test case stays byte-identical.
-  dmg *= saltRootMultiplier(attacker, undefined); // undefined: a mech-shape defender is never "sessile/hive-type"
-  dmg *= overextendedAttackMultiplier(attacker);
-  // Vault Phase 2, slice 2 (3 Sep 2026) — ledger_entry, same "1 when
-  // inactive/no kills yet" no-op shape as every multiplier above it.
-  dmg *= ledgerEntryMultiplier(attacker, opts?.attackerKillsThisMission ?? 0);
-  // Vault Phase 2, slice 4 (3 Sep 2026) — cutting_room_momentum's rank-5
-  // +10% ATK window, same no-op-when-inactive shape as every multiplier
-  // above it.
-  dmg *= momentumAttackMultiplier(attacker);
-  // Rail Lance (Weapon Branch Point System, data/weaponBranches.ts) —
-  // armor-piercing, ONLY on the primary attacker->defender hit, ONLY
-  // against a Tank-path defender: sharpens Reeps-beats-Tank rather than a
-  // flat damage buff that would blur every matchup equally. Deliberately
-  // not applied to the counter-damage calculation below — Rail Lance is
-  // Reeps' own weapon; a Tank countering a Reeps doesn't fire it back.
-  const railLanceDefenseIgnore =
-    attacker.weaponBranchId === "reeps_rail_lance" && defender.path === "tank" ? RAIL_LANCE_DEF_IGNORE_PCT : 0;
-  dmg *= 100 / (overextendedDefense(defender) * (1 - railLanceDefenseIgnore));
-  dmg *= 1 - 0.1 * terrain;
-  if (charged) dmg *= CENTAUROID_CHARGE_MULT;
-  dmg = Math.round(dmg);
-  if (defender.currentHp >= defender.maxHp) dmg = Math.min(dmg, FULL_HP_DAMAGE_CAP);
-  // Meeps house rule (MEEPS_DODGE_CHANCE, data/combatTables.ts) — the roll
-  // itself happens at the engine/mission.ts call site, not here, so this
-  // formula stays the exact Data Pack §7.4 pseudocode when defenderDodged
-  // is left at its default false (every existing sim_output.txt test case
-  // calls this function without the new trailing args).
-  if (defenderDodged) dmg = 0;
 
-  const defenderHpAfter = Math.max(0, defender.currentHp - dmg);
-  const defenderDowned = defenderHpAfter <= 0;
+  // The primary hit, as a function of the attacker's HP at the moment they
+  // swing — `attacker.currentHp` in every case but one (the Runemaster
+  // initiative block below, where a defender's pre-emptive counter has
+  // already landed on them first). Same arithmetic, same order, as the
+  // inline formula this replaced on 6 Sep 2026 — every pre-existing
+  // sim_output.txt case calls the no-initiative path and stays
+  // byte-identical.
+  const primaryDamage = (attackerHpAtSwing: number): number => {
+    let dmg = POWER[attacker.path!][defender.path!];
+    dmg *= attackerHpAtSwing / attacker.maxHp;
+    // Focusing Optics (Frame Systems Layer, 6 Sep 2026) — a flat ATK bonus
+    // when the target sits at exactly the attacker's maximum range; 0
+    // otherwise, and 0 for every unit without the system. Folded into the
+    // same ATK term, before the /100, so it scales exactly like a tier or
+    // mek ATK point would.
+    dmg *= (attacker.effectiveAttack + focusingOpticsAttackBonus(attacker, chebyshevDistance(attacker.pos, defender.pos))) / 100;
+    // Overpressure Regulator (same pass) — x1.4 on the first basic attack of
+    // the mission, 1 after it's spent and 1 for everyone else; the
+    // engine/mission.ts attack verb owns the spend. Primary hit only.
+    dmg *= firstAttackMultiplier(attacker);
+    // Bloom on-hit effects engine (engine/turnManager.ts, 27 Aug 2026) —
+    // fx_debuff_attack/fx_choir_dissonance (Sirenmaw/Choir). 1 when no such
+    // effect is active, so this is a no-op for every attacker without one —
+    // every pre-existing sim_output.txt test case stays byte-identical.
+    dmg *= attackDebuffMultiplier(attacker);
+    // Vault Phase 2, slice 1 (2 Sep 2026) — both 1 (no-op) for every attacker
+    // that doesn't carry the ability/posture, same "1 when inactive" shape
+    // attackDebuffMultiplier already establishes just above, so every
+    // pre-existing sim_output.txt test case stays byte-identical.
+    dmg *= saltRootMultiplier(attacker, undefined); // undefined: a mech-shape defender is never "sessile/hive-type"
+    dmg *= overextendedAttackMultiplier(attacker);
+    // Vault Phase 2, slice 2 (3 Sep 2026) — ledger_entry, same "1 when
+    // inactive/no kills yet" no-op shape as every multiplier above it.
+    dmg *= ledgerEntryMultiplier(attacker, opts?.attackerKillsThisMission ?? 0);
+    // Vault Phase 2, slice 4 (3 Sep 2026) — cutting_room_momentum's rank-5
+    // +10% ATK window, same no-op-when-inactive shape as every multiplier
+    // above it.
+    dmg *= momentumAttackMultiplier(attacker);
+    // Rail Lance (Weapon Branch Point System, data/weaponBranches.ts) —
+    // armor-piercing, ONLY on the primary attacker->defender hit, ONLY
+    // against a Tank-path defender: sharpens Reeps-beats-Tank rather than a
+    // flat damage buff that would blur every matchup equally. Deliberately
+    // not applied to the counter-damage calculation below — Rail Lance is
+    // Reeps' own weapon; a Tank countering a Reeps doesn't fire it back.
+    //
+    // Shredder Rounds (Frame Systems Layer, 6 Sep 2026) joins Rail Lance in
+    // the same slot — engine/frameSystems.ts's defenseIgnoreFraction sums the
+    // two (Rail Lance's own vs-Tank-only rule is preserved inside it) and is
+    // 0 for an attacker with neither, so this line is unchanged in effect
+    // for every pre-existing case.
+    const defenseIgnore = defenseIgnoreFraction(attacker, defender);
+    dmg *= 100 / (overextendedDefense(defender) * (1 - defenseIgnore));
+    dmg *= 1 - 0.1 * terrain;
+    if (charged) dmg *= CENTAUROID_CHARGE_MULT;
+    dmg = Math.round(dmg);
+    if (defender.currentHp >= defender.maxHp) dmg = Math.min(dmg, FULL_HP_DAMAGE_CAP);
+    // Meeps house rule (MEEPS_DODGE_CHANCE, data/combatTables.ts) — the roll
+    // itself happens at the engine/mission.ts call site, not here, so this
+    // formula stays the exact Data Pack §7.4 pseudocode when defenderDodged
+    // is left at its default false (every existing sim_output.txt test case
+    // calls this function without the new trailing args).
+    if (defenderDodged) dmg = 0;
+    return dmg;
+  };
 
-  const result: AttackResult = { damage: dmg, defenderHpAfter, defenderDowned, countered: false, dodged: defenderDodged };
-
-  // Counterattack — three load-bearing conditions:
-  //   1. the defender survived the hit
-  //   2. the defender can counter at all
-  //   3. the attacker is within counterMaxRange -- NOT attackRange.
-  // Condition 3 is why a Reeps firing from range 3 is never countered, and
-  // why a Munti with a 2-tile attack still only counters at 1. deadfall_strike's
-  // own opts.noCounter (Vault Phase 2, slice 2) is a fourth, explicit gate —
-  // "uncounterable" regardless of what the three conditions above would say.
-  if (!opts?.noCounter && !defenderDowned && defender.canCounter && chebyshevDistance(defender.pos, attacker.pos) <= defender.counterMaxRange) {
-    // The counter runs the IDENTICAL formula, cap included — the
-    // attacker is usually at full HP when countered, so exempting the
-    // counter from the cap would quietly make counterattacks the second
-    // thing in the game that can delete a full-HP unit. Severance is
-    // meant to be the only one.
+  // The counter-swing, as a function of the defender's HP at the moment
+  // THEY swing — `defenderHpAfter` (post-hit) in the ordinary case, their
+  // untouched `currentHp` when initiative lets them swing first.
+  //
+  // The counter runs the IDENTICAL formula, cap included — the attacker is
+  // usually at full HP when countered, so exempting the counter from the
+  // cap would quietly make counterattacks the second thing in the game
+  // that can delete a full-HP unit. Severance is meant to be the only one.
+  const counterDamage = (defenderHpAtSwing: number): number => {
     const counterTerrain = terrainStars(map, attacker) + overshieldBonus(attacker, attackerSameSide);
-    let counterDmg = POWER[defender.path][attacker.path];
-    counterDmg *= defenderHpAfter / defender.maxHp;
+    let counterDmg = POWER[defender.path!][attacker.path!];
+    counterDmg *= defenderHpAtSwing / defender.maxHp;
     counterDmg *= defender.effectiveAttack / 100;
     counterDmg *= attackDebuffMultiplier(defender); // same on-hit debuff, applied to the defender's own counter-swing
     // Vault Phase 2, slice 1 (2 Sep 2026) — same two effects as the primary
@@ -255,12 +289,81 @@ export function resolveMechAttack(
     counterDmg *= momentumAttackMultiplier(defender);
     counterDmg *= 100 / overextendedDefense(attacker);
     counterDmg *= 1 - 0.1 * counterTerrain;
+    // Spall Liner (Frame Systems Layer, 6 Sep 2026) — the ATTACKER is the
+    // one being counter-hit here, so their own liner reads: "take 50% less
+    // counterattack damage." 1 for everyone without it. Applied before the
+    // round and before the full-HP cap, same place every other multiplier
+    // on this swing sits.
+    counterDmg *= counterDamageTakenMultiplier(attacker);
     counterDmg = Math.round(counterDmg);
     if (attacker.currentHp >= attacker.maxHp) counterDmg = Math.min(counterDmg, FULL_HP_DAMAGE_CAP);
     // Meeps dodging the counter-hit they take as the ORIGINAL attacker —
     // same house rule, independent roll from the defender's own dodge above.
     if (attackerDodgedCounter) counterDmg = 0;
+    return counterDmg;
+  };
 
+  // Counterattack — three load-bearing conditions, of which the first is
+  // tested at the point of use below (it depends on WHEN the counter lands):
+  //   1. the defender survived the hit (ordinary order) — or, under
+  //      initiative, hasn't been hit yet
+  //   2. the defender can counter at all
+  //   3. the attacker is within counterMaxRange -- NOT attackRange.
+  // Condition 3 is why a Reeps firing from range 3 is never countered, and
+  // why a Munti with a 2-tile attack still only counters at 1. deadfall_strike's
+  // own opts.noCounter (Vault Phase 2, slice 2) is a fourth, explicit gate —
+  // "uncounterable" regardless of what the three conditions above would say.
+  const counterPossible = !opts?.noCounter && defender.canCounter && chebyshevDistance(defender.pos, attacker.pos) <= defender.counterMaxRange;
+
+  // Runemaster initiative (GDD §6.2 / Data Pack §5: "+1 initiative — wins
+  // simultaneous-resolution ties and strikes first against an equal-move
+  // attacker"; wired 6 Sep 2026, the field having sat unread in
+  // data/meks.ts since it was written). READING, flagged: this engine has
+  // no simultaneous resolution — the attacker's hit always landed first and
+  // the counter always second — so "strikes first" is given exactly one
+  // meaning: a DEFENDER with initiative swings their counter BEFORE the
+  // incoming hit lands, whenever the attacker is not faster than them
+  // (defender move + initiative > attacker move + initiative; the strict
+  // `>` with initiative on the defender's side is what makes an equal-move
+  // attacker lose the tie, per the doc). Two consequences, both the point:
+  // the counter is computed at the defender's untouched HP, and if it downs
+  // the attacker the attack never lands at all. A surviving attacker then
+  // swings at their reduced HP. Requires initiative > 0 on the defender —
+  // a faster defender with none still waits, as always — so every unit
+  // without a Runemaster-primary mek is untouched and sim_output.txt holds.
+  // Reeps' own "never countered at range >= 2" is inside counterPossible
+  // and is unchanged: initiative never gives the Tank reach.
+  const defenderStruckFirst = counterPossible && defenderStrikesFirst(defender, attacker);
+
+  if (defenderStruckFirst) {
+    const counterDmg = counterDamage(defender.currentHp);
+    const attackerHpAfter = Math.max(0, attacker.currentHp - counterDmg);
+    const attackerDowned = attackerHpAfter <= 0;
+    const dmg = attackerDowned ? 0 : primaryDamage(attackerHpAfter);
+    const defenderHpAfter = Math.max(0, defender.currentHp - dmg);
+    return {
+      damage: dmg,
+      defenderHpAfter,
+      defenderDowned: defenderHpAfter <= 0,
+      countered: true,
+      counterDamage: counterDmg,
+      attackerHpAfter,
+      attackerDowned,
+      // A hit that was never thrown wasn't dodged either.
+      dodged: attackerDowned ? false : defenderDodged,
+      counterDodged: attackerDodgedCounter,
+      defenderStruckFirst: true,
+    };
+  }
+
+  const dmg = primaryDamage(attacker.currentHp);
+  const defenderHpAfter = Math.max(0, defender.currentHp - dmg);
+  const defenderDowned = defenderHpAfter <= 0;
+
+  const result: AttackResult = { damage: dmg, defenderHpAfter, defenderDowned, countered: false, dodged: defenderDodged };
+
+  if (counterPossible && !defenderDowned) {
+    const counterDmg = counterDamage(defenderHpAfter);
     const attackerHpAfter = Math.max(0, attacker.currentHp - counterDmg);
     result.countered = true;
     result.counterDamage = counterDmg;
@@ -272,13 +375,24 @@ export function resolveMechAttack(
   return result;
 }
 
+/**
+ * The one comparison Runemaster initiative drives — see the initiative
+ * block in resolveMechAttack. Exported so the forecast/test side can ask
+ * the same question the resolver does rather than re-deriving it.
+ */
+export function defenderStrikesFirst(defender: BattleUnit, attacker: BattleUnit): boolean {
+  const defInit = defender.initiative ?? 0;
+  if (defInit <= 0) return false;
+  return defender.moveRange + defInit > attacker.moveRange + (attacker.initiative ?? 0);
+}
+
 export interface BloomAttackResult {
   damage: number;
   defenderHpAfter: number;
   defenderDowned: boolean;
 }
 
-/** Data Pack §8.2 — a Bloom creature attacking a mech-shape defender. */
+/** Data Pack §8.2 — a Bloom creature attacking a mech-shape defender. Also reads attackDebuffMultiplier(attacker) since 5 Sep 2026 (see the comment at that line) — not in §8.2's own formula, which predates any way to put a debuff_attack status on a Bloom at all. */
 export function bloomDamage(
   attacker: BattleUnit,
   defender: BattleUnit,
@@ -296,6 +410,24 @@ export function bloomDamage(
   if (attacker.endurance > 0) {
     dmg *= attacker.endurance / attacker.maxEndurance;
   }
+  // Suppression Autocannon fix (5 Sep 2026, Claude's own judgment, not run
+  // through combat_sim.py) — a real gap found while wiring that branch, not
+  // introduced by it: attackDebuffMultiplier(attacker) is generic (it just
+  // reads `attacker.statusEffects`, indifferent to mech- or Bloom-shape —
+  // see its own comment in turnManager.ts) and both mech-attacker paths
+  // (resolveMechAttack, resolveAttackOnBloom, above/below in this file)
+  // already read it. This one, the THIRD and last damage path (a Bloom
+  // attacking a mech), never did — there was no way to put a debuff_attack
+  // status on a Bloom until 3 Sep 2026 (seal_borrowed_authority's copy) and
+  // no weapon branch that tried until this one, so the gap was invisible
+  // rather than deliberate. Left unfixed, Suppression Autocannon would
+  // apply a real status effect to a Bloom that visibly ages/expires
+  // (tickStatusEffects) but does literally nothing — and the SAME was
+  // already true, silently, for Borrowed Authority's own "copy debuff_attack
+  // onto a Bloom" case (simulacrum.test.ts's own coverage only ever checked
+  // that the status effect lands, never that it changed any damage number).
+  // This one-line addition is what makes both of those actually work.
+  dmg *= attackDebuffMultiplier(attacker);
   dmg *= 100 / defender.effectiveDefense;
   dmg *= 1 - 0.1 * (terrainStars(map, defender) + overshieldBonus(defender, defenderSameSide));
   if (surfacedThisTurn) dmg *= UNDERTOW_SURFACE_DAMAGE_MULT;
@@ -449,7 +581,13 @@ export function resolveAttackOnBloom(
   // 45/hit figure the Collapse examples use, but it is NOT validated by
   // sim_output.txt the way resolveMechAttack is. Cheap to change — it's
   // isolated to this one function.
-  let dmg = attacker.effectiveAttack * 0.5;
+  // Focusing Optics / Overpressure Regulator (Frame Systems Layer, 6 Sep
+  // 2026) — same two hooks as resolveMechAttack's primary hit, same
+  // no-op-when-absent shape. Shredder Rounds deliberately does NOT reach
+  // this path: Bloom carry no defense field for it to ignore (the same
+  // pre-existing gap Rail Lance has always had against a Bloom target).
+  let dmg = (attacker.effectiveAttack + focusingOpticsAttackBonus(attacker, chebyshevDistance(attacker.pos, defender.pos))) * 0.5;
+  dmg *= firstAttackMultiplier(attacker);
   dmg *= attackDebuffMultiplier(attacker); // Bloom on-hit effects engine — see resolveMechAttack's identical comment
   // Vault Phase 2, slice 1 (2 Sep 2026) — same two effects as
   // resolveMechAttack, both 1 (no-op) for an attacker without them. Bloom

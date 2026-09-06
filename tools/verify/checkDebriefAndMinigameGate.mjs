@@ -76,13 +76,32 @@ async function setLastMissionEcho(echo) {
   }, echo);
 }
 
+// Retry loop added 6 Sep 2026, same shape as checkCalendarClock.mjs's own
+// sayInChat: a single "t" press with a flat 150ms wait (the original here)
+// occasionally lost the race against Phaser's own input polling under load
+// — a single dropped keypress left the input still display:none, and
+// input.fill()'s 30s auto-wait then timed out and crashed the whole script
+// with no relation to game logic at all. Caught live, 6 Sep 2026: three
+// back-to-back runs in this same sandbox failed at three different call
+// sites (Case 1, Case 4, and previously Case 3), which is what a flaky
+// keypress race looks like, not a real per-case bug. Retrying the press
+// against an explicit waitFor is what checkCalendarClock.mjs already does
+// and it has never failed this way across this same investigation's runs.
 async function sayInChat(text) {
-  await page.keyboard.press("t");
-  await page.waitForTimeout(150);
   const input = page.locator("input[placeholder^='Type something']");
-  await input.fill(text);
-  await input.press("Enter");
-  await page.waitForTimeout(150);
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await page.keyboard.press("t");
+    try {
+      await input.waitFor({ state: "visible", timeout: 1500 });
+      await input.fill(text);
+      await input.press("Enter");
+      await page.waitForTimeout(150);
+      return;
+    } catch {
+      await page.waitForTimeout(200);
+    }
+  }
+  throw new Error(`sayInChat: chat box never became visible for: ${text}`);
 }
 
 async function lastChatLogEntry() {
@@ -105,9 +124,28 @@ await sayInChat("debrief");
 results.noMissionYet = await lastChatLogEntry();
 
 // --- Case 2: a win on record, ask the CO for a brief ---
+// 4 Sep 2026, Codex Rebuild & Live Briefing Plan v1 Part B: "brief" no
+// longer drops a chat bubble — it opens the real MissionBriefingPanel
+// (Hub.ts's openMissionBriefing/missionBriefingOpen), which "owns input
+// entirely while open" (Hub.ts's own comment on the pattern) and only
+// closes on Esc. This script predates that change and used to just read
+// lastChatLogEntry() here, then move straight to Case 3's sayInChat —
+// with the panel still up and eating every keypress, "t" never reopened
+// chat and the next fill() timed out 30s later. Read the panel's own text
+// instead, then close it the same way a player would, before continuing.
 await setLastMissionEcho({ missionId: "mission_test_debrief", outcome: "win", announced: true });
 await sayInChat("brief");
-results.coWinDebrief = await lastChatLogEntry();
+results.coWinBrief = await page.evaluate(() => {
+  const hub = window.__bwGame.scene.getScene("Hub");
+  return {
+    missionBriefingOpen: hub.missionBriefingOpen,
+    title: hub.missionBriefingPanel?.titleText?.text ?? null,
+    body: hub.missionBriefingPanel?.bodyText?.text ?? null,
+  };
+});
+await page.keyboard.press("Escape");
+await page.waitForTimeout(150);
+results.coWinBriefClosed = await page.evaluate(() => window.__bwGame.scene.getScene("Hub").missionBriefingOpen);
 
 // --- Case 3: a loss on record, ask the CO for a debrief ---
 await setLastMissionEcho({ missionId: "mission_test_debrief_2", outcome: "loss", announced: true });
@@ -143,8 +181,25 @@ const minigameGateResult = await page.evaluate(() => {
     hub.runNpcEncounter(npcA, npcB, hub.time.now + i);
   }
   const newEntries = hub.chatLog.slice(before);
-  const minigameHits = newEntries.filter((e) => /poker|peg board|fletchers/i.test(e.line));
-  return { totalNewEntries: newEntries.length, minigameHits, sampleLines: newEntries.slice(0, 5).map((e) => e.line) };
+  // A bare keyword scan false-positives on ordinary ambient banter that
+  // happens to name-drop a minigame in-fiction (data/ambientLines.ts has a
+  // "green" pilot line literally offering to "walk you through Fletchers
+  // technique" as advice, nothing to do with actually playing one) — caught
+  // live, 6 Sep 2026. Every REAL pegBoard/poker/fletchers narration is
+  // runNpcEncounter's own this.showBubble(npcA, result.summary, now), and
+  // every one of socialSim.ts's summary strings for those three kinds
+  // starts with the exact `${pilotA.displayName} and ${pilotB.displayName}`
+  // pair (see resolvePegBoardEncounter/resolvePokerEncounter/
+  // resolveFletchersEncounter) — the same split(\"—\")[0].trim() this file
+  // applies to build pilotA/pilotB above. Requiring the line to open with
+  // both names is what a real leak actually looks like; a keyword alone
+  // isn't.
+  const nameA = npcA.displayName.split("—")[0].trim();
+  const nameB = npcB.displayName.split("—")[0].trim();
+  const bothNamesPrefix = new RegExp(`^${nameA} and ${nameB} `);
+  const minigameHits = newEntries.filter((e) => /poker|peg board|fletchers/i.test(e.line) && bothNamesPrefix.test(e.line));
+  const keywordOnlyHits = newEntries.filter((e) => /poker|peg board|fletchers/i.test(e.line) && !bothNamesPrefix.test(e.line));
+  return { totalNewEntries: newEntries.length, minigameHits, keywordOnlyHits, sampleLines: newEntries.slice(0, 5).map((e) => e.line) };
 });
 
 console.log("\n=== Debrief chat results ===");

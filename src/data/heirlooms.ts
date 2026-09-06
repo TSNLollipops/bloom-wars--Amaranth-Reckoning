@@ -345,17 +345,26 @@ export const HEIRLOOM_ABILITIES_LIVE_IN_COMBAT: ReadonlySet<string> = new Set([
  * paid for the weapon to be worth carrying at all, and everything past rank
  * 3 is earned in the field like any other pilot's gear.
  *
- * The arithmetic that makes this necessary rather than merely generous:
- * mission earnings run KILL_BONUS(5)/SURVIVAL_BONUS(5)/OBJECTIVE_BONUS(10)
- * per pilot per mission (campaignEconomy.ts) — roughly 25-40 points on a
+ * The arithmetic that makes this necessary rather than merely generous
+ * (numbers refreshed AGAIN 6 Sep 2026 — the Frame Systems economy sim
+ * harness's own earn-rate retune, campaignEconomy.ts's own dated comment
+ * has the full record; this pool's own VALUE is untouched, only the
+ * supporting math changed, same as the 5 Sep refresh before it): mission
+ * earnings run KILL_BONUS(18)/SURVIVAL_BONUS(26)/OBJECTIVE_BONUS(46) per
+ * pilot per mission (campaignEconomy.ts) — roughly 108-162 points on a
  * good mission. Heirlooms unlock at Act II at the earliest
- * (heirloomsUnlocked), so an aristocrat recruited the moment that opens has
- * at most ~24 missions left: a lifetime ceiling of maybe 600-950 personal
- * points EARNED, before this pool existed. The third recruit of the
- * campaign's 3-pick budget — by design the latest and priciest pick — could
- * join with six missions left and never afford a single rank on anything.
- * This pool is what makes that pick arrive useful instead of arriving
- * broke.
+ * (heirloomsUnlocked), so an aristocrat recruited the moment that opens
+ * has at most ~24 missions left: a lifetime ceiling of maybe 2600-3900
+ * personal points EARNED, before this pool existed. The third recruit of
+ * the campaign's 3-pick budget — by design the latest and priciest pick —
+ * could still join with six missions left, which now nets maybe 650-970
+ * points from ordinary play alone — a real amount, not "broke" the way it
+ * was before the 5 Sep earn-rate retune. This pool's own reasoning below (a fixed, legible
+ * "the house paid for the weapon" amount, independent of how fast anyone
+ * earns) is why the VALUE stays 650 rather than getting rescaled to
+ * match — it was never derived from the earn rate, only explained
+ * alongside it, and remains exactly as necessary as a flat signing bonus
+ * regardless of what ordinary missions pay.
  *
  * A dead aristocrat's personalPoints (this pool included) are zeroed by
  * applyPermadeathCheck like any other pilot's — consistent with, and

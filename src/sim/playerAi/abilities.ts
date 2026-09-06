@@ -29,8 +29,9 @@ import {
   FIRE_SUPPORT_RADIUS,
   MISSILE_SPLASH_RADIUS,
   MISSILE_CHARGES_PER_MISSION,
+  MASER_LANCE_CHARGES_PER_MISSION,
 } from "../../data/combatTables";
-import { DEFAULT_REPAIR_RANGE, RAPID_RESPONSE_REPAIR_RANGE } from "../../data/weaponBranches";
+import { repairRangeFor } from "../../engine/frameSystems";
 import type { PlayerAiProfile } from "./profile";
 import type { PlayerAiMemory, PlayerAiMissionContext } from "./types";
 import { needsFrontLineProtection, isLethalHit } from "./combat";
@@ -50,7 +51,10 @@ function livingVips(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[] {
 }
 
 export function repairRangeOf(unit: BattleUnit): number {
-  return unit.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
+  // Frame Systems Layer (6 Sep 2026): delegates to the live engine's own
+  // rule (engine/frameSystems.ts's repairRangeFor — branches plus both
+  // Munti refits) so the bot and repairUnit can't disagree.
+  return repairRangeFor(unit);
 }
 
 // ---- Sensor Sweep ------------------------------------------------------
@@ -244,6 +248,74 @@ export function chooseMissileTile(unit: BattleUnit, enemies: BattleUnit[], allUn
       const c = strikeScoreAt({ x, y }, MISSILE_SPLASH_RADIUS, enemies, allUnits, unit, true);
       if (c && (!best || c.score > best.score)) best = c;
     }
+  }
+  return best && best.score >= profile.strikeMinTargets ? best : null;
+}
+
+// ---- Maser Lance (direction-picked widening cone, not a radius) -----------
+
+/**
+ * Score over an already-resolved tile SET (a cone footprint) rather than a
+ * radius around one tile — strikeScoreAt's exact scoring rule (hostile count
+ * plus the same emergent/VIP-threat bonuses, friendly-avoidance as a hard
+ * "skip this option" the way Missile's own forbidFriendly does), just
+ * against a shape strikeScoreAt can't express. Not merged into strikeScoreAt
+ * itself: that function's whole signature is built around "a tile plus a
+ * radius," and bending it to also accept a raw tile list would make the far
+ * more common radius call sites read the caller had to think about a shape
+ * they never actually have.
+ */
+function coneScoreOver(tiles: Coord[], enemies: BattleUnit[], allUnits: BattleUnit[], caster: BattleUnit, forbidFriendly: boolean): { hostiles: number; score: number } | null {
+  const tileKeys = new Set(tiles.map((t) => `${t.x},${t.y}`));
+  let hostiles = 0;
+  let score = 0;
+  const vips = livingVips(caster, allUnits);
+  for (const e of enemies) {
+    if (!tileKeys.has(`${e.pos.x},${e.pos.y}`)) continue;
+    hostiles += 1;
+    score += 1;
+    if (intelligenceOf(e) === "emergent") score += 2; // a boss is worth a charge on its own
+    if (vips.some((v) => canReachToAttack(e, v.pos))) score += 0.5;
+  }
+  if (hostiles === 0) return null;
+  if (forbidFriendly) {
+    const friendlyInside = allUnits.some((u) => !u.downed && u.side === caster.side && u.instanceId !== caster.instanceId && tileKeys.has(`${u.pos.x},${u.pos.y}`));
+    if (friendlyInside) return null;
+  }
+  return { hostiles, score };
+}
+
+/**
+ * Best Maser Lance direction, or null. Same "obvious trigger, gated by the
+ * profile, safe to under-use" shape as chooseMissileTile just above — the
+ * one real difference is HOW the candidate footprints are found. Missile
+ * scores a radius around every tile in a bounding box it computes itself;
+ * a cone can't be summarized that way (the widening-wedge formula lives in
+ * engine/mission.ts's maserLanceConeTiles, private on purpose — see
+ * PlayerAiMissionContext's own comment on why this file asks the engine
+ * for the shape instead of re-deriving it). So this walks
+ * context.getMaserLanceDirectionTargets' own candidate list instead of a
+ * grid scan, and de-duplicates by the resolved cone itself (every tile
+ * along one of the 8 rays previews the identical cone — only the direction
+ * matters, never how far out the click landed) so the 8 real directions
+ * get scored once each, not once per candidate tile.
+ */
+export function chooseMaserLanceDirection(unit: BattleUnit, enemies: BattleUnit[], allUnits: BattleUnit[], context: PlayerAiMissionContext, profile: PlayerAiProfile): StrikeChoice | null {
+  if (!profile.useAbilities.abil_maser_lance) return null;
+  if (!unit.abilities.includes("abil_maser_lance") || unit.actionsRemaining <= 0) return null;
+  if ((unit.maserLanceUsesRemaining ?? MASER_LANCE_CHARGES_PER_MISSION) <= 0) return null;
+  if (!context.getMaserLanceDirectionTargets || !context.previewMaserLanceCone) return null; // hand-built test contexts that never exercise this mechanism
+  const candidates = context.getMaserLanceDirectionTargets(unit.instanceId);
+  const seenCones = new Set<string>();
+  let best: StrikeChoice | null = null;
+  for (const candidate of candidates) {
+    const cone = context.previewMaserLanceCone(unit.instanceId, candidate);
+    if (!cone || !cone.length) continue;
+    const key = cone.map((t) => `${t.x},${t.y}`).join("|");
+    if (seenCones.has(key)) continue; // same direction as an earlier candidate — identical footprint, skip the re-score
+    seenCones.add(key);
+    const scored = coneScoreOver(cone, enemies, allUnits, unit, true);
+    if (scored && (!best || scored.score > best.score)) best = { tile: candidate, hostiles: scored.hostiles, score: scored.score };
   }
   return best && best.score >= profile.strikeMinTargets ? best : null;
 }

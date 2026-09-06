@@ -408,3 +408,23 @@ seed whatever `CampaignState`/mission the case needs, click through to the
 scene, assert on real scene state the same way `checkHubNpcs.mjs` does.
 Not all of it is done this pass — see the build log addendum for exactly
 what this first pass covered and what's still owed.
+
+- `genFrameSave.ts` + `checkFramePanel.mjs` — 6 Sep 2026, Frame Systems
+  Layer Tier 1 (`src/scenes/shop/FramePanel.ts`). Same save/boot pattern.
+  Seeds a tier-C Tank with two owned branches and points, a tier-A Meeps,
+  and one Wellroot kill on the books, then drives the REAL input: opens
+  `[ FRAME ]` from a shop card, mounts a second branch (the live state's
+  `equippedWeaponBranches` reads both, the legacy single field reads mount
+  1), buys and installs a system (points and the header's Draw readout
+  move), confirms the salvage gate (Wellroot Filament buyable after its
+  one kill, with the +1 Draw surcharge on a non-Runemaster loadout;
+  Gallcyst Graft — the doc's Heartwood Graft, re-sourced 6 Sep 2026 —
+  listed and LOCKED 0/1; Stabilizer Struts on the shelf), and
+  checks every overlay label sits inside the panel and the canvas. Then
+  the same from the Hub's Hangar Deck shop (the 838px dock split — this run
+  is what caught the panel double-rendering into the dock strip on its
+  first pass, fixed the same way MenuOverlay.ts handles two cameras), buys
+  a refit for real, and confirms Esc closes shop and overlay together.
+  Finally opens the panel from the Transporter Pad's own `[ frame ]` link.
+  Writes `frame_panel_*.png`. Regenerate `frame_save.json` with
+  `npx tsx tools/verify/genFrameSave.ts` first.

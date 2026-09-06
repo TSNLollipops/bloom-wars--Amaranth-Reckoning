@@ -1,7 +1,13 @@
 // src/scenes/Boot.ts
-// No art pipeline for the placeholder pass (GDD §12.2) — everything is
-// drawn with Phaser Graphics primitives, so Boot has nothing to load. It
-// exists as the named entry point Build Brief §2.1's repo shape expects.
+// No art pipeline for the placeholder pass (GDD §12.2) — everything was
+// drawn with Phaser Graphics primitives, so Boot itself still has nothing
+// to load. B4, 5 Sep 2026: that stopped being true of the GAME as a whole
+// (Hub's NPCs and others now draw real portrait images), so both exits
+// below now hand off to Preloader instead of going straight to their old
+// destination — see scenes/Preloader.ts. Boot itself is unchanged: still
+// the named entry point Build Brief §2.1's repo shape expects, still the
+// one scene guaranteed to run on every load, still nothing but Graphics/
+// Text in its own recall-notice screen below.
 //
 // Mission real-time clock (25 Aug 2026) added a real second job: this is
 // the one scene guaranteed to run on every game load — a fresh tab, or a
@@ -46,7 +52,11 @@ export class Boot extends Phaser.Scene {
       this.drawRecallNotice(state, timeout.missionId);
       return;
     }
-    this.scene.start("MainMenu");
+    // B4, 5 Sep 2026 — route through Preloader first so the portrait/
+    // splash set is in the texture cache before anything that might draw
+    // one (Hub's NPCs, chiefly) gets a chance to run. See
+    // scenes/Preloader.ts's own header.
+    this.scene.start("Preloader", { next: "MainMenu" });
   }
 
   /**
@@ -112,6 +122,8 @@ export class Boot extends Phaser.Scene {
     btn.on("pointerout", () => btn.setFillStyle(0x2e5c7a, 1));
     // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
     // campaignState.ts): a House Amaranth save has no Hub to send it to.
-    btn.on("pointerdown", () => this.scene.start(baseSceneKeyFor(state)));
+    // B4, 5 Sep 2026 — routed through Preloader first, same reasoning as
+    // the ordinary boot path above: Hub's own NPCs draw portraits now.
+    btn.on("pointerdown", () => this.scene.start("Preloader", { next: baseSceneKeyFor(state) }));
   }
 }

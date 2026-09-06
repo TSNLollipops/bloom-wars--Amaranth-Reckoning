@@ -9,6 +9,15 @@ import { BLOOM } from "../data/bloom";
 import { TIERS, MAX_ACTIONS_PER_TURN, SENSOR_SWEEP_CHARGES_PER_MISSION, MISSILE_CHARGES_PER_MISSION, MASER_LANCE_CHARGES_PER_MISSION } from "../data/combatTables";
 import { IMPACT_LANCE_ATK_BONUS, MISSILE_GRANT_ABILITY, MASER_LANCE_GRANT_ABILITY, SCATTERSHOT_PISTOLS_ATTACK_RANGE, type WeaponBranchId } from "../data/weaponBranches";
 import { SEND_OFF_DEFENSE_BONUS } from "../data/socialActions";
+import type { FrameSystemId, FrameRefitId } from "../data/frameSystems";
+import {
+  equippedWeaponBranchesOf,
+  equippedFrameSystemsWithinDraw,
+  frameRefitOf,
+  frameStatBonus,
+  mergedAttackRange,
+  burrowDetectRadiusFor,
+} from "./frameSystems";
 
 export type BattleUnitKind = "pilot" | "mech" | "bloom";
 export type Side = "player" | "hostile";
@@ -70,6 +79,77 @@ export interface BattleUnit {
   // Bloom, rescued NPCs, civilians, and any pilot who hasn't bought/
   // equipped a branch all read as "plain default weapon."
   weaponBranchId?: WeaponBranchId;
+  // Frame Systems Layer, Tier 1 (6 Sep 2026, data/frameSystems.ts) — the
+  // second mount. EVERY branch live on this unit, mount order; `weaponBranchId`
+  // above is kept as mount 1 (`weaponBranchIds[0]`) so engine/missionSummary.ts
+  // and every test that reads "the" branch keep working unchanged. Engine code
+  // never reads either field directly any more — engine/frameSystems.ts's
+  // unitHasBranch/unitBranches is the one read path, and it falls back to the
+  // single field for a unit built without the list (synthetic test units).
+  weaponBranchIds?: WeaponBranchId[];
+  // The frame systems installed for this mission (data/frameSystems.ts), and
+  // the A-tier refit if any — baked in at createPlayerUnit from the campaign
+  // record, same "doesn't change mid-mission" treatment as tier/mek/branch.
+  // Undefined on every non-pilot unit.
+  frameSystemIds?: FrameSystemId[];
+  frameRefitId?: FrameRefitId;
+  // How far this unit passively detects burrowed units, or undefined for no
+  // detection at all. Two sources, combined at createPlayerUnit (the larger
+  // wins): Seismic Tap's fixed radius (engine/frameSystems.ts's
+  // burrowDetectRadiusFor) and, since 6 Sep 2026, a Runemaster-PRIMARY mek's
+  // "anywhere inside the pilot's vision" (Data Pack §5 — the field
+  // data/meks.ts carried unread until then; set to the unit's own vision
+  // here, and engine/ai.ts's isVisibleTo bounds it by vision anyway).
+  detectsBurrowedRadius?: number;
+  // ---- Mek track effects baked in at deploy (6 Sep 2026, second Frame
+  // Systems pass — the day it was found that six of the ten fields in
+  // data/meks.ts's MEK_TRACK_EFFECTS were dead data the docs described as
+  // shipped). Each is undefined on every non-pilot unit and on every pilot
+  // whose mek doesn't carry the track, so every reader below is a no-op
+  // when absent — the same rule engine/frameSystems.ts states for systems.
+  //
+  // Fieldwright: HP repaired at the start of each cycle if this unit did not
+  // move on its last turn (engine/mission.ts's tickStationaryRepair; the
+  // "did not move" test reads tilesMovedThisTurn below against
+  // engine/frameSystems.ts's stationaryRepairMoveAllowance).
+  stationaryHeal?: number;
+  // Fieldwright: the Repair output multiplier (1.25 primary), read by
+  // engine/mission.ts's repairHealAmount off the unit instead of the static
+  // registry since 6 Sep 2026. Undefined means 1.
+  repairOutputMult?: number;
+  // Runemaster: multiplier on the DURATION/DISTANCE of every on-hit effect
+  // this unit inflicts through a weapon branch (engine/turnManager.ts's
+  // applyMechOnHitEffect) — 1.5 primary, 1.25 secondary, per Data Pack §5.
+  effectPotency?: number;
+  // Runemaster (primary only): +1. Read by engine/combat.ts's
+  // resolveMechAttack — see the initiative block there for the one rule it
+  // drives (a defender with initiative counter-strikes BEFORE the incoming
+  // hit lands against any attacker not faster than them).
+  initiative?: number;
+  // Fabricator: the paired mek's id and how many spare parts it walked into
+  // this mission with. Beacon Control (engine/mission.ts's useBeaconControl)
+  // burns one of these instead of a Restock Room crate when it revives THIS
+  // unit; Mission.sparePartsSpent carries the count back to the campaign
+  // copy at Debrief. `mekId` is set for every pilot (it's just the record's
+  // own field), `fabricatorPartsRemaining` only when the mek has a
+  // Fabricator track.
+  mekId?: string;
+  fabricatorPartsRemaining?: number;
+  // Overpressure Regulator — set true by engine/mission.ts's attack verb the
+  // moment this unit's first basic attack of the mission resolves; the x1.4
+  // (engine/frameSystems.ts's firstAttackMultiplier) reads false-or-absent as
+  // "not yet fired."
+  overpressureSpent?: boolean;
+  // Tiles this unit has moved so far THIS turn — incremented by moveUnit
+  // (path length, so two 1-tile moves read 2), reset wherever
+  // actionsRemaining refreshes (both turn-start loops in engine/mission.ts).
+  // The two-action house rule replaced the old movedThisTurn boolean on 22
+  // Aug 2026; Battery Frame reintroduced a narrower boolean on 6 Sep 2026
+  // for exactly one rule ("cannot move and attack the same turn"), and the
+  // same day's second pass widened it to a count because the Fieldwright
+  // stationary heal and Stabilizer Struts need "moved at most N tiles," not
+  // "moved at all." One field, one fact: Battery Frame reads `> 0`.
+  tilesMovedThisTurn?: number;
   // Send-Off tactical payoff (2 Sep 2026) — true only for the one pilot who
   // was sent off in the Hub right before this mission launched (baked in at
   // createPlayerUnit, consumed for the rest of the mission the same
@@ -574,6 +654,52 @@ function mekStatBonus(mek: MekArchetype | undefined): { attack: number; defense:
   return out;
 }
 
+// ---- Mek track effects that aren't flat stats (6 Sep 2026) -----------------
+//
+// mekStatBonus above has always read the four stat fields. These four read
+// the fields that sat in MEK_TRACK_EFFECTS unread from the day they were
+// written — GDD §6.2 / Data Pack §5 both describe them as shipped, and
+// nothing in the engine consumed them until this pass. Each is exported so
+// a test can pin the data-to-unit mapping directly, and each returns the
+// "absent" value (0 / 1 / false) for a mek without the track so the
+// BattleUnit fields they feed stay undefined for everyone else.
+
+/** Fieldwright — HP repaired at cycle start when the pilot didn't move. 15 primary, 8 secondary, 0 without the track. */
+export function mekStationaryHeal(mek: MekArchetype | undefined): number {
+  if (!mek) return 0;
+  if (mek.primary === "fieldwright") return MEK_TRACK_EFFECTS.fieldwright.primary.stationaryHeal;
+  if (mek.secondary === "fieldwright") return MEK_TRACK_EFFECTS.fieldwright.secondary.stationaryHeal;
+  return 0;
+}
+
+/** Runemaster PRIMARY only — Data Pack §5: "detection is primary-only." */
+export function mekDetectsBurrowed(mek: MekArchetype | undefined): boolean {
+  return mek?.primary === "runemaster" && MEK_TRACK_EFFECTS.runemaster.primary.burrowDetection;
+}
+
+/** Runemaster — on-hit effect potency: 1.5 primary, 1.25 secondary, 1 without the track. */
+export function mekEffectPotency(mek: MekArchetype | undefined): number {
+  if (!mek) return 1;
+  if (mek.primary === "runemaster") return MEK_TRACK_EFFECTS.runemaster.primary.effectPotency;
+  if (mek.secondary === "runemaster") return MEK_TRACK_EFFECTS.runemaster.secondary.effectPotency;
+  return 1;
+}
+
+/** Runemaster — +1 initiative as primary, 0 as secondary ("no initiative" — Data Pack §5) or without the track. */
+export function mekInitiative(mek: MekArchetype | undefined): number {
+  if (!mek) return 0;
+  if (mek.primary === "runemaster") return MEK_TRACK_EFFECTS.runemaster.primary.initiative;
+  return 0;
+}
+
+/** Fieldwright — the paired Munti's Repair output multiplier: 1.25 primary, 1 secondary or without. Always read by engine/mission.ts's repairHealAmount, but until 6 Sep 2026 off the STATIC registry mek rather than the campaign's live copy — a Fieldwright bought as a secondary mid-campaign didn't count there (it's 1 either way today, so no observable change; fixed for the shape). */
+export function mekRepairOutputMult(mek: MekArchetype | undefined): number {
+  if (!mek) return 1;
+  if (mek.primary === "fieldwright") return MEK_TRACK_EFFECTS.fieldwright.primary.muntiHealOutputMult;
+  if (mek.secondary === "fieldwright") return MEK_TRACK_EFFECTS.fieldwright.secondary.muntiHealOutputMult;
+  return 1;
+}
+
 let instanceCounter = 0;
 function nextInstanceId(prefix: string): string {
   instanceCounter += 1;
@@ -597,6 +723,18 @@ function weaponBranchAttackBonus(branchId: WeaponBranchId | undefined): number {
 }
 
 /**
+ * Frame Systems Layer, second mount (6 Sep 2026): the three per-branch
+ * helpers above and below each take ONE branch id, exactly as they always
+ * did. With up to two branches live at once, createPlayerUnit sums/merges
+ * their results across the list instead — these thin wrappers are that
+ * fold, kept next to the originals so the per-branch rules stay readable as
+ * single-branch rules.
+ */
+function weaponBranchesAttackBonus(branchIds: readonly WeaponBranchId[]): number {
+  return branchIds.reduce((sum, id) => sum + weaponBranchAttackBonus(id), 0);
+}
+
+/**
  * Scattershot Pistols (Weapon Branch Point System, data/weaponBranches.ts,
  * 3 Sep 2026) — the first branch in this pass to touch the attackRange
  * TUPLE itself rather than a stat/targeting condition, so it gets its own
@@ -607,9 +745,19 @@ function weaponBranchAttackBonus(branchId: WeaponBranchId | undefined): number {
  * unit's `attackRange` field the way archetype.attackRange was already
  * being handed out directly before this branch existed.
  */
-function weaponBranchAttackRange(branchId: WeaponBranchId | undefined, archetypeRange: [number, number]): [number, number] {
-  if (branchId === "meeps_scattershot_pistols") return [SCATTERSHOT_PISTOLS_ATTACK_RANGE[0], SCATTERSHOT_PISTOLS_ATTACK_RANGE[1]];
-  return [archetypeRange[0], archetypeRange[1]];
+// Reshaped 6 Sep 2026 (Frame Systems Layer, second mount): used to take the
+// archetype's range and return either Scattershot's window or a COPY of the
+// archetype's — one branch, one answer. Now answers "does this branch set a
+// window at all," undefined for every branch that doesn't, so the
+// second-mount merge (engine/frameSystems.ts's mergedAttackRange, which
+// always returns a fresh tuple — the same never-hand-out-the-shared-array
+// discipline the old version kept) only ever widens by a branch that
+// actually has a window of its own. Passing the archetype's range through
+// for a non-overriding branch would re-widen a refit that had deliberately
+// shrunk it (Skirmish Battery's [2,3] on a [2,4] Reeps).
+function weaponBranchAttackRangeOverride(branchId: WeaponBranchId): readonly [number, number] | undefined {
+  if (branchId === "meeps_scattershot_pistols") return SCATTERSHOT_PISTOLS_ATTACK_RANGE;
+  return undefined;
 }
 
 /** The ability id a branch grants on top of the archetype's own list, if any — Missiles (abil_missile) and, as of 5 Sep 2026, Maser Lance (abil_maser_lance) — see data/weaponBranches.ts's own header for why the engine side of each ability already existed independent of who grants it. */
@@ -617,6 +765,16 @@ function weaponBranchGrantedAbility(branchId: WeaponBranchId | undefined): strin
   if (branchId === "reeps_missiles") return MISSILE_GRANT_ABILITY;
   if (branchId === "tank_maser_lance") return MASER_LANCE_GRANT_ABILITY;
   return undefined;
+}
+
+/** Every ability granted across the equipped branches — see weaponBranchesAttackBonus's own note. Today no path can carry two granting branches at once (Missiles is Reeps', Maser Lance is Tank's), so this is at most one entry, but it's written for the list so a future second granting branch on one path needs no change here. */
+function weaponBranchesGrantedAbilities(branchIds: readonly WeaponBranchId[]): string[] {
+  const out: string[] = [];
+  for (const id of branchIds) {
+    const a = weaponBranchGrantedAbility(id);
+    if (a && !out.includes(a)) out.push(a);
+  }
+  return out;
 }
 
 /**
@@ -665,9 +823,24 @@ export function createPlayerUnit(
   // PilotRecord.equippedWeaponBranch's own type — keeps data/types.ts free
   // of an import from data/weaponBranches.ts (which itself imports Path
   // from types.ts), avoiding a circular dependency for no real benefit.
-  const weaponBranchId = pilot.equippedWeaponBranch as WeaponBranchId | undefined;
-  const branchAttackBonus = weaponBranchAttackBonus(weaponBranchId);
-  const grantedAbility = weaponBranchGrantedAbility(weaponBranchId);
+  // Frame Systems Layer, second mount (6 Sep 2026): the list of live
+  // branches (1 below tier C, up to 2 from C — engine/campaignEconomy.ts's
+  // equip verbs enforce the mount count, and equippedWeaponBranchesOf is
+  // the one read path that also understands a pre-6-Sep save's single
+  // field). `weaponBranchId` below stays mount 1 for every legacy reader.
+  const weaponBranchIds = equippedWeaponBranchesOf(pilot);
+  const weaponBranchId = weaponBranchIds[0];
+  const branchAttackBonus = weaponBranchesAttackBonus(weaponBranchIds);
+  const grantedAbilities = weaponBranchesGrantedAbilities(weaponBranchIds);
+  // Frame systems and the refit (data/frameSystems.ts) — the doc's §4 "one
+  // more additive term on each line" of Data Pack §5.1's order of
+  // application: base -> tier -> mek -> branch -> systems+refit. The
+  // installed list is re-bounded by the frame's Draw budget here, at
+  // deploy, so a data retune can only ever bench a system, never overfill a
+  // frame (see equippedFrameSystemsWithinDraw's own comment).
+  const frameSystemIds = equippedFrameSystemsWithinDraw(pilot, mek);
+  const frameRefitId = frameRefitOf(pilot)?.id;
+  const frameBonus = frameStatBonus(frameSystemIds, frameRefitId);
   // Send-Off tactical payoff (2 Sep 2026) — see the BattleUnit.sentOff field
   // comment above and data/socialActions.ts's SEND_OFF_DEFENSE_BONUS for the
   // full reasoning. `overrides?.sendOffBonus` is only ever true for the one
@@ -676,8 +849,8 @@ export function createPlayerUnit(
   const sentOff = overrides?.sendOffBonus === true;
   const sendOffDefenseBonus = sentOff ? SEND_OFF_DEFENSE_BONUS : 0;
 
-  const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack + branchAttackBonus;
-  const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense + sendOffDefenseBonus;
+  const effectiveAttack = archetype.baseAttack + (tier.attack - 100) + mekBonus.attack + branchAttackBonus + frameBonus.attack;
+  const effectiveDefense = archetype.baseDefense + (tier.defense - 100) + mekBonus.defense + sendOffDefenseBonus + frameBonus.defense;
   // Vault Phase 2, slice 5 (3 Sep 2026) — lastword_signature's own
   // permanent cost (data/types.ts's PilotRecord.permanentMaxHpMultiplier,
   // see that field's own comment) lands here: every fresh BattleUnit this
@@ -688,14 +861,39 @@ export function createPlayerUnit(
   // except a Migawari wielder who's actually used their signature.
   // Rounded for the same reason mekStatBonus/tier deltas above are already
   // whole numbers — HP is never fractional anywhere else in this file.
-  const maxHp = Math.round((archetype.baseHp + (tier.hp - 100) + mekBonus.hp) * (pilot.permanentMaxHpMultiplier ?? 1));
-  const vision = archetype.vision + mekBonus.vision;
-  const moveRange = archetype.moveRange + tier.move;
+  // The frame term (Heartwood Graft's +20, Skirmish Frame's -15) is added
+  // INSIDE the multiplier, same as the mek term — it's part of the frame's
+  // own max HP, and Migawari's cost scales the whole frame.
+  const maxHp = Math.max(1, Math.round((archetype.baseHp + (tier.hp - 100) + mekBonus.hp + frameBonus.hp) * (pilot.permanentMaxHpMultiplier ?? 1)));
+  const vision = archetype.vision + mekBonus.vision + frameBonus.vision;
+  // Floored at 1: two -1 move systems plus a -1 refit on a 3-move frame
+  // would otherwise read 0 and strand the pilot on their deploy pad.
+  const moveRange = Math.max(1, archetype.moveRange + tier.move + frameBonus.move);
+  // Burrow detection — the larger of Seismic Tap's fixed radius and a
+  // Runemaster-primary mek's "anywhere inside the pilot's vision" (Data Pack
+  // §5). `vision` is this unit's own effective vision, so a Runemaster with
+  // Signal Booster detects one tile further too, exactly as "inside the
+  // pilot's vision" reads. Undefined when neither applies.
+  const tapRadius = burrowDetectRadiusFor(frameSystemIds);
+  const detectsBurrowedRadius = mekDetectsBurrowed(mek) ? Math.max(vision, tapRadius ?? 0) : tapRadius;
+  // The other three non-stat mek-track effects, undefined when absent so
+  // every reader stays a no-op — see the BattleUnit field comments.
+  const stationaryHeal = mekStationaryHeal(mek) || undefined;
+  const repairOutputMult = mekRepairOutputMult(mek) !== 1 ? mekRepairOutputMult(mek) : undefined;
+  const effectPotency = mekEffectPotency(mek) !== 1 ? mekEffectPotency(mek) : undefined;
+  const initiative = mekInitiative(mek) || undefined;
+  // Fabricator: only a mek with the track carries parts at all (a mek
+  // without it always has spareParts 0 — engine/campaignEconomy.ts's
+  // purchaseSpareParts refuses to add one), but the field is gated on the
+  // track rather than on the count so "has the track, 0 parts left" reads
+  // as 0 and "no track" reads as undefined — two different facts for the
+  // Beacon log line.
+  const fabricatorPartsRemaining = mek && (mek.primary === "fabricator" || mek.secondary === "fabricator") ? mek.spareParts : undefined;
   // Never mutate the shared archetype.abilities array — copy, then append
-  // if this branch grants one (Missiles). Every other unit factory in this
-  // file still assigns archetype.abilities directly since none of them
-  // ever need to add to it.
-  let abilities = grantedAbility ? [...archetype.abilities, grantedAbility] : archetype.abilities;
+  // whatever the live branches grant (Missiles, Maser Lance). Every other
+  // unit factory in this file still assigns archetype.abilities directly
+  // since none of them ever need to add to it.
+  let abilities = grantedAbilities.length ? [...archetype.abilities, ...grantedAbilities] : archetype.abilities;
   // Vault Phase 2, slice 1 (2 Sep 2026) — same append-not-mutate treatment
   // as the weapon-branch-granted ability just above, for the exact same
   // reason: the Heirloom's kit ids get pushed onto this unit's own
@@ -721,13 +919,28 @@ export function createPlayerUnit(
     effectiveAttack,
     effectiveDefense,
     moveRange,
-    attackRange: weaponBranchAttackRange(weaponBranchId, archetype.attackRange),
+    // A refit's window REPLACES the archetype's (Skirmish Battery's [2,3] is
+    // a deliberate trade of reach for a move point, so it must be able to
+    // shrink the base); each live branch's own override (Scattershot
+    // Pistols today) then merges on top by the widest-window rule. See
+    // mergedAttackRange's comment.
+    attackRange: mergedAttackRange(frameRefitOf(pilot)?.attackRange ?? archetype.attackRange, weaponBranchIds.map(weaponBranchAttackRangeOverride)),
     vision,
     canCounter: archetype.canCounter,
     counterMaxRange: archetype.counterMaxRange,
     abilities,
     chassis: archetype.chassis,
     weaponBranchId,
+    weaponBranchIds,
+    frameSystemIds,
+    frameRefitId,
+    detectsBurrowedRadius,
+    stationaryHeal,
+    repairOutputMult,
+    effectPotency,
+    initiative,
+    mekId: pilot.mekId,
+    fabricatorPartsRemaining,
     sentOff,
     tier: pilot.tier,
     shield: 0,

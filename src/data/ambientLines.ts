@@ -25,6 +25,7 @@
 // branch of pickSoloEchoForPilot is ported as-is.
 
 import type { Tier } from "./types";
+import type { WorryEntry } from "./worries";
 
 export type Catalyst = "wolf" | "dog" | "cat" | "crow" | "raven" | "bear" | "fox" | "rabbit" | "shark";
 export type Echo = "love" | "fear" | "anger" | "sadness";
@@ -119,9 +120,26 @@ export type AmbientPilotState = {
   // so every other existing construction site (socialSim.ts's simulated
   // listener state, this file's own tests) stays valid untouched with it
   // simply absent/undefined — same as leaving it out entirely. See
-  // Hub.ts's isMissionWorrySignal() for how it actually gets computed;
-  // this file only needs to know it's a plain boolean once decided.
+  // Hub.ts's isMissionWorrySignal() for how it actually gets computed.
+  //
+  // Worries System step 2, 6 Sep 2026 — pickSoloEcho below no longer reads
+  // this field; topWorry (just below) is what it checks now. Left in
+  // place, still written by Hub.ts exactly as before, because Breakdown's
+  // own isBreakdownEligible() gate and the roster panel's "Worried about
+  // someone on mission" readout both still read it directly — out of
+  // scope for this pass (data/worries.ts's own header: "read-side only...
+  // nothing else"). The two are now independently-rolled samples of the
+  // same underlying signal and can disagree at any single instant; see
+  // Hub.ts's updateMissionWorry() for the full reasoning.
   worried?: boolean;
+  // Worries System step 2, 6 Sep 2026 — the general Worries list's own
+  // "loudest entry right now" read (data/worries.ts), computed by whichever
+  // scene owns that pilot's list (Hub.ts, today). undefined is the
+  // overwhelming majority of the time, same as worried above. Carries the
+  // full WorryEntry (not just intensity) so a future pass can vary the
+  // echo/reason by source or catalyst without changing this field's shape
+  // again — pickSoloEcho below just reads .intensity and .source for now.
+  topWorry?: WorryEntry;
 };
 
 export type EchoPick = { echo: Echo; reason: string };
@@ -140,10 +158,22 @@ export type EchoPick = { echo: Echo; reason: string };
 // crewmate-worry as much as self-panic, so there's no content mismatch in
 // sharing the pool. `reason` still records which one actually fired, in
 // case a future pass wants to split the content for real.
+//
+// Worries System step 2, 6 Sep 2026 — this slot now reads topWorry (the
+// general Worries list's own "loudest entry" read, data/worries.ts)
+// instead of the flat worried boolean. Same fear echo, same LINE_BANK
+// content, same rough trigger frequency (topWorry.intensity comes from the
+// identical worryTriggerChance math the old boolean rolled against) — the
+// real change is WHERE the coin flip happens: this now rolls fresh against
+// the live intensity every time a line is actually picked, rather than
+// reading a value latched by a periodic reroll elsewhere. `reason` is now
+// the entry's own source id ("mission_pilot_missing" today) instead of the
+// hardcoded string "worried," so a second real source (step 3's combat
+// bridge) shows up distinctly here without this function changing again.
 export function pickSoloEcho(pilot: AmbientPilotState): EchoPick {
   if (pilot.drunk) return { echo: Math.random() < 0.5 ? "love" : "anger", reason: "drunk" };
   if (pilot.stress >= STRESS_PANIC_THRESHOLD) return { echo: "fear", reason: "panicking" };
-  if (pilot.worried) return { echo: "fear", reason: "worried" };
+  if (pilot.topWorry && Math.random() < pilot.topWorry.intensity) return { echo: "fear", reason: pilot.topWorry.source };
   if (pilot.morale <= PANIC_THRESHOLD) return { echo: "sadness", reason: "low morale" };
   const pool: Echo[] = ["love", "fear", "anger", "sadness"];
   return { echo: pool[Math.floor(Math.random() * pool.length)], reason: "idle" };

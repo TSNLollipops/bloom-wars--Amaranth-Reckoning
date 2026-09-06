@@ -41,7 +41,16 @@ export interface PlayerAiDecision {
    * as the three above — dispatched to Mission.taunt(unitId).
    */
   action?: PlayerAiAction;
-  /** For "fire_support" / "missile": the tile to strike. */
+  /**
+   * For "fire_support" / "missile": the tile to strike.
+   *
+   * For "maser_lance" (5 Sep 2026, same day the ability itself shipped —
+   * Maxime picked closing this gap as the next build right after): NOT a
+   * tile the cone hits. Same "any point that names a direction" contract as
+   * Mission.maserLanceStrike's own `target` param — see abilities.ts's
+   * chooseMaserLanceDirection for how a direction gets scored without this
+   * module re-deriving the engine's own cardinal/diagonal-direction check.
+   */
   targetTile?: Coord;
 }
 
@@ -49,7 +58,9 @@ export interface PlayerAiDecision {
  * Every verb the driver (sim/driveMission.ts) can dispatch. The first four
  * predate the tiers pass; the rest landed 1 Sep 2026 with the Player AI
  * Difficulty Tiers Plan §4 — each maps 1:1 onto an existing Mission verb
- * (ambush → Mission.ambush, and so on).
+ * (ambush → Mission.ambush, and so on). "maser_lance" is the odd one out
+ * timing-wise: added 5 Sep 2026, the day after the tiers pass, once
+ * abil_maser_lance itself existed for this file to dispatch to.
  */
 export type PlayerAiAction =
   | "clear_bloom"
@@ -61,7 +72,8 @@ export type PlayerAiAction =
   | "overwatch"
   | "ambush"
   | "fire_support"
-  | "missile";
+  | "missile"
+  | "maser_lance";
 
 export type PlayerAiTier = "easy" | "moderate" | "hard" | "legacy";
 
@@ -141,6 +153,20 @@ export interface PlayerAiMissionContext {
   readonly fireSupportChargesRemaining?: number;
   /** Mission.fireSupportBonusChargeReady — the Weapons Bay's reserve line. Optional for the same reason. */
   readonly fireSupportBonusChargeReady?: () => boolean;
+  /**
+   * Maser Lance targeting (5 Sep 2026). Unlike Missile/Fire Support's radius-
+   * around-a-clicked-tile shape, the cone is a widening wedge down one of 8
+   * directions (engine/mission.ts's maserLanceConeTiles) — real geometry this
+   * module deliberately does NOT re-derive a second time (see Cross_Project_
+   * Writer_Note.md's own "verify against the actual current file" habit:
+   * duplicating the perpendicular-offset formula here would be exactly the
+   * kind of drift that habit exists to catch). Both methods mirror Mission's
+   * own real ones exactly; optional so hand-built test contexts still
+   * type-check without implementing a mechanism they never exercise.
+   */
+  readonly getMaserLanceDirectionTargets?: (unitId: string) => Coord[];
+  /** Mission.previewMaserLanceCone — the resolved cone footprint for a given direction-selecting `target`, or null when that tile doesn't name a legal cardinal/diagonal direction from the unit's own position. */
+  readonly previewMaserLanceCone?: (unitId: string, target: Coord) => Coord[] | null;
 }
 
 export type PlayerAiReason =
@@ -171,6 +197,7 @@ export type PlayerAiReason =
   | "ambush" // Meeps, unseen, an enemy within striking distance next turn — cloaked for the 2x decloak strike
   | "fire_support" // a cluster (or a boss / a VIP threat) inside one 3x3 in vision — called it in
   | "missile" // same, with the Reeps' own splash, no friendly in the blast
+  | "maser_lance" // same idea, Tank's own widening cone instead of a splash radius — see abilities.ts's chooseMaserLanceDirection
   | "repair_move" // Munti walked into repair range of a hurt ally and healed (repairPathing)
   | "explore" // fog-honest and nothing visible — moved toward the nearest enemy spawn seam / deploy zone
   | "preempt_retreat" // Hard: predicted incoming on my tile was lethal-ish — moved before it landed

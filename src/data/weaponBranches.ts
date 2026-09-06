@@ -186,8 +186,90 @@
 // fixing alone: if "no skipping the starter branch" ever becomes a real
 // design goal, it needs a system-wide purchase-order lock touching every
 // path's branches at once, not a one-branch patch.
+//
+// Suppression Autocannon added 5 Sep 2026 — Reeps' 3rd and, per the source
+// doc's own table (Weapon_Branch_Expansion_Plan_v1.md §2), LAST branch:
+// Reeps was already named at exactly 3 (Missiles, Rail Lance, Suppression
+// Autocannon) with no 4th concept ever proposed, unlike Meeps/Tank's own
+// "one slot short of symmetry" gap that got flagged and later filled — so
+// this branch completes Reeps' own track rather than opening a new slot.
+// "Attack-debuff on hit" per that doc's own line, built as this file's
+// SECOND consumer of the debuff_attack kind (the FIRST being data/bloom.ts's
+// own BLOOM_ON_HIT_EFFECTS — Sirenmaw/the Choir already inflict this exact
+// effect on players; this branch is a mech inflicting the identical thing
+// back). Two design calls, both Claude's own judgment (attribution rule per
+// Foundation.md — flagged as such, not run through combat_sim.py):
+//   1. Reuse fx_debuff_attack's own numbers outright (-20% ATK, 2 turns —
+//      SUPPRESSION_AUTOCANNON_DEBUFF_MAGNITUDE/_DURATION_TURNS below) rather
+//      than inventing a tuned sibling the way fx_choir_dissonance did. A
+//      player weapon branch granting a WEAKER or STRONGER debuff than the
+//      one Bloom already inflict has no design rationale behind it — "same
+//      effect, turned around" is the honest read of what this branch is.
+//      Same reasoning for the radius: no new constant, this branch reuses
+//      turnManager.ts's own DEBUFF_ATTACK_RADIUS (2) exactly, the same way
+//      applyBloomOnHitEffect's own debuff_attack branch already does — the
+//      "friendlies within N tiles" rule isn't a Bloom-specific rule, it's the
+//      debuff's own rule, and mission.ts's mech-attacks-Bloom branch already
+//      has the Bloom-side same-side roster (`sameSideAsDefender`) on hand to
+//      reuse for it (see engine/mission.ts's own call site).
+//   2. SUPPRESSION_AUTOCANNON_DEBUFF_CHANCE sits at 35% — above Shock
+//      Claws' single 25% despite both being one-effect-per-hit branches
+//      (unlike Riot Drum's two independent lower-chance rolls). The
+//      difference is what's being gated: Shock Claws/Riot Drum's pin both
+//      deny an entire turn, which is why they're kept rare; a -20%/2-turn
+//      attack debuff is reversible and comparatively mild (it doesn't stop
+//      a Bloom from acting at all), so it can land more often without
+//      reading as oppressive the way a high-chance full stun would. A
+//      judgment call, not a sim result — worth a real playtest pass like
+//      every other placeholder number in this file.
+//
+// This is also this file's first branch to widen applyMechOnHitEffect
+// itself rather than just adding a table entry: that function's signature
+// grew a `defenderSameSide` param (engine/turnManager.ts) so its new
+// "debuff_attack" branch can reach the defender's own same-side allies
+// within radius, mirroring applyBloomOnHitEffect's debuff_attack branch —
+// see that file's own header for the full account.
+//
+// Combat Medic added 5 Sep 2026 — Munti's 4th branch, the one this file's
+// own header used to flag as waiting on "further design work (a positive/
+// heal-tick effect kind nothing has built yet)". That framing turned out to
+// be Claude's own assumption, not Maxime's design — put to him directly
+// (AskUserQuestion: a new granted heal-over-time ability vs. upgrading
+// Repair itself vs. something else), and his answer was simpler than
+// either option offered: "triple passive regen. to those within 3 tile of
+// themself." No new StatusEffect kind, no new ability, no new UI — this is
+// the SAME tickMuntiRegen() aura Munti already has (engine/mission.ts),
+// just a bigger number and a wider radius for whichever Munti has this
+// branch equipped, same per-Munti-not-squad-wide shape Aegis Ward already
+// established for radius alone. Combat Medic is the one branch that scales
+// BOTH the aura's amount and its radius at once, which is what makes it
+// the flagship 4th branch rather than a second cheap economy-only tweak
+// stacked on Aegis Ward's own radius idea.
+//
+// COMBAT_MEDIC_REGEN_RADIUS is derived as MUNTI_REGEN_RADIUS + 1 (= 3
+// today) rather than a hardcoded 3, my own judgment call (Foundation's
+// attribution rule) rather than a literal reading of "3 tile": Maxime's
+// wording gives the right CURRENT value either way, but deriving it keeps
+// this branch meaningfully wider than the base radius if that base is ever
+// raised later, the exact reasoning Aegis Ward's own radius constant
+// already uses — and it means Combat Medic and Aegis Ward land on the same
+// radius (3) today, which reads as intentional (Combat Medic = Aegis
+// Ward's radius AND triple the healing) rather than a coincidence.
+// COMBAT_MEDIC_REGEN_MULTIPLIER (3) is Maxime's own literal number, kept as
+// a named multiplier rather than a flat HP value so it stays visibly
+// "triple," not just some other number that happens to equal 24 today.
+//
+// engine/mission.ts's tickMuntiRegen() previously read as a flat boolean
+// "is any qualifying Munti in range" check, since every Munti healed for
+// the same MUNTI_REGEN_PER_TURN regardless of which one was in range —
+// that no longer holds once Combat Medic heals for a different amount than
+// plain/Aegis Ward, so the tick now takes the BEST (highest) applicable
+// amount across every same-side Munti in range of a given unit, not the
+// first one found and not a sum — multiple Muntis still "don't stack" per
+// this system's existing rule, extended to mean "the strongest aura wins"
+// now that auras can differ in strength, not just reach.
 import type { Path } from "./types";
-import { MUNTI_REGEN_RADIUS } from "./combatTables";
+import { MUNTI_REGEN_RADIUS, MUNTI_REGEN_PER_TURN } from "./combatTables";
 
 export type WeaponBranchId =
   | "meeps_impact_lance"
@@ -198,9 +280,11 @@ export type WeaponBranchId =
   | "tank_maser_lance"
   | "reeps_missiles"
   | "reeps_rail_lance"
+  | "reeps_suppression_autocannon"
   | "munti_rapid_response"
   | "munti_aegis_ward"
-  | "munti_field_doctor";
+  | "munti_field_doctor"
+  | "munti_combat_medic";
 
 export interface WeaponBranchDef {
   id: WeaponBranchId;
@@ -244,6 +328,15 @@ export const RIOT_DRUM_PIN_CHANCE = 0.15;
 /** Tank — Riot Drum's pin duration, in turns. "Pin" is implemented as the "stun" StatusEffect kind outright (see this file's header comment) — same 1-turn floor SHOCK_CLAWS_STUN_DURATION_TURNS uses, for the same "brief" reasoning, kept as its own named constant rather than reusing that one so the two branches' numbers can diverge later without one accidentally dragging the other along. */
 export const RIOT_DRUM_PIN_DURATION_TURNS = 1;
 
+/** Reeps — Suppression Autocannon's on-hit debuff chance, 5 Sep 2026. See this file's header comment (Suppression Autocannon section) for why this sits above Shock Claws' single 25% despite both being one-effect-per-hit rolls: a -20%/2-turn attack debuff is reversible and non-swingy compared to a full turn-denial effect (stun/pin), so it can afford to land more often. Placeholder — not run through combat_sim.py, one line to retune. */
+export const SUPPRESSION_AUTOCANNON_DEBUFF_CHANCE = 0.35;
+
+/** Reeps — Suppression Autocannon's debuff magnitude, 5 Sep 2026. Matches fx_debuff_attack's own -20% (data/bloom.ts) exactly, deliberately — this branch grants mechs the SAME effect Sirenmaw/the Choir already inflict on players, not a tuned-up or tuned-down sibling (contrast fx_choir_dissonance, which IS a tuned sibling of fx_debuff_attack). */
+export const SUPPRESSION_AUTOCANNON_DEBUFF_MAGNITUDE = 0.2;
+
+/** Reeps — Suppression Autocannon's debuff duration, in turns, 5 Sep 2026. Matches fx_debuff_attack's own 2 turns (data/bloom.ts), same "same effect, not a tuned sibling" reasoning as the magnitude above. */
+export const SUPPRESSION_AUTOCANNON_DEBUFF_DURATION_TURNS = 2;
+
 /**
  * Mech-side on-hit effects (engine/turnManager.ts's applyMechOnHitEffect) —
  * this system's analogue of data/bloom.ts's BLOOM_ON_HIT_EFFECTS, same
@@ -254,15 +347,27 @@ export const RIOT_DRUM_PIN_DURATION_TURNS = 1;
  * Widened 4 Sep 2026 (Riot Drum) to also allow a "knockback"-kind entry,
  * dispatched by applyMechOnHitEffect exactly like applyBloomOnHitEffect's
  * own knockback branch (same knockbackDestination()/isKnockbackImmune()
- * reuse, not a second implementation).
+ * reuse, not a second implementation). Widened again 5 Sep 2026 (Suppression
+ * Autocannon) for a "debuff_attack"-kind entry, same reuse discipline —
+ * applyMechOnHitEffect's own debuff_attack branch mirrors
+ * applyBloomOnHitEffect's exactly (same DEBUFF_ATTACK_RADIUS, same
+ * same-side-allies-within-radius rule), just fed the Bloom-side roster
+ * instead of the mech-side one.
  */
 export const MECH_ON_HIT_EFFECTS: Record<
   string,
-  { kind: "stun"; magnitude: number; duration: number } | { kind: "knockback"; magnitude: number; duration: number }
+  | { kind: "stun"; magnitude: number; duration: number }
+  | { kind: "knockback"; magnitude: number; duration: number }
+  | { kind: "debuff_attack"; magnitude: number; duration: number }
 > = {
   fx_shock_claws_stun: { kind: "stun", magnitude: 0, duration: SHOCK_CLAWS_STUN_DURATION_TURNS },
   fx_riot_drum_knockback: { kind: "knockback", magnitude: RIOT_DRUM_KNOCKBACK_MAGNITUDE, duration: 0 },
   fx_riot_drum_pin: { kind: "stun", magnitude: 0, duration: RIOT_DRUM_PIN_DURATION_TURNS },
+  fx_suppression_autocannon_debuff: {
+    kind: "debuff_attack",
+    magnitude: SUPPRESSION_AUTOCANNON_DEBUFF_MAGNITUDE,
+    duration: SUPPRESSION_AUTOCANNON_DEBUFF_DURATION_TURNS,
+  },
 };
 
 /**
@@ -289,6 +394,9 @@ export const WEAPON_BRANCH_ON_HIT_EFFECT: Partial<Record<WeaponBranchId, { fxId:
     { fxId: "fx_riot_drum_knockback", chance: RIOT_DRUM_KNOCKBACK_CHANCE },
     { fxId: "fx_riot_drum_pin", chance: RIOT_DRUM_PIN_CHANCE },
   ],
+  reeps_suppression_autocannon: [
+    { fxId: "fx_suppression_autocannon_debuff", chance: SUPPRESSION_AUTOCANNON_DEBUFF_CHANCE },
+  ],
 };
 
 /** Tank — melee plus self-heal on a successful hit. A fraction of damage DEALT, not received; only fires when the hit actually lands (a dodge or a miss heals nothing). */
@@ -313,6 +421,11 @@ export const AEGIS_WARD_REGEN_RADIUS = MUNTI_REGEN_RADIUS + 1;
 
 /** Munti Support Branch — Field Doctor, 1 Sep 2026, Maxime's own pick ("Free Repair every N turns"). Same value as WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS (data/combatTables.ts) — deliberately matching the plan doc's own "same shape as Weapons Bay's bonus Fire Support charge" comparison exactly rather than picking an unrelated number. Placeholder, not run through combat_sim.py or an equivalent — same status as every other weapon-branch number in this file, worth a real playtest pass once there's a Munti actually carrying it in a run. */
 export const FIELD_DOCTOR_COOLDOWN_TURNS = 3;
+
+/** Munti's 4th and flagship branch, Combat Medic, 5 Sep 2026 — Maxime's own design, given directly rather than guessed: "triple passive regen. to those within 3 tile of themself." Derived as MUNTI_REGEN_RADIUS + 1 (see this file's header comment for why derived rather than a hardcoded 3) — lands on 3 today, same radius Aegis Ward's own aura already reaches, deliberately: Combat Medic is Aegis Ward's radius PLUS triple the healing, not a second, unrelated radius number. */
+export const COMBAT_MEDIC_REGEN_RADIUS = MUNTI_REGEN_RADIUS + 1;
+/** Munti's Combat Medic — the healing-amount multiplier, Maxime's own literal "triple." Kept as a named multiplier (applied to MUNTI_REGEN_PER_TURN at the tickMuntiRegen() call site, engine/mission.ts) rather than a flat HP constant, so retuning the base regen amount later automatically keeps this branch at "3x," not stuck at whatever flat number 3x used to equal. Placeholder in the sense every weapon-branch number in this file is (not run through combat_sim.py), though the multiplier ITSELF is Maxime's own settled call, not a guess needing a playtest pass the way the exact numbers on Riot Drum/Maser Lance/Suppression Autocannon do. */
+export const COMBAT_MEDIC_REGEN_MULTIPLIER = 3;
 
 export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
   meeps_impact_lance: {
@@ -363,6 +476,12 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
     path: "reeps",
     description: `Armor-piercing — ignores ${Math.round(RAIL_LANCE_DEF_IGNORE_PCT * 100)}% of a Tank-path target's defense.`,
   },
+  reeps_suppression_autocannon: {
+    id: "reeps_suppression_autocannon",
+    displayName: "Suppression Autocannon",
+    path: "reeps",
+    description: `A landed hit has a ${Math.round(SUPPRESSION_AUTOCANNON_DEBUFF_CHANCE * 100)}% chance to suppress the target and nearby Bloom for ${SUPPRESSION_AUTOCANNON_DEBUFF_DURATION_TURNS} turns (-${Math.round(SUPPRESSION_AUTOCANNON_DEBUFF_MAGNITUDE * 100)}% ATK).`,
+  },
   munti_rapid_response: {
     id: "munti_rapid_response",
     displayName: "Rapid Response",
@@ -381,12 +500,18 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
     path: "munti",
     description: `Repair is free (costs 0 actions) once every ${FIELD_DOCTOR_COOLDOWN_TURNS} turns.`,
   },
+  munti_combat_medic: {
+    id: "munti_combat_medic",
+    displayName: "Combat Medic",
+    path: "munti",
+    description: `Passive regen aura heals ${COMBAT_MEDIC_REGEN_MULTIPLIER}x as much (${MUNTI_REGEN_PER_TURN * COMBAT_MEDIC_REGEN_MULTIPLIER} HP/turn) within ${COMBAT_MEDIC_REGEN_RADIUS} tiles (was ${MUNTI_REGEN_RADIUS}).`,
+  },
 };
 
-/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy — see this file's own header comment for why that's a hint, not an enforced sequence: any listed branch is buyable at any purchase-order slot). Suppression Autocannon/Combat Medic still wait on further design work (see the source doc's own §5/§10 Tier-3 split) and are not listed here so the shop never offers something the engine can't back yet. Reeps gets two (Missiles, then Rail Lance) since both are numbers-only and this exercises the real "collect more than one, swap for free" mechanic end to end; Munti now gets three for the same reason (Rapid Response, Aegis Ward, Field Doctor). Meeps now gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. Tank now gets three (Grinder Claw, Riot Drum, then Maser Lance, 5 Sep 2026) — Riot Drum was the second branch to use that same status-effect infrastructure and the first to grant more than one on-hit effect off a single hit; Maser Lance is this file's second GRANTED-ABILITY branch after Missiles (MASER_LANCE_GRANT_ABILITY above), and its first non-radius, direction-picked shape. */
+/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy — see this file's own header comment for why that's a hint, not an enforced sequence: any listed branch is buyable at any purchase-order slot). Reeps gets three (Missiles, Rail Lance, then Suppression Autocannon, 5 Sep 2026) — its own full, final track per the source doc's own table, not one slot short the way Meeps/Tank briefly were. Munti now gets FOUR (Rapid Response, Aegis Ward, Field Doctor, then Combat Medic, 5 Sep 2026) — the one path with a real 4th slot, since its first three were all cheap radius/cooldown/range tweaks on the same underlying Repair/regen mechanics and Combat Medic is the first Munti branch that meaningfully scales the actual healing output. Meeps gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. Tank gets three (Grinder Claw, Riot Drum, then Maser Lance, 5 Sep 2026) — Riot Drum was the second branch to use that same status-effect infrastructure and the first to grant more than one on-hit effect off a single hit; Maser Lance is this file's second GRANTED-ABILITY branch after Missiles (MASER_LANCE_GRANT_ABILITY above), and its first non-radius, direction-picked shape. Suppression Autocannon (Reeps' 3rd, same day) is the third branch to use the status-effect infrastructure and the first to reuse the "debuff_attack" kind on the mech->Bloom side. */
 export const WEAPON_BRANCHES_BY_PATH: Record<Path, WeaponBranchId[]> = {
   meeps: ["meeps_impact_lance", "meeps_scattershot_pistols", "meeps_shock_claws"],
   tank: ["tank_grinder_claw", "tank_riot_drum", "tank_maser_lance"],
-  reeps: ["reeps_missiles", "reeps_rail_lance"],
-  munti: ["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor"],
+  reeps: ["reeps_missiles", "reeps_rail_lance", "reeps_suppression_autocannon"],
+  munti: ["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor", "munti_combat_medic"],
 };

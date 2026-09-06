@@ -82,7 +82,7 @@
 // be needed if a scrolling camera ever shipped.
 import Phaser from "phaser";
 import { WARDEN_PILOTS, AMARANTH_MISSIONS_BY_ID } from "../data/campaignAmaranth";
-import { PATH_COLORS, pilotInitials } from "./TransporterPad";
+import { PATH_COLORS, pilotInitials, drawPilotAvatar } from "./TransporterPad";
 import {
   pickLineForMessage,
   pickMusterDeclineLine,
@@ -177,11 +177,13 @@ import { pruneExpiredHotTopics, pickHotTopicForSpeaker, renderHotTopicLine, type
 import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStageLine } from "../data/relationshipStage";
 import { pickFrictionLine } from "../data/friction";
 import { worryTriggerChance } from "../data/missionWorry";
+import { upsertWorry, removeWorry, loudestWorry, type WorryEntry } from "../data/worries";
 import { gate0Reacts } from "../data/reactionGate";
 import { NEED_ROOM, NEEDS_FLAVOR_BANK, NEEDS_FLAVOR_CHANCE, NEEDS_LOW_THRESHOLD, needsStressMoraleDelta, tickNeed, worstNeed } from "../data/needsCounter";
 import { resolveAskOut, isRomanceableSpecies, ALREADY_TOGETHER_LINES, CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { pairKey, findClosestBond, findWorstRival, pointNear, pointAwayFrom, CLIQUE_THRESHOLD, RIVAL_THRESHOLD } from "../data/npcBonds";
+import { isNpcEngaged } from "../data/npcEngagement";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 // Cursor-following hover tip, 2 Sep 2026 — shared with Battle.ts. See
@@ -231,21 +233,22 @@ import {
   ensureHubSocialState,
   ensureNpcSocialState,
   rankDisplayTitle,
-  lanceOfMek,
-  lanceOfPilot,
   type CampaignState,
   type LanceId,
   type NpcSocialState,
   type Rank,
   type ReservedBayId,
   ensureRecRoomState,
+  lanceOfMekIn,
+  lanceOfPilotIn,
 } from "../engine/campaignState";
 // Rec Room Standings & NPC Learning, slice 3 (3 Sep 2026) — the player's own
 // finished sessions are now recorded on the same board the crew sit on.
 import { PLAYER_RECORD_ID, recordSession, skillFor, type RecGameId, type RecRoomState, type StandingsEntrant } from "../engine/recRoomRecord";
 import { REC_GAME_IDS } from "../data/recRoomAptitude";
 import { StandingsPanel } from "./ui/StandingsPanel";
-import { MemorialPanel } from "./ui/MemorialPanel"; // B3, the roll of pilots lost — opened from the Vault
+import { MemorialPanel } from "./ui/MemorialPanel";
+import { RosterPanel } from "./ui/RosterPanel"; // B2, the Hangar Deck crew records // B3, the roll of pilots lost — opened from the Vault
 // Codex Rebuild & Live Briefing Plan v1, Part B (4 Sep 2026) — the CO's
 // "brief" chat command now opens a real, live, per-mission briefing. See
 // data/missionBriefing.ts's own header for why the next-mission lookup
@@ -322,6 +325,7 @@ import {
   BAY_MARKERS,
   WALL_T,
   C as PAL,
+  CREW_RECORDS_POINT,
 } from "../engine/hubLayout";
 import { findPath } from "../engine/hubNav";
 
@@ -623,6 +627,44 @@ const SPAR_CHANCE = 0.5;
 // every other timing constant in this file.
 const NPC_REPLY_DELAY_MS = 1800;
 
+// NPC Conversation Lock Fix, 6 Sep 2026 (Maxime bug report: Hub NPCs
+// mid-conversation get pulled away by ambient roaming before finishing
+// their scripted exchange). Root cause: showBubble()'s own bubbleUntil
+// only gets set the instant a bubble actually appears — for npcB in a
+// staged two-line exchange, that's NPC_REPLY_DELAY_MS in the future, so
+// there was a real window (as low as ROAM_INTERVAL_MIN_MS, 5000ms) where
+// neither updateNpcRoaming nor updateNpcEncounters had any reason yet to
+// leave either participant alone. engagedUntil (HubNpc's own field, see
+// its comment) is set the instant an encounter starts instead, covering
+// the whole exchange up front rather than reacting to bubbles as they
+// appear one at a time.
+//
+// BUBBLE_DURATION_CAP_MS names the same 6000ms hard cap showBubble()
+// already computes inline (Math.min(6000, 2600 + line.length * 30)) —
+// one name so the two can't quietly drift apart. NPC_ENGAGEMENT_HOLD_MS
+// is a flat NPC_REPLY_DELAY_MS + BUBBLE_DURATION_CAP_MS applied
+// uniformly by every encounter-staging function below (runNpcEncounter,
+// runAngerBlowup, runBoredomSpar) — even the branches that only ever show
+// one instant bubble with no delayed reply. Deliberate overestimate for
+// those, same "flat cap instead of threading the real value out of a
+// closure" simplification NPC_REPLY_DELAY_MS's own staged exchange
+// already relies on, not a bug.
+const BUBBLE_DURATION_CAP_MS = 6000;
+const NPC_ENGAGEMENT_HOLD_MS = NPC_REPLY_DELAY_MS + BUBBLE_DURATION_CAP_MS;
+
+// isNpcEngaged itself — the exact boolean this fix hinges on — lives in
+// data/npcEngagement.ts, not here, same "this file composes, data/**
+// decides" split every other predicate in this file already follows
+// (findClosestBond/findWorstRival from npcBonds.ts, gate0Reacts from
+// reactionGate.ts, and so on). Tried keeping it local first as this file's
+// first-ever named export; that broke the moment a real test tried to
+// import Hub.ts directly — Phaser's own OS-detection code runs at module
+// load time and reaches for `window`, which doesn't exist under Vitest's
+// default Node environment (no test file has ever imported a scenes/*.ts
+// file before this, so nothing had hit that wall yet). A dependency-free
+// data/ module sidesteps it entirely, which is also just the right home
+// for a function with no Hub-specific logic in it at all.
+
 // Rec Room Help Panel, 28 Aug 2026 (Bloom_Wars_Rec_Room_Help_Panel_Plan_v1.md)
 // — persistent "?" rules text per minigame, always available (Maxime's own
 // call: not a first-time tooltip that dismisses itself, the pattern the
@@ -914,11 +956,22 @@ const ROAMABLE_ROOMS: RoomId[] = (Object.keys(ROOM_TITLES) as RoomId[]).filter((
 // forgiving rule — a pilot dozing on the next lance's bunk is fine), but
 // a sleepy NPC is BIASED toward their own lance's room (see
 // needRoomFor), so the berths actually read as belonging to someone.
-const LANCE_BERTHS: Record<LanceId, RoomId> = {
+// Only a/b/c have rooms: this carrier is physically built with three berth
+// rooms and three workshops. LanceId carries five ids because Gladiator will
+// need them (see its own note in campaignState.ts), but a 4th or 5th lance
+// has nowhere to sleep or park on THIS ship, and lanceCount() caps this
+// campaign at three so neither is reachable. Partial + a fallback to 1st
+// Lance's room rather than inventing rooms that don't exist, so if a future
+// carrier ever does grant a 4th lance the failure is "they bunk with 1st
+// Lance", not a crash or an undefined room id.
+const LANCE_BERTHS: Partial<Record<LanceId, RoomId>> = {
   a: "berths",
   b: "berthsB",
   c: "berthsC",
 };
+function berthRoomFor(lance: LanceId): RoomId {
+  return LANCE_BERTHS[lance] ?? "berths";
+}
 
 function isBerths(room: RoomId): boolean {
   return room === "berths" || room === "berthsB" || room === "berthsC";
@@ -1089,11 +1142,15 @@ function sameDeck(a: RoomId, b: RoomId): boolean {
 // having only two lances); this is just the room mapping, kept here
 // because nothing outside this file should have to know that "b" means
 // workshopB.
-const LANCE_WORKSHOP: Record<LanceId, RoomId> = {
+// See LANCE_BERTHS above for why this is Partial and what the fallback means.
+const LANCE_WORKSHOP: Partial<Record<LanceId, RoomId>> = {
   a: "workshop",
   b: "workshopB",
   c: "workshopC",
 };
+function workshopRoomFor(lance: LanceId): RoomId {
+  return LANCE_WORKSHOP[lance] ?? "workshop";
+}
 
 // Which of this deck's rooms a raw (x, y) currently sits over — used to keep
 // currentRoomId / npc.room live as a position label while walking a shared
@@ -1264,22 +1321,27 @@ const STUCK_TIMEOUT_MS = 500;
 // tune by playtest, doesn't need combat_sim.py/maps.py.
 const CLUSTER_RADIUS = NPC_R * 3;
 
-// Tier 6 hotfix, 30 Aug 2026 — the player-side counterpart to the NPC
-// stuckMs give-up above, for the same root cause reported live: Maxime,
-// "still cant move. from the cluster, I spawned on top of them when I
-// changed room." handleMovement's real per-axis NPC collision (tryMove)
-// means a player genuinely encircled by several NPCs can find every
-// direction blocked at once — pickPointNearDoor/pickClearPoint's own
-// escalating search (see its header) is the actual fix for HOW that spawn
-// happens, but this is the belt-and-suspenders catch-all for any other way
-// a crowd could box the player in (NPCs roaming into a ring around someone
-// standing still, say). PLAYER_STUCK_MIN_NEARBY_NPCS is deliberately >1 —
-// a player leaning into a single NPC or a plain wall, alone, never trips
-// this; it only fires when there's a real crowd around them, matching what
-// "stuck by a cluster" actually looks like rather than ordinary wall-sliding.
-const PLAYER_STUCK_TIMEOUT_MS = 700;
-const PLAYER_STUCK_MIN_NEARBY_NPCS = 2;
-const PLAYER_STUCK_NPC_CHECK_RADIUS = PLAYER_R + NPC_R + 40;
+// Tier 6 hotfix, 30 Aug 2026, REMOVED 5 Sep 2026 — this used to be the
+// player-side counterpart to the NPC stuckMs give-up above: a belt-and-
+// suspenders catch-all for a player genuinely encircled and boxed in by a
+// crowd of NPCs (handleMovement's own per-axis NPC collision, tryMove,
+// used to block every direction at once in that case). 5 Sep 2026, Maxime:
+// "make people able to pass tru each other with no collision, getting
+// stuck in corridor is anothing as fuck." Bodies no longer block movement
+// at all (see tryMove/tryMoveNpc below) — a player can no longer be boxed
+// in by NPCs, full stop, so this mechanism had zero conditions left under
+// which it could correctly fire. Left in place it would have turned into a
+// landmine instead of a safety net: still capable of firing (any time the
+// player is genuinely wall-stuck AND a couple of NPCs happen to be walking
+// past, which is common in exactly the corridors this was built for), but
+// for the wrong reason every time — silently teleporting the player away
+// for no visible cause. Removed outright rather than left dormant.
+// NPC-side stuckMs/clearCluster just below carries the identical original
+// justification (collision-caused deadlocks) but is left in place — it
+// still does something harmless and occasionally useful even without body
+// collision (a generic give-up-and-retry if a pathfinding step ever nets
+// to zero progress against a wall), it doesn't misdiagnose and relocate
+// anyone the way this one would have.
 
 // Build Plan §9, piece #4, 26 Aug 2026 — "transporter pad is its own room"
 // / "something player dont need to build" (Maxime). Resolves the doc's own
@@ -1855,6 +1917,20 @@ type HubNpc = {
   favLabel: Phaser.GameObjects.Text;
   bubbleContainer: Phaser.GameObjects.Container;
   bubbleUntil: number;
+  // NPC Conversation Lock Fix, 6 Sep 2026 — see NPC_ENGAGEMENT_HOLD_MS's
+  // own header comment for the full root cause. Set the instant any of
+  // runNpcEncounter/runAngerBlowup/runBoredomSpar starts an exchange
+  // between this NPC and a partner, covering the partner's still-to-come
+  // reply bubble too, not just this NPC's own already-showing one.
+  // Checked via isNpcEngaged() at the very top of updateNpcRoaming (before
+  // even the journey-resume branch, same reason mustered has to run
+  // before journey-resume too — an engaged NPC should hold through a
+  // paused multi-hop journey exactly the way it holds through ordinary
+  // idle roaming) and in both of updateNpcEncounters' own pairing guards.
+  // undefined = not currently in a staged exchange, the overwhelming
+  // majority of the time, same "undefined clock = opts out" convention
+  // nextRoamAt/nextEncounterAt/nextBlowupAt already use.
+  engagedUntil?: number;
   targetX?: number; // set = walking toward this point (piece #2); undefined = idle in place
   // 3 Sep 2026, floor-plan pass — the waypoints (engine/hubNav.ts) this NPC
   // is following toward targetX/targetY, computed lazily the first frame a
@@ -1905,6 +1981,14 @@ type HubNpc = {
   // updateMissionWorry()'s own probabilistic reroll. Not persisted, same
   // as ambient.worried itself.
   nextWorryCheckAt?: number;
+  // Worries System step 2, 6 Sep 2026 (data/worries.ts's own header has the
+  // full design). This pilot's general "what's on my mind" stack —
+  // undefined means empty, same "undefined = opts out" convention as every
+  // other ephemeral clock/state field on this type. Refreshed on the same
+  // nextWorryCheckAt cadence just above, by the same updateMissionWorry()
+  // call, since Mission Worry is currently this list's only real source.
+  // Not persisted, same as ambient.worried and ambient.topWorry themselves.
+  worries?: WorryEntry[];
   // 26 Aug 2026 — drunk's real expiry, epoch ms (Date.now()), mirroring
   // HubPilotSocialState.drunkUntil (campaignState.ts section 11). undefined
   // whenever ambient.drunk is false; set by shareADrink, cleared by
@@ -2047,11 +2131,6 @@ export class Hub extends Phaser.Scene {
   private player!: Phaser.GameObjects.Container;
   private playerX = 480;
   private playerY = 330;
-  // Tier 6 hotfix, 30 Aug 2026 — see forceUnstickPlayer's own header. Zero-
-  // net-movement time while genuinely boxed by a crowd, tracked the same
-  // way NPC roaming already tracks stuckMs per-NPC (STUCK_TIMEOUT_MS's own
-  // header), just scene-level since there's only ever one player.
-  private playerStuckMs = 0;
   private npcs: HubNpc[] = [];
   // Hot topics, first slice, 27 Aug 2026 — in-memory only, never persisted
   // (see data/hotTopics.ts's own header for why). Registered at the real
@@ -2185,6 +2264,10 @@ export class Hub extends Phaser.Scene {
   // first: that panel has two pixels of vertical headroom and no scrolling.
   private memorialPanel!: MemorialPanel;
   private memorialOpen = false;
+  // B2, 5 Sep 2026 — the Hangar Deck's crew-records panel. Same
+  // standalone-panel-owned-by-Hub shape as the three above it.
+  private rosterPanel!: RosterPanel;
+  private rosterOpen = false;
   private bKey?: Phaser.Input.Keyboard.Key;
   private historyText!: Phaser.GameObjects.Text;
 
@@ -2611,6 +2694,7 @@ export class Hub extends Phaser.Scene {
     this.standingsPanel = new StandingsPanel(this, ROOM_BOUNDS, () => this.closeStandings());
     this.missionBriefingPanel = new MissionBriefingPanel(this, ROOM_BOUNDS, () => this.closeMissionBriefing());
     this.memorialPanel = new MemorialPanel(this, ROOM_BOUNDS, () => this.closeMemorial());
+    this.rosterPanel = new RosterPanel(this, ROOM_BOUNDS, () => this.closeRosterPanel(), () => this.onLanceAssignmentChanged());
     this.buildHighlightsOverlay();
     this.buildHangarShopOverlay();
     this.buildWorkshopOverlay();
@@ -2672,6 +2756,7 @@ export class Hub extends Phaser.Scene {
       const door = this.isAtDoor();
       if (door) this.switchRoom(door);
       else if (this.isAtBay()) this.deploy();
+      else if (this.isAtCrewRecords()) this.openRosterPanel();
       else if (this.isAtHangarShop()) this.openHangarShop();
       // Workshop bench, 2 Sep 2026 — added to BOTH the click path and the
       // E-key path, since this file's own rule (see the click handler's
@@ -3248,6 +3333,39 @@ export class Hub extends Phaser.Scene {
     const smallTalk = detectSmallTalk(trimmed);
     if (smallTalk) {
       if (this.pegOpen || this.pokerOpen || this.dartsOpen) return; // already mid-game — let that own the screen
+
+      // Greeting/farewell broadcast to everyone in talk range, 5 Sep 2026
+      // (Maxime: "when I say hello I want all my ant to hear it, not just
+      // one"). "Hello"/"bye" read as addressing the room, not one specific
+      // person, so every ant standing close enough reacts, each with their
+      // own line and their own bubble — showBubble is already per-NPC
+      // (bubbleUntil lives on the npc, not the scene), same machinery
+      // ambient chatter and rumor-spread already lean on for several NPCs
+      // reacting independently, so no new plumbing needed here. Worry
+      // check-in/advice/banter stay single-target below: those read as the
+      // player addressing one specific person, not the room.
+      if (smallTalk === "greeting" || smallTalk === "farewell") {
+        const targets = this.allNpcsInRange(APPROACH_RADIUS);
+        if (targets.length === 0) {
+          this.showFallback("Nobody's close enough to talk to.");
+          return;
+        }
+        for (const target of targets) {
+          const isCo = target.pilotId === CO_PILOT_ID;
+          if (isCo) this.markCoCheckedIn(); // CO Check-In Gate Plan v1 — small talk reaches him too
+          const line =
+            smallTalk === "greeting"
+              ? isCo
+                ? pickCoGreetingLine()
+                : pickGreetingLine(target.ambient.catalyst)
+              : isCo
+                ? pickCoFarewellLine()
+                : pickFarewellLine(target.ambient.catalyst);
+          this.showBubble(target, line, this.time.now);
+        }
+        return;
+      }
+
       const target = this.nearestNpcInRange(APPROACH_RADIUS);
       if (!target) {
         this.showFallback("Nobody's close enough to talk to.");
@@ -3266,10 +3384,6 @@ export class Hub extends Phaser.Scene {
         // data/smallTalk.ts's own header), so he falls back to his own
         // catalyst's read here, same as every other pilot.
         line = this.pickAmbientLineWithMemory(target).line;
-      } else if (smallTalk === "greeting") {
-        line = isCo ? pickCoGreetingLine() : pickGreetingLine(target.ambient.catalyst);
-      } else if (smallTalk === "farewell") {
-        line = isCo ? pickCoFarewellLine() : pickFarewellLine(target.ambient.catalyst);
       } else if (smallTalk === "advice") {
         line = isCo ? pickCoAdviceLine(target.ambient.stress) : pickAdviceLine(target.ambient.catalyst);
       } else {
@@ -3366,6 +3480,24 @@ export class Hub extends Phaser.Scene {
       }
     }
     return best;
+  }
+
+  // Broadcast targeting, 5 Sep 2026 (Maxime: "when I say hello I want all
+  // my ant to hear it, not just one"). Sibling of nearestNpcInRange just
+  // above, same sameDeck/radius scope, but collects every match instead of
+  // tracking a single closest one — greeting/farewell reads as addressing
+  // the room, not one specific person, so it shouldn't pick a "nearest"
+  // winner. Unused by anything else today; every other small-talk kind
+  // (worry check-in, advice, banter) stays on nearestNpcInRange since those
+  // read as the player addressing one specific person.
+  private allNpcsInRange(radius: number): HubNpc[] {
+    const found: HubNpc[] = [];
+    for (const npc of this.npcs) {
+      if (!sameDeck(npc.room, this.currentRoomId)) continue;
+      const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);
+      if (dist <= radius) found.push(npc);
+    }
+    return found;
   }
 
   // CO reach check, 2 Sep 2026 (playtest tally item 7 part B) — the five
@@ -4892,6 +5024,71 @@ export class Hub extends Phaser.Scene {
     // from the dock every other Hub overlay already does, instead of
     // running flush up against it.
     this.hangarShop.fitWidth(ROOM_BOUNDS.right);
+  }
+
+  /**
+   * B2 — the roster/stats panel. Deliberately a different console from the
+   * ROSTER & GEAR one right beside it: that opens ShopPanel (gear, tiers,
+   * recruiting), this is who your people are. See RosterPanel's own header.
+   */
+  private openRosterPanel() {
+    this.rosterOpen = true;
+    this.rosterPanel.open(this.campaignState);
+  }
+
+  private closeRosterPanel() {
+    this.rosterOpen = false;
+    this.rosterPanel.close();
+  }
+
+  /**
+   * A lance reassignment landed. Persist it, then rebuild the crew so the
+   * moved pilot's Mek is standing in their new lance's workshop and they
+   * bunk in their new lance's berths — lanceOf/lanceOfMekIn already read the
+   * live assignment, so this only has to re-run the seeding that consumes
+   * them. Without it the change would be real in the save but invisible in
+   * the ship until the next time the Hub was entered.
+   */
+  private onLanceAssignmentChanged() {
+    saveCampaignState(this.campaignState);
+    this.reseedCrewAfterLanceChange();
+  }
+
+  /**
+   * Re-home every Mek NPC whose pilot's lance changed, in place. Targeted
+   * rather than a buildNpcs() rerun on purpose: that function CREATES NPCs
+   * and pushes them onto this.npcs, so calling it again would duplicate the
+   * whole crew rather than move anyone.
+   *
+   * Only Meks need moving. A pilot's berth is resolved at the moment it's
+   * needed (needRoomFor -> lanceOf, which already reads the live
+   * assignment), so berths self-correct with no work here.
+   */
+  private reseedCrewAfterLanceChange() {
+    for (const npc of this.npcs) {
+      if (!npc.pilotId.startsWith("mek_")) continue;
+      const want = workshopRoomFor(lanceOfMekIn(this.campaignState, npc.pilotId));
+      if (npc.room === want) continue;
+      // Same free-cradle rule buildNpcs uses, minus this Mek itself so it
+      // can't block its own destination.
+      const cradle = (MEK_SPOTS[want as keyof typeof MEK_SPOTS] ?? []).find(
+        (spot) => !this.npcs.some((n) => n !== npc && n.room === want && Phaser.Math.Distance.Between(spot.x, spot.y, n.x, n.y) < NPC_R * 2),
+      );
+      const pos = cradle ?? this.pickInitialNpcSpot(want, this.npcs.filter((n) => n !== npc));
+      npc.room = want;
+      npc.homeRoom = want;
+      npc.x = pos.x;
+      npc.y = pos.y;
+      npc.root.setPosition(pos.x, pos.y);
+      npc.favLabel.setPosition(pos.x, pos.y - NPC_R - 14);
+      npc.bubbleContainer.setPosition(pos.x, pos.y - NPC_R - 30);
+      // Cancel any walk in progress — its waypoints were computed for the
+      // room this Mek is no longer standing in.
+      npc.targetX = undefined;
+      npc.targetY = undefined;
+      npc.path = undefined;
+    }
+    this.refreshRoomVisibility();
   }
 
   private openHangarShop() {
@@ -6588,12 +6785,24 @@ export class Hub extends Phaser.Scene {
         social.lastAcknowledgedRourkeRank = this.campaignState.rourkeRank;
       }
 
-      const circle = this.add.circle(0, 0, NPC_R, color, 1).setStrokeStyle(2, 0xffffff, 0.25);
-      const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+      // B4, 5 Sep 2026 — drawPilotAvatar (TransporterPad.ts) swaps in a
+      // real portrait when one exists, same circle+initials placeholder
+      // otherwise. avatar.hitCircle is the SAME real Circle GameObject
+      // `circle` used to be (still what every npc.circle.setInteractive()/
+      // .disableInteractive() call site below operates on) — just now
+      // possibly hidden under a portrait image rather than always visibly
+      // filled. Nested at local (0,0) inside `root` alongside nameTag,
+      // same structure the bare circle+label used to have.
+      // Hub Floor Portrait Revert, 6 Sep 2026 — forcePlaceholder: true (see
+      // drawPilotAvatar's own header, TransporterPad.ts). Only this floor;
+      // Transporter Pad/Roster/Memorial/Debrief keep showing this same
+      // pilot's real portrait unchanged.
+      const avatar = drawPilotAvatar(this, 0, 0, NPC_R, pilotId, displayName, color, undefined, true);
+      const circle = avatar.hitCircle;
       const nameTag = this.add
         .text(0, NPC_R + 12, displayName.split("—")[0].trim(), { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM })
         .setOrigin(0.5);
-      const root = this.add.container(pos.x, pos.y, [circle, label, nameTag]);
+      const root = this.add.container(pos.x, pos.y, [avatar.container, nameTag]);
 
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
       const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
@@ -6694,12 +6903,21 @@ export class Hub extends Phaser.Scene {
     // 3 Sep 2026 — on the dais at the grotto's centre (hubLayout.ts's
     // CO_POINT), where the floor plan draws it.
     const coPos = CO_POINT;
-    const coCircle = this.add.circle(0, 0, NPC_R, CO_COLOR, 1).setStrokeStyle(2, 0xffffff, 0.25);
-    const coLabel = this.add.text(0, 0, coInitials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+    // B4, 5 Sep 2026 — drawPilotAvatar (TransporterPad.ts). CO_PILOT_ID
+    // matches neither the named-portrait nor generated-recruit id shapes
+    // in engine/portraits.ts, so this always falls back to the placeholder
+    // circle+initials, unchanged from before — no real portrait exists for
+    // him, correctly.
+    // Hub Floor Portrait Revert, 6 Sep 2026 — forcePlaceholder: true set
+    // explicitly anyway, redundant with the above today but on purpose: so
+    // a real CO portrait added later doesn't silently start rendering on
+    // this floor without whoever adds it remembering this revert exists.
+    const coAvatar = drawPilotAvatar(this, 0, 0, NPC_R, CO_PILOT_ID, coDisplayName, CO_COLOR, undefined, true);
+    const coCircle = coAvatar.hitCircle;
     const coNameTag = this.add
       .text(0, NPC_R + 12, coDisplayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM })
       .setOrigin(0.5);
-    const coRoot = this.add.container(coPos.x, coPos.y, [coCircle, coLabel, coNameTag]);
+    const coRoot = this.add.container(coPos.x, coPos.y, [coAvatar.container, coNameTag]);
     const coFavLabel = this.add.text(coPos.x, coPos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
     const coBubbleContainer = this.add.container(coPos.x, coPos.y - NPC_R - 30).setVisible(false);
 
@@ -6920,10 +7138,20 @@ export class Hub extends Phaser.Scene {
       }
 
       const pos = { x: seed.x, y: seed.y };
-      const circle = this.add.circle(0, 0, NPC_R, color, 1).setStrokeStyle(2, 0xffffff, 0.25);
-      const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+      // B4, 5 Sep 2026 — drawPilotAvatar (TransporterPad.ts). seed.mekId is
+      // a `mek_<surname>` id, not `pilot_<surname>`, so this always falls
+      // back to the placeholder circle+initials — correctly: B4 only ever
+      // scoped portraits for the 15 named PILOTS, never the Mek/mechanic
+      // characters, so no art exists for them and none should be implied.
+      // Hub Floor Portrait Revert, 6 Sep 2026 — forcePlaceholder: true set
+      // here too, same "no-op today, real insurance later" reasoning as
+      // the CO's own call site above; not named in the original proposal
+      // (which only checked the pilot/CO/player call sites), added for
+      // consistency across every avatar this floor draws.
+      const avatar = drawPilotAvatar(this, 0, 0, NPC_R, seed.mekId, displayName, color, undefined, true);
+      const circle = avatar.hitCircle;
       const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
-      const root = this.add.container(pos.x, pos.y, [circle, label, nameTag]);
+      const root = this.add.container(pos.x, pos.y, [avatar.container, nameTag]);
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
       const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
 
@@ -7010,7 +7238,12 @@ export class Hub extends Phaser.Scene {
       // Warden Company, so their lance and their coordinates already
       // agree, and re-deriving a room for them would only risk moving a
       // deliberately-placed body somewhere it wasn't drawn for.
-      const workshopRoom = LANCE_WORKSHOP[lanceOfMek(mekId)];
+      // lanceOfMekIn, not lanceOfMek (B2, 5 Sep 2026) — reads the pilot's
+      // LIVE lance assignment so a reassigned pilot's Mek is seeded into
+      // that lance's workshop, per Maxime's "the Mek follows the pilot."
+      // Falls back to the static answer for any mek whose pilot can't be
+      // resolved, so this is never worse than what it replaces.
+      const workshopRoom = workshopRoomFor(lanceOfMekIn(this.campaignState, mekId));
       // 3 Sep 2026 — the first free cradle in that workshop (hubLayout.ts's
       // MEK_SPOTS, five per room), else a random clear spot. A cradle is
       // "free" if no Mek already stands within a body's width of it.
@@ -7018,10 +7251,15 @@ export class Hub extends Phaser.Scene {
         (spot) => !this.npcs.some((n) => n.room === workshopRoom && Phaser.Math.Distance.Between(spot.x, spot.y, n.x, n.y) < NPC_R * 2),
       );
       const pos = cradle ?? this.pickInitialNpcSpot(workshopRoom, this.npcs);
-      const circle = this.add.circle(0, 0, NPC_R, color, 1).setStrokeStyle(2, 0xffffff, 0.25);
-      const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
+      // B4, 5 Sep 2026 — drawPilotAvatar (TransporterPad.ts). mekId is a
+      // `mek_<surname>` id, never a portrait match (see the other workshop
+      // loop's own comment above) — always falls back to the placeholder.
+      // Hub Floor Portrait Revert, 6 Sep 2026 — forcePlaceholder: true, same
+      // reasoning as the other Mek loop just above.
+      const avatar = drawPilotAvatar(this, 0, 0, NPC_R, mekId, displayName, color, undefined, true);
+      const circle = avatar.hitCircle;
       const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
-      const root = this.add.container(pos.x, pos.y, [circle, label, nameTag]);
+      const root = this.add.container(pos.x, pos.y, [avatar.container, nameTag]);
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
       const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
 
@@ -7272,9 +7510,12 @@ export class Hub extends Phaser.Scene {
     // Derived from the real WARDEN_PILOTS record rather than hardcoded —
     // caught in review, 25 Aug 2026: an earlier draft hardcoded "DR" here
     // while every NPC correctly derived initials from pilotInitials(). Same
-    // convention as the NPCs, not a special case for the player.
+    // convention as the NPCs, not a special case for the player. B4, 5 Sep
+    // 2026: drawPilotAvatar below now derives initials itself (only ever
+    // used for its placeholder-fallback branch, which pilot_rourke never
+    // takes — see the comment at that call), so this file no longer needs
+    // its own copy of them.
     const rourke = WARDEN_PILOTS.find((p) => p.id === "pilot_rourke");
-    const initials = rourke ? pilotInitials(rourke.displayName) : "??";
 
     // 3 Sep 2026, floor-plan pass — spawn on the Rec Room's open floor
     // (hubLayout.ts's PLAYER_SPAWN), clear of whoever's already standing
@@ -7286,9 +7527,30 @@ export class Hub extends Phaser.Scene {
     this.playerY = spawn.y;
     this.currentRoomId = zoneAt("lower", spawn.x, spawn.y);
 
-    const circle = this.add.circle(0, 0, PLAYER_R, PATH_COLORS.meeps, 1).setStrokeStyle(2, 0xffd166, 0.9);
-    const label = this.add.text(0, 0, initials, { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" }).setOrigin(0.5);
-    this.player = this.add.container(this.playerX, this.playerY, [circle, label]);
+    // B4, 5 Sep 2026 — drawPilotAvatar (TransporterPad.ts). pilot_rourke is
+    // one of the 15 named portraits, so the player always gets their real
+    // one here (Rourke's own gold ring kept, distinct from every NPC's
+    // dimmer white one).
+    // Hub Floor Portrait Revert, 6 Sep 2026 — forcePlaceholder: true as the
+    // 9th arg, same as every other avatar on this floor; Rourke's gold
+    // ring (the stroke object just below) is untouched, only the portrait
+    // image itself is suppressed here.
+    const avatar = drawPilotAvatar(
+      this,
+      0,
+      0,
+      PLAYER_R,
+      "pilot_rourke",
+      rourke?.displayName ?? "Rourke",
+      PATH_COLORS.meeps,
+      {
+        color: 0xffd166,
+        width: 2,
+        alpha: 0.9,
+      },
+      true
+    );
+    this.player = this.add.container(this.playerX, this.playerY, [avatar.container]);
   }
 
   /** Calendar economy, 2 Sep 2026 — repaint the HUD day readout. Guarded because a day can roll over while a scene teardown is in flight. */
@@ -7622,6 +7884,12 @@ export class Hub extends Phaser.Scene {
     // same time by design, and whichever is tested first is the one Esc
     // closes. Esc here closes only the roll, putting the player back in the
     // Vault they opened it from. B3, 5 Sep 2026.
+    if (this.rosterOpen) {
+      this.updateBubbles();
+      if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closeRosterPanel();
+      return;
+    }
+
     if (this.memorialOpen) {
       this.updateBubbles();
       if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.closeMemorial();
@@ -7811,46 +8079,21 @@ export class Hub extends Phaser.Scene {
     if (this.keys.d.isDown || this.cursors?.right?.isDown) dx += 1;
     if (this.keys.w.isDown || this.cursors?.up?.isDown) dy -= 1;
     if (this.keys.s.isDown || this.cursors?.down?.isDown) dy += 1;
-    if (dx === 0 && dy === 0) {
-      this.playerStuckMs = 0; // no input held — standing still on purpose, not stuck
-      return;
-    }
+    if (dx === 0 && dy === 0) return; // no input held — standing still on purpose
 
     const len = Math.hypot(dx, dy) || 1;
     const stepX = (dx / len) * PLAYER_SPEED * dt;
     const stepY = (dy / len) * PLAYER_SPEED * dt;
 
-    const beforeX = this.playerX;
-    const beforeY = this.playerY;
-
-    // Axis-separated movement so the player slides along a wall or an NPC
-    // instead of sticking dead the instant one axis would collide.
+    // Axis-separated movement so the player slides along a wall instead of
+    // sticking dead the instant one axis would collide. 5 Sep 2026 — used to
+    // say "a wall or an NPC" here; bodies no longer collide with each other
+    // at all (see tryMove/tryMoveNpc's own headers), only clampToDeckFloor's
+    // walls and furniture still do.
     this.tryMove(stepX, 0);
     this.tryMove(0, stepY);
 
     this.player.setPosition(this.playerX, this.playerY);
-
-    // Tier 6 hotfix, 30 Aug 2026 — see PLAYER_STUCK_TIMEOUT_MS's own header
-    // and forceUnstickPlayer's below. Zero net movement despite held input
-    // AND a real crowd nearby, sustained past the timeout, triggers a
-    // guaranteed relocation to a genuinely clear spot instead of leaving the
-    // player boxed in until the crowd happens to wander apart on its own.
-    if (this.playerX === beforeX && this.playerY === beforeY) {
-      const nearbyNpcCount = this.npcs.filter(
-        (n) => sameDeck(n.room, this.currentRoomId) && Phaser.Math.Distance.Between(this.playerX, this.playerY, n.x, n.y) < PLAYER_STUCK_NPC_CHECK_RADIUS,
-      ).length;
-      if (nearbyNpcCount >= PLAYER_STUCK_MIN_NEARBY_NPCS) {
-        this.playerStuckMs += delta;
-        if (this.playerStuckMs >= PLAYER_STUCK_TIMEOUT_MS) {
-          this.forceUnstickPlayer();
-          this.playerStuckMs = 0;
-        }
-      } else {
-        this.playerStuckMs = 0;
-      }
-    } else {
-      this.playerStuckMs = 0;
-    }
 
     // Antfarm Grid v0, 27 Aug 2026 — §3f's "open floor, no door-per-room":
     // within a deck, currentRoomId is now a LIVE label (which zone the
@@ -7869,42 +8112,18 @@ export class Hub extends Phaser.Scene {
     }
   }
 
+  // 5 Sep 2026, Maxime: "make people able to pass tru each other with no
+  // collision, getting stuck in corridor is anothing as fuck." Used to loop
+  // every NPC on this deck and block whichever axis would land within
+  // PLAYER_R + NPC_R of one of them — that per-axis body block was the
+  // actual mechanism behind every corridor jam this file's own history
+  // documents (the cluster-stuck hotfixes, forceUnstickPlayer, the Move It
+  // verb). Gone: only clampToDeckFloor's walls and furniture still stop the
+  // player now, bodies pass straight through each other.
   private tryMove(dx: number, dy: number) {
     const clamped = clampToDeckFloor(ROOM_DECK[this.currentRoomId], this.playerX + dx, this.playerY + dy, PLAYER_R);
-    const nx = clamped.x;
-    const ny = clamped.y;
-    for (const npc of this.npcs) {
-      if (!sameDeck(npc.room, this.currentRoomId)) continue; // an NPC on a different deck can't physically block this one
-      if (Phaser.Math.Distance.Between(nx, ny, npc.x, npc.y) < PLAYER_R + NPC_R) return; // blocked, don't apply this axis
-    }
-    this.playerX = nx;
-    this.playerY = ny;
-  }
-
-  // Tier 6 hotfix, 30 Aug 2026 — Maxime: "still cant move. from the
-  // cluster, I spawned on top of them when I changed room." See
-  // PLAYER_STUCK_TIMEOUT_MS's own header for when this fires. The real
-  // fix for the specific "spawned on top of them" report is
-  // pickClearPoint's own escalating search (see its header, up near
-  // pickPointNearDoor) — that's what stops a bad landing from happening at
-  // all. This is the catch-all for any other way the player ends up boxed
-  // in by a real crowd: reuses that exact same search, just centered on
-  // the player's own current (stuck) position instead of a door, so it
-  // gets the identical "never silently settle for an occupied point"
-  // guarantee.
-  private forceUnstickPlayer() {
-    const occupants = this.npcs.filter((n) => sameDeck(n.room, this.currentRoomId));
-    const clear = pickClearPoint(
-      ROOM_DECK[this.currentRoomId],
-      { x: this.playerX, y: this.playerY },
-      occupants,
-      PLAYER_R,
-      DOOR_LANDING_JITTER_DIST,
-      DOOR_LANDING_MAX_ATTEMPTS,
-    );
-    this.playerX = clear.x;
-    this.playerY = clear.y;
-    this.player.setPosition(this.playerX, this.playerY);
+    this.playerX = clamped.x;
+    this.playerY = clamped.y;
   }
 
   // 26 Aug 2026 — the sober-up half of DRUNK_DURATION_MS. Cheap linear
@@ -7955,8 +8174,16 @@ export class Hub extends Phaser.Scene {
     if (!attempt) {
       for (const npc of this.npcs) {
         npc.nextWorryCheckAt = undefined;
-        if (!npc.ambient.worried) continue;
-        npc.ambient = { ...npc.ambient, worried: false };
+        // Worries System step 2, 6 Sep 2026 — mission_pilot_missing drops
+        // the instant there's no active attempt, same immediacy the flat
+        // worried boolean below always had ("runs until the player exits,
+        // what isn't saved is lost" — Maxime, 25 Aug 2026). Not left to
+        // its own expiresAt safety net, which exists for the case this
+        // loop stops running at all, not the ordinary case of the attempt
+        // simply ending.
+        if (npc.worries !== undefined) npc.worries = removeWorry(npc.worries, "mission_pilot_missing");
+        if (!npc.ambient.worried && npc.ambient.topWorry === undefined) continue;
+        npc.ambient = { ...npc.ambient, worried: false, topWorry: undefined };
       }
       return;
     }
@@ -7965,9 +8192,48 @@ export class Hub extends Phaser.Scene {
     for (const npc of this.npcs) {
       if (npc.nextWorryCheckAt !== undefined && now < npc.nextWorryCheckAt) continue;
       npc.nextWorryCheckAt = now + WORRY_RECHECK_MS;
-      const worried = Math.random() < worryTriggerChance(elapsedSinceOnset, npc.favorability);
-      if (npc.ambient.worried === worried) continue;
-      npc.ambient = { ...npc.ambient, worried };
+      const intensity = worryTriggerChance(elapsedSinceOnset, npc.favorability);
+      const worried = Math.random() < intensity;
+
+      // Worries System step 2, 6 Sep 2026 (Bloom_Wars_Worries_System_
+      // Proposal_v1.md, build order step 2) — Mission Worry absorbed as
+      // the general Worries list's first live source. Deliberately a
+      // SEPARATE roll from `worried` just above, not derived from it:
+      // `worried` still drives Breakdown's own isBreakdownEligible() gate
+      // and the roster panel's readout unchanged, out of scope for this
+      // pass (data/worries.ts's own header: "read-side only... nothing
+      // else"), so the two are independent samples of the same underlying
+      // probability and can disagree at any single instant. pickSoloEcho
+      // (ambientLines.ts) is the one consumer of topWorry so far. Once a
+      // real second Worries source exists (step 3's combat bridge), it'll
+      // be worth deciding whether Breakdown should read the general list
+      // too instead of staying stuck on Mission-Worry-only forever —
+      // flagged, not decided here.
+      //
+      // catalyst: "wolf" (teamwork) — a judgment call, not something the
+      // proposal pins down for this specific source. Grounded in this
+      // exact function's own neighbor content rather than picked blind:
+      // ambientLines.ts's pickSoloEcho comment already cites the wolf
+      // catalyst's own fear-bank lines ("Don't scatter... we lose someone
+      // else," "Sound off, I need to hear every voice") as reading like
+      // crewmate-worry as much as self-panic. Doesn't drive any behavior
+      // yet either way — pickSoloEcho keys content off the PILOT's own
+      // catalyst, not the worry's — so this is forward-looking metadata
+      // for the step 3 combat bridge, worth a gut-check with Maxime once
+      // that's built, not a blocker now.
+      const entry: WorryEntry = {
+        source: "mission_pilot_missing",
+        catalyst: "wolf",
+        intensity,
+        bornAt: now,
+        // Safety-net only (module header's own comment) — the no-attempt
+        // branch above is the real removal path in the ordinary case.
+        expiresAt: now + WORRY_RECHECK_MS * 3,
+      };
+      npc.worries = intensity > 0 ? upsertWorry(npc.worries ?? [], entry) : removeWorry(npc.worries ?? [], "mission_pilot_missing");
+      const topWorry = loudestWorry(npc.worries, now);
+
+      npc.ambient = { ...npc.ambient, worried, topWorry };
     }
   }
 
@@ -8146,16 +8412,14 @@ export class Hub extends Phaser.Scene {
     }
   }
 
+  // 5 Sep 2026 — used to block against the player (within NPC_R + PLAYER_R)
+  // and against every other NPC on the same deck (within NPC_R + NPC_R)
+  // before applying a step; see tryMove's own header, same change, same
+  // reason. Only clampToDeckFloor's walls and furniture still stop an NPC.
   private tryMoveNpc(npc: HubNpc, dx: number, dy: number) {
     const clamped = clampToDeckFloor(ROOM_DECK[npc.room], npc.x + dx, npc.y + dy, NPC_R);
     const nx = clamped.x;
     const ny = clamped.y;
-    if (sameDeck(npc.room, this.currentRoomId) && Phaser.Math.Distance.Between(nx, ny, this.playerX, this.playerY) < NPC_R + PLAYER_R) return; // blocked by the player, only when they're actually sharing this deck's open floor
-    for (const other of this.npcs) {
-      if (other === npc) continue;
-      if (!sameDeck(other.room, npc.room)) continue; // different deck, can't collide
-      if (Phaser.Math.Distance.Between(nx, ny, other.x, other.y) < NPC_R + NPC_R) return; // blocked by another NPC
-    }
     npc.x = nx;
     npc.y = ny;
     npc.root.setPosition(nx, ny);
@@ -8365,8 +8629,12 @@ export class Hub extends Phaser.Scene {
   // 3 Sep 2026 — which lance an NPC belongs to, for the per-lance berths.
   // A Mek NPC's pilotId IS the mek's own id (see buildNpcs), hence the
   // prefix check; both resolvers know both campaigns' rosters.
+  // B2, 5 Sep 2026 — both resolvers now read the live lance assignment
+  // rather than the static arrival batch, so reassigning a pilot moves both
+  // their Mek's workshop and their own berth. Same fallback in both: an
+  // unresolvable id still gets the static answer.
   private lanceOf(npc: HubNpc): LanceId {
-    return npc.pilotId.startsWith("mek_") ? lanceOfMek(npc.pilotId) : lanceOfPilot(npc.pilotId);
+    return npc.pilotId.startsWith("mek_") ? lanceOfMekIn(this.campaignState, npc.pilotId) : lanceOfPilotIn(this.campaignState, npc.pilotId);
   }
 
   // NEED_ROOM says "sleep restores in berths" without knowing there are
@@ -8374,11 +8642,19 @@ export class Hub extends Phaser.Scene {
   // lance's bunks and passes every other need's room through untouched.
   private needRoomFor(npc: HubNpc, need: keyof typeof NEED_ROOM): RoomId {
     const base = NEED_ROOM[need];
-    return base === "berths" ? LANCE_BERTHS[this.lanceOf(npc)] : base;
+    return base === "berths" ? berthRoomFor(this.lanceOf(npc)) : base;
   }
 
   private updateNpcRoaming(now: number) {
     for (const npc of this.npcs) {
+      // NPC Conversation Lock Fix, 6 Sep 2026 — checked before targetX and
+      // before the journey-resume branch below on purpose (see
+      // HubNpc.engagedUntil's own comment): this NPC never has a walk
+      // target while mid-exchange (encounters only ever start on an
+      // already-idle pair), but a mid-journey NPC paused between door hops
+      // could theoretically be pulled into one too, and this has to win
+      // over resuming that journey the same way mustered already does.
+      if (isNpcEngaged(npc.engagedUntil, now)) continue;
       if (npc.targetX !== undefined) continue;
       if (npc.nextRoamAt === undefined || now < npc.nextRoamAt) continue;
 
@@ -8540,7 +8816,7 @@ export class Hub extends Phaser.Scene {
         // ordinary pilot's own roaming actually goes through.
         const worstOfNeeds = worstNeed(npc.hunger, npc.thirst, npc.sleep, npc.boredom);
         const biasRoom = worstOfNeeds ? this.needRoomFor(npc, worstOfNeeds) : undefined;
-        const target = pickExploreTarget(npc.room, biasRoom, LANCE_BERTHS[this.lanceOf(npc)]);
+        const target = pickExploreTarget(npc.room, biasRoom, berthRoomFor(this.lanceOf(npc)));
         if (sameDeck(npc.room, target)) {
           // ROOM_ZONE_BOUNDS[target] is grotto's own (bigger, off-center)
           // bounding rect for that deck (see its own comment) — picking a
@@ -8674,6 +8950,15 @@ export class Hub extends Phaser.Scene {
     for (let i = 0; i < this.npcs.length; i++) {
       const npcA = this.npcs[i];
       if (npcA.targetX !== undefined) continue; // mid-walk somewhere else — not settled enough to strike up anything
+      // NPC Conversation Lock Fix, 6 Sep 2026 — belt-and-suspenders, not a
+      // live bug on its own: every encounter already pushes both sides'
+      // nextEncounterAt out by ENCOUNTER_COOLDOWN_MIN/MAX_MS (12-22s), well
+      // past NPC_ENGAGEMENT_HOLD_MS (7.8s), so the check just below already
+      // stops a third ant from pairing with an engaged npcA today. Checked
+      // anyway so that invariant (one cooldown constant staying bigger than
+      // another, unrelated one) doesn't have to hold forever for this to
+      // stay correct.
+      if (isNpcEngaged(npcA.engagedUntil, now)) continue;
       if (npcA.nextEncounterAt === undefined || now < npcA.nextEncounterAt) continue;
       // Every candidate npcB below is sameDeck(npcB.room, npcA.room) by
       // construction, so if npcA is on the saturated deck, no pair this
@@ -8687,6 +8972,9 @@ export class Hub extends Phaser.Scene {
         const npcB = this.npcs[j];
         if (!sameDeck(npcB.room, npcA.room)) continue;
         if (npcB.targetX !== undefined) continue;
+        // NPC Conversation Lock Fix, 6 Sep 2026 — same belt-and-suspenders
+        // reasoning as npcA's own check above.
+        if (isNpcEngaged(npcB.engagedUntil, now)) continue;
         if (npcB.nextEncounterAt === undefined || now < npcB.nextEncounterAt) continue;
         if (Phaser.Math.Distance.Between(npcA.x, npcA.y, npcB.x, npcB.y) > ENCOUNTER_RADIUS) continue;
 
@@ -8776,6 +9064,11 @@ export class Hub extends Phaser.Scene {
     npcA.socialLog?.push({ verb: "angerBlowup", line: `${exchange.lineA} / ${exchange.lineB}`, at: Date.now() });
     npcB.socialLog?.push({ verb: "angerBlowup", line: `${exchange.lineA} / ${exchange.lineB}`, at: Date.now() });
 
+    // NPC Conversation Lock Fix, 6 Sep 2026 — same fix as runNpcEncounter
+    // above; this function always stages a real two-line exchange, so the
+    // full NPC_ENGAGEMENT_HOLD_MS window is never an overestimate here.
+    npcA.engagedUntil = npcB.engagedUntil = now + NPC_ENGAGEMENT_HOLD_MS;
+
     const nextA = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
     const nextB = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
     npcA.nextEncounterAt = nextA;
@@ -8834,6 +9127,15 @@ export class Hub extends Phaser.Scene {
     // comment already established (every other verb is player-vs-one-NPC).
     npcA.socialLog?.push({ verb: "spar", line: result.summary, at: Date.now() });
     npcB.socialLog?.push({ verb: "spar", line: result.summary, at: Date.now() });
+
+    // NPC Conversation Lock Fix, 6 Sep 2026 — npcB never actually shows a
+    // bubble here (only npcA gets the summary line), so there's no reply
+    // for npcB to be caught mid-wait for, but holding both anyway matches
+    // runNpcEncounter's own single-bubble kinds (pegBoard/poker/fletchers/
+    // askOut), which get the same blanket treatment for the same reason:
+    // one rule for "an encounter is in progress," not a special case per
+    // branch depending on who does or doesn't get a bubble.
+    npcA.engagedUntil = npcB.engagedUntil = now + NPC_ENGAGEMENT_HOLD_MS;
 
     const nextA = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
     const nextB = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
@@ -8976,6 +9278,11 @@ export class Hub extends Phaser.Scene {
     } else {
       this.showBubble(npcA, result.summary, now);
     }
+
+    // NPC Conversation Lock Fix, 6 Sep 2026 — set unconditionally, covering
+    // every branch above alike (see NPC_ENGAGEMENT_HOLD_MS's own comment
+    // for why one flat window instead of one per branch).
+    npcA.engagedUntil = npcB.engagedUntil = now + NPC_ENGAGEMENT_HOLD_MS;
 
     const nextA = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
     const nextB = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
@@ -9303,6 +9610,13 @@ export class Hub extends Phaser.Scene {
   // but actually USING it needs the player standing at it specifically).
   private isAtHangarShop(): boolean {
     return this.currentRoomId === "hangarDeck" && Phaser.Math.Distance.Between(this.playerX, this.playerY, HANGAR_SHOP_POINT.x, HANGAR_SHOP_POINT.y) <= HANGAR_SHOP_RADIUS;
+  }
+
+  // B2, 5 Sep 2026 — the crew-records console. Same shape as
+  // isAtHangarShop just above; CREW_RECORDS_POINT is placed 220px clear of
+  // HANGAR_SHOP_POINT so these two can never both be true at once.
+  private isAtCrewRecords(): boolean {
+    return this.currentRoomId === "hangarDeck" && Phaser.Math.Distance.Between(this.playerX, this.playerY, CREW_RECORDS_POINT.x, CREW_RECORDS_POINT.y) <= HANGAR_SHOP_RADIUS;
   }
 
   private isAtWorkshopBench(): boolean {
@@ -9849,7 +10163,7 @@ export class Hub extends Phaser.Scene {
     // omniscient transcript — so it stays gated the same way.
     if (sameDeck(npc.room, this.currentRoomId)) this.logChatLine(npc.initials, line);
 
-    const duration = Math.min(6000, 2600 + line.length * 30);
+    const duration = Math.min(BUBBLE_DURATION_CAP_MS, 2600 + line.length * 30);
     npc.bubbleUntil = now + duration;
   }
 }
@@ -9880,9 +10194,21 @@ function stageBadge(stage: Stage): string {
 // have both at once (dating one NPC, clashing with a totally different
 // one — two independent axes, relationships list vs. worst bond), so
 // both tags render together rather than one taking priority.
+// B2, 5 Sep 2026 — the numeric Favorability value no longer renders here.
+// Maxime's ask, verbatim: "dont let the player see the fsvorability incrase
+// decrase. they just see the number in the hangsr room panel." That number
+// now lives only in the Hangar Deck's crew-records panel
+// (scenes/ui/RosterPanel.ts), checked on purpose rather than ticking up and
+// down in the corner of the screen while you walk past someone.
+//
+// What stays, per Maxime's own call on the plan doc's open question: the
+// name, the Stage badge, and the ♥/⚡ relationship tags. Those are status —
+// they change rarely and mean something at a glance — rather than a live
+// counter, so hiding them would have cost real ambient readability for no
+// gain against the actual ask. npc.favorability itself is untouched and
+// still drives everything it always did; this is a display change only.
 function favorabilityLabel(npc: HubNpc, partner?: string, rival?: string): string {
-  const sign = npc.favorability >= 0 ? "+" : "";
-  let base = `${npc.displayName.split("—")[0].trim()}  ${stageBadge(npc.ambient.stage)}  ${sign}${npc.favorability}`;
+  let base = `${npc.displayName.split("—")[0].trim()}  ${stageBadge(npc.ambient.stage)}`;
   if (partner) base += `  ♥ ${partner}`;
   if (rival) base += `  ⚡ ${rival}`;
   return base;

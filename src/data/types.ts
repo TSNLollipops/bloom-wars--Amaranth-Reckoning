@@ -87,6 +87,19 @@ export interface UnitArchetype {
 export interface PilotRecord {
   id: string;
   displayName: string;
+  /**
+   * A recruited pilot's earned callsign (B2 recruiting pass, 5 Sep 2026 —
+   * Maxime: "Allow recruit to gain callsign via actions"). Absent means they
+   * haven't earned one yet, which is how every recruit starts: they join
+   * under a plain rank-and-name and the crew names them after they do
+   * something. Set by engine/campaignState.ts's awardCallsign, which also
+   * folds it into displayName.
+   *
+   * The authored cast doesn't use this — their callsigns are part of the
+   * displayName they were written with. Absent on all of them, and that's
+   * correct rather than missing data.
+   */
+  callsign?: string;
   archetypeId: string;
   mekId: string;
   tier: Tier;
@@ -112,6 +125,38 @@ export interface PilotRecord {
   // branches, default weapon," with zero migration needed.
   ownedWeaponBranches?: string[];
   equippedWeaponBranch?: string;
+  // Frame Systems Layer, Tier 1 (6 Sep 2026, data/frameSystems.ts) — the
+  // second mount at tier C (doc §3: "carry two branches into the same
+  // mission"). `equippedWeaponBranches` is the full list of ACTIVE branches,
+  // mount order, length bounded by frameCapacityFor(tier).mounts (1 below C,
+  // 2 from C). Both equipped branches are live at once in a mission — every
+  // passive branch effect stacks, both granted abilities appear, range
+  // windows merge to the widest — there is no "switch weapon" verb.
+  //
+  // `equippedWeaponBranch` above is NOT removed and NOT made stale: it is
+  // kept as a mirror of `equippedWeaponBranches[0]` (mount 1), written by
+  // the same engine functions that write the list, so (a) every existing
+  // save reads correctly with zero migration — a record with only the old
+  // field is treated as a one-element list, see engine/frameSystems.ts's
+  // equippedWeaponBranchesOf — and (b) nothing that only ever cared about
+  // "the" branch has to change its read. engine/frameSystems.ts's
+  // equippedWeaponBranchesOf is the ONE read path; never read either field
+  // directly for game logic.
+  equippedWeaponBranches?: string[];
+  // Frame systems (doc §4/§5): everything ever bought, and which of those
+  // are installed for the next mission. Installed set is bounded by the
+  // frame's Draw budget (frameCapacityFor(tier).draw, with §7's salvage
+  // surcharge for a non-Runemaster loadout) — engine/campaignEconomy.ts's
+  // equipFrameSystem enforces it at equip time, and
+  // engine/frameSystems.ts's equippedFrameSystemsWithinDraw re-checks at
+  // deploy time so a later data retune that shrinks a budget can never
+  // field more than the frame allows. Optional so every pre-existing save
+  // reads as "nothing bought, nothing installed," same as ownedWeaponBranches.
+  ownedFrameSystems?: string[];
+  equippedFrameSystems?: string[];
+  // The A-tier Frame Refit (doc §8) — one per pilot, permanent once bought.
+  // Undefined until purchased, which is every pilot below A and most at it.
+  frameRefit?: string;
   // Vault Phase 2, slice 5 (3 Sep 2026) — lastword_signature's (Migawari/
   // The Last Word) own permanent cost: "the wielder's own max HP is
   // permanently reduced X% for the rest of the campaign, each use."

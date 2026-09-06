@@ -79,6 +79,7 @@ export type PlayerAiAbility =
   | "abil_taunt"
   | "abil_fire_support"
   | "abil_missile"
+  | "abil_maser_lance"
   | "rescue";
 
 const ALL_ABILITIES: Record<PlayerAiAbility, boolean> = {
@@ -92,6 +93,7 @@ const ALL_ABILITIES: Record<PlayerAiAbility, boolean> = {
   abil_taunt: true,
   abil_fire_support: true,
   abil_missile: true,
+  abil_maser_lance: true,
   rescue: true,
 };
 

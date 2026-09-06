@@ -38,7 +38,7 @@
 // "Rourke's Mek") is correct as-is and needed no change — that already was
 // the person's name.
 import Phaser from "phaser";
-import type { MekTrack, Path, Tier } from "../../data/types";
+import type { MekTrack, Path } from "../../data/types";
 import { UNIT_ARCHETYPES } from "../../data/units";
 import {
   purchaseTierUpgrade,
@@ -47,10 +47,11 @@ import {
   fabricatorMaxSpareParts,
   purchaseWeaponBranch,
   equipWeaponBranch,
+  unequipWeaponBranch,
   convertPersonalToCompany,
   CONVERSION_RATE,
   TIER_ORDER,
-  TIER_UPGRADE_COST,
+  tierUpgradeCostFor,
   MEK_SECONDARY_COST,
   SPARE_PART_COST,
   purchaseBeaconCrate,
@@ -62,13 +63,23 @@ import {
 } from "../../engine/campaignEconomy";
 import {
   recruitDiscretionary,
+  recruitIntoLance,
+  recruitCandidates,
+  lanceRoster,
+  lanceDisplayName,
+  activeLanceIds,
+  MAX_LANCE_SIZE,
+  type LanceId,
   DISCRETIONARY_RECRUIT_COST,
+  dischargePilot,
   saveManualSlot,
   listManualSlots,
   MANUAL_SAVE_SLOT_COUNT,
   type CampaignState,
 } from "../../engine/campaignState";
 import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../../data/weaponBranches";
+import { equippedWeaponBranchesOf, mountsFor, drawCapacityFor, frameDrawUsed } from "../../engine/frameSystems";
+import { showFrameOverlay } from "./FramePanel";
 
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
@@ -91,7 +102,7 @@ type ShopEntry =
   | { type: "sectionHeader"; label: string }
   | { type: "pilot"; pilotId: string }
   | { type: "mek"; pilotId: string }
-  | { type: "info"; label: string }
+  | { type: "info"; label: string; color?: string }
   | { type: "recruit" }
   | { type: "beaconStock" };
 
@@ -100,7 +111,7 @@ const ROW_H: Record<ShopEntry["type"], number> = {
   pilot: 148, // grown from 96 (25 Aug 2026) to fit the Weapon Branch button row added 27 Aug 2026
   mek: 54,
   info: 30,
-  recruit: 136,
+  recruit: 210, // grown 5 Sep 2026 for the lance selector + candidate list (recruit-your-own-lance)
   // Beacon Control's crate/charge stockpile (built 4 Sep 2026) — one row,
   // two buy buttons side by side, same rough footprint as drawMekRow's own
   // 54 but a hair taller since it carries two stock counts instead of one.
@@ -228,9 +239,32 @@ export function showSaveAsOverlay(scene: Phaser.Scene, state: CampaignState, onS
  */
 export class ShopPanel {
   private shopPage = 0;
+  // Set after a hire so render() can keep the recruit card under the
+  // player's cursor (5 Sep 2026, found by the recruit verification): every
+  // hire adds a 148px pilot row to this same list, which repaginates and
+  // shoves the recruit card onto a later page. Without this, signing your
+  // five-pilot lance means hunting for the card again after almost every
+  // click.
+  private keepRecruitVisible = false;
+  /** Exposed for the headless verify scripts, which page to the recruit card without clicking through. */
+  goToPage(n: number): void {
+    this.shopPage = n;
+    this.render();
+  }
   private recruitClass: Path = "meeps";
+  /** Which lance a hire goes into (5 Sep 2026). Defaults to the first lance with room. */
+  private recruitLance: LanceId | null = null;
   private recruitMessage = "";
   private recruitMessageColor = "#8a97a6";
+  // Pilot Discharge (5 Sep 2026) — the shop's own arm-then-confirm click,
+  // one pilot at a time, so a stray click can't discharge someone by
+  // accident (Maxime: "worth a confirm prompt so it's not an accidental
+  // click"). Cleared on every successful/failed discharge and left
+  // otherwise — see drawPilotRow's own comment for the two-text-object
+  // click layout.
+  private dischargeArmedPilotId: string | null = null;
+  private dischargeMessage = "";
+  private dischargeMessageColor = "#8a97a6";
   private shopLayer: Phaser.GameObjects.Container;
   private navLayer: Phaser.GameObjects.Container;
   private scene: Phaser.Scene;
@@ -261,6 +295,14 @@ export class ShopPanel {
       .map(([id]) => id);
 
     entries.push({ type: "sectionHeader", label: "PILOTS — PERSONAL SHOP" });
+    // Discharge feedback (5 Sep 2026) — the discharged pilot's own row is
+    // gone by the time this message would matter (buildEntries only ever
+    // lists status === "active" pilots, and a discharge just flipped one
+    // out of that set), so it can't live on that row the way recruitMessage
+    // lives inside drawRecruitRow. Surfaced here instead, same "info" entry
+    // type the Spare Parts section below already uses for its own "nothing
+    // to show here" note — no new row-height constant needed.
+    if (this.dischargeMessage) entries.push({ type: "info", label: this.dischargeMessage, color: this.dischargeMessageColor });
     for (const pilotId of activePilotIds) entries.push({ type: "pilot", pilotId });
 
     entries.push({ type: "sectionHeader", label: "COMPANY — SPARE PARTS" });
@@ -302,7 +344,14 @@ export class ShopPanel {
   setVisible(visible: boolean): void {
     this.shopLayer.setVisible(visible);
     this.navLayer.setVisible(visible);
+    // Frame Systems Layer (6 Sep 2026) — the Frame overlay this panel can
+    // open is its own top-level container, so hiding this panel (Hub's
+    // close-on-Esc path) would otherwise leave it floating on top of the
+    // ship. Closed here with the panel; Debrief/Hangar never call this and
+    // tear the whole scene down instead.
+    if (!visible) this.frameOverlay?.close();
   }
+  private frameOverlay: { close: () => void } | null = null;
 
   // Hangar Deck washed-out-panel hotfix (30 Aug 2026, Maxime's own
   // screenshot: text barely legible, whole panel looking faded). Same
@@ -322,9 +371,14 @@ export class ShopPanel {
   // A no-op for every existing caller, since neither calls it — same
   // caveat as setVisible().
   setDepth(depth: number): void {
+    this.depth = depth;
     this.shopLayer.setDepth(depth);
     this.navLayer.setDepth(depth);
   }
+  // Frame Systems Layer (6 Sep 2026) — remembered so the [ FRAME ] overlay
+  // this panel opens can sit above whatever this panel itself sits on
+  // (Hub's 61; Debrief/Hangar's default 0). See showFrameOverlay.
+  private depth = 0;
 
   // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — Hub.ts's own camera now
   // scrolls (see that file's startFollow/deckCameraBounds), and shopLayer/
@@ -409,6 +463,11 @@ export class ShopPanel {
     const budget = this.bottom - this.top;
     const pages = computePages(entries, budget);
     this.shopPage = Math.min(this.shopPage, Math.max(0, pages.length - 1));
+    if (this.keepRecruitVisible) {
+      const idx = pages.findIndex((pg) => pg.some((e) => e.type === "recruit"));
+      if (idx >= 0) this.shopPage = idx;
+      this.keepRecruitVisible = false;
+    }
 
     this.shopLayer.removeAll(true);
     this.navLayer.removeAll(true);
@@ -456,7 +515,7 @@ export class ShopPanel {
         break;
       case "info":
         this.shopLayer.add(
-          this.scene.add.text(SHOP_CARD_L + 16, top + 8, entry.label, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
+          this.scene.add.text(SHOP_CARD_L + 16, top + 8, entry.label, { fontFamily: "monospace", fontSize: "10px", color: entry.color ?? "#6b7a8a" })
         );
         break;
       case "recruit":
@@ -494,6 +553,105 @@ export class ShopPanel {
       this.scene.add.text(SHOP_CARD_R - 14, top + 24, "PERSONAL", { fontFamily: "monospace", fontSize: "8px", color: "#6b7a8a" }).setOrigin(1, 0)
     );
 
+    // Pilot Discharge (5 Sep 2026 — Pilot Discharge & Roster Pressure,
+    // shape decided 28 Aug 2026 per Maxime's own delegation). Lives right
+    // on this pilot's own card, in the one strip this card had left empty
+    // (below the name/subline, above the tier-upgrade button at top+62) —
+    // deliberately NOT a new section-list next to Discretionary Recruiting
+    // the way the proposal's own phrasing first suggested, because that
+    // list would need to hold a variable, roster-sized number of rows
+    // (up to 10 pilots by Act II) inside this panel's fixed-per-entry-type
+    // ROW_H/pagination system, the exact kind of unpaged, growing list the
+    // Recruit section's own candidate list deliberately caps at 4 to avoid.
+    // One pilot's own row is a fixed, known size regardless of roster size.
+    //
+    // Two separate text objects, not one text object sliced by click
+    // x-position — this project's own recent Shop-row collision (Convert-
+    // to-company, 5 Sep 2026) came from exactly that kind of guessed pixel
+    // math, and two real objects with their own bounding boxes can't
+    // silently drift out of sync with each other the way a hand-picked
+    // x-threshold inside one string can.
+    //
+    // Never drawn for the commander (PilotRecord.exemptFromPermadeath) —
+    // dischargePilot refuses them anyway, but there's no reason to show a
+    // control that can only ever fail.
+    if (!pilot.exemptFromPermadeath) {
+      const armed = this.dischargeArmedPilotId === pilotId;
+      if (!armed) {
+        this.shopLayer.add(
+          this.scene.add
+            .text(SHOP_CARD_L + 14, top + 44, "[ discharge ]", { fontFamily: "monospace", fontSize: "9px", color: "#b45309" })
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+            .on("pointerdown", () => {
+              this.dischargeArmedPilotId = pilotId;
+              this.dischargeMessage = "";
+              this.render();
+            })
+        );
+      } else {
+        this.shopLayer.add(
+          this.scene.add
+            .text(SHOP_CARD_L + 14, top + 44, "[ CONFIRM DISCHARGE ]", { fontFamily: "monospace", fontSize: "9px", color: "#ef4444" })
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+            .on("pointerdown", () => {
+              const result = dischargePilot(this.state, pilotId);
+              this.dischargeArmedPilotId = null;
+              if (result.ok) {
+                this.dischargeMessageColor = "#4ade80";
+                this.dischargeMessage = result.muntiReplacement
+                  ? `${pilot.displayName} discharged. They were the roster's last Munti — ${result.muntiReplacement.displayName} was brought in to cover the gap.`
+                  : `${pilot.displayName} discharged from the active roster.`;
+              } else {
+                this.dischargeMessageColor = "#ef4444";
+                this.dischargeMessage = result.reason ?? "Discharge failed.";
+              }
+              this.render();
+            })
+        );
+        this.shopLayer.add(
+          this.scene.add
+            .text(SHOP_CARD_L + 170, top + 44, "[ cancel ]", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+            .on("pointerdown", () => {
+              this.dischargeArmedPilotId = null;
+              this.render();
+            })
+        );
+      }
+    }
+
+    // Frame Systems Layer (6 Sep 2026, data/frameSystems.ts) — the one door
+    // into the per-pilot Frame panel (scenes/shop/FramePanel.ts): mounts,
+    // Draw-budgeted systems, the A-tier refit. A text link, not a
+    // makeShopButton, in the one strip this card still had free (the right
+    // half of the discharge row — see the Discharge comment above for why
+    // the left half is spoken for). The Draw readout is the live number, so
+    // a glance at the card says whether there's budget left to install.
+    {
+      const frameMek = this.state.meks[pilot.mekId];
+      const frameLabel = `[ FRAME · Draw ${frameDrawUsed(pilot, frameMek)}/${drawCapacityFor(pilot)} · mounts ${equippedWeaponBranchesOf(pilot).length}/${mountsFor(pilot)} ]`;
+      this.shopLayer.add(
+        this.scene.add
+          .text(SHOP_CARD_R - 14, top + 44, frameLabel, { fontFamily: "monospace", fontSize: "9px", color: "#7dd3fc" })
+          .setOrigin(1, 0)
+          .setInteractive({ useHandCursor: true })
+          .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+          .on("pointerdown", () => {
+            this.frameOverlay?.close();
+            this.frameOverlay = showFrameOverlay(this.scene, this.state, pilotId, {
+              depth: this.depth + 10,
+              onChange: () => this.render(),
+              onClose: () => {
+                this.frameOverlay = null;
+              },
+            });
+          })
+      );
+    }
+
     // Upgrade Tier
     const idx = TIER_ORDER.indexOf(pilot.tier);
     // S-tier (2 Sep 2026, Heirlooms) is off the purchase ladder entirely,
@@ -506,7 +664,11 @@ export class ShopPanel {
     // comment.
     const isHeirloomTier = pilot.tier === "S";
     const atMaxTier = isHeirloomTier || idx === TIER_ORDER.length - 1;
-    const tierCost = atMaxTier ? undefined : TIER_UPGRADE_COST[pilot.tier as Exclude<Tier, "A" | "S">];
+    // tierUpgradeCostFor (6 Sep 2026) — the same number purchaseTierUpgrade
+    // will actually charge, Quartermaster discount included, rather than
+    // the flat table; the two used to agree only because the discount was
+    // never applied anywhere.
+    const tierCost = atMaxTier ? undefined : tierUpgradeCostFor(this.state, pilotId);
     // S-tier clarity fix, 4 Sep 2026 (Maxime: "I thought I could use my
     // heirloom in my last nission... S grade is greyed out. I dont even
     // know."). A pilot capped at A with no Heirloom used to hit this same
@@ -596,18 +758,63 @@ export class ShopPanel {
       this.scene.add.text(SHOP_CARD_L + 14, top + 92, "Weapon Branch:", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
     );
     const owned = pilot.ownedWeaponBranches ?? [];
+    // Frame Systems Layer, second mount (6 Sep 2026): "equipped" is now a
+    // LIST (engine/frameSystems.ts's equippedWeaponBranchesOf — the one read
+    // path, which also understands a pre-6-Sep save's single field), and
+    // the frame has 1 mount below tier C or 2 from C. The buttons below
+    // read that: an equipped branch shows its mount number and unequips on
+    // click; an unequipped one mounts into a free slot, or — when every
+    // mount is full and there are two of them — reads MOUNTS FULL rather
+    // than guessing which live branch to drop (equipWeaponBranch's own
+    // rule; a one-mount frame keeps the old one-click swap exactly).
+    const mounted = equippedWeaponBranchesOf(pilot);
+    const mountCap = mountsFor(pilot);
     // Layout fix, 1 Sep 2026 (caught in a Debrief screenshot during the
     // telemetry pass): makeShopButton takes a CENTER x, but this row was
     // passing the card's left edge — every branch button rendered half off
     // the card's left side, its label clipped, since the day it shipped.
     // `bx` is the button's left edge; `bx + BRANCH_BTN_W / 2` is its centre.
-    const BRANCH_BTN_W = 210;
+    //
+    // Second layout fix, 5 Sep 2026 (caught live in Chrome, checking Combat
+    // Medic's own Shop row right after it shipped as Munti's 4th branch —
+    // the "nobody's watched this render" gap the build addendum flagged).
+    // A FIXED 210px width / 216px pitch was fine for every class that
+    // topped out at 3 branches: 3*216+210 = 858px always landed left of
+    // Convert-to-company (fixed at SHOP_CARD_R-104, its own left edge
+    // around x=741). Combat Medic made Munti the first 4-branch class, and
+    // 4 buttons at the old pitch run to x=902 — deep into Convert-to-
+    // company's footprint. Two distinct failures came out of that, both
+    // reproduced live, not just spotted on screen: an OWNED 4th-slot
+    // button is always interactive (see the literal `true` a few lines
+    // down), so it permanently eats every click meant for Convert-to-
+    // company once a Munti owns all 4 branches — that pilot's convert
+    // button becomes unreachable for good; an UNOWNED, unaffordable
+    // 4th-slot button has no interactive zone at all (makeShopButton
+    // returns before setInteractive when `enabled` is false), so the click
+    // falls THROUGH it onto Convert-to-company underneath instead — which
+    // is exactly what happened testing this build: clicking "BUY Combat
+    // Medic" on a personal-points-short pilot silently ran Convert All
+    // instead and spent the points on nothing.
+    //
+    // Fix: size the row to fit whatever's actually being drawn, capped at
+    // the original 210px so every 1-3-branch class (everyone else, today)
+    // renders pixel-identical to before this fix. Only a class with a real
+    // 4th branch — just Munti, until Meeps/Tank's own 4th-slot question
+    // gets answered — ever computes a narrower width.
+    const BRANCH_ROW_GAP = 6;
+    const BRANCH_ROW_SAFETY_MARGIN = 20; // breathing room before Convert-to-company's own left edge
+    const branchRowRightBound = convertX - 85 - BRANCH_ROW_SAFETY_MARGIN;
+    const branchRowAvailW = branchRowRightBound - (SHOP_CARD_L + 14);
+    const fitWidth = Math.floor((branchRowAvailW - BRANCH_ROW_GAP * (buildable.length - 1)) / buildable.length);
+    const BRANCH_BTN_W = Math.min(210, fitWidth);
+    const BRANCH_BTN_PITCH = BRANCH_BTN_W + BRANCH_ROW_GAP;
     let bx = SHOP_CARD_L + 14;
     for (const branchId of buildable) {
       const cx = bx + BRANCH_BTN_W / 2;
       const branch = WEAPON_BRANCHES[branchId];
       const isOwned = owned.includes(branchId as WeaponBranchId);
-      const isEquipped = pilot.equippedWeaponBranch === branchId;
+      const mountIdx = mounted.indexOf(branchId);
+      const isEquipped = mountIdx >= 0;
       if (!isOwned) {
         const purchaseIndex = owned.length;
         const cost = WEAPON_BRANCH_COSTS[purchaseIndex];
@@ -632,13 +839,19 @@ export class ShopPanel {
           );
         }
       } else {
-        const label = isEquipped ? `${branch.displayName} [EQUIPPED]` : `EQUIP ${branch.displayName}`;
-        makeShopButton(this.scene, this.shopLayer, cx, top + 114, BRANCH_BTN_W, 22, label, true, () => {
-          equipWeaponBranch(this.state, pilotId, isEquipped ? null : branchId);
+        const mountsFull = mounted.length >= mountCap && mountCap > 1;
+        const label = isEquipped
+          ? `${branch.displayName} [M${mountIdx + 1}]`
+          : mountsFull
+            ? `${branch.displayName} (MOUNTS FULL)`
+            : `${mountCap > 1 ? "MOUNT" : "EQUIP"} ${branch.displayName}`;
+        makeShopButton(this.scene, this.shopLayer, cx, top + 114, BRANCH_BTN_W, 22, label, isEquipped || !mountsFull, () => {
+          if (isEquipped) unequipWeaponBranch(this.state, pilotId, branchId);
+          else equipWeaponBranch(this.state, pilotId, branchId);
           this.render();
         });
       }
-      bx += 216;
+      bx += BRANCH_BTN_PITCH;
     }
   }
 
@@ -757,21 +970,135 @@ export class ShopPanel {
       cx += 126;
     }
 
+    // ---- Lance selector (5 Sep 2026) -----------------------------------
+    // Recruiting now fills a specific lance, because lances arrive empty for
+    // the player to build (Maxime: "player should recruit their lance
+    // teamate not have a team be creste for them"). Only lances with an
+    // opening are pickable — a full one has nowhere to put anybody.
+    const openLances = activeLanceIds(this.state).filter((id) => lanceRoster(this.state, id).length < MAX_LANCE_SIZE);
+    if (this.recruitLance === null || !openLances.includes(this.recruitLance)) {
+      this.recruitLance = openLances[0] ?? null;
+    }
+    let lx = SHOP_CARD_L + 14;
+    for (const id of activeLanceIds(this.state)) {
+      const count = lanceRoster(this.state, id).length;
+      const open = count < MAX_LANCE_SIZE;
+      const picked = this.recruitLance === id;
+      const lbg = this.scene.add
+        .rectangle(lx + 70, top + 96, 138, 24, picked ? 0x2e5c7a : 0x1a2028, 1)
+        .setStrokeStyle(1, picked ? 0x4a7a9a : 0x3a4552)
+        .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY);
+      if (open) {
+        lbg.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
+          this.recruitLance = id;
+          this.recruitMessage = "";
+          this.render();
+        });
+      }
+      this.shopLayer.add(lbg);
+      this.shopLayer.add(
+        this.scene.add
+          .text(lx + 70, top + 96, `${lanceDisplayName(id)} ${count}/${MAX_LANCE_SIZE}`, {
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: picked ? "#ffffff" : open ? "#8a97a6" : "#5a6472",
+          })
+          .setOrigin(0.5)
+      );
+      lx += 146;
+    }
+
+    if (this.recruitLance === null) {
+      this.shopLayer.add(
+        this.scene.add.text(SHOP_CARD_L + 14, top + 126, "Every lance is full. Nowhere to put a new hire.", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#8a97a6",
+        })
+      );
+      return;
+    }
+
+    // ---- Candidates ------------------------------------------------------
+    // The ten authored 2nd/3rd Lance pilots are the candidate pool — real
+    // written characters you choose between, rather than ten people handed
+    // over as a finished squad. Once they're all spoken for, the generic
+    // class buttons above hire a generated pilot instead.
+    const candidates = recruitCandidates(this.state).slice(0, 4);
     const canAfford = this.state.points >= DISCRETIONARY_RECRUIT_COST;
-    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 84, top + 100, 148, 28, `RECRUIT (${DISCRETIONARY_RECRUIT_COST})`, canAfford, () => {
+    const lance = this.recruitLance;
+
+    if (candidates.length) {
+      this.shopLayer.add(
+        this.scene.add.text(SHOP_CARD_L + 14, top + 118, "CANDIDATES — click to sign into the selected lance", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#8a97a6",
+        })
+      );
+      let cyc = top + 140;
+      for (const cand of candidates) {
+        const label = `${cand.displayName}  ·  ${UNIT_ARCHETYPES[cand.archetypeId]?.path ?? "?"}`;
+        const t = this.scene.add
+          .text(SHOP_CARD_L + 22, cyc, `[ sign ] ${label}`, {
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: canAfford ? "#c8b273" : "#5a6472",
+          })
+          .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY);
+        if (canAfford) {
+          t.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
+            const result = recruitIntoLance(this.state, lance, cand.id);
+            if (result.ok) {
+              this.state.points -= DISCRETIONARY_RECRUIT_COST;
+              this.recruitMessage = `${result.pilot.displayName} signs on with ${lanceDisplayName(lance)}.`;
+              this.recruitMessageColor = "#4ade80";
+              this.keepRecruitVisible = true;
+              this.onRender?.();
+            } else {
+              this.recruitMessage = result.reason;
+              this.recruitMessageColor = "#ef4444";
+            }
+            this.render();
+          });
+        }
+        this.shopLayer.add(t);
+        cyc += 16;
+      }
+    } else {
+      this.shopLayer.add(
+        this.scene.add.text(SHOP_CARD_L + 14, top + 118, "No named candidates left — hiring draws from the general pool.", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#8a97a6",
+        })
+      );
+    }
+
+    // The generic hire, for when you want a class rather than a name — and
+    // the only route once the authored candidates are all signed.
+    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 110, top + 150, 180, 26, `HIRE ${capitalize(this.recruitClass).toUpperCase()} (${DISCRETIONARY_RECRUIT_COST})`, canAfford, () => {
       const result = recruitDiscretionary(this.state, this.recruitClass);
       if (result.ok && result.pilot) {
-        this.recruitMessage = `Recruited ${result.pilot.displayName}.`;
+        // recruitDiscretionary already charged the points and added the
+        // pilot; it has no concept of lances, so place them in the selected
+        // one rather than letting them default into 1st Lance's slot.
+        const entry = this.state.pilots[result.pilot.id];
+        if (entry) entry.lance = lance;
+        this.recruitMessage = `${result.pilot.displayName} signs on with ${lanceDisplayName(lance)}.`;
         this.recruitMessageColor = "#4ade80";
+        this.keepRecruitVisible = true;
+        this.onRender?.();
       } else {
         this.recruitMessage = result.reason ?? "recruit failed";
         this.recruitMessageColor = "#ef4444";
       }
       this.render();
     });
+
     if (this.recruitMessage) {
       this.shopLayer.add(
-        this.scene.add.text(SHOP_CARD_L + 250, top + 106, this.recruitMessage, {
+        this.scene.add.text(SHOP_CARD_L + 14, top + 190, this.recruitMessage, {
           fontFamily: "monospace",
           fontSize: "10px",
           color: this.recruitMessageColor,

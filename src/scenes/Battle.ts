@@ -3305,7 +3305,7 @@ export class Battle extends Phaser.Scene {
     if (this.beaconTargeting)
       lines.push(
         "",
-        `Sky-blue tile = BEACON target — fully restocks a downed ally, costs a Fabricator crate${
+        `Sky-blue tile = BEACON target — fully restocks a downed ally, costs a crate (their own Fabricator spare part if their mek has one, else Restock Room stock: ${m.beaconCratesRemaining} left)${
           m.beaconChargesRemaining > 0 ? " and a Restock Room charge (waived with a living Munti on the field)" : " (no Restock Room charges left — needs a living Munti on the field to use anyway)"
         }. Esc/right-click to cancel`
       );
@@ -3543,6 +3543,23 @@ export class Battle extends Phaser.Scene {
       if (f && attacker) {
         const pct = (p: number) => `${Math.round(p * 100)}%`;
         out.push("", `FORECAST — ${attacker.displayName} → ${hovered.displayName}`);
+        // Runemaster initiative (6 Sep 2026): the defender counters FIRST,
+        // so the forecast reads in that order too — counter, then the hit
+        // (or no hit at all, if the counter would put the attacker down).
+        if (f.defenderStruckFirst) {
+          let first = `${hovered.displayName} STRIKES FIRST (initiative): ${f.counterDamage} dmg to you`;
+          if (f.counterDodgeChance > 0) first += `, you dodge ${pct(f.counterDodgeChance)}`;
+          out.push(first, `→ ${attacker.displayName} at ${f.attackerHpAfter}/${attacker.maxHp}${f.attackerHpAfter <= 0 ? " — DOWN, your attack never lands" : ""}`);
+          if (f.attackerHpAfter > 0) {
+            let hit = `Then your hit: ${f.damage} dmg`;
+            if (f.decloakStrike) hit += " (DECLOAK ×2)";
+            else if (f.charged) hit += " (charge)";
+            if (f.shieldAbsorbed > 0) hit += `, shield eats ${f.shieldAbsorbed}`;
+            if (f.dodgeChance > 0) hit += `, ${pct(f.dodgeChance)} dodge`;
+            out.push(hit, f.defenderDowned ? `→ ${hovered.displayName} goes DOWN` : `→ ${hovered.displayName} at ${f.defenderHpAfter}/${hovered.maxHp}`);
+          }
+          return out;
+        }
         let hit = `Hit: ${f.damage} dmg`;
         if (f.decloakStrike) hit += " (DECLOAK ×2)";
         else if (f.charged) hit += " (charge)";

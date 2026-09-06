@@ -35,9 +35,22 @@ import type { CampaignMission, MekArchetype, Path, PilotRecord } from "../data/t
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { canLaunchMission, companyNameOf, createWardenCampaignState, loadCampaignState, saveCampaignState, type CampaignState } from "../engine/campaignState";
+import {
+  canLaunchMission,
+  companyNameOf,
+  createWardenCampaignState,
+  lanceDisplayName,
+  lanceRoster,
+  activeLanceIds,
+  loadCampaignState,
+  saveCampaignState,
+  type CampaignState,
+} from "../engine/campaignState";
 import { equipWeaponBranch } from "../engine/campaignEconomy";
 import { WEAPON_BRANCHES, type WeaponBranchId } from "../data/weaponBranches";
+import { equippedWeaponBranchesOf, mountsFor, frameDrawUsed, drawCapacityFor } from "../engine/frameSystems";
+import { showFrameOverlay } from "./shop/FramePanel";
+import { portraitAssetFor } from "../engine/portraits";
 
 // One muted, distinct hue per Path so a squad row scans quickly — new to
 // this file (see header comment: no portrait colour scheme existed
@@ -160,6 +173,91 @@ export function pilotInitials(displayName: string): string {
   if (words.length === 0) return "??";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+/** Returned by drawPilotAvatar — see that function's own header. */
+export interface PilotAvatar {
+  /** Add/position this — holds everything (hit circle plus portrait image or initials text). */
+  container: Phaser.GameObjects.Container;
+  /**
+   * The real underlying circle. Always created (even when a portrait
+   * covers it — its fill is alpha 0 in that case, its stroke ring stays
+   * visible on top of the image). Exists so a caller that needs a real
+   * interactive hit-target (Hub's NPCs — see Hub.ts's own npc.circle
+   * .setInteractive()/.disableInteractive() call sites) has one, exactly
+   * as before this pass, rather than trying to make a Container itself
+   * interactive (Containers need an explicit hit area; a Circle already
+   * has the right one built in).
+   */
+  hitCircle: Phaser.GameObjects.Arc;
+}
+
+/**
+ * B4 (portrait wiring), 5 Sep 2026 — the one place every scene draws a
+ * pilot avatar, real portrait or placeholder. Exported for the same
+ * reason PATH_COLORS/pilotInitials already were (see this file's header):
+ * every scene that used to draw its own "coloured circle with two
+ * initials" now calls this instead of re-deriving it.
+ *
+ * Draws a real portrait (engine/portraits.ts) when the texture is already
+ * in Phaser's cache — which, after Preloader (scenes/Preloader.ts) runs
+ * once at boot, is every pilot portraits.ts knows about. Falls back to
+ * the original GDD §12.2 placeholder — filled circle + initials — for
+ * everyone else (Team One's own roster, an authored-but-unassigned 2nd/
+ * 3rd Lance pilot): see portraits.ts's own header for why that's a
+ * permanent case, not a temporary gap.
+ *
+ * The portrait image itself is square, not circle-masked: a Phaser
+ * GeometryMask has to be repositioned by hand every frame to track
+ * whatever it's masking, and Hub's NPCs move every frame. The stroked
+ * hitCircle ring drawn on top hides the square corners well enough at
+ * every size this is called at (16-46px radius) without that per-frame
+ * tracking risk — not worth introducing into Hub.ts's already-large
+ * per-frame NPC update loop for a handful of corner pixels.
+ *
+ * Hub Floor Portrait Revert, 6 Sep 2026 (Maxime: "notes, to remove
+ * portrait on the pin of the ant and player. its kinda a waste if we dont
+ * have enough for everyone"). Only Lance A's five pilots have finished
+ * portrait art (October Art Plan) — everywhere else this already falls
+ * back to the placeholder on its own via the hasPortrait check just
+ * below, EXCEPT the Hub floor's roaming avatars, the one screen where a
+ * handful of real faces sit right next to a majority of placeholders at
+ * the same time (every other screen — Transporter Pad, Roster, Memorial,
+ * Debrief — shows one pilot in isolation or a short curated list, where
+ * that mix never reads as inconsistent). forcePlaceholder is Hub.ts's own
+ * override for exactly that floor, not a change to the fallback logic
+ * itself. Defaults false, so every existing call site (Transporter Pad,
+ * RosterPanel, MemorialPanel, Debrief) is byte-for-byte unaffected — this
+ * is a pure no-op for all of them.
+ */
+export function drawPilotAvatar(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  radius: number,
+  pilotId: string,
+  displayName: string,
+  fallbackColor: number,
+  stroke: { color: number; width: number; alpha: number } = { color: 0xffffff, width: 2, alpha: 0.25 },
+  forcePlaceholder = false
+): PilotAvatar {
+  const asset = portraitAssetFor(pilotId);
+  const hasPortrait = !forcePlaceholder && !!asset && scene.textures.exists(asset.key);
+
+  const hitCircle = scene.add.circle(0, 0, radius, fallbackColor, hasPortrait ? 0 : 1).setStrokeStyle(stroke.width, stroke.color, stroke.alpha);
+
+  const children: Phaser.GameObjects.GameObject[] = [];
+  if (hasPortrait) {
+    const img = scene.add.image(0, 0, asset!.key).setDisplaySize(radius * 2, radius * 2);
+    children.push(img, hitCircle); // image first (bottom), ring on top of it
+  } else {
+    const text = scene.add
+      .text(0, 0, pilotInitials(displayName), { fontFamily: "monospace", fontSize: `${Math.max(9, Math.round(radius * 0.75))}px`, color: "#ffffff" })
+      .setOrigin(0.5);
+    children.push(hitCircle, text);
+  }
+  const container = scene.add.container(x, y, children);
+  return { container, hitCircle };
 }
 
 /**
@@ -342,6 +440,7 @@ export class TransporterPad extends Phaser.Scene {
       // for someone new is the player's call to make, not a default this
       // screen makes for them.
       this.selected = new Set(activePilotIds.slice(0, this.deployCap));
+      this.drawLanceQuickPick();
       this.add
         .text(
           480,
@@ -380,11 +479,26 @@ export class TransporterPad extends Phaser.Scene {
     if (!entry) return;
     const owned = (entry.pilot.ownedWeaponBranches ?? []) as WeaponBranchId[];
     if (owned.length === 0) return;
-    const current = entry.pilot.equippedWeaponBranch as WeaponBranchId | undefined;
+    // Frame Systems Layer, second mount (6 Sep 2026): cycling one slot only
+    // makes sense on a one-mount frame. From tier C the click opens the
+    // Frame panel instead — two mounts need a real picker, not a wheel.
+    if (mountsFor(entry.pilot) > 1) {
+      this.openFramePanel(pilotId);
+      return;
+    }
+    const current = equippedWeaponBranchesOf(entry.pilot)[0];
     const currentIdx = current ? owned.indexOf(current) : -1;
     const next: WeaponBranchId | null = currentIdx + 1 < owned.length ? owned[currentIdx + 1] : null;
     equipWeaponBranch(this.state, pilotId, next);
     this.redrawSquadList();
+  }
+
+  /** The per-pilot Frame panel (scenes/shop/FramePanel.ts) — mounts, systems, refit — opened from the pilot's own row. Same in-memory-only convention as cycleWeaponBranch: persisted by this screen's own launch/return save. */
+  private openFramePanel(pilotId: string): void {
+    showFrameOverlay(this, this.state, pilotId, {
+      depth: 50,
+      onChange: () => this.redrawSquadList(),
+    });
   }
 
   private toggle(pilotId: string) {
@@ -544,17 +658,20 @@ export class TransporterPad extends Phaser.Scene {
       gfx.lineBetween(padCenterX - ringR - 2, y, padCenterX - ringR - 7, y);
       gfx.lineBetween(padCenterX + ringR + 2, y, padCenterX + ringR + 7, y);
 
+      // B4, 5 Sep 2026 — real portrait when one exists, same placeholder
+      // circle+initials otherwise (drawPilotAvatar, this file). Used to be
+      // drawn straight into `gfx` above (fillCircle/strokeCircle) since it
+      // was Graphics-only either way; now a real portrait needs an Image,
+      // so it's its own Container instead, alpha-dimmed the same way every
+      // other row element already is.
       const portraitR = ringR * 0.62;
-      gfx.fillStyle(path ? PATH_COLORS[path] : 0x555555, 1);
-      gfx.fillCircle(padCenterX, y, portraitR);
-      gfx.lineStyle(1.5, 0xffffff, 0.9);
-      gfx.strokeCircle(padCenterX, y, portraitR);
-
-      const initials = this.add
-        .text(padCenterX, y, pilotInitials(pilot.displayName), { fontFamily: "monospace", fontSize: "12px", color: "#ffffff" })
-        .setOrigin(0.5)
-        .setAlpha(rowAlpha);
-      this.squadLayer.add(initials);
+      const avatar = drawPilotAvatar(this, padCenterX, y, portraitR, pilotId, pilot.displayName, path ? PATH_COLORS[path] : 0x555555, {
+        color: 0xffffff,
+        width: 1.5,
+        alpha: 0.9,
+      });
+      avatar.container.setAlpha(rowAlpha);
+      this.squadLayer.add(avatar.container);
 
       const textX = padCenterX + ringR + 30;
       // [X]/[ ] prefix carries the same "in the deploying squad" signal as
@@ -592,8 +709,10 @@ export class TransporterPad extends Phaser.Scene {
         // cycle through otherwise. Clicking cycles equipped -> next owned
         // branch -> ... -> none (default weapon) -> first owned again.
         const owned = (pilot.ownedWeaponBranches ?? []) as WeaponBranchId[];
-        const equippedId = pilot.equippedWeaponBranch as WeaponBranchId | undefined;
-        const weaponLabel = equippedId ? WEAPON_BRANCHES[equippedId]?.displayName ?? equippedId : "None (default)";
+        // Second mount (6 Sep 2026): every live branch, joined — "A + B" from
+        // tier C. equippedWeaponBranchesOf is the one read path.
+        const equippedIds = equippedWeaponBranchesOf(pilot);
+        const weaponLabel = equippedIds.length ? equippedIds.map((id) => WEAPON_BRANCHES[id]?.displayName ?? id).join(" + ") : "None (default)";
         const trackLine = owned.length > 0 ? `${trackBase}  ·  Weapon: ${weaponLabel}` : trackBase;
         const trackText = this.add
           .text(textX, y + TRACK_DY, trackLine, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
@@ -601,6 +720,23 @@ export class TransporterPad extends Phaser.Scene {
         this.squadLayer.add(trackText);
         if (owned.length > 0) {
           trackText.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.cycleWeaponBranch(pilotId));
+        }
+        // Frame Systems Layer (6 Sep 2026) — the door into the Frame panel
+        // from the pad, appended after the track line the same way the
+        // weapon label itself was. Only for a real campaign entry (a
+        // static-registry fallback pilot has no personal points to spend).
+        if (entry) {
+          const frameMek = this.state.meks[pilot.mekId];
+          const frameLink = this.add
+            .text(textX + trackText.width + 10, y + TRACK_DY, `[ frame · Draw ${frameDrawUsed(pilot, frameMek)}/${drawCapacityFor(pilot)} ]`, {
+              fontFamily: "monospace",
+              fontSize: "10px",
+              color: "#7dd3fc",
+            })
+            .setAlpha(rowAlpha)
+            .setInteractive({ useHandCursor: true })
+            .on("pointerdown", () => this.openFramePanel(pilotId));
+          this.squadLayer.add(frameLink);
         }
       }
 
@@ -636,6 +772,40 @@ export class TransporterPad extends Phaser.Scene {
   // currentDeployIds() every single toggle, so the gate reacts immediately
   // — greying BEAM DOWN out the instant the sole Munti is toggled off, and
   // clearing it the instant one is toggled back in.
+  /**
+   * B2 — fill the deploy slots from a lance (Maxime's call: "lance
+   * pre-selects, but you can override"). Deliberately a CONVENIENCE, not a
+   * constraint: it sets the selection and then gets out of the way, so
+   * every pad stays individually toggleable exactly as before and nothing
+   * about mission balance or the deploy gate changes. A player who never
+   * touches these buttons gets precisely the old behavior.
+   *
+   * Top-left, clear of the pad list which starts around y=130 — see this
+   * scene's own header layout notes.
+   */
+  private drawLanceQuickPick() {
+    this.add.text(20, 20, "fill from:", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0, 0.5);
+    let x = 84;
+    for (const lance of activeLanceIds(this.state)) {
+      const members = lanceRoster(this.state, lance);
+      const label = this.add
+        .text(x, 20, `[ ${lanceDisplayName(lance)} ]`, { fontFamily: "monospace", fontSize: "10px", color: members.length ? "#c8b273" : "#3a4552" })
+        .setOrigin(0, 0.5);
+      if (members.length) {
+        label.setInteractive({ useHandCursor: true });
+        label.on("pointerdown", () => {
+          // Cap at deployCap rather than assuming the lance fits: a lance is
+          // capped at MAX_LANCE_SIZE, which matches deployCap today, but this
+          // screen shouldn't silently break if either ever changes.
+          this.selected = new Set(members.slice(0, this.deployCap).map((e) => e.pilot.id));
+          this.redrawSquadList();
+          this.redrawLaunchSection();
+        });
+      }
+      x += label.width + 8;
+    }
+  }
+
   private redrawLaunchSection() {
     this.launchLayer.removeAll(true);
 

@@ -3,6 +3,7 @@
 // flood fill, and pathfinding. Pure TypeScript — no Phaser (Build Brief §2.2).
 import type { Coord, MapDefinition, Chassis, TileType } from "../data/types";
 import { TILES } from "../data/tiles";
+import { BLOOMWALKERS_MAT_MOVE_COST } from "../data/frameSystems";
 
 export function coordKey(c: Coord): string {
   return `${c.x},${c.y}`;
@@ -34,7 +35,22 @@ export function tileAt(map: MapDefinition, c: Coord): TileType {
   return map.tiles[c.y][c.x];
 }
 
-export type MovementKind = "bipedal" | "centauroid" | "flying";
+// The two `*_bloomwalker` variants were added 6 Sep 2026 for the Frame
+// Systems Layer's Bloomwalkers system ("bloom mat costs 1 move instead of
+// 2"). A kind rather than a per-unit callback threaded through the ~18
+// reachableTiles/moveCost call sites, so the flood fill's hot path (half of
+// every sim's CPU time — see reachableTiles' own comment) gains one branch
+// in moveCost and nothing else. engine/frameSystems.ts's movementKindForUnit
+// is the only thing that ever produces them; every hostile and Bloom still
+// gets one of the original three.
+export type MovementKind = "bipedal" | "centauroid" | "flying" | "bipedal_bloomwalker" | "centauroid_bloomwalker";
+
+/** The tiles.ts cost column a kind reads — the bloomwalker variants read their base chassis's column everywhere but bloom_mat. */
+function baseMovementKind(kind: MovementKind): "bipedal" | "centauroid" | "flying" {
+  if (kind === "bipedal_bloomwalker") return "bipedal";
+  if (kind === "centauroid_bloomwalker") return "centauroid";
+  return kind;
+}
 
 export function chassisToMovementKind(chassis: Chassis, flying: boolean): MovementKind {
   if (flying) return "flying";
@@ -43,7 +59,8 @@ export function chassisToMovementKind(chassis: Chassis, flying: boolean): Moveme
 
 export function moveCost(map: MapDefinition, c: Coord, kind: MovementKind): number {
   const tile = TILES[tileAt(map, c)];
-  return tile.moveCost[kind];
+  if (tile.id === "bloom_mat" && (kind === "bipedal_bloomwalker" || kind === "centauroid_bloomwalker")) return BLOOMWALKERS_MAT_MOVE_COST;
+  return tile.moveCost[baseMovementKind(kind)];
 }
 
 export function isPassable(map: MapDefinition, c: Coord, kind: MovementKind): boolean {

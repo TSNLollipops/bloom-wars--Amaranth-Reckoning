@@ -702,6 +702,38 @@ describe("purchaseWeaponBranch / equipWeaponBranch — the Weapon Branch Point S
     expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor"]);
   });
 
+  // Combat Medic (Weapon Branch Point System, data/weaponBranches.ts,
+  // 5 Sep 2026) — Munti's 4th branch, the one path with a real 4th slot.
+  // Same "4th branch = tier A, WEAPON_BRANCH_COSTS[3]" shape as every
+  // other purchase-order case above, regardless of which specific branch.
+  it("gates a Munti pilot's 4th branch (Combat Medic) at WEAPON_BRANCH_TIER_GATE[3] (A), priced at WEAPON_BRANCH_COSTS[3]", () => {
+    const state = createWardenCampaignState();
+    const munti = "pilot_lask"; // arch_munti, per WARDEN_PILOTS
+    state.pilots[munti].pilot.tier = WEAPON_BRANCH_TIER_GATE[3]; // "A" — enough for the 4th, not gate-blocked
+    state.pilots[munti].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1] + WEAPON_BRANCH_COSTS[2] + WEAPON_BRANCH_COSTS[3];
+    const first = purchaseWeaponBranch(state, munti, "munti_rapid_response");
+    expect(first.ok).toBe(true);
+    const second = purchaseWeaponBranch(state, munti, "munti_aegis_ward");
+    expect(second.ok).toBe(true);
+    const third = purchaseWeaponBranch(state, munti, "munti_field_doctor");
+    expect(third.ok).toBe(true);
+    const fourth = purchaseWeaponBranch(state, munti, "munti_combat_medic");
+    expect(fourth.ok).toBe(true);
+    expect(fourth.cost).toBe(WEAPON_BRANCH_COSTS[3]);
+    expect(state.pilots[munti].personalPoints).toBe(0);
+    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual([
+      "munti_rapid_response",
+      "munti_aegis_ward",
+      "munti_field_doctor",
+      "munti_combat_medic",
+    ]);
+    // Munti only has 4 defined branches total (WEAPON_BRANCHES_BY_PATH) —
+    // all four now owned, so any further purchase attempt fails cleanly.
+    const fifth = purchaseWeaponBranch(state, munti, "munti_rapid_response");
+    expect(fifth.ok).toBe(false);
+    expect(fifth.reason).toMatch(/already owns/);
+  });
+
   it("fails cleanly when the pilot can't afford it, leaving ownedWeaponBranches untouched", () => {
     const state = createWardenCampaignState();
     state.pilots["pilot_rourke"].pilot.tier = "A";
@@ -759,11 +791,25 @@ describe("purchaseWeaponBranch / equipWeaponBranch — the Weapon Branch Point S
     expect(equip.ok).toBe(true);
     expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBe("meeps_scattershot_pistols");
 
-    // Swapping to the other owned branch (not unequipping) — the "collect
-    // more than one, swap for free" mechanic Reeps/Munti already prove out,
-    // now exercised for Meeps too.
+    // Frame Systems Layer, second mount (6 Sep 2026): this pilot is at tier
+    // C, which now grants TWO mounts (data/frameSystems.ts's
+    // FRAME_TIER_CAPACITY), so equipping the other owned branch no longer
+    // swaps — it fills mount 2 alongside. Mount 1 (the legacy single field)
+    // stays what it was. The one-mount "collect more than one, swap for
+    // free" behaviour this case used to assert here is unchanged BELOW C
+    // and is asserted at tier D just after.
+    const second2 = equipWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
+    expect(second2.ok).toBe(true);
+    expect(second2.equippedAll).toEqual(["meeps_scattershot_pistols", "meeps_impact_lance"]);
+    expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBe("meeps_scattershot_pistols");
+
+    // One mount (tier D): the pre-6-Sep one-click swap, exactly as before.
+    state.pilots["pilot_rourke"].pilot.tier = "D";
+    equipWeaponBranch(state, "pilot_rourke", null);
+    expect(equipWeaponBranch(state, "pilot_rourke", "meeps_scattershot_pistols").ok).toBe(true);
     const swap = equipWeaponBranch(state, "pilot_rourke", "meeps_impact_lance");
     expect(swap.ok).toBe(true);
+    expect(swap.equippedAll).toEqual(["meeps_impact_lance"]);
     expect(state.pilots["pilot_rourke"].pilot.equippedWeaponBranch).toBe("meeps_impact_lance");
   });
 });

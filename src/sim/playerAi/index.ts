@@ -246,6 +246,7 @@ import {
   shouldTaunt,
   chooseFireSupportTile,
   chooseMissileTile,
+  chooseMaserLanceDirection,
   repairMove,
   explorationTarget,
 } from "./abilities";
@@ -525,6 +526,18 @@ export function decidePlayerAiAction(
   if (missileTile) {
     log(entry("missile", { destination: missileTile.tile, note: `${missileTile.hostiles} in the blast, no friendly` }));
     return { action: "missile", targetTile: missileTile.tile };
+  }
+  // Maser Lance (5 Sep 2026, the day the ability itself shipped): same
+  // "obvious trigger" slot as Missile just above — a Tank with the branch
+  // equipped never fired it here before this, the exact gap flagged in
+  // Bloom_Wars_Now_And_Next.md right after Maser Lance landed. Mutually
+  // exclusive with the missile branch in practice (one unit never has both
+  // abilities), so the ordering between them doesn't matter; kept directly
+  // below it because they're the same kind of decision.
+  const maserLanceDirection = chooseMaserLanceDirection(unit, enemies, allUnits, context, profile);
+  if (maserLanceDirection) {
+    log(entry("maser_lance", { destination: maserLanceDirection.tile, note: `${maserLanceDirection.hostiles} in the cone, no friendly` }));
+    return { action: "maser_lance", targetTile: maserLanceDirection.tile };
   }
 
   // Screen — the narrow 25 Aug clear-bloom case (a spotted Munti in a

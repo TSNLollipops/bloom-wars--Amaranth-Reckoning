@@ -32,6 +32,13 @@
 import Phaser from "phaser";
 import { memorial, type PilotServiceRecord } from "../../engine/statsStore";
 import { ABILITIES } from "../../data/abilities";
+// B4 (portrait wiring), 5 Sep 2026 — same reasoning as RosterPanel.ts's own
+// note: this panel never had a placeholder circle either, so a portrait per
+// row is new, not a swap. PilotServiceRecord.pilotId is a real pilot id
+// (pilot_rourke, pilot_recruit_7, ...) the same drawPilotAvatar/portraits.ts
+// lookup everywhere else uses — a lost recruit keeps the exact portrait they
+// had while alive, since that assignment is keyed to the id, not liveness.
+import { drawPilotAvatar } from "../TransporterPad";
 
 const PANEL_BG = 0x1a2028;
 const PANEL_BORDER = 0x3a4552;
@@ -42,6 +49,11 @@ const TEXT_ACCENT = "#c17a6a"; // the same muted red the Vault's own loss-flavor
 const ROW_H = 34; // two lines per entry: the name, then the record under it
 const LIST_TOP_OFFSET = 74; // below the title and the count line
 const LIST_BOTTOM_PAD = 34; // room for the pager line
+// B4, 5 Sep 2026 — portrait gutter, same convention as RosterPanel.ts's own
+// PORTRAIT_R/PORTRAIT_GUTTER pair, just smaller: this panel's ROW_H (34) is
+// tighter than RosterPanel's (46).
+const PORTRAIT_R = 12;
+const PORTRAIT_GUTTER = 32;
 
 export interface MemorialPanelBounds {
   left: number;
@@ -58,14 +70,23 @@ export class MemorialPanel {
   private pagerText: Phaser.GameObjects.Text;
   private prevBtn: Phaser.GameObjects.Text;
   private nextBtn: Phaser.GameObjects.Text;
+  // B4, 5 Sep 2026 — one per visible row, rebuilt every render() the same
+  // way RosterPanel.ts's own avatarObjs is.
+  private avatarObjs: Phaser.GameObjects.Container[] = [];
+  private readonly scene: Phaser.Scene;
 
   private entries: PilotServiceRecord[] = [];
   private page = 0;
   private readonly rowsPerPage: number;
+  private readonly listLeft: number;
+  private readonly listTop: number;
 
   constructor(scene: Phaser.Scene, bounds: MemorialPanelBounds, onClose: () => void) {
+    this.scene = scene;
+    this.listLeft = bounds.left + 26;
     const cx = (bounds.left + bounds.right) / 2;
     const listTop = bounds.top + LIST_TOP_OFFSET;
+    this.listTop = listTop;
     // Computed from the real bounds rather than guessed, so this panel can
     // never do to itself what the inline version did to the Vault.
     this.rowsPerPage = Math.max(1, Math.floor((bounds.bottom - LIST_BOTTOM_PAD - listTop) / ROW_H));
@@ -97,8 +118,11 @@ export class MemorialPanel {
       .setScrollFactor(0);
     this.container.add(this.countText);
 
+    // B4, 5 Sep 2026 — x shifted right by PORTRAIT_GUTTER to leave room for
+    // the per-row portrait render() now draws in that gutter (this.listLeft
+    // is the original, un-shifted margin those portraits are centered in).
     this.bodyText = scene.add
-      .text(bounds.left + 26, listTop, "", {
+      .text(bounds.left + 26 + PORTRAIT_GUTTER, listTop, "", {
         fontFamily: "monospace",
         fontSize: "11px",
         color: TEXT_MAIN,
@@ -174,6 +198,13 @@ export class MemorialPanel {
   }
 
   private render(): void {
+    // Cleared unconditionally, before either branch below — Container.
+    // destroy() destroys its children too (Container.exclusive defaults to
+    // true, unchanged here), so this alone cleans up each avatar's portrait
+    // Image/hitCircle along with it. Same pattern as RosterPanel.ts.
+    for (const a of this.avatarObjs) a.destroy();
+    this.avatarObjs = [];
+
     const total = this.entries.length;
     if (total === 0) {
       // The empty state is not a failure state. A campaign where nobody has
@@ -194,7 +225,27 @@ export class MemorialPanel {
     const shown = this.entries.slice(start, start + this.rowsPerPage);
 
     const lines: string[] = [];
-    for (const rec of shown) {
+    shown.forEach((rec, i) => {
+      // B4, 5 Sep 2026 — real portrait when one exists (pilotId is a real
+      // pilot id — see this file's own import comment on why a lost
+      // recruit keeps the exact portrait they had while alive), the same
+      // filled-circle+initials placeholder every other scene falls back to
+      // otherwise. TEXT_ACCENT (this panel's own muted loss-red) rather
+      // than a path color: PilotServiceRecord doesn't carry archetype/path,
+      // and a uniform tone reads better on a memorial than branded colors.
+      const avatar = drawPilotAvatar(
+        this.scene,
+        this.listLeft + PORTRAIT_R,
+        this.listTop + i * ROW_H + ROW_H / 2,
+        PORTRAIT_R,
+        rec.pilotId,
+        rec.displayName,
+        0xc17a6a
+      );
+      avatar.container.setScrollFactor(0);
+      this.container.add(avatar.container);
+      this.avatarObjs.push(avatar.container);
+
       const lost = rec.permanentlyLost!;
       lines.push(rec.displayName);
       // Career totals earn their place here: a name and a date is a
@@ -210,7 +261,7 @@ export class MemorialPanel {
       const fav = rec.favoriteAbility ? ABILITIES[rec.favoriteAbility]?.displayName : undefined;
       if (fav) bits.push(`most-used: ${fav}`);
       lines.push(`    ${bits.join("  ·  ")}`);
-    }
+    });
     this.bodyText.setText(lines.join("\n"));
 
     const multi = pages > 1;

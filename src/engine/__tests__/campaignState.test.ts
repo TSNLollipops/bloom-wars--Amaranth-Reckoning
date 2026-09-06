@@ -6,6 +6,7 @@
 // mission without a munties"), and the two recruit tracks (automatic
 // emergency Munti replacement, discretionary paid recruiting). See that
 // file's own header for the full design-doc citations.
+import { UNIT_ARCHETYPES } from "../../data/units";
 import { describe, it, expect } from "vitest";
 import {
   createCampaignState,
@@ -15,6 +16,7 @@ import {
   canLaunchMission,
   checkMuntiGuarantee,
   recruitDiscretionary,
+  dischargePilot,
   saveCampaignState,
   loadCampaignState,
   clearCampaignState,
@@ -39,6 +41,26 @@ import {
   companyNameOf,
   DEFAULT_WARDEN_COMPANY_NAME,
   DEFAULT_HOUSE_AMARANTH_COMPANY_NAME,
+  lanceOfPilot,
+  lanceOfPilotIn,
+  lanceOfMek,
+  lanceOfMekIn,
+  lanceRoster,
+  lanceFieldability,
+  assignPilotToLance,
+  MAX_LANCE_SIZE,
+  type LanceId,
+  type CampaignState,
+  swapPilotLances,
+  LANCE_IDS,
+  lanceCount,
+  activeLanceIds,
+  MAX_LANCES,
+  lanceDisplayName,
+  integrateHouseAmaranthSecondLance,
+  recruitIntoLance,
+  recruitCandidates,
+  awardCallsign,
 } from "../campaignState";
 import { testUnit } from "./testHelpers";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS } from "../../data/campaignAmaranth";
@@ -304,6 +326,90 @@ describe("recruitDiscretionary — rule 6, the paid, fallible recruit track", ()
     const names = [a.displayName, b.displayName, c.displayName];
     expect(new Set(ids).size).toBe(3);
     expect(new Set(names).size).toBe(3);
+  });
+});
+
+describe("dischargePilot — Pilot Discharge & Roster Pressure, 5 Sep 2026", () => {
+  it("discharges an active pilot: status flips, personal points are forfeit, no Munti replacement fires when another Munti is still active", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_bosk"].personalPoints = 240;
+    const result = dischargePilot(state, "pilot_bosk");
+    expect(result.ok).toBe(true);
+    expect(result.muntiReplacement).toBeUndefined();
+    expect(state.pilots["pilot_bosk"].status).toBe("discharged");
+    expect(state.pilots["pilot_bosk"].personalPoints).toBe(0);
+    // Bosk's tier and mek record are untouched in storage — "forfeit" here
+    // means unreachable (no longer active), not deleted, exactly mirroring
+    // applyPermadeathCheck's own comment on a permanently-lost pilot.
+    expect(state.pilots["pilot_bosk"].pilot.tier).toBe("G");
+  });
+
+  it("fails on a pilot id the campaign has never heard of, changing nothing", () => {
+    const state = createWardenCampaignState();
+    const result = dischargePilot(state, "pilot_does_not_exist");
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/no such pilot/);
+  });
+
+  it("fails on a pilot who isn't on the active roster anymore (already discharged, or lost)", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_iyari"].status = "permanently_lost";
+    const lostResult = dischargePilot(state, "pilot_iyari");
+    expect(lostResult.ok).toBe(false);
+    expect(lostResult.reason).toMatch(/not on the active roster/);
+
+    const first = dischargePilot(state, "pilot_anand");
+    expect(first.ok).toBe(true);
+    const second = dischargePilot(state, "pilot_anand"); // already discharged now
+    expect(second.ok).toBe(false);
+    expect(second.reason).toMatch(/not on the active roster/);
+  });
+
+  it("refuses to discharge the commander (PilotRecord.exemptFromPermadeath), leaving her active and untouched", () => {
+    const state = createWardenCampaignState();
+    const result = dischargePilot(state, "pilot_rourke");
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/commander/);
+    expect(state.pilots["pilot_rourke"].status).toBe("active");
+  });
+
+  it("discharging the roster's last active Munti immediately mints a free replacement — the Munti-safety fix this function exists for", () => {
+    const state = createWardenCampaignState();
+    // pilot_lask is the only Munti in the Warden roster (same fact
+    // checkMuntiGuarantee's own tests rely on above).
+    expect(
+      Object.values(state.pilots).filter((e) => e.status === "active" && UNIT_ARCHETYPES[e.pilot.archetypeId]?.path === "munti")
+    ).toHaveLength(1);
+    const result = dischargePilot(state, "pilot_lask");
+    expect(result.ok).toBe(true);
+    expect(state.pilots["pilot_lask"].status).toBe("discharged");
+    // A fresh Munti was minted in the same call — the roster never actually
+    // touches zero active Muntis at any point a save could be read back in.
+    expect(result.muntiReplacement).toBeDefined();
+    expect(result.muntiReplacement!.archetypeId).toBe("arch_munti_bipedal");
+    const activeMuntis = Object.values(state.pilots).filter(
+      (e) => e.status === "active" && UNIT_ARCHETYPES[e.pilot.archetypeId]?.path === "munti"
+    );
+    expect(activeMuntis).toHaveLength(1);
+    expect(activeMuntis[0].pilot.id).toBe(result.muntiReplacement!.id);
+  });
+
+  it("discharging a second, proactively-recruited Munti does NOT trigger a replacement while the original Munti is still active", () => {
+    const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST);
+    const extra = recruitDiscretionary(state, "munti").pilot!;
+    const result = dischargePilot(state, extra.id);
+    expect(result.ok).toBe(true);
+    expect(result.muntiReplacement).toBeUndefined();
+    // pilot_lask, the original, is still there and still active.
+    expect(state.pilots["pilot_lask"].status).toBe("active");
+  });
+
+  it("has no built-in limit — the same pilot type can be discharged repeatedly across separate recruits with no cooldown", () => {
+    const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST * 2);
+    const a = recruitDiscretionary(state, "tank").pilot!;
+    const b = recruitDiscretionary(state, "tank").pilot!;
+    expect(dischargePilot(state, a.id).ok).toBe(true);
+    expect(dischargePilot(state, b.id).ok).toBe(true);
   });
 });
 
@@ -724,14 +830,20 @@ describe("ensureNpcSocialState — section 12, persistent NPC-to-NPC bonds", () 
 // behavior at all before this pass either — covered here alongside the
 // rank fix rather than left untested.
 describe("integrateSecondLance / integrateThirdLance — roster integration and Rourke's rank, 27 Aug 2026", () => {
-  it("integrateSecondLance adds the five Second Lance pilots/meks and promotes rourkeRank to capt", () => {
+  it("integrateSecondLance grants an EMPTY 2nd Lance and promotes rourkeRank to capt", () => {
+    // 5 Sep 2026 — Act II used to hand over five finished pilots. It now
+    // grants a lance for the player to recruit into, and those five join the
+    // recruit pool instead. The promotion still fires: the rank comes from
+    // commanding a second lance, not from who is standing in it.
     const state = createWardenCampaignState();
-    expect(state.rourkeRank).toBe("2nd_lt");
     const result = integrateSecondLance(state);
     expect(result.integrated).toBe(true);
-    expect(result.pilots).toBe(SECOND_LANCE_PILOTS);
-    for (const p of SECOND_LANCE_PILOTS) expect(state.pilots[p.id]?.status).toBe("active");
+    expect(lanceCount(state)).toBe(2);
+    expect(lanceRoster(state, "b")).toHaveLength(0);
     expect(state.rourkeRank).toBe("capt");
+    for (const p of SECOND_LANCE_PILOTS) expect(state.pilots[p.id]).toBeUndefined();
+    expect(recruitCandidates(state).map((p) => p.id)).toEqual(expect.arrayContaining(SECOND_LANCE_PILOTS.map((p) => p.id)));
+    expect(integrateSecondLance(state).integrated).toBe(false); // idempotent
   });
 
   it("integrateSecondLance is idempotent — a second call adds nothing and reports integrated: false", () => {
@@ -745,14 +857,16 @@ describe("integrateSecondLance / integrateThirdLance — roster integration and 
     expect(state.rourkeRank).toBe("capt"); // unchanged, not reset
   });
 
-  it("integrateThirdLance adds the five Third Lance pilots/meks and promotes rourkeRank to maj", () => {
+  it("integrateThirdLance grants an EMPTY 3rd Lance and promotes rourkeRank to maj", () => {
     const state = createWardenCampaignState();
-    integrateSecondLance(state); // realistic ordering — Third Lance's own trigger (Mission 24) always comes after Second Lance's (Mission 12)
+    integrateSecondLance(state);
     const result = integrateThirdLance(state);
     expect(result.integrated).toBe(true);
-    expect(result.pilots).toBe(THIRD_LANCE_PILOTS);
-    for (const p of THIRD_LANCE_PILOTS) expect(state.pilots[p.id]?.status).toBe("active");
+    expect(lanceCount(state)).toBe(3);
+    expect(lanceRoster(state, "c")).toHaveLength(0);
     expect(state.rourkeRank).toBe("maj");
+    for (const p of THIRD_LANCE_PILOTS) expect(state.pilots[p.id]).toBeUndefined();
+    expect(integrateThirdLance(state).integrated).toBe(false);
   });
 
   it("integrateThirdLance is idempotent — a second call adds nothing and reports integrated: false", () => {
@@ -1036,5 +1150,458 @@ describe("B6 — company name: defaults, read path, and backfill", () => {
     state.companyName = "Rourke's Own";
     saveCampaignState(state, storage);
     expect(companyNameOf(loadCampaignState(storage)!)).toBe("Rourke's Own");
+  });
+});
+
+// B2, assignable lances (5 Sep 2026). Maxime's own decisions, encoded here
+// so a future change that breaks one of them fails loudly:
+//   - lances are player-assignable, not derived from arrival batches
+//   - hard cap of MAX_LANCE_SIZE per lance
+//   - a Munti is a WARNING, never a save-block (the roster is exactly three
+//     Muntis for three lances, so a hard rule would brick a lance the first
+//     time one is killed — canLaunchMission already enforces it at deploy)
+//   - a permanently lost pilot leaves the lance roster entirely; the Vault's
+//     roll is where the dead are recorded
+/** A campaign played to Act III with every lance recruited full — what a real save looks like now. */
+function staffedCampaign(lances = 3): CampaignState {
+  const state = createWardenCampaignState();
+  if (lances >= 2) integrateSecondLance(state);
+  if (lances >= 3) integrateThirdLance(state);
+  for (const id of activeLanceIds(state).slice(1)) {
+    while (lanceRoster(state, id).length < MAX_LANCE_SIZE) {
+      const r = recruitIntoLance(state, id);
+      if (!r.ok) throw new Error(r.reason);
+    }
+  }
+  return state;
+}
+
+describe("B2 — assignable lances", () => {
+  function muntiIdIn(state: CampaignState, lance: LanceId): string {
+    const m = lanceRoster(state, lance).find((e) => UNIT_ARCHETYPES[e.pilot.archetypeId]?.path === "munti");
+    if (!m) throw new Error(`no Munti in lance ${lance}`);
+    return m.pilot.id;
+  }
+
+  it("defaults every pilot to the lance they arrived with", () => {
+    const state = staffedCampaign();
+    // Lance A's authored five still answer to their arrival batch. Recruits
+    // carry an explicit assignment from the moment they're hired.
+    for (const e of lanceRoster(state, "a")) expect(lanceOfPilotIn(state, e.pilot.id)).toBe(lanceOfPilot(e.pilot.id));
+    expect(lanceRoster(state, "a")).toHaveLength(5);
+    expect(lanceRoster(state, "b")).toHaveLength(5);
+    expect(lanceRoster(state, "c")).toHaveLength(5);
+  });
+
+  it("moves a pilot into a lance that has an opening", () => {
+    // Every lance ARRIVES full (5 pilots per act, cap 5), so in practice the
+    // only thing that opens a slot is losing someone. That's the real
+    // scenario a plain move happens in — everything else is a swap.
+    const state = staffedCampaign(2);
+    const casualty = lanceRoster(state, "b")[0].pilot.id;
+    state.pilots[casualty].status = "permanently_lost";
+    expect(lanceRoster(state, "b")).toHaveLength(4);
+
+    const moved = lanceRoster(state, "a")[0].pilot.id;
+    expect(assignPilotToLance(state, moved, "b")).toEqual({ ok: true });
+    expect(lanceOfPilotIn(state, moved)).toBe("b");
+    expect(lanceRoster(state, "b").map((e) => e.pilot.id)).toContain(moved);
+    expect(lanceRoster(state, "a").map((e) => e.pilot.id)).not.toContain(moved);
+  });
+
+  it("refuses to overfill a lance, and says why", () => {
+    const state = staffedCampaign(2);
+    // Lance A is already at the cap of 5.
+    expect(lanceRoster(state, "a")).toHaveLength(MAX_LANCE_SIZE);
+    const fromB = lanceRoster(state, "b")[0].pilot.id;
+    const result = assignPilotToLance(state, fromB, "a");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain("full");
+    // And the failed move changed nothing.
+    expect(lanceOfPilotIn(state, fromB)).toBe("b");
+  });
+
+  it("assigning a pilot to the lance they're already in is a no-op success", () => {
+    const state = createWardenCampaignState();
+    const already = lanceRoster(state, "a")[0].pilot.id;
+    expect(assignPilotToLance(state, already, "a")).toEqual({ ok: true });
+    expect(lanceRoster(state, "a")).toHaveLength(5);
+  });
+
+  it("will not assign a pilot who is off the active roster", () => {
+    const state = createWardenCampaignState();
+    const id = lanceRoster(state, "a")[0].pilot.id;
+    state.pilots[id].status = "permanently_lost";
+    const result = assignPilotToLance(state, id, "b");
+    expect(result.ok).toBe(false);
+  });
+
+  it("drops a permanently lost pilot from their lance — the roll owns the dead", () => {
+    const state = createWardenCampaignState();
+    const id = lanceRoster(state, "a")[0].pilot.id;
+    expect(lanceRoster(state, "a")).toHaveLength(5);
+    state.pilots[id].status = "permanently_lost";
+    expect(lanceRoster(state, "a")).toHaveLength(4);
+    expect(lanceRoster(state, "a").map((e) => e.pilot.id)).not.toContain(id);
+  });
+
+  it("a Munti-less lance is a warning, NOT a refusal to save it", () => {
+    const state = staffedCampaign(2);
+    // Trade Lance A's only Munti away for a non-Munti from B. A swap, not a
+    // move, because both lances are full — which is the normal state.
+    const aMunti = muntiIdIn(state, "a");
+    const bNonMunti = lanceRoster(state, "b").find((e) => UNIT_ARCHETYPES[e.pilot.archetypeId]?.path !== "munti")!.pilot.id;
+    // ALLOWED — this is the whole point of the warning-not-block call.
+    expect(swapPilotLances(state, aMunti, bNonMunti)).toEqual({ ok: true });
+
+    const a = lanceFieldability(state, "a");
+    expect(a.fieldable).toBe(false);
+    expect(a.warning).toContain("Munti");
+    // B now has two Muntis and is fine.
+    expect(lanceFieldability(state, "b").fieldable).toBe(true);
+  });
+
+  it("an empty lance reports as unfieldable rather than throwing", () => {
+    const state = createWardenCampaignState();
+    const empty = lanceFieldability(state, "c"); // never granted in Act I, so empty
+    expect(empty.fieldable).toBe(false);
+    expect(empty.warning).toContain("empty");
+  });
+
+  it("lanceFieldability agrees with canLaunchMission about what can launch", () => {
+    // The roster screen and the deploy gate must never disagree, since the
+    // gate is what actually enforces it.
+    const state = createWardenCampaignState();
+    const roster = lanceRoster(state, "a");
+    const ids = roster.map((e) => e.pilot.id);
+    expect(lanceFieldability(state, "a").fieldable).toBe(true);
+    expect(canLaunchMission(ids, state).ok).toBe(true);
+
+    // Strip the Munti out of the deploying squad and both must refuse.
+    const withoutMunti = roster.filter((e) => UNIT_ARCHETYPES[e.pilot.archetypeId]?.path !== "munti").map((e) => e.pilot.id);
+    expect(canLaunchMission(withoutMunti, state).ok).toBe(false);
+  });
+
+  it("survives a save/load round-trip, and an old save keeps arrival behavior", () => {
+    const storage = memoryStorageForLances();
+    const state = staffedCampaign(2);
+    const moved = lanceRoster(state, "a")[0].pilot.id;
+    const partner = lanceRoster(state, "b")[0].pilot.id;
+    swapPilotLances(state, moved, partner);
+    saveCampaignState(state, storage);
+
+    const loaded = loadCampaignState(storage)!;
+    expect(lanceOfPilotIn(loaded, moved)).toBe("b");
+
+    // A save written before this field existed has no `lance` anywhere and
+    // must behave exactly as it always did.
+    const legacy = createWardenCampaignState();
+    integrateSecondLance(legacy);
+    for (const e of Object.values(legacy.pilots)) delete e.lance;
+    saveCampaignState(legacy, storage);
+    const legacyLoaded = loadCampaignState(storage)!;
+    for (const e of Object.values(legacyLoaded.pilots)) {
+      expect(lanceOfPilotIn(legacyLoaded, e.pilot.id)).toBe(lanceOfPilot(e.pilot.id));
+    }
+  });
+
+  it("a Mek follows its pilot to the new lance's workshop", () => {
+    const state = staffedCampaign(2);
+    const entry = lanceRoster(state, "a")[0];
+    const partner = lanceRoster(state, "b")[0];
+    const mekId = entry.pilot.mekId;
+    expect(lanceOfMekIn(state, mekId)).toBe("a");
+    swapPilotLances(state, entry.pilot.id, partner.pilot.id);
+    expect(lanceOfMekIn(state, mekId)).toBe("b");
+    // The static answer is unchanged — arrival is still arrival.
+    expect(lanceOfMek(mekId)).toBe("a");
+  });
+
+  it("an unknown mek id falls back to the static answer rather than guessing", () => {
+    const state = createWardenCampaignState();
+    expect(lanceOfMekIn(state, "mek_does_not_exist")).toBe(lanceOfMek("mek_does_not_exist"));
+  });
+});
+
+function memoryStorageForLances(): CampaignStorage {
+  const backing = new Map<string, string>();
+  return {
+    getItem: (k) => backing.get(k) ?? null,
+    setItem: (k, v) => void backing.set(k, v),
+    removeItem: (k) => void backing.delete(k),
+  };
+}
+
+// swapPilotLances — the operation that keeps a FULL roster editable. Found
+// necessary by live verification, 5 Sep 2026: 15 pilots across 3 lances
+// capped at 5 means every lance sits at 5/5 from Act III on, so under a hard
+// cap no assignPilotToLance call can ever succeed again in either direction.
+describe("B2 — swapping lances (the full-roster deadlock)", () => {
+  function fullRoster(): CampaignState {
+    return staffedCampaign();
+  }
+
+  it("demonstrates the deadlock a plain move hits at full roster", () => {
+    const state = fullRoster();
+    const active = activeLanceIds(state);
+    for (const id of active) expect(lanceRoster(state, id)).toHaveLength(MAX_LANCE_SIZE);
+    // Every lance the carrier HAS is full, so every possible move is refused.
+    // This is the bug swapPilotLances exists to answer, asserted so nobody
+    // "simplifies" the swap away later without hitting it again.
+    for (const from of active) {
+      for (const to of active) {
+        if (from === to) continue;
+        const pilotId = lanceRoster(state, from)[0].pilot.id;
+        expect(assignPilotToLance(state, pilotId, to).ok).toBe(false);
+      }
+    }
+  });
+
+  it("trades two pilots' lances even when both lances are full", () => {
+    const state = fullRoster();
+    const a = lanceRoster(state, "a")[0].pilot.id;
+    const b = lanceRoster(state, "b")[0].pilot.id;
+    expect(swapPilotLances(state, a, b)).toEqual({ ok: true });
+    expect(lanceOfPilotIn(state, a)).toBe("b");
+    expect(lanceOfPilotIn(state, b)).toBe("a");
+    // And no lance changed size — that's why a swap is cap-exempt.
+    for (const id of activeLanceIds(state)) expect(lanceRoster(state, id)).toHaveLength(MAX_LANCE_SIZE);
+  });
+
+  it("swapping two pilots already in the same lance is a harmless no-op", () => {
+    const state = fullRoster();
+    const [a, b] = lanceRoster(state, "a");
+    expect(swapPilotLances(state, a.pilot.id, b.pilot.id)).toEqual({ ok: true });
+    expect(lanceOfPilotIn(state, a.pilot.id)).toBe("a");
+    expect(lanceOfPilotIn(state, b.pilot.id)).toBe("a");
+  });
+
+  it("refuses to trade a pilot who is off the active roster", () => {
+    const state = fullRoster();
+    const a = lanceRoster(state, "a")[0].pilot.id;
+    const b = lanceRoster(state, "b")[0].pilot.id;
+    state.pilots[b].status = "permanently_lost";
+    expect(swapPilotLances(state, a, b).ok).toBe(false);
+    expect(lanceOfPilotIn(state, a)).toBe("a");
+  });
+
+  it("a swap survives save and load", () => {
+    const storage = memoryStorageForLances();
+    const state = fullRoster();
+    const a = lanceRoster(state, "a")[0].pilot.id;
+    const b = lanceRoster(state, "c")[0].pilot.id;
+    swapPilotLances(state, a, b);
+    saveCampaignState(state, storage);
+    const loaded = loadCampaignState(storage)!;
+    expect(lanceOfPilotIn(loaded, a)).toBe("c");
+    expect(lanceOfPilotIn(loaded, b)).toBe("a");
+  });
+
+  it("a swap moves both pilots' Meks to each other's workshops", () => {
+    const state = fullRoster();
+    const a = lanceRoster(state, "a")[0];
+    const b = lanceRoster(state, "b")[0];
+    swapPilotLances(state, a.pilot.id, b.pilot.id);
+    expect(lanceOfMekIn(state, a.pilot.mekId)).toBe("b");
+    expect(lanceOfMekIn(state, b.pilot.mekId)).toBe("a");
+  });
+});
+
+// Lance COUNT, as distinct from lance SIZE — both happen to be 5, which is
+// exactly why they're worth testing apart. Maxime, 5 Sep 2026: "maximum
+// number of lance total is 5 because i want to plan ahead for gladiator.
+// current number of lance in the carrier per act is 1. so it only grow at 3."
+describe("B2 — how many lances a carrier has", () => {
+  it("the id space carries five, for Gladiator", () => {
+    expect(LANCE_IDS).toHaveLength(MAX_LANCES);
+    expect(MAX_LANCES).toBe(5);
+    expect(LANCE_IDS).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  it("but a Warden carrier grows one lance per act, stopping at three", () => {
+    const state = createWardenCampaignState();
+    expect(lanceCount(state)).toBe(1);
+    expect(activeLanceIds(state)).toEqual(["a"]);
+
+    integrateSecondLance(state);
+    expect(lanceCount(state)).toBe(2);
+    expect(activeLanceIds(state)).toEqual(["a", "b"]);
+
+    integrateThirdLance(state);
+    expect(lanceCount(state)).toBe(3);
+    expect(activeLanceIds(state)).toEqual(["a", "b", "c"]);
+  });
+
+  it("refuses to assign into a lance the carrier doesn't have yet", () => {
+    const state = createWardenCampaignState(); // Act I: one lance only
+    const pilotId = lanceRoster(state, "a")[0].pilot.id;
+    for (const missing of ["b", "c", "d", "e"] as LanceId[]) {
+      const result = assignPilotToLance(state, pilotId, missing);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toContain("doesn't exist yet");
+    }
+    expect(lanceOfPilotIn(state, pilotId)).toBe("a");
+  });
+
+  it("keeps a lance once granted, even if every pilot is moved out of it", () => {
+    // Emptying 3rd Lance must not delete the slot — the count comes from
+    // arrival batches, not current occupancy.
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    for (const e of lanceRoster(state, "c")) swapPilotLances(state, e.pilot.id, lanceRoster(state, "a")[0].pilot.id);
+    expect(lanceCount(state)).toBe(3);
+    expect(activeLanceIds(state)).toContain("c");
+  });
+
+  it("keeps a lance whose pilots were all permanently lost", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    for (const e of lanceRoster(state, "b")) state.pilots[e.pilot.id].status = "permanently_lost";
+    expect(lanceRoster(state, "b")).toHaveLength(0);
+    expect(lanceCount(state)).toBe(2); // the slot survives the casualties
+  });
+
+  it("House Amaranth tops out at two lances, having no third", () => {
+    const state = createHouseAmaranthCampaignState();
+    expect(lanceCount(state)).toBe(1);
+    integrateHouseAmaranthSecondLance(state);
+    expect(lanceCount(state)).toBe(2);
+    expect(activeLanceIds(state)).toEqual(["a", "b"]);
+  });
+
+  it("names all five, including the two this campaign never reaches", () => {
+    expect(LANCE_IDS.map(lanceDisplayName)).toEqual(["1st Lance", "2nd Lance", "3rd Lance", "4th Lance", "5th Lance"]);
+  });
+});
+
+// Recruiting your own lance (5 Sep 2026, Maxime: "player should recruit
+// their lance teamate not have a team be creste for them").
+/** A campaign whose ten authored candidates are all spoken for, so the next recruit is a generated one. */
+function drainedPoolCampaign(): CampaignState {
+  const state = createWardenCampaignState();
+  integrateSecondLance(state);
+  integrateThirdLance(state);
+  for (let i = 0; i < MAX_LANCE_SIZE; i++) recruitIntoLance(state, "b");
+  for (let i = 0; i < MAX_LANCE_SIZE; i++) recruitIntoLance(state, "c");
+  // Open one slot back up in 2nd Lance for the generated hire.
+  const casualty = lanceRoster(state, "b")[0].pilot.id;
+  state.pilots[casualty].status = "permanently_lost";
+  return state;
+}
+
+describe("B2 — recruiting into a lance", () => {
+  it("the ten authored 2nd/3rd Lance pilots become the recruit pool", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    const pool = recruitCandidates(state).map((p) => p.id);
+    expect(pool).toHaveLength(10);
+    for (const p of [...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS]) expect(pool).toContain(p.id);
+  });
+
+  it("recruiting a named candidate puts that exact person in that lance", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    const result = recruitIntoLance(state, "b", "pilot_solheim");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.pilot.id).toBe("pilot_solheim");
+    expect(lanceOfPilotIn(state, "pilot_solheim")).toBe("b");
+    expect(state.meks["mek_solheim"]).toBeDefined(); // their authored Mek came with them
+    // And they're no longer on offer.
+    expect(recruitCandidates(state).map((p) => p.id)).not.toContain("pilot_solheim");
+  });
+
+  it("a campaign where you never recruited Solheim simply doesn't have her", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    recruitIntoLance(state, "b", "pilot_okafor");
+    expect(state.pilots["pilot_solheim"]).toBeUndefined();
+    expect(lanceRoster(state, "b")).toHaveLength(1);
+  });
+
+  it("refuses to recruit into a lance that doesn't exist yet, or one that's full", () => {
+    const state = createWardenCampaignState(); // Act I, one lance
+    expect(recruitIntoLance(state, "b").ok).toBe(false);
+    integrateSecondLance(state);
+    for (let i = 0; i < MAX_LANCE_SIZE; i++) expect(recruitIntoLance(state, "b").ok).toBe(true);
+    const overfull = recruitIntoLance(state, "b");
+    expect(overfull.ok).toBe(false);
+    if (!overfull.ok) expect(overfull.reason).toContain("full");
+  });
+
+  it("generates a real rank-and-name pilot once the authored pool runs dry", () => {
+    const state = createWardenCampaignState();
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    // Drain all ten authored candidates across the two lances.
+    for (let i = 0; i < MAX_LANCE_SIZE; i++) recruitIntoLance(state, "b");
+    for (let i = 0; i < MAX_LANCE_SIZE; i++) recruitIntoLance(state, "c");
+    expect(recruitCandidates(state)).toHaveLength(0);
+
+    // Open a slot and recruit past the pool.
+    const casualty = lanceRoster(state, "c")[0].pilot.id;
+    state.pilots[casualty].status = "permanently_lost";
+    const generated = recruitIntoLance(state, "c");
+    expect(generated.ok).toBe(true);
+    if (generated.ok) {
+      // A real person, not 'Recruit "Sprocket"'.
+      expect(generated.pilot.displayName).not.toContain("Recruit");
+      expect(generated.pilot.displayName.split(" ").length).toBeGreaterThanOrEqual(3); // rank + first + last
+      expect(generated.pilot.callsign).toBeUndefined(); // earned, not issued
+    }
+  });
+
+  it("a GENERATED recruit earns a callsign, and it shows up in their name", () => {
+    // Only generated recruits start unnamed. The ten authored candidates are
+    // written characters and arrive with the callsigns they were written
+    // with — awardCallsign deliberately refuses to rename them.
+    const state = drainedPoolCampaign();
+    const r = recruitIntoLance(state, "b");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const before = state.pilots[r.pilot.id].pilot.displayName;
+    expect(state.pilots[r.pilot.id].pilot.callsign).toBeUndefined();
+
+    const awarded = awardCallsign(state, r.pilot.id, "Tinder");
+    expect(awarded).toBe("Tinder");
+    const after = state.pilots[r.pilot.id].pilot.displayName;
+    expect(after).toContain("Tinder");
+    expect(after.startsWith(before)).toBe(true); // their name is kept, the callsign is added to it
+    expect(state.pilots[r.pilot.id].pilot.callsign).toBe("Tinder");
+  });
+
+  it("never re-names someone who already has a callsign, authored cast included", () => {
+    const state = createWardenCampaignState();
+    const rourkeBefore = state.pilots["pilot_rourke"].pilot.displayName;
+    expect(awardCallsign(state, "pilot_rourke", "Nope")).toBeNull();
+    expect(state.pilots["pilot_rourke"].pilot.displayName).toBe(rourkeBefore);
+
+    const generated = drainedPoolCampaign();
+    const r = recruitIntoLance(generated, "b");
+    if (!r.ok) return;
+    awardCallsign(generated, r.pilot.id, "First");
+    expect(awardCallsign(generated, r.pilot.id, "Second")).toBeNull(); // one callsign, once
+    expect(generated.pilots[r.pilot.id].pilot.displayName).toContain("First");
+    expect(generated.pilots[r.pilot.id].pilot.displayName).not.toContain("Second");
+  });
+
+  it("an in-progress pre-5-Sep save keeps its lances AND everyone already in them", () => {
+    // The regression that matters most: a player mid-Act-III must not lose
+    // their squad or their rank to this change.
+    const storage = memoryStorageForLances();
+    const legacy = createWardenCampaignState();
+    for (const p of [...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS]) {
+      legacy.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
+    }
+    delete legacy.lancesGranted; // exactly what a save from before today looks like
+    legacy.rourkeRank = "maj";
+    saveCampaignState(legacy, storage);
+
+    const loaded = loadCampaignState(storage)!;
+    expect(lanceCount(loaded)).toBe(3);
+    expect(loaded.rourkeRank).toBe("maj"); // not demoted by the backfill
+    expect(lanceRoster(loaded, "b")).toHaveLength(5);
+    expect(lanceRoster(loaded, "c")).toHaveLength(5);
   });
 });

@@ -104,7 +104,12 @@ describe("honest vision", () => {
     b.downed = true;
     // A hostile inside Rourke's attack range but invisible (concealed
     // is a player-only flag, so use burrow — the Undertow's own state).
+    // Rourke's own mek is Runemaster-primary, which since 6 Sep 2026 means
+    // she passively sees burrowed units in her vision — stripped here so
+    // "nobody can see it" stays true and the TIER'S honesty is what's
+    // under test, not her sensors.
     rourke.pos = { x: 15, y: 5 };
+    rourke.detectsBurrowedRadius = undefined;
     bosk.pos = { x: 0, y: 0 };
     a.pos = { x: 16, y: 5 };
     a.burrowed = true;

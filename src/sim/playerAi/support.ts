@@ -26,7 +26,7 @@
 // attack, rather than the heal eating the whole turn for nothing.
 import type { BattleUnit } from "../../engine/units";
 import { chebyshevDistance } from "../../engine/grid";
-import { DEFAULT_REPAIR_RANGE, RAPID_RESPONSE_REPAIR_RANGE } from "../../data/weaponBranches";
+import { repairRangeFor } from "../../engine/frameSystems";
 
 /** Below this HP fraction, an ally in repair range is worth interrupting anything else for — even this unit's own retreat-on-low-HP instinct (index.ts checks this ahead of that). */
 export const CRITICAL_ALLY_HP_FRACTION = 0.4;
@@ -35,8 +35,10 @@ export const ROUTINE_ALLY_HP_FRACTION = 0.85;
 
 function worstAdjacentAlly(unit: BattleUnit, allUnits: BattleUnit[], belowFraction: number): BattleUnit | undefined {
   if (!unit.abilities.includes("abil_repair")) return undefined;
-  const repairRange =
-    unit.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
+  // Frame Systems Layer (6 Sep 2026): one repair-range rule shared with the
+  // live engine (engine/frameSystems.ts's repairRangeFor) — branches and
+  // both Munti refits — so this bot can't drift from what repairUnit allows.
+  const repairRange = repairRangeFor(unit);
   const candidates = allUnits.filter(
     (t) =>
       !t.downed &&

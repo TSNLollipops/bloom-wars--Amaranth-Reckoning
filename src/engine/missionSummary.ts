@@ -18,6 +18,10 @@ export interface MissionSummaryPilot {
   path: string;
   tier?: string;
   weaponBranch?: string;
+  /** Frame Systems Layer (6 Sep 2026): every live branch, mount order — `weaponBranch` above stays mount 1 so an older record's shape is unchanged. Plus what the frame had installed. */
+  weaponBranches?: string[];
+  frameSystems?: string[];
+  frameRefit?: string;
   damageDealt: number;
   damageTaken: number;
   kills: number;
@@ -96,6 +100,9 @@ export function summarizeMission(mission: Mission, meta: SummaryMeta): MissionSu
       path: unit?.path ?? "unknown",
       tier: unit?.tier,
       weaponBranch: unit?.weaponBranchId,
+      weaponBranches: unit?.weaponBranchIds?.length ? [...unit.weaponBranchIds] : undefined,
+      frameSystems: unit?.frameSystemIds?.length ? [...unit.frameSystemIds] : undefined,
+      frameRefit: unit?.frameRefitId,
       damageDealt: perf?.damageDealt ?? 0,
       damageTaken: perf?.damageTaken ?? 0,
       kills: perf?.kills ?? 0,

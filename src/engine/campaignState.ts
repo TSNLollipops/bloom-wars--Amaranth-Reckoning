@@ -83,7 +83,24 @@ import { currentDay } from "./calendarClock";
 // HubPilotSocialState below — belt and suspenders: this status blocks
 // deployment permanently, the flag blocks it the instant Tier 3 is hit,
 // before the player's even talked to the CO).
-export type PilotStatus = "active" | "permanently_lost" | "reassigned";
+//
+// "discharged" added 5 Sep 2026 — Pilot Discharge & Roster Pressure
+// (claude/Bloom_Wars_Pilot_Discharge_And_Roster_Pressure_Proposal_v1.md,
+// shape decided 28 Aug 2026 per Maxime's own delegation). Deliberately its
+// OWN value rather than reusing "reassigned", even though both currently
+// read almost identically to every system that only checks `!== "active"`:
+// "reassigned" is a forced departure the CO resolves after an Insult
+// standoff; "discharged" is the player's own administrative choice, issued
+// directly from the shop, with no conversation at all. Keeping the two
+// distinguishable costs nothing today and matters the moment either gets
+// its own memorial copy, its own narrative beat (the proposal's own §3
+// flags "a real, bigger beat" for discharge as designed-but-not-built), or
+// a House Amaranth reserve-pool reuse path that should only ever apply to
+// one of the two. Same safety argument as "reassigned"'s own addition:
+// every existing status check in this repo is either `=== "active"`
+// (safely excludes this too) or an exact `=== "permanently_lost"` match —
+// a fourth value can't silently break anything already built.
+export type PilotStatus = "active" | "permanently_lost" | "reassigned" | "discharged";
 
 // Campaign economy pass (22 Aug 2026, engine/campaignEconomy.ts — see that
 // file's own header for the two-pool design this and CampaignState.points
@@ -198,6 +215,20 @@ export interface CampaignPilotEntry {
   // system does exist, instead of that later system needing to invent a
   // place to put the flag AND retrofit the retirement text to read it.
   hasChildWithMek?: boolean;
+  // B2, assignable lances (5 Sep 2026, Maxime's call: "real assignable
+  // lances", over the cheaper static-batch reading the Hangar Roster plan
+  // doc originally recommended). The lance this pilot has been MOVED to, if
+  // the player has ever moved them. Absent means "wherever they arrived" —
+  // see lanceOfPilotIn() below, which falls back to the static arrival
+  // batches (lanceOfPilot) whenever this is unset.
+  //
+  // Stored as an override rather than written eagerly onto every pilot so
+  // that (a) every save written before today keeps behaving exactly as it
+  // always has with no migration step, and (b) a pilot the player has never
+  // touched still follows their arrival batch even if that batch's
+  // membership is ever edited in data. Nothing else in the codebase needs
+  // to know this field exists — lanceOfPilotIn is the single read path.
+  lance?: LanceId;
   // Set once, at the debrief that turns this pilot's status to
   // permanently_lost, and never updated after — see PilotLossContext above
   // for why this is stored rather than derived. Absent on every living
@@ -387,6 +418,18 @@ export interface CampaignState {
   // system, which is a system, not this field. Flagged for Maxime rather
   // than quietly built.
   companyName?: string;
+  // B2 recruiting pass (5 Sep 2026, Maxime: "player should recruit their
+  // lance teamate not have a team be creste for them"). How many lances this
+  // carrier has been granted. Used to be derivable from roster membership —
+  // a 2nd Lance existed because its five authored pilots were in the roster
+  // — but lances 2 and 3 now arrive EMPTY for the player to fill, so an
+  // empty lance would have read as "no lance at all". Stored instead.
+  //
+  // Optional and backfilled (backfillLancesGranted): a save from before this
+  // existed gets its count derived from the batches actually in its roster,
+  // so an in-progress Act III campaign keeps all three lances and everyone
+  // in them, exactly as it was.
+  lancesGranted?: number;
   // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Set true the
   // first time any real interaction (ordinary Talk, a build request, or
   // small talk) reaches Arangement of Content in the grotto — see Hub.ts's
@@ -466,6 +509,30 @@ export interface CampaignState {
   // these to a real starting value, for brand-new campaigns going forward.
   beaconCrates?: number;
   beaconCharges?: number;
+  /**
+   * Frame Systems Layer §7's salvage supply line (6 Sep 2026,
+   * data/frameSystems.ts) — how many of each hostile archetype this company
+   * has killed, campaign-wide, keyed by archetype id (data/bloom.ts's own
+   * ids for Bloom; hostile mechs land here too, harmlessly, since Mission
+   * counts every hostile kill in one table). Populated at Debrief
+   * (recordHostileKills, below) from Mission.hostileKills — the "Mission
+   * records the live fact, Debrief lands it on CampaignState" split every
+   * other per-mission fact already follows — and read by
+   * engine/campaignEconomy.ts's salvage gate. Counted on a loss as well as
+   * a win: you cut salvage off what you killed, whatever happened after.
+   *
+   * Company-level on purpose, not per-pilot, so it survives permadeath
+   * untouched (a dead pilot's kills still count — the doc's own "the
+   * counter should start recording silently from day one and never be
+   * told your first twenty missions didn't count" reasoning). Optional and
+   * read as `?? {}` everywhere, same no-migration shape as builtBays: a
+   * save from before this pass simply starts counting from its next
+   * debrief. The doc's own worry — a mid-campaign player finding their
+   * earlier kills uncounted — is real for every save that predates today,
+   * and there is no honest way to reconstruct those; flagged rather than
+   * faked with a backfill guess.
+   */
+  hostileKillsByArchetype?: Record<string, number>;
 }
 
 /**
@@ -711,6 +778,7 @@ export function loadCampaignState(storage?: CampaignStorage, key: string = STORA
     backfillIronman(state);
     backfillCampaignId(state);
     backfillCompanyName(state);
+    backfillLancesGranted(state);
     backfillCalendarDay(state);
     return state;
   } catch {
@@ -1080,6 +1148,27 @@ export function recordFoughtOnHitEffectKinds(state: CampaignState, kinds: readon
   state.foughtOnHitEffectKinds = Array.from(seen);
 }
 
+/**
+ * Frame Systems Layer §7 (6 Sep 2026) — fold one mission's hostile kills
+ * (Mission.hostileKills, keyed by archetype id) into the campaign-wide
+ * tally. Additive, idempotent per call only in the sense every Debrief
+ * calls it exactly once; safe with an empty table. Mutates `state`
+ * directly, same void shape as recordFoughtOnHitEffectKinds above.
+ */
+export function recordHostileKills(state: CampaignState, kills: Readonly<Record<string, number>>): void {
+  const tally = { ...(state.hostileKillsByArchetype ?? {}) };
+  for (const [archetypeId, n] of Object.entries(kills)) {
+    if (!n || n <= 0) continue;
+    tally[archetypeId] = (tally[archetypeId] ?? 0) + n;
+  }
+  state.hostileKillsByArchetype = tally;
+}
+
+/** How many of `archetypeId` this company has killed, campaign-wide. 0 for any save predating the counter. */
+export function hostileKillCount(state: CampaignState, archetypeId: string): number {
+  return state.hostileKillsByArchetype?.[archetypeId] ?? 0;
+}
+
 // ---- 5. The deploy gate -------------------------------------------------
 
 export interface LaunchCheckResult {
@@ -1143,11 +1232,73 @@ export function canLaunchMission(deployedPilotIds: string[], state: CampaignStat
 
 const RECRUIT_CALLSIGNS = ["Sprocket", "Halfmoon", "Thistle", "Coldsnap", "Marrow", "Windup", "Juniper", "Rattler", "Fenwick", "Hollow"];
 
-/** Cycles the small callsign pool, appending a generation number once it wraps ("Sprocket", ... "Hollow", "Sprocket 2", ...) so every generated pilot's name stays unique without needing an ever-growing name list. Placeholder identity scheme — meant to be replaced by real character creation (name/portrait/chassis choice) per the design docs' own "still open" note. */
+/** Cycles the small callsign pool, appending a generation number once it wraps ("Sprocket", ... "Hollow", "Sprocket 2", ...) so every earned callsign stays unique without needing an ever-growing name list. */
 function generateCallsign(n: number): string {
   const base = RECRUIT_CALLSIGNS[(n - 1) % RECRUIT_CALLSIGNS.length];
   const cycle = Math.floor((n - 1) / RECRUIT_CALLSIGNS.length);
   return cycle === 0 ? base : `${base} ${cycle + 1}`;
+}
+
+// Recruit name pools (5 Sep 2026, Maxime: "Can you randomise name in the
+// pool"). A recruit used to be "Recruit \"Sprocket\"" — no name, no rank,
+// which reads as a body rather than a person and works against every system
+// this game has for making you care about them (permadeath, the memorial
+// roll, the social sim). Now they get a real rank and a real name.
+//
+// Deliberately NOT a callsign at recruit time: Maxime's own call is that a
+// callsign is EARNED ("Allow recruit to gain callsign via actions"), so a
+// recruit joins as "Cpl. Vera Okonkwo" and becomes "Cpl. Vera Okonkwo —
+// \"Tinder\"" once the crew has a reason to name them. See awardCallsign.
+//
+// Ultimately this belongs to the character creator/editor (Maxime: "Itl be
+// ultimately part of the creator editor") — these pools are the interim, and
+// are deliberately plain lists so that editor can replace them without
+// touching any logic.
+const RECRUIT_FIRST_NAMES = [
+  "Vera", "Idris", "Noor", "Cassian", "Mira", "Tobias", "Saoirse", "Emeka",
+  "Runa", "Alaric", "Zaine", "Petra", "Kwame", "Ilse", "Renzo", "Ayla",
+  "Dmitri", "Neve", "Osman", "Thea", "Bastien", "Junia", "Marek", "Sena",
+];
+const RECRUIT_SURNAMES = [
+  "Okonkwo", "Valdis", "Brennan", "Nakamura", "Oyelaran", "Ferrow", "Halden", "Sarkis",
+  "Mbeki", "Cortez", "Ashgrove", "Vantry", "Delacroix", "Osei", "Lindqvist", "Rahal",
+  "Petrov", "Quilliam", "Adeyemi", "Sandoval", "Novak", "Fairweather", "Duarte", "Kessler",
+];
+
+/** The rank a fresh recruit carries. Deliberately junior — they are new, and the authored cast's ranks are earned. */
+const RECRUIT_RANKS = ["Pvt.", "Spec.", "Cpl."];
+
+function randomFrom<T>(list: readonly T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+/** A recruit's plain rank-and-name identity, with no callsign — that gets earned. */
+function generateRecruitName(): string {
+  return `${randomFrom(RECRUIT_RANKS)} ${randomFrom(RECRUIT_FIRST_NAMES)} ${randomFrom(RECRUIT_SURNAMES)}`;
+}
+
+/**
+ * The crew gives a pilot a callsign (5 Sep 2026). Recruits join nameless in
+ * that sense and earn one by doing something worth naming — the trigger
+ * lives at the call site, not here, so what "earns" it can change without
+ * touching this.
+ *
+ * No-op for anyone who already has one, which includes every authored pilot
+ * (their callsign is baked into the displayName they were written with, so
+ * they must never be re-named by this). That means the ten authored recruit
+ * candidates arrive already named — they are written characters, and Okafor
+ * has been "Ledger" since before the player met him. Only a GENERATED
+ * recruit joins nameless and earns one, which is the case this exists for.
+ */
+export function awardCallsign(state: CampaignState, pilotId: string, callsign?: string): string | null {
+  const entry = state.pilots[pilotId];
+  if (!entry) return null;
+  if (entry.pilot.callsign) return null; // already named
+  if (entry.pilot.displayName.includes("\u201c")) return null; // authored cast, callsign already in the name
+  const name = callsign ?? generateCallsign(state.nextGeneratedId++);
+  entry.pilot.callsign = name;
+  entry.pilot.displayName = `${entry.pilot.displayName} \u2014 \u201c${name}\u201d`;
+  return name;
 }
 
 // A generated recruit's mek needs *some* primary track (MekTrack is
@@ -1180,13 +1331,15 @@ type ArchetypeChassisSuffix = "bipedal" | "centauroid" | "vibrissal";
 function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: ArchetypeChassisSuffix = "bipedal"): PilotRecord {
   const n = state.nextGeneratedId;
   state.nextGeneratedId += 1;
-  const callsign = generateCallsign(n);
+  // A real rank and name, not a callsign — see RECRUIT_FIRST_NAMES' own note
+  // and awardCallsign for why a recruit starts unnamed in that sense.
+  const recruitName = generateRecruitName();
   const pilotId = `pilot_recruit_${n}`;
   const mekId = `mek_recruit_${n}`;
 
   const mek: MekArchetype = {
     id: mekId,
-    displayName: `${callsign}'s Mek`,
+    displayName: `${recruitName.split(" ").slice(-1)[0]}'s Mek`,
     primary: CLASS_DEFAULT_MEK_TRACK[targetClass],
     secondary: null,
     spareParts: 0,
@@ -1201,7 +1354,7 @@ function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: A
   // anything else.
   const pilot: PilotRecord = {
     id: pilotId,
-    displayName: `Recruit "${callsign}"`,
+    displayName: recruitName,
     archetypeId: `arch_${targetClass}_${chassisSuffix}`,
     mekId,
     // Combat Medic Cadre (2 Sep 2026, data/carrierModules.ts) — the one
@@ -1310,6 +1463,93 @@ export function recruitDiscretionary(state: CampaignState, targetClass: Path): R
   return { ok: true, pilot };
 }
 
+// ---- 6b. Pilot Discharge (5 Sep 2026) ----------------------------------
+// claude/Bloom_Wars_Pilot_Discharge_And_Roster_Pressure_Proposal_v1.md —
+// design pass, zero code, 28 Aug 2026; shape decided that same day per
+// Maxime's own delegation ("your call on unanswered question i dunno
+// enough"). The release valve for the roster pressure this project already
+// built without a new number: the RIVAL_THRESHOLD-gated Stress bleed and
+// Anger Blowup (data/toxicPairs.ts, data/angerBlowup.ts) both make a bad
+// pairing cost something every encounter, forever, with no way to stop it
+// short of rotating the pairing out. Discharge is that way out — the
+// player's own order, issued directly (no CO, no chat needed: the player
+// already holds command authority over their own single carrier), most
+// naturally from wherever roster management already lives (the shop, next
+// to Discretionary recruiting — see scenes/shop/ShopPanel.ts).
+
+export interface DischargeResult {
+  ok: boolean;
+  reason?: string;
+  /**
+   * Set only when discharging this pilot dropped the roster's active Munti
+   * count to zero and this call minted a free replacement to cover it (see
+   * the Munti-safety note below) — undefined otherwise, including on every
+   * ordinary discharge.
+   */
+  muntiReplacement?: PilotRecord;
+}
+
+/**
+ * Cost — matches permadeath, deliberately (the proposal's own words):
+ * "Discharge isn't cheaper than losing them in the field — it's the same
+ * mechanical weight, minus the death and minus the grief beat." Concretely,
+ * that means exactly what applyPermadeathCheck/applyMissionLosses already
+ * do above: personalPoints banked but unspent are discarded, and the
+ * pilot's own tier and mek investment simply stop being reachable once
+ * their CampaignPilotEntry leaves the active roster — there is no separate
+ * "forfeit" mutation to write, because nothing else in this file ever lets
+ * a non-active pilot's PilotRecord or mek be reused. If discharge were
+ * free, it would quietly undercut permadeath's own sting by giving players
+ * a safe exit for any pilot they're not attached to; costing the same
+ * keeps it a real, considered decision instead of a loophole. No cooldown
+ * and no use limit (Maxime: "No limit (Recommended)") — the cost alone is
+ * the brake.
+ *
+ * Commander exemption: refuses on PilotRecord.exemptFromPermadeath, the
+ * same data-driven flag evaluatePermadeathCheck itself checks (Rourke in
+ * Warden, her House Amaranth counterpart) — not a hardcoded id, so this
+ * stays correct if that flag ever moves. Permadeath already treats this
+ * pilot's departure as never an ordinary roster event; discharge shouldn't
+ * quietly become the back door around that.
+ *
+ * The Munti case, worth real care rather than assuming the proposal's own
+ * reasoning still holds once actually wired up: the proposal says
+ * discharging the roster's last living Munti is safe because
+ * checkMuntiGuarantee already exists as a free, unconditional replacement
+ * — true, but checkMuntiGuarantee is only ever CALLED from Debrief.ts, at
+ * the end of a mission. A Hub-side discharge has no upcoming debrief to
+ * trigger it, and canLaunchMission already refuses to launch ANY mission
+ * without an active Munti in the deploying squad — so discharging the
+ * roster's last one from the shop, with nothing else done, would soft-lock
+ * a real campaign (no Munti to deploy -> can't launch -> can't reach a
+ * debrief -> the guarantee that was supposed to save this never fires).
+ * Not a hypothetical: caught by tracing canLaunchMission/checkMuntiGuarantee
+ * against the real call sites before writing this, not by assuming the
+ * proposal's own description of the safety net still applied verbatim.
+ * Fixed by calling checkMuntiGuarantee itself, immediately, right here —
+ * the exact same free, guaranteed replacement the proposal already
+ * describes, just triggered at the moment it's actually needed instead of
+ * a debrief that would never come. This does not replace the confirm
+ * prompt Maxime's own answer asked for ("worth a confirm prompt so it's
+ * not an accidental click") — that's a caller/UI concern (ShopPanel's own
+ * arm-then-confirm click) — it only guarantees the campaign stays
+ * launchable regardless of whether that prompt was heeded.
+ */
+export function dischargePilot(state: CampaignState, pilotId: string): DischargeResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: "no such pilot" };
+  if (entry.status !== "active") return { ok: false, reason: "that pilot is not on the active roster" };
+  if (entry.pilot.exemptFromPermadeath) return { ok: false, reason: "the commander can't be discharged" };
+  entry.status = "discharged";
+  // Matches applyPermadeathCheck's own comment exactly: a lost (here,
+  // discharged) pilot's personal points are their own growth, and that
+  // growth doesn't outlive their time on this roster any more than their
+  // gear tier does.
+  entry.personalPoints = 0;
+  const guarantee = checkMuntiGuarantee(state);
+  return { ok: true, muntiReplacement: guarantee.recruited ? guarantee.pilot : undefined };
+}
+
 // ---- 7. Second Lance integration (Act II opening, 25 Aug 2026) ---------
 
 export interface SecondLanceResult {
@@ -1349,11 +1589,20 @@ export interface SecondLanceResult {
  * catches a save that already passed this beat before this line existed.
  */
 export function integrateSecondLance(state: CampaignState): SecondLanceResult {
-  if (state.pilots[SECOND_LANCE_PILOTS[0].id]) return { integrated: false };
-  for (const p of SECOND_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
-  for (const [id, m] of Object.entries(SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
+  // 5 Sep 2026 — this used to hand the player five finished pilots. Maxime:
+  // "player should recruit their lance teamate not have a team be creste for
+  // them." So Act II now grants an EMPTY 2nd Lance and the five authored
+  // pilots who used to arrive here move into the recruit pool
+  // (recruitCandidates) instead — you can still end up with Okafor and
+  // Solheim, but only by choosing them.
+  //
+  // Rourke's promotion to Captain is unchanged and still fires here: the
+  // rank comes from commanding a second lance, not from who's standing in
+  // it. An empty lance is still a lance you were given.
+  if ((state.lancesGranted ?? derivedLanceCount(state)) >= 2) return { integrated: false };
+  grantLance(state);
   state.rourkeRank = "capt";
-  return { integrated: true, pilots: SECOND_LANCE_PILOTS };
+  return { integrated: true, pilots: [] };
 }
 
 /**
@@ -1411,11 +1660,13 @@ export interface ThirdLanceResult {
  * wrote it). See deriveRourkeRank/backfillRourkeRank below.
  */
 export function integrateThirdLance(state: CampaignState): ThirdLanceResult {
-  if (state.pilots[THIRD_LANCE_PILOTS[0].id]) return { integrated: false };
-  for (const p of THIRD_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
-  for (const [id, m] of Object.entries(THIRD_LANCE_MEKS)) state.meks[id] = { ...m };
+  // Same change as integrateSecondLance above, same reasoning — Act III
+  // grants an empty 3rd Lance, and its five authored pilots (Kova, Ness,
+  // Onwuka, Delgado, Yeun) join the recruit pool rather than the roster.
+  if ((state.lancesGranted ?? derivedLanceCount(state)) >= 3) return { integrated: false };
+  grantLance(state);
   state.rourkeRank = "maj";
-  return { integrated: true, pilots: THIRD_LANCE_PILOTS };
+  return { integrated: true, pilots: [] };
 }
 
 // ---- 8a. Rourke rank correctness backfill (27 Aug 2026 — same-day
@@ -1463,8 +1714,20 @@ export function integrateThirdLance(state: CampaignState): ThirdLanceResult {
  * without touching localStorage, Phaser, or a live Mission.
  */
 export function deriveRourkeRank(state: CampaignState): Rank {
-  if (state.pilots[THIRD_LANCE_PILOTS[0].id]) return "maj";
-  if (state.pilots[SECOND_LANCE_PILOTS[0].id]) return "capt";
+  // Derived from how many lances Rourke COMMANDS, not from which authored
+  // pilots are in the roster (5 Sep 2026). Those used to be the same fact —
+  // a 2nd Lance existed because its five pilots had been handed over — but
+  // lances now arrive empty for the player to recruit into, so roster
+  // membership stopped implying command.
+  //
+  // This mattered more than a rename: left as it was, an Act III player's
+  // rank derived as 2nd_lt, and backfillRourkeRank would then have quietly
+  // DEMOTED a Major on every load. lanceCount reads the stored grant and
+  // falls back to the old roster derivation for pre-5-Sep saves, so both
+  // eras answer correctly.
+  const lances = lanceCount(state);
+  if (lances >= 3) return "maj";
+  if (lances >= 2) return "capt";
   return "2nd_lt";
 }
 
@@ -1495,13 +1758,252 @@ export function deriveRourkeRank(state: CampaignState): Rank {
  * hire standing in Lance A's workshop is the least surprising answer.
  * Revisit if recruiting ever gets its own lance assignment.
  */
-export type LanceId = "a" | "b" | "c";
+// Five, not three, deliberately (Maxime, 5 Sep 2026: "maximum number of
+// lance total is 5 because i want to plan ahead for gladiator"). Gladiator
+// fields 30 mechs as lance-sized activation groups and grows a fleet to 5
+// carriers (Bloom_Wars_Gladiator_Fleet_Battle_Concept_v1.md), so the ID
+// space is sized for that now rather than being widened later against live
+// saves.
+//
+// The CURRENT campaign never reaches d or e. A carrier gains one lance per
+// act — A from the start, B at Mission 12, C at Mission 24 — so this game
+// tops out at three. lanceCount()/activeLanceIds() below are what any UI
+// should ask; LANCE_IDS is the id space, not "the lances you have".
+export type LanceId = "a" | "b" | "c" | "d" | "e";
 
 export function lanceOfPilot(pilotId: string): LanceId {
   if (THIRD_LANCE_PILOTS.some((p) => p.id === pilotId)) return "c";
   if (SECOND_LANCE_PILOTS.some((p) => p.id === pilotId)) return "b";
   if (HOUSE_AMARANTH_SECOND_LANCE_PILOTS.some((p) => p.id === pilotId)) return "b";
   return "a";
+}
+
+// ---- B2: assignable lances (5 Sep 2026) ---------------------------------
+//
+// lanceOfPilot above answers "where did this pilot ARRIVE", which is a pure
+// function of static data and stays exactly as it was — every existing
+// caller that wants the arrival batch still gets it. Everything below
+// answers "where is this pilot NOW", which needs the save.
+//
+// Maxime's decisions on this feature, recorded here because the rules are
+// not derivable from the code and a future reader will otherwise wonder:
+//   - Lances are player-assignable for real, not derived from arrival.
+//   - Hard cap of MAX_LANCE_SIZE per lance, matching the deploy cap.
+//   - A Munti is a WARNING, not a save-block. The roster is exactly three
+//     Muntis for three lances, so a required-Munti rule would (a) permit
+//     exactly one legal arrangement and (b) permanently brick a lance the
+//     first time a Munti is killed, in a permadeath game. canLaunchMission
+//     already refuses a Munti-less squad at the point that matters, so the
+//     block would add no safety and create a dead end. See
+//     lanceFieldability below.
+//   - A pilot's Mek follows them: Hub's workshop rooms read the live
+//     assignment (lanceOfMekIn), so reassigning moves the Mek's NPC too.
+
+/** The most pilots that may be assigned to one lance — matches the Transporter Pad's own deploy cap. */
+export const MAX_LANCE_SIZE = 5;
+
+/** Every lance id the system can represent. NOT the lances a given carrier has — see activeLanceIds. */
+export const LANCE_IDS: readonly LanceId[] = ["a", "b", "c", "d", "e"];
+
+/** The ceiling on how many lances one carrier can ever hold. Gladiator's number; this campaign stops at 3. */
+export const MAX_LANCES = 5;
+
+/**
+ * How many lances THIS carrier actually has, derived from campaign progress
+ * rather than stored: one per act, granted by the integrate*Lance functions
+ * seeding their batch into the roster.
+ *
+ * Deliberately checks membership in the static arrival batches rather than
+ * current assignment, so it stays correct after the player reshuffles
+ * everyone — emptying 3rd Lance by moving its pilots elsewhere must not
+ * delete the lance. Also counts permanently lost pilots, whose entries stay
+ * in state.pilots, so losing an entire lance to casualties doesn't retract
+ * the slot either.
+ */
+export function lanceCount(state: CampaignState): number {
+  return Math.min(state.lancesGranted ?? derivedLanceCount(state), MAX_LANCES);
+}
+
+/** The pre-5-Sep-2026 rule: a lance existed because its authored batch was in the roster. Kept as the backfill for old saves. */
+function derivedLanceCount(state: CampaignState): number {
+  let n = 1;
+  const has = (list: { id: string }[]) => list.some((p) => state.pilots[p.id] !== undefined);
+  if (has(SECOND_LANCE_PILOTS) || has(HOUSE_AMARANTH_SECOND_LANCE_PILOTS)) n = 2;
+  if (has(THIRD_LANCE_PILOTS)) n = 3;
+  return n;
+}
+
+/** The lances this carrier actually has, in order. What every roster/deploy UI should iterate. */
+export function activeLanceIds(state: CampaignState): LanceId[] {
+  return LANCE_IDS.slice(0, lanceCount(state));
+}
+
+/** Display name for a lance, in the game's own voice. */
+export function lanceDisplayName(lance: LanceId): string {
+  return { a: "1st Lance", b: "2nd Lance", c: "3rd Lance", d: "4th Lance", e: "5th Lance" }[lance];
+}
+
+/**
+ * Where this pilot is NOW: their assigned lance if the player has ever moved
+ * them, otherwise the lance they arrived with. The single read path for
+ * everything that cares about current membership.
+ */
+export function lanceOfPilotIn(state: CampaignState, pilotId: string): LanceId {
+  return state.pilots[pilotId]?.lance ?? lanceOfPilot(pilotId);
+}
+
+/**
+ * Everyone currently in `lance`. Living pilots only, and deliberately so:
+ * per Maxime's call, a permanently lost pilot leaves the lance page entirely
+ * and is recorded in the Vault's roll instead (scenes/ui/MemorialPanel.ts),
+ * rather than being listed in two places.
+ */
+export function lanceRoster(state: CampaignState, lance: LanceId): CampaignPilotEntry[] {
+  return Object.values(state.pilots).filter((e) => e.status === "active" && lanceOfPilotIn(state, e.pilot.id) === lance);
+}
+
+export interface LanceFieldability {
+  /** Can this lance be sent on a mission as it stands? */
+  fieldable: boolean;
+  /** Player-facing reason it can't be, or undefined when it can. */
+  warning?: string;
+}
+
+/**
+ * Whether a lance could actually deploy, as a WARNING rather than a
+ * constraint on saving it — see this section's header for why a hard Munti
+ * requirement was rejected. Mirrors canLaunchMission's own Munti rule so the
+ * roster screen and the deploy gate can never disagree about what's legal;
+ * canLaunchMission remains the thing that actually enforces it.
+ */
+export function lanceFieldability(state: CampaignState, lance: LanceId): LanceFieldability {
+  const roster = lanceRoster(state, lance);
+  if (roster.length === 0) return { fieldable: false, warning: "empty — no one assigned" };
+  const hasMunti = roster.some((e) => UNIT_ARCHETYPES[e.pilot.archetypeId]?.path === "munti");
+  if (!hasMunti) return { fieldable: false, warning: "no Munti — this lance can't launch as it stands" };
+  return { fieldable: true };
+}
+
+/**
+ * Grant this carrier another lance — an EMPTY one, for the player to recruit
+ * into. Idempotent and capped at MAX_LANCES.
+ */
+export function grantLance(state: CampaignState): boolean {
+  const current = lanceCount(state);
+  if (current >= MAX_LANCES) return false;
+  state.lancesGranted = current + 1;
+  return true;
+}
+
+/**
+ * The authored candidates a player can recruit (5 Sep 2026). These are the
+ * ten pilots who USED to be handed over as a finished 2nd and 3rd Lance —
+ * Okafor, Solheim, Tarrant, Vashti, Reyes, Kova, Ness, Onwuka, Delgado,
+ * Yeun. Rather than delete ten written characters to make room for
+ * recruiting, recruiting draws from them: you still choose your squad, and
+ * the ones you pick are real people with real names instead of generated
+ * placeholders. Which of them you end up with is now yours, and a campaign
+ * where Solheim never joined is a different campaign.
+ *
+ * Once the pool is exhausted, recruiting generates pilots with names from
+ * RECRUIT_FIRST_NAMES/RECRUIT_SURNAMES instead, so the well never runs dry.
+ */
+export function recruitCandidates(state: CampaignState): PilotRecord[] {
+  return [...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS].filter((p) => state.pilots[p.id] === undefined);
+}
+
+export type LanceAssignResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Move `pilotId` into `lance`. The only rule enforced here is the size cap;
+ * everything else is advisory (lanceFieldability). Writes the override even
+ * when it matches the arrival batch, so a pilot deliberately put back where
+ * they started stays put if the static arrays are ever edited.
+ *
+ * Does NOT save — callers batch their own saveCampaignState, same as every
+ * other mutator in this file.
+ */
+/**
+ * Trade two pilots' lances. The counterpart to assignPilotToLance, and NOT
+ * optional sugar over it — without this the whole feature deadlocks.
+ *
+ * Found by live verification, 5 Sep 2026: the Warden roster is 15 pilots and
+ * there are 3 lances capped at MAX_LANCE_SIZE (5), so from Act III onward
+ * every lance is permanently at 5/5. Under a hard cap that means no move is
+ * legal in any direction, and there is no "make room first" either, because
+ * every other lance is full too. assignPilotToLance alone is usable at 5 and
+ * 10 pilots and completely frozen at 15.
+ *
+ * A swap is exempt from the cap by construction — it never changes any
+ * lance's size — so it's the operation that keeps a full roster editable.
+ * Same-lance swaps are a no-op success rather than an error, since a UI
+ * cycling through pilots can easily land on one.
+ */
+export function swapPilotLances(state: CampaignState, pilotIdA: string, pilotIdB: string): LanceAssignResult {
+  const a = state.pilots[pilotIdA];
+  const b = state.pilots[pilotIdB];
+  if (!a || !b) return { ok: false, reason: "no such pilot" };
+  if (a.status !== "active" || b.status !== "active") return { ok: false, reason: "both pilots must be on the active roster" };
+  if (pilotIdA === pilotIdB) return { ok: true };
+  const lanceA = lanceOfPilotIn(state, pilotIdA);
+  const lanceB = lanceOfPilotIn(state, pilotIdB);
+  if (lanceA === lanceB) return { ok: true }; // already together, nothing to trade
+  a.lance = lanceB;
+  b.lance = lanceA;
+  return { ok: true };
+}
+
+export type RecruitIntoLanceResult = { ok: true; pilot: PilotRecord } | { ok: false; reason: string };
+
+/**
+ * Recruit one pilot into `lance` (5 Sep 2026). Takes an authored candidate by
+ * id when one is named, otherwise the first available candidate, otherwise
+ * generates a pilot with a pooled name.
+ *
+ * The recruit arrives with NO callsign — see awardCallsign. Free at the
+ * point of this function: whether it costs company points is the caller's
+ * business (scenes/shop/ShopPanel.ts owns the existing recruit economy), so
+ * that a story-granted pilot and a bought one can share this path.
+ */
+export function recruitIntoLance(state: CampaignState, lance: LanceId, candidateId?: string): RecruitIntoLanceResult {
+  if (!activeLanceIds(state).includes(lance)) {
+    return { ok: false, reason: `${lanceDisplayName(lance)} doesn't exist yet — a carrier gains one lance per act` };
+  }
+  if (lanceRoster(state, lance).length >= MAX_LANCE_SIZE) {
+    return { ok: false, reason: `${lanceDisplayName(lance)} is full (${MAX_LANCE_SIZE} is the most that can deploy together)` };
+  }
+
+  const pool = recruitCandidates(state);
+  const chosen = candidateId ? pool.find((p) => p.id === candidateId) : pool[0];
+  if (candidateId && !chosen) return { ok: false, reason: "that candidate is no longer available" };
+
+  let pilot: PilotRecord;
+  if (chosen) {
+    pilot = { ...chosen };
+    state.pilots[pilot.id] = { pilot, status: "active", personalPoints: 0, lance };
+    // The authored candidates arrive with their own written Meks.
+    const mek = { ...SECOND_LANCE_MEKS, ...THIRD_LANCE_MEKS }[pilot.mekId];
+    if (mek) state.meks[pilot.mekId] = { ...mek };
+  } else {
+    pilot = generatePilot(state, randomFrom(ALL_RECRUITABLE_PATHS));
+    state.pilots[pilot.id] = { pilot, status: "active", personalPoints: 0, lance };
+  }
+  return { ok: true, pilot };
+}
+
+export function assignPilotToLance(state: CampaignState, pilotId: string, lance: LanceId): LanceAssignResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: "no such pilot" };
+  if (entry.status !== "active") return { ok: false, reason: "that pilot is no longer on the active roster" };
+  if (!activeLanceIds(state).includes(lance)) {
+    return { ok: false, reason: `${lanceDisplayName(lance)} doesn't exist yet — a carrier gains one lance per act` };
+  }
+  if (lanceOfPilotIn(state, pilotId) === lance) return { ok: true }; // already there, nothing to do
+  if (lanceRoster(state, lance).length >= MAX_LANCE_SIZE) {
+    return { ok: false, reason: `${lanceDisplayName(lance)} is full (${MAX_LANCE_SIZE} is the most that can deploy together)` };
+  }
+  entry.lance = lance;
+  return { ok: true };
 }
 
 /**
@@ -1517,6 +2019,25 @@ export function lanceOfMek(mekId: string): LanceId {
   if (SECOND_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "b";
   if (HOUSE_AMARANTH_SECOND_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "b";
   return "a";
+}
+
+/**
+ * B2 — where a MEK's workshop is now, following its pilot's live lance
+ * assignment (Maxime's call: "the Mek follows the pilot"). Resolves the mek
+ * to its owning pilot through the same six static lists lanceOfMek walks,
+ * then asks lanceOfPilotIn.
+ *
+ * Falls back to lanceOfMek for any mek whose pilot can't be resolved — a
+ * generated recruit's mek, or a mek id that isn't in the static roster at
+ * all — so this can never return a worse answer than the static version it
+ * replaces at Hub's workshop-seeding call site.
+ */
+export function lanceOfMekIn(state: CampaignState, mekId: string): LanceId {
+  for (const list of [WARDEN_PILOTS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS, HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_SECOND_LANCE_PILOTS]) {
+    const owner = list.find((p) => p.mekId === mekId);
+    if (owner) return lanceOfPilotIn(state, owner.id);
+  }
+  return lanceOfMek(mekId);
 }
 
 /**
@@ -1560,6 +2081,18 @@ function backfillCampaignId(state: CampaignState): void {
  * Also repairs a whitespace-only name, which is the one thing a text field
  * can produce that would otherwise render as an empty header.
  */
+/**
+ * B2 recruiting pass, 5 Sep 2026 — a save written before `lancesGranted`
+ * existed has its lance count implied by which authored batches are in its
+ * roster, which is exactly what derivedLanceCount computes. Backfilling it
+ * means an in-progress campaign keeps every lance and every pilot it already
+ * had, and never sees the new empty-lance behavior retroactively applied to
+ * lances it was already given.
+ */
+function backfillLancesGranted(state: CampaignState): void {
+  if (state.lancesGranted === undefined) state.lancesGranted = derivedLanceCount(state);
+}
+
 function backfillCompanyName(state: CampaignState): void {
   if (!state.companyName || !state.companyName.trim()) {
     state.companyName = state.pilots["pilot_rourke"] ? DEFAULT_WARDEN_COMPANY_NAME : DEFAULT_HOUSE_AMARANTH_COMPANY_NAME;

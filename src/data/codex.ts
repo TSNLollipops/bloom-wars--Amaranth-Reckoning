@@ -84,13 +84,14 @@ import { wardenMissionIndex, WARDEN_MISSION_ORDER } from "./missionBriefing";
 /**
  * The minimal shape Codex.ts extracts from a real CampaignPilotEntry
  * (engine/campaignState.ts) before calling in here — see this file's own
- * header on why src/data never imports that type directly. "active" and
- * "reassigned" need nothing further; "permanently_lost" carries just
- * enough of PilotLossContext to name where and when.
+ * header on why src/data never imports that type directly. "active",
+ * "reassigned", and "discharged" need nothing further; "permanently_lost"
+ * carries just enough of PilotLossContext to name where and when.
  */
 export type LivePilotStatus =
   | { kind: "active" }
   | { kind: "reassigned" }
+  | { kind: "discharged" }
   | { kind: "permanently_lost"; missionId: string; turn: number };
 
 export interface PersonnelMek {
@@ -215,6 +216,13 @@ export function personnelStatusText(entry: PersonnelEntry, live: LivePilotStatus
   }
   if (live.kind === "reassigned") {
     return "No longer serving with Warden Company — reassigned off the ship, at the player's own request.";
+  }
+  // Discharge (5 Sep 2026) is deliberately worded apart from "reassigned"
+  // above even though both read as "gone, not dead": reassignment is a
+  // forced CO-mediated resolution to a standoff, discharge is a plain
+  // administrative choice made at the shop, no conversation involved.
+  if (live.kind === "discharged") {
+    return "No longer serving with Warden Company — discharged, tier and gear investment left behind.";
   }
   const idx = wardenMissionIndex(live.missionId);
   const missionName = idx === -1 ? live.missionId : WARDEN_MISSION_ORDER[idx].displayName;
@@ -446,7 +454,7 @@ export const SYSTEMS: SystemsEntry[] = [
     title: "Meks",
     body: [
       "Every pilot has exactly one Mek — never on the board, never a target, never lost to anything that happens in a fight. A Mek doesn't fight. It's the reason the pilot fights a little better, all the time, without anyone having to think about it mid-mission.",
-      "Four real specialties, and a Mek carries one, sometimes two. A Fabricator keeps spare parts in reserve, and can put a downed pilot back in the fight the very next turn, at half strength — instead of that pilot being lost for the rest of the mission outright. An Armorer simply makes the whole unit hit harder and shrug off more. A Runemaster sharpens awareness and reaction across the board — sees further, reacts first, and makes whatever the pilot's own weapon does on a hit last longer and bite harder. A Fieldwright rewards holding position: heals the pilot who stays put, and if that pilot is a Munti, makes their own healing hit harder too.",
+      "Four real specialties, and a Mek carries one, sometimes two. A Fabricator keeps spare parts in reserve — a downed pilot's own restock crate, so when Beacon Control pulls them back into the fight it costs the company nothing from the Restock Room shelf. An Armorer simply makes the whole unit hit harder and shrug off more. A Runemaster sharpens awareness and reaction across the board — sees further, reacts first, and makes whatever the pilot's own weapon does on a hit last longer and bite harder. A Fieldwright rewards holding position: heals the pilot who stays put, and if that pilot is a Munti, makes their own healing hit harder too.",
       "One specialty exists only as a Mek's second skill, never its first — a Mek that's purely good at stretching the company's points further, cheaper gear for the rest of the campaign, nothing sharper in a fight. Not every pilot wants that trade. Some do, and it adds up.",
     ],
   },
@@ -528,7 +536,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   { term: "Restock", def: "A downed pilot returns to the field at full strength next mission, rather than being lost for good — provided a Munti was alive on the field at the moment they went down. No Munti on the field, no restock." },
   { term: "Mek", def: "A pilot's personal support partner. Never deployed, never a target, never lost to anything that happens in a fight." },
   { term: "Bloom-mat", def: "Ground the Bloom leaves behind. Deals acid damage over time to anything standing on it." },
-  { term: "Spare part", def: "What a Fabricator Mek spends to put a downed pilot back on the field mid-mission, at half strength, instead of losing them for the rest of that fight." },
+  { term: "Spare part", def: "A Fabricator Mek's own restock crate. When Beacon Control revives that Mek's pilot mid-mission, the beacon burns one of these instead of a crate from the Restock Room." },
   { term: "Lance", def: "A five-pilot squad; the basic organizational unit Warden Company is built from." },
   { term: "Gear tier", def: "A pilot's own equipment ladder, G up through A, climbed with points rather than time served. An Heirloom pilot sits above it entirely, at S — a rung nothing can be bought up to." },
   { term: "The Requiem system", def: "Warden Company's own company-wide Heirloom mechanic. One charge, shared by the whole unit, spent by whoever's holding it: a line of damage eight tiles long that doesn't check sides, and doesn't stop for a full shell of Endurance either. The specific weapon wielded under it — Bosk's, then Rourke's — is called Gjallar." },

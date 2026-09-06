@@ -48,8 +48,8 @@
 // ever called on clones.
 import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
-import { BLOOM } from "../data/bloom";
-import { chebyshevDistance, chassisToMovementKind, coordKey, reachableTiles, type MovementKind } from "./grid";
+import { chebyshevDistance, coordKey, reachableTiles, type MovementKind } from "./grid";
+import { movementKindOf as frameMovementKindOf } from "./frameSystems";
 import { decideHostileAction, estimateDamage, livingTargets, occupiedSet } from "./ai";
 
 export interface HostileFootprint {
@@ -74,10 +74,9 @@ export interface IncomingEstimate {
   worstSingle: number;
 }
 
-/** The same movement-kind rule engine/ai.ts's moveToward / reachableWithinRangeTile apply, exported so the footprint and the real mover can't disagree. */
+/** The same movement-kind rule engine/ai.ts's moveToward / reachableWithinRangeTile apply, exported so the footprint and the real mover can't disagree. Since 6 Sep 2026 (Frame Systems Layer) both delegate to engine/frameSystems.ts's movementKindOf, which also knows about the two Drive/Frame systems that change a frame's costs. */
 export function movementKindOf(unit: BattleUnit): MovementKind {
-  const flying = unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane";
-  return flying ? "flying" : chassisToMovementKind(unit.chassis ?? "bipedal", false);
+  return frameMovementKindOf(unit);
 }
 
 function tilesInRangeOf(map: MapDefinition, from: Coord, range: [number, number], into: Set<string>): void {

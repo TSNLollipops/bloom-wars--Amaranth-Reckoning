@@ -16,12 +16,10 @@ import type {
 } from "../data/types";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
 import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, createCivilianUnit, type BattleUnit, type OnHitEffectKind, type Side } from "./units";
-import { MEK_TRACK_EFFECTS } from "../data/meks";
-import { findPilot, findMek } from "../data/pilotRegistry";
+import { findPilot } from "../data/pilotRegistry";
 import {
   reachableTiles,
   reconstructPath,
-  chassisToMovementKind,
   coordKey,
   coordsEqual,
   chebyshevDistance,
@@ -30,7 +28,21 @@ import {
   neighbors4,
   inBounds,
   isPassable,
+  type MovementKind,
 } from "./grid";
+import {
+  movementKindOf,
+  unitHasBranch,
+  repairRangeFor,
+  repairOutputMultiplier,
+  regenAurasFor,
+  matRegenFor,
+  immuneToMatAcid,
+  ramFrameCharges,
+  cannotAttackAfterMoving,
+  stationaryRepairMoveAllowance,
+  unitBranches,
+} from "./frameSystems";
 import { resolveMechAttack, resolveAttackOnBloom, bloomDamage, applyMechDamage, applyBloomDamage, applyRequiemBloomDamage, tankShieldEligible } from "./combat";
 // requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — Data Pack
 // §11.5's own locked numbers (damage, shape, charge rate), reused rather
@@ -41,8 +53,6 @@ import {
   MEEPS_DODGE_CHANCE,
   TANK_SHIELD_CAPACITY,
   TANK_SHIELD_REGEN_PER_TURN,
-  MUNTI_REGEN_RADIUS,
-  MUNTI_REGEN_PER_TURN,
   MAX_ACTIONS_PER_TURN,
   SENSOR_SWEEP_RANGE_BONUS,
   SENSOR_SWEEP_CHARGES_PER_MISSION,
@@ -120,9 +130,6 @@ import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { applyBloomOnHitEffect, applyCopiedOnHitEffect, applyMechOnHitEffect, isStunned, tickStatusEffects } from "./turnManager";
 import {
   GRINDER_CLAW_HEAL_PCT,
-  RAPID_RESPONSE_REPAIR_RANGE,
-  DEFAULT_REPAIR_RANGE,
-  AEGIS_WARD_REGEN_RADIUS,
   FIELD_DOCTOR_COOLDOWN_TURNS,
   SCATTERSHOT_PISTOLS_CLEAVE_PCT,
   WEAPON_BRANCH_ON_HIT_EFFECT,
@@ -263,6 +270,9 @@ export interface AttackOutcome {
   attackerDowned?: boolean;
   defenderDodged?: boolean; // Meeps house rule — see data/combatTables.ts MEEPS_DODGE_CHANCE
   counterDodged?: boolean;
+  // Runemaster initiative (6 Sep 2026) — the defender's counter landed
+  // BEFORE the attacker's own hit; see engine/combat.ts's initiative block.
+  defenderStruckFirst?: boolean;
 }
 
 /**
@@ -285,6 +295,10 @@ export interface AttackForecast {
   attackerHpAfter: number;
   decloakStrike: boolean;
   charged: boolean;
+  // Runemaster initiative (6 Sep 2026) — the defender would counter BEFORE
+  // this hit lands; `damage` is then the post-counter swing (0 if the
+  // counter would down the attacker outright). The HUD says so.
+  defenderStruckFirst?: boolean;
 }
 
 /** One unit caught in a forecast splash — see forecastSplash(). */
@@ -464,15 +478,17 @@ export const STALL_NUDGE_TURN_THRESHOLD = 10;
 
 // Data Pack §6's abil_repair: 30 HP base, x1.25 if the Munti's own mek has
 // Fieldwright as primary (x1 if secondary or absent — see MEK_TRACK_EFFECTS).
-// Only player pilots carry a pilotId/mekId; hostile mechs never get a bonus.
+// Read off the unit (engine/units.ts bakes it at deploy from the LIVE mek
+// copy) since 6 Sep 2026 — before that this looked the mek up in the static
+// pilotRegistry, which never sees a secondary bought mid-campaign. Only
+// player pilots carry the field; hostile mechs never get a bonus.
 const REPAIR_BASE_HEAL = 30;
 function repairHealAmount(healer: BattleUnit): number {
-  if (!healer.pilotId) return REPAIR_BASE_HEAL;
-  const pilot = findPilot(healer.pilotId);
-  const mek = pilot ? findMek(pilot.mekId) : undefined;
-  let mult = 1;
-  if (mek?.primary === "fieldwright") mult = MEK_TRACK_EFFECTS.fieldwright.primary.muntiHealOutputMult;
-  else if (mek?.secondary === "fieldwright") mult = MEK_TRACK_EFFECTS.fieldwright.secondary.muntiHealOutputMult;
+  let mult = healer.repairOutputMult ?? 1;
+  // Field Repair Kit (Frame Systems Layer, 6 Sep 2026 — reinterpreted, see
+  // data/frameSystems.ts's header): a further multiplier on the output,
+  // read off the healer BattleUnit itself rather than the registry above.
+  mult *= repairOutputMultiplier(healer);
   return Math.round(REPAIR_BASE_HEAL * mult);
 }
 
@@ -787,6 +803,14 @@ export class Mission {
   // the starting placement budget still reports an honest "how many did we
   // actually spend," not a number derived from the (possibly different) cap.
   beaconRevivesUsed: number = 0;
+  // Fabricator spare parts burned by Beacon Control this mission, keyed by
+  // mek id (6 Sep 2026 — Maxime: "its the beacon job to give in battle
+  // restock," so a Fabricator mek's parts are its pilot's own Beacon crate
+  // rather than the GDD's never-built self-redeploy). Mission can't write
+  // CampaignState, so this is handed to engine/campaignEconomy.ts's
+  // applySparePartsConsumption at Debrief — same shape as
+  // signatureHpCosts and the crate/charge write-back right above.
+  sparePartsSpent: Record<string, number> = {};
   // Which Antfarm bays are built on the campaign save this mission was
   // launched from (engine/campaignState.ts's CampaignState.builtBays) —
   // passed in once at construction, not re-read live, same "snapshot for
@@ -1190,9 +1214,11 @@ export class Mission {
     return this.resolvedExtractUnitId;
   }
 
-  private movementKindFor(unit: BattleUnit): "bipedal" | "centauroid" | "flying" {
-    if (unit.kind === "bloom" && BLOOM[unit.archetypeId]?.movementType === "flight_membrane") return "flying";
-    return chassisToMovementKind(unit.chassis ?? "bipedal", false);
+  private movementKindFor(unit: BattleUnit): MovementKind {
+    // Frame Systems Layer (6 Sep 2026) — one rule for every mover in the
+    // codebase, including the two Drive/Frame systems that change a frame's
+    // costs (Bloomwalkers, Redundant Actuators). See engine/frameSystems.ts.
+    return movementKindOf(unit);
   }
 
   private occupiedSet(excludeId: string): Set<string> {
@@ -1254,8 +1280,10 @@ export class Mission {
     // repairUnit's below) fell out of sync. Now mirrors repairUnit()'s own
     // per-healer-branch range exactly, rather than re-deriving it a second
     // way.
-    const repairRange =
-      unit.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
+    // Rapid Response, plus (6 Sep 2026) the two Munti refits — one shared
+    // rule in engine/frameSystems.ts's repairRangeFor, so this and
+    // repairUnit's own check can't drift apart.
+    const repairRange = repairRangeFor(unit);
     return this.livingUnits().filter(
       (t) =>
         t.side === unit.side &&
@@ -1475,7 +1503,19 @@ export class Mission {
     if (!reachable.has(key)) return false;
 
     const path = reconstructPath(reachable, destination);
-    unit.chargedThisMove = unit.chassis === "centauroid" && isStraightLineCharge(this.map, path, "centauroid");
+    // Ram Frame (Frame Systems Layer refit, 6 Sep 2026) — the centauroid
+    // Charge rule "available to a bipedal Tank," per the design doc: a 2+
+    // tile move of any shape sets the same flag the centauroid's own
+    // straight-line rule does, so both ride CENTAUROID_CHARGE_MULT in
+    // engine/combat.ts. `path` includes the start tile, hence length - 1.
+    unit.chargedThisMove =
+      (unit.chassis === "centauroid" && isStraightLineCharge(this.map, path, "centauroid")) || ramFrameCharges(unit, path.length - 1);
+    // Battery Frame (same pass) and, since the same day's second pass, the
+    // Fieldwright stationary heal / Stabilizer Struts — see
+    // BattleUnit.tilesMovedThisTurn's own comment. Accumulates across a
+    // turn's moves: two 1-tile moves read 2, which Struts (allowance 1)
+    // correctly treats as "moved."
+    unit.tilesMovedThisTurn = (unit.tilesMovedThisTurn ?? 0) + (path.length - 1);
     unit.pos = destination;
     // Move costs 1 action and does not end the turn (two-action house rule,
     // Maxime, 22 Aug 2026) — a unit can move again, or still act, if it has
@@ -1507,7 +1547,20 @@ export class Mission {
     // Escorting is the trade; a unit that could still fight while carrying
     // would get both halves of it for free.
     if (!attacker || attacker.actionsRemaining <= 0 || attacker.carryingRescueId) return null;
-    return this.resolveAttack(attackerId, defenderId);
+    // Battery Frame (Frame Systems Layer refit, 6 Sep 2026) — "cannot move
+    // and attack the same turn." Refused here, at the action-economy gate,
+    // so an overwatch reaction shot (resolveAttack via triggerOverwatch,
+    // which never passes through this verb) is deliberately NOT blocked: a
+    // held shot is fired from where the unit already stood.
+    if (cannotAttackAfterMoving(attacker)) return null;
+    const outcome = this.resolveAttack(attackerId, defenderId);
+    // Overpressure Regulator (same pass) — the x1.4 rides this unit's FIRST
+    // basic attack of the mission; mark it spent once that attack has
+    // actually resolved, hit or dodge, so a refused attack (null) doesn't
+    // burn it. Reaction shots don't spend it either, for the same reason as
+    // the Battery Frame gate above: the system reads "your first attack."
+    if (outcome) attacker.overpressureSpent = true;
+    return outcome;
   }
 
   /**
@@ -1567,6 +1620,7 @@ export class Mission {
         attackerHpAfter,
         decloakStrike,
         charged: attacker.chargedThisMove,
+        defenderStruckFirst: r.defenderStruckFirst,
       };
     }
 
@@ -1725,7 +1779,10 @@ export class Mission {
       // comment for the full mechanism. r.dodged is the PRIMARY defender's
       // dodge roll; a dodged primary hit never cleaves (nothing landed to
       // cleave off of).
-      this.applyScattershotCleave(attacker, defender, r.dodged === true, ambushDecloakStrike, sameSideAsAttacker);
+      // `|| attacker.downed` (6 Sep 2026): a Runemaster defender's
+      // pre-emptive counter can down the attacker before their own hit
+      // is thrown — and a hit that was never thrown doesn't cleave either.
+      this.applyScattershotCleave(attacker, defender, r.dodged === true || attacker.downed, ambushDecloakStrike, sameSideAsAttacker);
       outcome = {
         attackerId,
         defenderId,
@@ -1736,6 +1793,7 @@ export class Mission {
         attackerDowned: attacker.downed,
         defenderDodged: r.dodged,
         counterDodged: r.counterDodged,
+        defenderStruckFirst: r.defenderStruckFirst,
       };
     } else if (attacker.kind !== "bloom" && defender.kind === "bloom") {
       const r = resolveAttackOnBloom(this.map, attacker, defender, sameSideAsDefender, attacker.chargedThisMove, {
@@ -1767,15 +1825,23 @@ export class Mission {
       // "knockback"-kind fx (Riot Drum) — computed unconditionally here
       // anyway, same "cheap enough not to special-case" call as the
       // identical computation a few lines below for Borrowed Authority.
+      // `sameSideAsDefender` (Suppression Autocannon, 5 Sep 2026) is only
+      // actually read by a "debuff_attack"-kind fx — already computed at
+      // the top of this method for resolveAttackOnBloom's own call, reused
+      // here rather than recomputed.
       if (!outcome.defenderDowned) {
-        const branchFx = attacker.weaponBranchId ? WEAPON_BRANCH_ON_HIT_EFFECT[attacker.weaponBranchId] : undefined;
-        if (branchFx) {
+        // Second mount (6 Sep 2026): every live branch's on-hit list, in mount
+        // order — each entry still rolls independently, exactly as Riot Drum's
+        // own two-entry list already did, so a Tank carrying Riot Drum AND
+        // (say) a future second on-hit branch rolls all of them.
+        const branchFx = unitBranches(attacker).flatMap((id) => WEAPON_BRANCH_ON_HIT_EFFECT[id] ?? []);
+        if (branchFx.length) {
           const occupied = new Set(
             this.units.filter((u) => !u.downed && u.instanceId !== defender.instanceId).map((u) => coordKey(u.pos))
           );
           for (const fx of branchFx) {
             if (this.rng() >= fx.chance) continue;
-            applyMechOnHitEffect(fx.fxId, attacker, defender, this.map, occupied);
+            applyMechOnHitEffect(fx.fxId, attacker, defender, sameSideAsDefender, this.map, occupied);
             // Log wording is per-fxId, same as Scattershot Pistols' own
             // cleave log line a few methods below (branch-specific text,
             // not a generic template) — the LOOKUP and APPLICATION above
@@ -1783,6 +1849,7 @@ export class Mission {
             // adds its own line here alongside these, not a replacement.
             if (fx.fxId === "fx_riot_drum_knockback") this.log.push(`${defender.displayName} is knocked back!`);
             else if (fx.fxId === "fx_riot_drum_pin") this.log.push(`${defender.displayName} is pinned!`);
+            else if (fx.fxId === "fx_suppression_autocannon_debuff") this.log.push(`${defender.displayName}'s attack is suppressed!`);
             else this.log.push(`${defender.displayName} is stunned!`);
           }
         }
@@ -1878,11 +1945,22 @@ export class Mission {
     // the log should say why rather than leave a player to infer it from an
     // oddly large number.
     if (ambushDecloakStrike) msg += " — DECLOAK STRIKE";
-    msg += outcome.defenderDodged ? " — DODGED (Meeps)" : ` for ${outcome.damage}`;
-    if (outcome.countered) {
-      msg += outcome.counterDodged ? ", counter DODGED (Meeps)" : ` (countered for ${outcome.counterDamage})`;
+    // Runemaster initiative (6 Sep 2026): when the defender struck first,
+    // say so and put the counter BEFORE the hit in the text too, so the log
+    // reads in the order things actually happened — including the case
+    // where the pre-emptive counter downed the attacker and no hit landed.
+    if (outcome.defenderStruckFirst) {
+      msg += outcome.counterDodged ? " — the defender strikes first (initiative), DODGED (Meeps)" : ` — the defender strikes first (initiative) for ${outcome.counterDamage}`;
+      if (outcome.attackerDowned) msg += "; the attack never lands";
+      else msg += outcome.defenderDodged ? ", then the hit is DODGED (Meeps)" : `, then hits for ${outcome.damage}`;
+      this.log.push(msg);
+    } else {
+      msg += outcome.defenderDodged ? " — DODGED (Meeps)" : ` for ${outcome.damage}`;
+      if (outcome.countered) {
+        msg += outcome.counterDodged ? ", counter DODGED (Meeps)" : ` (countered for ${outcome.counterDamage})`;
+      }
+      this.log.push(msg);
     }
-    this.log.push(msg);
 
     if (outcome.defenderDowned) this.handleDowned(defender);
     if (outcome.attackerDowned) this.handleDowned(attacker);
@@ -2046,7 +2124,7 @@ export class Mission {
    * warns against.
    */
   private fieldDoctorBonusReady(unit: BattleUnit): boolean {
-    return unit.weaponBranchId === "munti_field_doctor" && isCooldownReady(this.cooldownReadyTurn(unit, "abil_repair"), this.turn);
+    return unitHasBranch(unit, "munti_field_doctor") && isCooldownReady(this.cooldownReadyTurn(unit, "abil_repair"), this.turn);
   }
 
   /**
@@ -2093,8 +2171,7 @@ export class Mission {
     // 27 Aug 2026) — extends Repair's range from adjacent-only to 2 tiles
     // for a Munti who's bought and equipped this branch. Everyone else
     // keeps the original DEFAULT_REPAIR_RANGE (1) hardcoded rule above.
-    const repairRange =
-      healer.weaponBranchId === "munti_rapid_response" ? RAPID_RESPONSE_REPAIR_RANGE : DEFAULT_REPAIR_RANGE;
+    const repairRange = repairRangeFor(healer);
     if (chebyshevDistance(healer.pos, target.pos) > repairRange) return null;
 
     const healAmount = repairHealAmount(healer);
@@ -2131,7 +2208,7 @@ export class Mission {
    * applied, for both the mech-vs-mech and mech-vs-Bloom branches.
    */
   private applyGrinderClawHeal(attacker: BattleUnit, damageDealt: number): void {
-    if (attacker.weaponBranchId !== "tank_grinder_claw" || damageDealt <= 0) return;
+    if (!unitHasBranch(attacker, "tank_grinder_claw") || damageDealt <= 0) return;
     const healAmount = Math.round(damageDealt * GRINDER_CLAW_HEAL_PCT);
     if (healAmount <= 0) return;
     const before = attacker.currentHp;
@@ -2207,7 +2284,7 @@ export class Mission {
     ambushDecloakStrike: boolean,
     sameSideAsAttacker: BattleUnit[]
   ): void {
-    if (attacker.weaponBranchId !== "meeps_scattershot_pistols" || primaryDodged) return;
+    if (!unitHasBranch(attacker, "meeps_scattershot_pistols") || primaryDodged) return;
     const secondTarget = this.livingUnits().find(
       (u) =>
         u.instanceId !== primaryTarget.instanceId &&
@@ -2777,24 +2854,50 @@ export class Mission {
     if (unitId !== this.beaconHolderId()) return false;
     if (!this.beaconControlBuilt || !this.restockRoomBuilt || !this.generatorBuilt) return false;
     if (this.beaconsRemaining <= 0) return false;
-    if (this.beaconCratesRemaining <= 0) return false;
+    // The crate gate, widened 6 Sep 2026 for Fabricator spare parts: with
+    // no company crate left, the beacon can still fire if SOME restockable
+    // downed ally on this side carries their own (beaconCrateSourceFor).
+    // Range isn't checked here — that's getBeaconTargetsFrom's job — so
+    // the button can light up for a part-carrying casualty who then turns
+    // out to be out of reach, same "usable, then no targets" shape every
+    // other targeted ability in this file already has.
+    if (this.beaconCratesRemaining <= 0 && !this.restockableDowned(unit.side).some((u) => this.beaconCrateSourceFor(u) === "spare_part")) return false;
     if (this.beaconChargesRemaining <= 0 && !this.livingMuntiPresent()) return false;
     return unit.actionsRemaining > 0;
+  }
+
+  /** Every downed, not-permanently-lost pilot on `side` — the pool both canPlaceBeacon and getBeaconTargetsFrom draw from. */
+  private restockableDowned(side: BattleUnit["side"]): BattleUnit[] {
+    return this.units.filter((u) => u.side === side && u.downed && !!u.pilotId && !this.isPermanentlyLost(u.pilotId!));
+  }
+
+  /**
+   * What a beacon revive of `target` would burn for its crate: the target's
+   * own Fabricator spare part when they have one, else a company crate from
+   * the Restock Room stock, else nothing — and "nothing" means this target
+   * can't be revived right now. The part is tried FIRST, deliberately: the
+   * whole point of the Fabricator track after 6 Sep 2026 ("its the beacon
+   * job to give in battle restock" — Maxime) is that its pilot brings their
+   * own crate, which keeps the company's crates for pilots who don't.
+   */
+  private beaconCrateSourceFor(target: BattleUnit): "spare_part" | "crate" | undefined {
+    if ((target.fabricatorPartsRemaining ?? 0) > 0) return "spare_part";
+    if (this.beaconCratesRemaining > 0) return "crate";
+    return undefined;
   }
 
   /**
    * Every downed ally `unitId` could revive right now — restockable
    * casualties only (isPermanentlyLost, same gate getLastWordSignatureTargetsFrom
-   * uses above) within beaconTargetInRange of the holder. Empty whenever
+   * uses above) within beaconTargetInRange of the holder, who have a crate
+   * source (their own spare part or a company crate). Empty whenever
    * canPlaceBeacon is false, same "ask the engine, never guess" contract
    * every other getXTargetsFrom method in this file follows.
    */
   getBeaconTargetsFrom(unitId: string): BattleUnit[] {
     if (!this.canPlaceBeacon(unitId)) return [];
     const holder = this.unitById(unitId)!;
-    return this.units.filter(
-      (u) => u.side === holder.side && u.downed && !!u.pilotId && !this.isPermanentlyLost(u.pilotId!) && this.beaconTargetInRange(holder, u)
-    );
+    return this.restockableDowned(holder.side).filter((u) => this.beaconCrateSourceFor(u) !== undefined && this.beaconTargetInRange(holder, u));
   }
 
   /**
@@ -2828,11 +2931,24 @@ export class Mission {
     const target = this.getBeaconTargetsFrom(unitId).find((t) => t.instanceId === targetId);
     if (!target) return false;
 
+    // Resolved BEFORE the revive flips `downed`, since getBeaconTargetsFrom
+    // already guaranteed a source exists for this target.
+    const crateSource = this.beaconCrateSourceFor(target)!;
+
     target.currentHp = target.maxHp;
     target.downed = false;
 
     this.beaconsRemaining -= 1;
-    this.beaconCratesRemaining -= 1;
+    // Fabricator spare parts (6 Sep 2026) — see beaconCrateSourceFor. The
+    // part is the TARGET's (it's their mek's), spent off the unit and
+    // tallied by mek id for Debrief; a company crate is the fallback.
+    if (crateSource === "spare_part") {
+      target.fabricatorPartsRemaining = (target.fabricatorPartsRemaining ?? 1) - 1;
+      const mekId = target.mekId ?? target.pilotId!;
+      this.sparePartsSpent[mekId] = (this.sparePartsSpent[mekId] ?? 0) + 1;
+    } else {
+      this.beaconCratesRemaining -= 1;
+    }
     const muntiPresent = this.livingMuntiPresent();
     if (!muntiPresent) {
       this.beaconChargesRemaining -= 1;
@@ -2841,10 +2957,12 @@ export class Mission {
 
     holder.actionsRemaining -= 1;
     this.noteAbilityUse(holder, "beacon_control");
+    const crateNote =
+      crateSource === "spare_part" ? `, ${target.displayName}'s own Fabricator spare part covers the crate (${target.fabricatorPartsRemaining} part(s) left)` : "";
     this.log.push(
       muntiPresent
-        ? `${holder.displayName} drops a beacon for ${target.displayName} — full restock, a Munti on the field waives the Restock Room charge (${this.beaconsRemaining} beacon(s) left).`
-        : `${holder.displayName} drops a beacon for ${target.displayName} — full restock (${this.beaconsRemaining} beacon(s) left, ${this.beaconChargesRemaining} charge(s) left).`
+        ? `${holder.displayName} drops a beacon for ${target.displayName} — full restock, a Munti on the field waives the Restock Room charge${crateNote} (${this.beaconsRemaining} beacon(s) left).`
+        : `${holder.displayName} drops a beacon for ${target.displayName} — full restock${crateNote} (${this.beaconsRemaining} beacon(s) left, ${this.beaconChargesRemaining} charge(s) left).`
     );
     return true;
   }
@@ -4442,6 +4560,7 @@ export class Mission {
       if (unit.downed || unit.side !== "hostile") continue;
       unit.actionsRemaining = MAX_ACTIONS_PER_TURN;
       unit.chargedThisMove = false;
+      unit.tilesMovedThisTurn = 0;
     }
 
     for (const unit of this.livingUnits().filter((u) => u.side === "hostile")) {
@@ -4495,6 +4614,13 @@ export class Mission {
       if (unit.downed) continue;
       unit.actionsRemaining = MAX_ACTIONS_PER_TURN;
       unit.chargedThisMove = false;
+      // Battery Frame / Fieldwright stationary heal — same fact as
+      // actionsRemaining refreshing, kept in the same loop for the same
+      // reason overwatch is. Note the ORDER against environmentStep() above:
+      // that step (and tickStationaryRepair inside it) still sees the
+      // player side's counts from the turn that just ended, which is
+      // exactly the "did not move" the GDD's turn-start heal asks about.
+      unit.tilesMovedThisTurn = 0;
       // Overwatch survives the whole hostile phase — that IS the mechanic —
       // and expires the moment its owner's next turn begins. Cleared in the
       // same loop that refreshes actionsRemaining, deliberately: the two are
@@ -4660,10 +4786,17 @@ export class Mission {
   private environmentStep(): void {
     this.tickShieldRegen();
     this.tickMuntiRegen();
+    this.tickStationaryRepair();
     for (const unit of this.livingUnits()) {
       const tile: TileType = tileAt(this.map, unit.pos);
       const def = TILES[tile];
-      if (def.turnStartDamage) {
+      // Sealed Cockpit (Frame Systems Layer, 6 Sep 2026) — "immune to
+      // bloom-mat acid." Skips the tile's own turnStartDamage outright for
+      // a mech carrying it; a Bloom never carries systems, so the Bloom
+      // branch is untouched. The only tile with turnStartDamage today IS
+      // bloom_mat, so this reads as the system's own description without
+      // a tile-id check that would silently exempt some future hazard too.
+      if (def.turnStartDamage && !(unit.kind !== "bloom" && immuneToMatAcid(unit))) {
         if (unit.kind === "bloom") applyBloomDamage(unit, def.turnStartDamage);
         else {
           applyMechDamage(unit, def.turnStartDamage);
@@ -4673,6 +4806,14 @@ export class Mission {
       }
       if (def.turnStartRepair && !unit.downed && unit.kind !== "bloom") {
         unit.currentHp = Math.min(unit.maxHp, unit.currentHp + def.turnStartRepair);
+      }
+      // Wellroot Filament (salvage, same pass) — regen while standing on
+      // bloom mat, applied AFTER the acid above so the net on an acid tile
+      // is the +3 data/frameSystems.ts describes (or the full +8 alongside
+      // Sealed Cockpit). Ordinary "capped at maxHp" regen, no side effects.
+      if (tile === "bloom_mat" && !unit.downed && unit.kind !== "bloom") {
+        const regen = matRegenFor(unit);
+        if (regen > 0) unit.currentHp = Math.min(unit.maxHp, unit.currentHp + regen);
       }
       // Bloom on-hit effects engine (engine/turnManager.ts, 27 Aug 2026) —
       // acid_dot's per-turn tick, same once-per-cycle cadence as the tile
@@ -6039,8 +6180,7 @@ export class Mission {
    * every living non-Bloom unit within MUNTI_REGEN_RADIUS of a same-side,
    * non-downed Munti (itself included) heals MUNTI_REGEN_PER_TURN, capped
    * at maxHp. Doesn't consume any unit's action — it's a passive aura, on
-   * top of whatever the Munti's active Repair does that turn. Multiple
-   * Muntis in range don't stack.
+   * top of whatever the Munti's active Repair does that turn.
    *
    * Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
    * 1 Sep 2026) — a Munti who's bought and equipped this branch projects
@@ -6049,26 +6189,81 @@ export class Mission {
    * Rapid Response's per-healer repair range above — a squad with more
    * than one Munti only gets the wider radius from whichever one actually
    * has the branch equipped, the other(s) still project the base radius.
+   *
+   * Combat Medic (Munti's 4th branch, 5 Sep 2026, Maxime's own design —
+   * "triple passive regen. to those within 3 tile of themself") — a Munti
+   * with this branch equipped projects the aura at COMBAT_MEDIC_REGEN_RADIUS
+   * AND heals for MUNTI_REGEN_PER_TURN * COMBAT_MEDIC_REGEN_MULTIPLIER
+   * instead of the plain amount, same per-Munti-equipped shape as Aegis
+   * Ward. Because the healing amount can now differ by which Munti is in
+   * range (it used to be flat regardless), "multiple Muntis in range don't
+   * stack" is implemented as "the unit heals for the BEST (highest)
+   * applicable amount among every same-side Munti in range," not a sum and
+   * not just the first one found — a squad with both a plain Munti and a
+   * Combat Medic in range gets Combat Medic's number, not both added
+   * together, and not whichever happened to be checked first.
    */
   private tickMuntiRegen(): void {
-    const muntisBySide = new Map<string, BattleUnit[]>();
+    // Frame Systems Layer (6 Sep 2026): the per-Munti radius/amount rule
+    // above now lives in engine/frameSystems.ts's regenAurasFor, which also
+    // returns a Salve Drone's aura for ANY path carrying that system — so
+    // the source list is "every living unit projecting at least one aura,"
+    // not "every Munti." The best-single-source-in-range rule is unchanged;
+    // a Salve Drone standing inside a Munti's aura adds nothing on top.
+    const sourcesBySide = new Map<string, { unit: BattleUnit; auras: { radius: number; amount: number }[] }[]>();
     for (const u of this.livingUnits()) {
-      if (u.path !== "munti") continue;
-      const list = muntisBySide.get(u.side) ?? [];
-      list.push(u);
-      muntisBySide.set(u.side, list);
+      const auras = regenAurasFor(u);
+      if (!auras.length) continue;
+      const list = sourcesBySide.get(u.side) ?? [];
+      list.push({ unit: u, auras });
+      sourcesBySide.set(u.side, list);
     }
-    if (!muntisBySide.size) return;
+    if (!sourcesBySide.size) return;
 
     for (const unit of this.livingUnits()) {
       if (unit.kind === "bloom" || unit.currentHp >= unit.maxHp) continue;
-      const muntis = muntisBySide.get(unit.side);
-      if (!muntis) continue;
-      const inRange = muntis.some((m) => {
-        const radius = m.weaponBranchId === "munti_aegis_ward" ? AEGIS_WARD_REGEN_RADIUS : MUNTI_REGEN_RADIUS;
-        return chebyshevDistance(m.pos, unit.pos) <= radius;
-      });
-      if (inRange) unit.currentHp = Math.min(unit.maxHp, unit.currentHp + MUNTI_REGEN_PER_TURN);
+      const sources = sourcesBySide.get(unit.side);
+      if (!sources) continue;
+      let bestHeal = 0;
+      for (const src of sources) {
+        const dist = chebyshevDistance(src.unit.pos, unit.pos);
+        for (const aura of src.auras) {
+          if (dist > aura.radius) continue;
+          if (aura.amount > bestHeal) bestHeal = aura.amount;
+        }
+      }
+      if (bestHeal > 0) unit.currentHp = Math.min(unit.maxHp, unit.currentHp + bestHeal);
+    }
+  }
+
+  /**
+   * Fieldwright mek track — GDD §6.2 / Data Pack §5: "+15 HP at turn start
+   * if the pilot did not move, on any tile" (+8 as a secondary). Wired 6 Sep
+   * 2026, the day it was found that data/meks.ts had carried
+   * `stationaryHeal` unread since it was written — Lask, Warden's own
+   * starting Munti, has a Fieldwright-primary mek and had never once been
+   * healed by it.
+   *
+   * Runs inside environmentStep (the hostile phase's tail), BEFORE the
+   * turn-start loop in runHostileTurn zeroes tilesMovedThisTurn — so for a
+   * player unit the count is still the one from the turn that just ended,
+   * which is precisely the "did not move" the rule asks about. Same slot
+   * and same silent, capped-at-maxHp shape as tickMuntiRegen directly
+   * above; the two stack (a stationary Fieldwright Munti standing in its
+   * own aura is healed by both), since nothing in either doc says otherwise
+   * and the Munti regen's own "best single AURA source" rule is about
+   * auras, not about every heal in the game.
+   *
+   * Stabilizer Struts (data/frameSystems.ts, same day) widens "did not
+   * move" to "moved at most 1 tile" via stationaryRepairMoveAllowance — 0
+   * for everyone else, so the GDD's strict rule is the default.
+   */
+  private tickStationaryRepair(): void {
+    for (const unit of this.livingUnits()) {
+      const heal = unit.stationaryHeal;
+      if (!heal || unit.currentHp >= unit.maxHp) continue;
+      if ((unit.tilesMovedThisTurn ?? 0) > stationaryRepairMoveAllowance(unit)) continue;
+      unit.currentHp = Math.min(unit.maxHp, unit.currentHp + heal);
     }
   }
 

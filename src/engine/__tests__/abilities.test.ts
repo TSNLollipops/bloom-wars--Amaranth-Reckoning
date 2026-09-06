@@ -139,6 +139,12 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     const mission = quietMission();
     const anand = pilot(mission, "pilot_anand", { x: 4, y: 6 });
     anand.vision = 3;
+    // Anand's mek is Runemaster-primary, and since 6 Sep 2026 that means
+    // passive burrow detection anywhere in her vision (engine/units.ts) —
+    // which would make this test's "invisible before the sweep" premise
+    // false for the wrong reason. Stripped here so the SWEEP is what's
+    // under test; the Runemaster half has its own tests in mekTracks.test.ts.
+    anand.detectsBurrowedRadius = undefined;
     const undertow = createBloomUnit("bloom_undertow", { x: 7, y: 6 }, { burrowed: true });
     mission.units.push(undertow);
 
@@ -159,6 +165,7 @@ describe("Mission.sensorSweep (abil_sensor_sweep — Reeps)", () => {
     const mission = quietMission();
     const anand = pilot(mission, "pilot_anand", { x: 4, y: 6 });
     anand.vision = 3;
+    anand.detectsBurrowedRadius = undefined; // Runemaster-primary — see the test above
     const hidden = createBloomUnit("bloom_undertow", { x: 7, y: 6 }, { burrowed: true });
     hidden.moveRange = 0;
     hidden.vision = 0;

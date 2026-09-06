@@ -338,6 +338,7 @@ export class Codex extends Phaser.Scene {
     if (!entry) return undefined;
     if (entry.status === "active") return { kind: "active" };
     if (entry.status === "reassigned") return { kind: "reassigned" };
+    if (entry.status === "discharged") return { kind: "discharged" };
     // status === "permanently_lost" from here down. lostContext is only
     // truly optional for a save from before that field existed, or a
     // status flip through the test-only applyPermadeathCheck path rather

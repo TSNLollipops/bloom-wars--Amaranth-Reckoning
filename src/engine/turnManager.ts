@@ -47,6 +47,17 @@
 // collision against). "Pin" (Riot Drum's other effect) is NOT a new kind —
 // see data/weaponBranches.ts's own header comment for why it deliberately
 // reuses "stun" outright.
+//
+// 5 Sep 2026: applyMechOnHitEffect widened a third time for Suppression
+// Autocannon (Reeps' 3rd branch) — a "debuff_attack" branch added, this time
+// reusing the SAME radius-based "hits the defender plus same-side allies
+// within DEBUFF_ATTACK_RADIUS" logic applyBloomOnHitEffect's own
+// debuff_attack branch already implements, just fed the Bloom-side roster
+// instead of the mech-side one. That's why the signature grows a
+// `defenderSameSide` param this time (stun/knockback never needed one —
+// neither spreads to nearby units) — same param, same position, as
+// applyBloomOnHitEffect's own signature, so the two appliers stay
+// structurally parallel rather than diverging in shape.
 import type { Coord, MapDefinition } from "../data/types";
 import { TILES } from "../data/tiles";
 import { inBounds, tileAt, chebyshevDistance, coordKey } from "./grid";
@@ -155,20 +166,43 @@ export function applyBloomOnHitEffect(
  * in the original signature "for whichever future mech-side effect does
  * need it" — knockback is that effect, using attacker.pos exactly the way
  * applyBloomOnHitEffect's own knockback branch does.
+ *
+ * `defenderSameSide` added 5 Sep 2026 alongside the "debuff_attack" branch
+ * below (Suppression Autocannon) — unused for "stun"/"knockback", same
+ * "kept on the shared signature rather than special-casing the one branch
+ * that needs it" reasoning as `map`/`occupied` above. Same param, same
+ * meaning, same position as applyBloomOnHitEffect's own `defenderSameSide`:
+ * the full same-side roster of `defender` (mission.ts's own
+ * `sameSideAsDefender`), NOT pre-filtered — this function excludes the
+ * defender itself, downed units, and applies the radius check, exactly the
+ * way applyBloomOnHitEffect already does.
  */
 export function applyMechOnHitEffect(
   fxId: string | undefined,
   attacker: BattleUnit,
   defender: BattleUnit,
+  defenderSameSide: BattleUnit[],
   map: MapDefinition,
   occupied: Set<string>
 ): OnHitApplyResult {
   if (!fxId || defender.downed) return {};
   const fx = MECH_ON_HIT_EFFECTS[fxId];
   if (!fx) return {};
+  // Runemaster effect potency (GDD §6.2 / Data Pack §5: "weapon effect
+  // potency +50% — DoT duration, knockback distance, debuff turns"; x1.25
+  // as a secondary). Wired 6 Sep 2026 — data/meks.ts carried the field
+  // unread until then. Scales the DURATION of a stun/pin/debuff and the
+  // DISTANCE of a knockback, never the magnitude (a -20% debuff stays -20%,
+  // it just lasts longer), and applies only here, to a weapon branch's own
+  // on-hit list — a Bloom has no mek, and seal_borrowed_authority's copied
+  // Bloom effect is deliberately left unscaled (it's an Heirloom ability
+  // borrowing a Bloom's effect, not the pilot's own weapon; flagged in the
+  // 6 Sep addendum rather than decided here). 1 for every unit without
+  // the track, so every pre-existing case is byte-identical.
+  const potency = attacker.effectPotency ?? 1;
 
   if (fx.kind === "stun") {
-    applyStatusEffect(defender, { kind: "stun", magnitude: fx.magnitude, turnsRemaining: fx.duration });
+    applyStatusEffect(defender, { kind: "stun", magnitude: fx.magnitude, turnsRemaining: scaleByPotency(fx.duration, potency) });
     return {};
   }
 
@@ -177,12 +211,48 @@ export function applyMechOnHitEffect(
     // own knockback branch — one shared isKnockbackImmune() check, not a
     // second copy of the rule.
     if (isKnockbackImmune(defender)) return {};
-    const dest = knockbackDestination(map, attacker.pos, defender.pos, fx.magnitude, occupied);
+    const dest = knockbackDestination(map, attacker.pos, defender.pos, scaleByPotency(fx.magnitude, potency), occupied);
     if (dest) defender.pos = dest;
     return {};
   }
 
+  if (fx.kind === "debuff_attack") {
+    // Suppression Autocannon (5 Sep 2026) — byte-identical logic to
+    // applyBloomOnHitEffect's own debuff_attack branch above, reused rather
+    // than reimplemented: hits `defender` plus every living same-side unit
+    // within DEBUFF_ATTACK_RADIUS (Chebyshev), `defender` itself always
+    // included regardless of distance.
+    const targets = defenderSameSide.filter(
+      (u) =>
+        !u.downed &&
+        (u.instanceId === defender.instanceId || chebyshevDistance(u.pos, defender.pos) <= DEBUFF_ATTACK_RADIUS)
+    );
+    for (const u of targets) {
+      applyStatusEffect(u, { kind: "debuff_attack", magnitude: fx.magnitude, turnsRemaining: scaleByPotency(fx.duration, potency) });
+    }
+    return {};
+  }
+
   return {};
+}
+
+/**
+ * Runemaster effect potency, applied to an integer duration or distance.
+ * Math.round on purpose, and the consequence stated plainly because it is
+ * the whole practical effect of the field: every shipped on-hit duration
+ * is 1 or 2 turns, so with x1.5 (primary) a 1-turn stun/pin/knockback
+ * becomes 2 and a 2-turn debuff becomes 3; with x1.25 (secondary) a 1-turn
+ * effect stays 1 and a 2-turn debuff becomes 3 (2.5 rounds up — JS
+ * Math.round rounds .5 toward +infinity). Flooring instead would make the
+ * primary's +50% do nothing on every 1-turn effect, i.e. on three of the
+ * four shipped ones — the doc's "+50%" would be a lie for Shock Claws, Riot
+ * Drum and a Runemaster Meeps/Tank alike. Rounding is the reading that
+ * keeps the track meaning something; the numbers above are the honest
+ * cost of it. Exported for the tests.
+ */
+export function scaleByPotency(base: number, potency: number): number {
+  if (potency === 1 || base <= 0) return base;
+  return Math.max(1, Math.round(base * potency));
 }
 
 /**
@@ -220,7 +290,7 @@ export function applyCopiedOnHitEffect(
   map: MapDefinition,
   occupied: Set<string>
 ): OnHitApplyResult {
-  if (kind === "stun") return applyMechOnHitEffect("fx_shock_claws_stun", attacker, defender, map, occupied);
+  if (kind === "stun") return applyMechOnHitEffect("fx_shock_claws_stun", attacker, defender, defenderSameSide, map, occupied);
   const fxId = kind === "acid_dot" ? "fx_acid_dot" : kind === "debuff_attack" ? "fx_debuff_attack" : "fx_knockback_1";
   return applyBloomOnHitEffect(fxId, attacker, defender, defenderSameSide, map, occupied);
 }
@@ -365,9 +435,20 @@ export function knockbackDestination(
   if (dx === 0 && dy === 0) return null; // can't knock away from your own tile
   const stepX = Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) : 0;
   const stepY = stepX === 0 ? Math.sign(dy) : 0;
-  const dest = { x: defenderPos.x + stepX * magnitude, y: defenderPos.y + stepY * magnitude };
-  if (!inBounds(map, dest)) return null;
-  if (!TILES[tileAt(map, dest)].passableGround) return null;
-  if (occupied.has(coordKey(dest))) return null;
-  return dest;
+  // Walked one tile at a time (6 Sep 2026 — Runemaster effect potency made
+  // magnitude 2 reachable for the first time; every shipped knockback was 1
+  // before, for which this loop is exactly the old single-tile check): the
+  // push stops at the last tile that's in bounds, passable and empty, so a
+  // 2-tile push into a wall on the second step still lands the first, and
+  // a unit is never carried THROUGH an occupied or impassable tile. A push
+  // whose very first step is blocked returns null, as before.
+  let last: Coord | null = null;
+  for (let step = 1; step <= magnitude; step++) {
+    const dest = { x: defenderPos.x + stepX * step, y: defenderPos.y + stepY * step };
+    if (!inBounds(map, dest)) break;
+    if (!TILES[tileAt(map, dest)].passableGround) break;
+    if (occupied.has(coordKey(dest))) break;
+    last = dest;
+  }
+  return last;
 }

@@ -870,6 +870,15 @@ export const RECROOM_TABLE_POINT = { x: 300, y: 800 };
 export const RECROOM_BOARD_POINT = { x: 180, y: 1010 };
 export const MUSTER_POINT = { x: 1200, y: 930 };
 export const HANGAR_SHOP_POINT = { x: 850, y: 600 };
+// B2, 5 Sep 2026 — the crew-records console, a second walk-up point in the
+// same Hangar Deck room as the ROSTER & GEAR console above. Separate point
+// rather than a second meaning for one E press: that console owns the
+// Campaign Shop (gear, tiers, recruiting) per Maxime's 30 Aug call, and the
+// roster/stats panel is a different screen about different things. 220px
+// clear of it — comfortably more than twice HANGAR_SHOP_RADIUS (60), so a
+// player can never be "at" both at once and get the wrong E action, the
+// same clearance rule the Workshop bench documents against its own stair.
+export const CREW_RECORDS_POINT = { x: 1070, y: 600 };
 export const WORKSHOP_BENCH_POINT = { x: 150, y: 600 };
 export const VAULT_PLINTH_POINT = { x: 310, y: 250 };
 // Where the player first stands on a fresh Hub load: the Rec Room's open

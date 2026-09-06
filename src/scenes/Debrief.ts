@@ -30,10 +30,12 @@ import {
   integrateSecondLance,
   integrateThirdLance,
   integrateHouseAmaranthSecondLance,
+  awardCallsign,
   baseSceneKeyFor,
   applyMissionLosses,
   applyLastWordSignatureCosts,
   recordFoughtOnHitEffectKinds,
+  recordHostileKills,
   companyNameOf,
   type CampaignState,
 } from "../engine/campaignState";
@@ -44,6 +46,7 @@ import {
   applyBonusObjectivePoints,
   applyBeaconReviveCosts,
   applyBeaconStockConsumption,
+  applySparePartsConsumption,
   type CompanyEarningsResult,
 } from "../engine/campaignEconomy";
 // Requiem Early-Equip (4 Sep 2026) — see resolveRequiemEarlyEquip's own doc
@@ -63,6 +66,13 @@ import { summaryMvp, type MissionSummary } from "../engine/missionSummary";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
+// B4 (portrait wiring), 5 Sep 2026 — see drawEarningsPanel's own comment on
+// why this one genuinely needed a row-height rework rather than a drop-in
+// swap: the panel never had a placeholder circle, and its old 15px rows had
+// no room for one. UNIT_ARCHETYPES resolves the same per-pilot path/tier
+// fallback color RosterPanel.ts already uses.
+import { UNIT_ARCHETYPES } from "../data/units";
+import { PATH_COLORS, drawPilotAvatar } from "./TransporterPad";
 
 const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
@@ -87,6 +97,8 @@ export class Debrief extends Phaser.Scene {
   private companyResult!: CompanyEarningsResult;
   private muntiFired = false;
   private muntiPilot?: PilotRecord;
+  // Callsigns handed out at this debrief (5 Sep 2026) — see step 3e.
+  private callsignsEarned: { pilot: string; callsign: string }[] = [];
   private secondLancePilots?: PilotRecord[];
   private thirdLancePilots?: PilotRecord[];
   private rescuedPilot?: PilotRecord;
@@ -237,6 +249,14 @@ export class Debrief extends Phaser.Scene {
     // real win/loss debrief — harmless on a mission with zero Bloom
     // hostiles fought (an empty array in, a no-op union).
     recordFoughtOnHitEffectKinds(this.state, this.mission.getFoughtOnHitEffectKindsThisMission());
+    // Frame Systems Layer §7's salvage counter (6 Sep 2026) — every hostile
+    // kill this mission, by archetype, folded into the campaign-wide tally
+    // that gates salvage-system purchases (engine/campaignEconomy.ts's
+    // frameSystemAvailability). Same placement and same reasoning as the
+    // line above: touches one CampaignState field nothing else here reads,
+    // reached on every real win/loss debrief, harmless on a mission with
+    // no kills at all.
+    recordHostileKills(this.state, this.mission.hostileKills);
 
     // ---- 1c. Debrief-side echo, 27 Aug 2026 (Social Sim Roadmap #9) ------
     // Records this mission's outcome for the Hub to react to on the
@@ -280,6 +300,9 @@ export class Debrief extends Phaser.Scene {
     // comments on both functions for exactly what each does and why.
     this.beaconReviveCost = applyBeaconReviveCosts(this.state, this.mission);
     applyBeaconStockConsumption(this.state, this.mission);
+    // Fabricator spare parts the beacon burned instead of crates (6 Sep
+    // 2026) — same reconciliation group, same reasoning.
+    applySparePartsConsumption(this.state, this.mission);
 
     // ---- 2b. Calendar: the flat mission-completion cost -------------------
     // Calendar economy, 2 Sep 2026. This is ONLY the flat cost — the transit,
@@ -382,6 +405,24 @@ export class Debrief extends Phaser.Scene {
       rosterSizeAfter: activeRosterSize(this.state),
     });
 
+    // ---- 3e. Callsigns earned this mission (5 Sep 2026) ------------------
+    // Maxime: "Allow recruit to gain callsign via actions." The action is
+    // their first kill — the crew names you once you've actually done
+    // something, not the day you sign. Read off the mission summary that was
+    // just written, so this can never disagree with the record.
+    //
+    // awardCallsign no-ops for anyone who already has one, which is every
+    // authored pilot (their callsign is part of the name they were written
+    // with) and every recruit already named — so this only ever fires once
+    // per person, on the mission where they open their account.
+    this.callsignsEarned = [];
+    for (const p of this.summary?.squad ?? []) {
+      if (p.kills <= 0) continue;
+      const name = awardCallsign(this.state, p.pilotId);
+      if (name) this.callsignsEarned.push({ pilot: this.state.pilots[p.pilotId].pilot.displayName, callsign: name });
+    }
+    if (this.callsignsEarned.length) saveCampaignState(this.state);
+
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
 
     // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1 §2).
@@ -412,6 +453,7 @@ export class Debrief extends Phaser.Scene {
     cursorY = this.drawGriefCallout(cursorY + 8);
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
+    cursorY = this.drawCallsignCallout(cursorY + 8);
     cursorY = this.drawSecondLanceCallout(cursorY + 8);
     cursorY = this.drawThirdLanceCallout(cursorY + 8);
     cursorY = this.drawCoCheckinNudge(cursorY + 8);
@@ -518,13 +560,25 @@ export class Debrief extends Phaser.Scene {
   private drawEarningsPanel(top: number): number {
     const deployedIds = this.mission.deployedPilotIds;
     const lineH = 15;
+    // B4, 5 Sep 2026 — per-pilot rows only, grown from the original flat
+    // 15px lineH to make room for a portrait. Every OTHER line this panel
+    // draws (the after-action summary, the two company-pool lines) stays on
+    // the original lineH — it's only the deployedIds rows that needed the
+    // rework Maxime asked for, not the whole panel. Grows this panel by
+    // deployedIds.length * (pilotRowH - lineH) — ~65px for a 5-pilot
+    // squad — which is why every call site downstream of this one already
+    // takes its top from the previous call's *return value* rather than a
+    // hardcoded y (see create()'s own cursorY chain): nothing else in this
+    // file needed to change for the extra height to just cascade down.
+    const pilotRowH = 28;
+    const PORTRAIT_R = 12;
     const headerH = 18;
     // Telemetry pass (1 Sep 2026): one extra line for the after-action
     // summary (turns, hostiles down, downed, lost) when a record exists.
     const summaryLines = this.summary ? 1 : 0;
     const companyLines = 2;
     const padding = 14;
-    const height = headerH + deployedIds.length * lineH + summaryLines * lineH + companyLines * lineH + padding;
+    const height = headerH + deployedIds.length * pilotRowH + summaryLines * lineH + companyLines * lineH + padding;
 
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552);
     this.add
@@ -549,15 +603,30 @@ export class Debrief extends Phaser.Scene {
       const tag = row?.permanentlyLost ? "  LOST" : row?.downed ? "  DOWNED" : "";
       const star = mvp && row && mvp.pilotId === pilotId && mvp.damageDealt > 0 ? "★ " : "  ";
       const nameColor = row?.permanentlyLost ? "#ef4444" : row?.downed ? "#fbbf24" : "#e8e2d4";
-      this.add.text(CARD_L + 16, y, `${star}${name}${tag}`, { fontFamily: "monospace", fontSize: "11px", color: nameColor });
+      // Row center, not top — everything below (portrait, name, stat
+      // columns, points) is vertically centered on this same y so a taller
+      // portrait doesn't read as glued to one edge of its own row.
+      const rowMidY = y + pilotRowH / 2;
+
+      // B4, 5 Sep 2026 — real portrait when one exists, the same filled-
+      // circle+initials placeholder every other scene falls back to
+      // otherwise. Fallback color keyed off the pilot's own path, same
+      // convention as RosterPanel.ts.
+      const path = entry ? UNIT_ARCHETYPES[entry.pilot.archetypeId]?.path : undefined;
+      drawPilotAvatar(this, CARD_L + 16 + PORTRAIT_R, rowMidY, PORTRAIT_R, pilotId, name, path ? PATH_COLORS[path] : 0x555555);
+
+      // Name/tag text shifts right to clear the portrait gutter (was a bare
+      // `CARD_L + 16`); origin (0, 0.5) instead of the old (0, 0) top-align
+      // so it centers on rowMidY the same way the portrait does.
+      this.add.text(CARD_L + 16 + PORTRAIT_R * 2 + 10, rowMidY, `${star}${name}${tag}`, { fontFamily: "monospace", fontSize: "11px", color: nameColor }).setOrigin(0, 0.5);
       if (row) {
         const cols = `${String(row.damageDealt).padStart(5)}  ${String(row.damageTaken).padStart(5)}  ${String(row.kills).padStart(5)}  ${row.assists.toFixed(1).padStart(4)}`;
-        this.add.text(CARD_R - 90, y, cols, { fontFamily: "monospace", fontSize: "11px", color: "#8fb3c9" }).setOrigin(1, 0);
+        this.add.text(CARD_R - 90, rowMidY, cols, { fontFamily: "monospace", fontSize: "11px", color: "#8fb3c9" }).setOrigin(1, 0.5);
       }
       this.add
-        .text(CARD_R - 16, y, `+${amount} pts`, { fontFamily: "monospace", fontSize: "11px", color: "#facc15" })
-        .setOrigin(1, 0);
-      y += lineH;
+        .text(CARD_R - 16, rowMidY, `+${amount} pts`, { fontFamily: "monospace", fontSize: "11px", color: "#facc15" })
+        .setOrigin(1, 0.5);
+      y += pilotRowH;
     }
     if (this.summary) {
       const sm = this.summary;
@@ -777,19 +846,51 @@ export class Debrief extends Phaser.Scene {
    * own two-row layout instead of squeezing into the Munti/bonus
    * callouts' single-line shape.
    */
+  /**
+   * "The crew has started calling you something" (5 Sep 2026). A recruit
+   * joins under a plain rank and name and earns a callsign on their first
+   * kill — that's a moment worth a line on the debrief rather than a name
+   * silently changing in a menu the player might not open for an hour.
+   * Nothing is drawn on a mission where nobody earned one.
+   */
+  private drawCallsignCallout(top: number): number {
+    if (!this.callsignsEarned.length) return top;
+    const height = 26 + this.callsignsEarned.length * 16;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1c1a14, 1).setStrokeStyle(1, 0xc8b273);
+    this.add
+      .text(480, top + 14, this.callsignsEarned.length === 1 ? "THE CREW HAS A NAME FOR THEM NOW" : "THE CREW HAS NAMES FOR THEM NOW", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#c8b273",
+      })
+      .setOrigin(0.5);
+    let y = top + 32;
+    for (const earned of this.callsignsEarned) {
+      this.add
+        .text(480, y, `${earned.pilot}  —  first kill`, { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6" })
+        .setOrigin(0.5);
+      y += 16;
+    }
+    return top + height;
+  }
+
   private drawSecondLanceCallout(top: number): number {
     if (!this.secondLancePilots) return top;
     const height = 56;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
     this.add
-      .text(480, top + 16, "THE SECOND LANCE HAS ARRIVED — 5 pilots added to the roster", {
+      // 5 Sep 2026 — this used to read "5 pilots added to the roster" and
+      // list their callsigns, which stopped being true the moment lances
+      // started arriving empty for the player to recruit into. Announcing
+      // the COMMAND now, since that's what actually happened.
+      .text(480, top + 16, "YOU HAVE BEEN GIVEN A SECOND LANCE — recruit it at the Hangar Deck", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#4ade80",
       })
       .setOrigin(0.5);
     this.add
-      .text(480, top + 36, this.secondLancePilots.map((p) => p.displayName.split("—")[1]?.trim() ?? p.displayName).join("   "), {
+      .text(480, top + 36, "five berths, empty. ROSTER & GEAR has candidates.", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#8a97a6",
@@ -808,14 +909,14 @@ export class Debrief extends Phaser.Scene {
     const height = 56;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
     this.add
-      .text(480, top + 16, "THE THIRD LANCE HAS ARRIVED — 5 pilots added to the roster", {
+      .text(480, top + 16, "YOU HAVE BEEN GIVEN A THIRD LANCE — recruit it at the Hangar Deck", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#4ade80",
       })
       .setOrigin(0.5);
     this.add
-      .text(480, top + 36, this.thirdLancePilots.map((p) => p.displayName.split("—")[1]?.trim() ?? p.displayName).join("   "), {
+      .text(480, top + 36, "five berths, empty. ROSTER & GEAR has candidates.", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#8a97a6",

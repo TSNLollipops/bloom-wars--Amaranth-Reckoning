@@ -177,6 +177,12 @@ describe("Overwatch reaction fire", () => {
     // something the player cannot even see on the board.
     const mission = quietMission();
     const watcher = overwatcher(mission); // vision 7, range [2,4]
+    // Tourignie's mek is Runemaster-primary; since 6 Sep 2026 that's passive
+    // burrow detection anywhere in vision, which would let this watcher SEE
+    // the burrowed Bloom and legitimately fire. Stripped so the base gate
+    // ("burrowed is unseen") is what this test pins; the Runemaster case is
+    // asserted separately right below.
+    watcher.detectsBurrowedRadius = undefined;
     const bloom = createBloomUnit("bloom_crawlmass", { x: 13, y: 6 }, { burrowed: true });
     bloom.moveRange = 2;
     bloom.vision = 8;

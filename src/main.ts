@@ -1,6 +1,7 @@
 // src/main.ts
 import Phaser from "phaser";
 import { Boot } from "./scenes/Boot";
+import { Preloader } from "./scenes/Preloader";
 import { MainMenu } from "./scenes/MainMenu";
 import { CampaignSetup } from "./scenes/CampaignSetup";
 import { LoadGame } from "./scenes/LoadGame";
@@ -76,7 +77,13 @@ const __bwGame = new Phaser.Game({
   // Tutorial's missing HOW_TO_PLAY.html link, built out as an in-game
   // codex instead per Maxime's own call) — reachable from both MainMenu
   // and every in-play MenuOverlay, same returnScene pattern as Options.
-  scene: [Boot, MainMenu, CampaignSetup, LoadGame, Options, Codex, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub],
+  //
+  // Preloader joins 5 Sep 2026 (B4, portrait wiring) — the game's first
+  // scene that calls this.load.image(). Placed right after Boot, matching
+  // the "reading order" comment above: Boot always hands off to Preloader
+  // now (see Boot.ts), which loads every portrait/splash file once before
+  // handing off to wherever Boot was actually headed.
+  scene: [Boot, Preloader, MainMenu, CampaignSetup, LoadGame, Options, Codex, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub],
   render: { pixelArt: false, antialias: true },
   // Build Plan §9 piece #3, 26 Aug 2026 — first use of Phaser's DOM Element
   // game object in this project, for the Hub's real typed-chat input

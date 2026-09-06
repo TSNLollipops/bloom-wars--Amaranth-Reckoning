@@ -105,9 +105,39 @@ export const ROSTER_DEPTH_MEKS: Record<string, MekArchetype> = {
 };
 
 // Data Pack §5 — track effects, applied to the paired pilot only.
+//
+// Status of each field, 6 Sep 2026 (second Frame Systems pass), verified
+// against live code rather than the docs — because until that evening three
+// of these were DEAD DATA the docs described as shipped:
+//   - armorer.*                   read by engine/units.ts's mekStatBonus (always was)
+//   - runemaster.vision           same
+//   - runemaster.effectPotency    read by engine/turnManager.ts (on-hit potency)
+//   - runemaster.initiative       read by engine/combat.ts (tie-breaks)
+//   - runemaster.burrowDetection  WIRED 6 Sep 2026 — engine/units.ts bakes it
+//                                 onto BattleUnit.detectsBurrowedRadius; was
+//                                 unread since the field was added.
+//   - fieldwright.stationaryHeal  WIRED 6 Sep 2026 — engine/units.ts bakes it
+//                                 onto BattleUnit.stationaryHeal, engine/
+//                                 mission.ts's tickStationaryRepair applies it;
+//                                 was unread since the field was added.
+//   - fieldwright.muntiHealOutputMult  read by engine/mission.ts's repairHealAmount (always was)
+//   - fabricator.spareParts       the CAP, read by engine/campaignEconomy.ts's
+//                                 fabricatorMaxSpareParts; the parts themselves
+//                                 were purchasable and consumed by NOTHING until
+//                                 6 Sep 2026. Now consumed by Beacon Control.
+//   - quartermaster.shopDiscount  read by engine/campaignEconomy.ts (always was)
 export const MEK_TRACK_EFFECTS = {
   fabricator: {
-    primary: { spareParts: 2 }, // redeploy at 50% HP on your next turn's deploy pad
+    // MEANING CHANGED 6 Sep 2026, Maxime's call ("its the beacon job to give
+    // in battle restock"): NOT the GDD §6.2 mid-mission self-redeploy, which
+    // was never built and now never will be. A spare part is the paired
+    // pilot's own Beacon crate — when Beacon Control (engine/mission.ts's
+    // useBeaconControl) revives THIS mek's pilot, it burns one of these
+    // instead of a Restock Room crate. Placement and charge rules unchanged.
+    // Consumption reaches the campaign copy at Debrief via
+    // engine/campaignEconomy.ts's applySparePartsConsumption. GDD §6.2 and
+    // Data Pack §5's Fabricator rows need rewriting to say this — flagged.
+    primary: { spareParts: 2 },
     secondary: { spareParts: 1 },
   },
   armorer: {

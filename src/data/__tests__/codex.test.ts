@@ -64,6 +64,12 @@ describe("personnelStatusText", () => {
     expect(personnelStatusText(bosk, { kind: "reassigned" })).toMatch(/reassigned off the ship/);
   });
 
+  it("a discharged pilot reads a distinct line from a reassigned one", () => {
+    const text = personnelStatusText(bosk, { kind: "discharged" });
+    expect(text).toMatch(/discharged/);
+    expect(text).not.toMatch(/reassigned off the ship/);
+  });
+
   it("a permanently lost pilot names the real mission and turn", () => {
     const midMission = WARDEN_MISSION_ORDER[11]; // Mission 12
     const text = personnelStatusText(bosk, { kind: "permanently_lost", missionId: midMission.id, turn: 7 });

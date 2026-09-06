@@ -11,8 +11,9 @@
 // while it still has actions left AND its last decision was "repeatable"
 // — a repair, or an action that costs 1 and continues the turn (clear
 // bloom, rescue, screen, sensor sweep). Attack, overwatch, ambush,
-// interdict, taunt, fire support and missile all end the unit's turn
-// themselves. subGuard caps this at 4 sub-decisions as a backstop.
+// interdict, taunt, fire support, missile, and (5 Sep 2026) maser lance
+// all end the unit's turn themselves. subGuard caps this at 4 sub-decisions
+// as a backstop.
 // Field Doctor (1 Sep 2026): a Munti at 0 actions whose free Repair is
 // off cooldown still gets asked — the same reachability gap the Battle.ts
 // UI had, closed on the bot side here.
@@ -137,6 +138,9 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
             break;
           case "missile":
             if (decision.targetTile) m.missileStrike(unit.instanceId, decision.targetTile);
+            break;
+          case "maser_lance":
+            if (decision.targetTile) m.maserLanceStrike(unit.instanceId, decision.targetTile);
             break;
           default:
             break;
