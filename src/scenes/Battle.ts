@@ -528,6 +528,14 @@ export class Battle extends Phaser.Scene {
         // MissionOptions' own comment already explains.
         beaconCratesRemaining: campaignForMission?.beaconCrates ?? 0,
         beaconChargesRemaining: campaignForMission?.beaconCharges ?? 0,
+        // Beacon Control's holder gate (6 Sep 2026 — see Mission.beaconHolderId's
+        // own header): Rourke only, Captain or higher. Same single-load
+        // snapshot as everything else in this options object, from the same
+        // campaignForMission read. Absent (?? "2nd_lt") on any save from
+        // before rourkeRank existed — the real starting rank, not a
+        // placeholder, so an old save correctly starts Beacon locked out
+        // rather than silently granted.
+        rourkeRank: campaignForMission?.rourkeRank ?? "2nd_lt",
       }
     );
     // Vital Signs Uplink (2 Sep 2026, data/carrierModules.ts) — snapshotted
@@ -1917,15 +1925,17 @@ export class Battle extends Phaser.Scene {
       });
     }
     // Beacon Control (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md, built
-    // 4 Sep 2026) — deliberately NOT gated by unit.abilities.includes(...)
-    // like every other button in this list: the ability is dynamically
-    // owned by whichever deployed pilot currently holds the highest
-    // chassis/gear grade (engine/mission.ts's beaconHolderId(), computed
-    // live), not tagged onto a fixed archetype/Heirloom kit. Shown only on
-    // the current holder's own action bar — canPlaceBeacon(id) already
-    // fails for anyone else, but checking id === m.beaconHolderId() here
-    // too avoids drawing a permanently-greyed-out button on every OTHER
-    // unit's bar for a mission that has no stock/bays/holder at all.
+    // 4 Sep 2026, holder rule changed 6 Sep 2026) — deliberately NOT gated
+    // by unit.abilities.includes(...) like every other button in this list:
+    // ownership is computed live by engine/mission.ts's beaconHolderId(),
+    // not tagged onto a fixed archetype/Heirloom kit. That method now
+    // returns Rourke specifically, gated by her own campaign rank (Captain
+    // or higher) — see its own header for why this replaced the original
+    // "whichever pilot holds the highest gear tier" rule. Shown only on the
+    // current holder's own action bar — canPlaceBeacon(id) already fails
+    // for anyone else, but checking id === m.beaconHolderId() here too
+    // avoids drawing a permanently-greyed-out button on every OTHER unit's
+    // bar for a mission that has no stock/bays/holder at all.
     if (id === m.beaconHolderId()) {
       out.push({
         label: `BEACON ×${m.beaconsRemaining}`,

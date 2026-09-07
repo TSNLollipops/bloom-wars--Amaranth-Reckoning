@@ -58,12 +58,14 @@ import {
   MAX_LANCES,
   lanceDisplayName,
   integrateHouseAmaranthSecondLance,
+  integrateHouseAmaranthThirdLance,
   recruitIntoLance,
   recruitCandidates,
   awardCallsign,
 } from "../campaignState";
 import { testUnit } from "./testHelpers";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS } from "../../data/campaignAmaranth";
+import { HOUSE_AMARANTH_SECOND_LANCE_PILOTS, HOUSE_AMARANTH_THIRD_LANCE_PILOTS } from "../../data/campaignHouseAmaranth";
 
 describe("createCampaignState / createWardenCampaignState", () => {
   it("seeds every pilot as active, at the record's own tier, and copies rather than aliases the static rows", () => {
@@ -1462,12 +1464,22 @@ describe("B2 — how many lances a carrier has", () => {
     expect(lanceCount(state)).toBe(2); // the slot survives the casualties
   });
 
-  it("House Amaranth tops out at two lances, having no third", () => {
+  it("House Amaranth also grows one lance per act, stopping at three (6 Sep 2026 — used to stop at two)", () => {
+    // Used to top out at two, "having no third" — that was true from 1 Sep
+    // through 6 Sep, when House Amaranth got its own Third Lance and this
+    // test's own title stopped being accurate. Mirrors the Warden test
+    // above line for line, now that both campaigns share the same shape.
     const state = createHouseAmaranthCampaignState();
     expect(lanceCount(state)).toBe(1);
+    expect(activeLanceIds(state)).toEqual(["a"]);
+
     integrateHouseAmaranthSecondLance(state);
     expect(lanceCount(state)).toBe(2);
     expect(activeLanceIds(state)).toEqual(["a", "b"]);
+
+    integrateHouseAmaranthThirdLance(state);
+    expect(lanceCount(state)).toBe(3);
+    expect(activeLanceIds(state)).toEqual(["a", "b", "c"]);
   });
 
   it("names all five, including the two this campaign never reaches", () => {
@@ -1601,6 +1613,67 @@ describe("B2 — recruiting into a lance", () => {
     const loaded = loadCampaignState(storage)!;
     expect(lanceCount(loaded)).toBe(3);
     expect(loaded.rourkeRank).toBe("maj"); // not demoted by the backfill
+    expect(lanceRoster(loaded, "b")).toHaveLength(5);
+    expect(lanceRoster(loaded, "c")).toHaveLength(5);
+  });
+});
+
+// House Amaranth's own recruit-pool switch (6 Sep 2026, same day as the
+// Third Lance it initially shipped with). Maxime, asked whether "the two
+// missions should recruit the same way" meant Mission 12/20 matching each
+// other or House Amaranth matching Warden's newer system: "House Amaranth
+// matching Warden's newer system." integrateHouseAmaranthSecondLance/
+// integrateHouseAmaranthThirdLance now grant empty lances exactly like
+// their Warden counterparts, and recruitCandidates/recruitIntoLance are
+// campaign-aware (via baseSceneKeyFor) rather than Warden-only — mirrors
+// the "B2 — recruiting into a lance" block above, House Amaranth side.
+describe("B2 — recruiting into a lance (House Amaranth)", () => {
+  it("the ten authored House Amaranth 2nd/3rd Lance pilots become the recruit pool", () => {
+    const state = createHouseAmaranthCampaignState();
+    integrateHouseAmaranthSecondLance(state);
+    integrateHouseAmaranthThirdLance(state);
+    const pool = recruitCandidates(state).map((p) => p.id);
+    expect(pool).toHaveLength(10);
+    for (const p of [...HOUSE_AMARANTH_SECOND_LANCE_PILOTS, ...HOUSE_AMARANTH_THIRD_LANCE_PILOTS]) expect(pool).toContain(p.id);
+    // And not Warden's own ten — the two pools stay campaign-separate.
+    for (const p of [...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS]) expect(pool).not.toContain(p.id);
+  });
+
+  it("recruiting a named House Amaranth candidate puts that exact person in that lance", () => {
+    const state = createHouseAmaranthCampaignState();
+    integrateHouseAmaranthSecondLance(state);
+    const result = recruitIntoLance(state, "b", "pilot_vantana");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.pilot.id).toBe("pilot_vantana");
+    expect(lanceOfPilotIn(state, "pilot_vantana")).toBe("b");
+    expect(state.meks["mek_vantana"]).toBeDefined(); // their authored Mek came with them
+    expect(recruitCandidates(state).map((p) => p.id)).not.toContain("pilot_vantana");
+  });
+
+  it("a House Amaranth campaign where you never recruited Dunmore simply doesn't have her", () => {
+    const state = createHouseAmaranthCampaignState();
+    integrateHouseAmaranthSecondLance(state);
+    integrateHouseAmaranthThirdLance(state);
+    recruitIntoLance(state, "c", "pilot_thorne");
+    expect(state.pilots["pilot_dunmore"]).toBeUndefined();
+    expect(lanceRoster(state, "c")).toHaveLength(1);
+  });
+
+  it("an in-progress pre-6-Sep House Amaranth save keeps its lances AND everyone already in them", () => {
+    // Same regression check as Warden's own above, House Amaranth side: a
+    // save from before this switch (direct-add, no lancesGranted field)
+    // must not lose its already-added Kessler/Thorne-style roster or have
+    // it swapped out for empty recruit-pool lances on load.
+    const storage = memoryStorageForLances();
+    const legacy = createHouseAmaranthCampaignState();
+    for (const p of [...HOUSE_AMARANTH_SECOND_LANCE_PILOTS, ...HOUSE_AMARANTH_THIRD_LANCE_PILOTS]) {
+      legacy.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
+    }
+    delete legacy.lancesGranted; // exactly what a save from before this switch looks like
+    saveCampaignState(legacy, storage);
+
+    const loaded = loadCampaignState(storage)!;
+    expect(lanceCount(loaded)).toBe(3);
     expect(lanceRoster(loaded, "b")).toHaveLength(5);
     expect(lanceRoster(loaded, "c")).toHaveLength(5);
   });

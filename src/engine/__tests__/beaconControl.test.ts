@@ -13,6 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { Mission, type MissionOptions } from "../mission";
 import { AMARANTH_MISSION_1 } from "../../data/campaignAmaranth";
+import { HOUSE_AMARANTH_MISSION_1 } from "../../data/campaignHouseAmaranth";
 import { createHostileMechUnit, type BattleUnit } from "../units";
 import { MAX_ACTIONS_PER_TURN, BEACON_MAX_PER_MISSION } from "../../data/combatTables";
 import type { ReservedBayId } from "../campaignState";
@@ -46,15 +47,25 @@ const ALL_BEACON_BAYS: ReservedBayId[] = ["beaconControl", "restockRoom", "gener
 /**
  * Mirrors lastWord.test.ts's own quietMission() (same "one live inert
  * keeper hostile so checkWinLoss never fires early" shape), extended with
- * the two parameters this mechanic actually needs: builtBays (weaponsBayFireSupport.test.ts's
- * own precedent for parameterizing bays) and stock (MissionOptions.beaconCratesRemaining/
- * beaconChargesRemaining, which Mission only ever reads once at construction).
+ * the parameters this mechanic actually needs: builtBays (weaponsBayFireSupport.test.ts's
+ * own precedent for parameterizing bays), stock (MissionOptions.beaconCratesRemaining/
+ * beaconChargesRemaining), and rourkeRank (MissionOptions.rourkeRank, 6 Sep
+ * 2026 — beaconHolderId's new gate). Defaults rourkeRank to "maj" rather
+ * than mirroring the real "2nd_lt" campaign-start default: every describe
+ * block below except beaconHolderId's own is testing bay/stock/range/cost
+ * gating, not the rank gate itself, and needs Rourke eligible to do that —
+ * the rank-gate's own tests override this explicitly.
  */
-function quietMission(builtBays: ReservedBayId[] = ALL_BEACON_BAYS, stock?: Pick<MissionOptions, "beaconCratesRemaining" | "beaconChargesRemaining">): Mission {
+function quietMission(
+  builtBays: ReservedBayId[] = ALL_BEACON_BAYS,
+  stock?: Pick<MissionOptions, "beaconCratesRemaining" | "beaconChargesRemaining">,
+  rourkeRank: MissionOptions["rourkeRank"] = "maj"
+): Mission {
   const mission = new Mission(AMARANTH_MISSION_1, undefined, builtBays, {
     rng: () => 1,
     beaconCratesRemaining: stock?.beaconCratesRemaining ?? 3,
     beaconChargesRemaining: stock?.beaconChargesRemaining ?? 3,
+    rourkeRank,
   });
   for (const u of mission.units) {
     if (u.side === "hostile") u.downed = true;
@@ -81,52 +92,123 @@ function downAlly(mission: Mission, unit: BattleUnit, downedOnTurn = mission.tur
 
 const logsMatching = (mission: Mission, needle: string) => mission.log.filter((l) => l.includes(needle));
 
+/**
+ * House Amaranth counterpart to quietMission() above — same "one live
+ * inert keeper hostile" shape, built off HOUSE_AMARANTH_MISSION_1 instead
+ * (extractUnitFallback.test.ts's own precedent for constructing a real
+ * House Amaranth Mission directly). Deliberately doesn't reposition player
+ * units the way quietMission()'s PARK table does — nothing here checks
+ * player positions, only who holds the ability and whether the mechanic's
+ * gates pass.
+ */
+function quietHouseAmaranthMission(
+  builtBays: ReservedBayId[] = ALL_BEACON_BAYS,
+  stock?: Pick<MissionOptions, "beaconCratesRemaining" | "beaconChargesRemaining">
+): Mission {
+  const mission = new Mission(HOUSE_AMARANTH_MISSION_1, undefined, builtBays, {
+    rng: () => 1,
+    beaconCratesRemaining: stock?.beaconCratesRemaining ?? 3,
+    beaconChargesRemaining: stock?.beaconChargesRemaining ?? 3,
+  });
+  for (const u of mission.units) if (u.side === "hostile") u.downed = true;
+  // hostile_mech_01 is a generic registered mech (data/units.ts), not
+  // Warden-specific — same id quietMission() above uses for its own keeper.
+  const keeper = createHostileMechUnit("hostile_mech_01", { x: 19, y: 11 });
+  keeper.vision = 0;
+  keeper.moveRange = 0;
+  mission.units.push(keeper);
+  return mission;
+}
+
 // =====================================================================
-// beaconHolderId — dynamic, highest-tier-deployed-and-living ownership
+// beaconHolderId — Rourke only, Captain or higher (changed 6 Sep 2026 from
+// the original "whichever deployed pilot holds the highest gear tier" rule
+// — see the method's own header in engine/mission.ts for why)
 // =====================================================================
 
 describe("Mission.beaconHolderId", () => {
-  it("defaults to whichever deployed pilot has the highest tier — every Warden starts at G, so this is a stable (first-found) tie rather than any particular name mattering", () => {
-    const mission = quietMission();
-    const holderId = mission.beaconHolderId();
-    expect(holderId).not.toBeNull();
-    expect(mission.units.find((u) => u.instanceId === holderId)?.side).toBe("player");
-  });
-
-  it("hands the ability to whoever is actually the highest tier once tiers diverge", () => {
-    const mission = quietMission();
-    pilot(mission, "pilot_rourke").tier = "C";
-    pilot(mission, "pilot_bosk").tier = "A";
-    pilot(mission, "pilot_iyari").tier = "D";
-    expect(mission.beaconHolderId()).toBe(pilot(mission, "pilot_bosk").instanceId);
-  });
-
-  it("S-tier (Heirloom-granted) outranks every letter-graded tier including A", () => {
-    const mission = quietMission();
-    pilot(mission, "pilot_bosk").tier = "A";
-    pilot(mission, "pilot_anand").tier = "S";
-    expect(mission.beaconHolderId()).toBe(pilot(mission, "pilot_anand").instanceId);
-  });
-
-  it("skips a downed pilot even if they'd otherwise be the highest tier — the holder must be alive to actually use it", () => {
-    const mission = quietMission();
-    pilot(mission, "pilot_bosk").tier = "A";
-    downAlly(mission, pilot(mission, "pilot_bosk"));
-    pilot(mission, "pilot_rourke").tier = "C";
+  it("is Rourke once she's Captain or higher, regardless of anyone's gear tier", () => {
+    const mission = quietMission(ALL_BEACON_BAYS, undefined, "capt");
+    // Give every non-Rourke pilot the best possible tier — under the old
+    // rule this would hand the ability to one of them; under the new rule
+    // gear never enters the decision at all.
+    pilot(mission, "pilot_bosk").tier = "S";
+    pilot(mission, "pilot_iyari").tier = "A";
+    pilot(mission, "pilot_anand").tier = "A";
     expect(mission.beaconHolderId()).toBe(pilot(mission, "pilot_rourke").instanceId);
   });
 
-  it("ignores hostiles entirely, even a hostile with a (nonsensical) higher tier set on it directly", () => {
-    const mission = quietMission();
+  it("is Rourke at Major too — Captain and Major are both eligible", () => {
+    const mission = quietMission(ALL_BEACON_BAYS, undefined, "maj");
+    expect(mission.beaconHolderId()).toBe(pilot(mission, "pilot_rourke").instanceId);
+  });
+
+  it("is null at 2nd Lieutenant, even with Rourke deployed and alive — locked out until she's promoted", () => {
+    const mission = quietMission(ALL_BEACON_BAYS, undefined, "2nd_lt");
+    expect(mission.beaconHolderId()).toBeNull();
+  });
+
+  it("is null while Rourke is downed, even at Major — nobody else steps in", () => {
+    const mission = quietMission(ALL_BEACON_BAYS, undefined, "maj");
+    downAlly(mission, pilot(mission, "pilot_rourke"));
+    expect(mission.beaconHolderId()).toBeNull();
+  });
+
+  it("ignores hostiles entirely, even one named to collide (nonsensically) with her pilotId", () => {
+    const mission = quietMission(ALL_BEACON_BAYS, undefined, "maj");
     const hostile = mission.units.find((u) => u.side === "hostile" && !u.downed)!;
     hostile.tier = "S";
     expect(mission.beaconHolderId()).not.toBe(hostile.instanceId);
   });
 
   it("is null when every player unit is downed — nobody left to hold it", () => {
-    const mission = quietMission();
+    const mission = quietMission(ALL_BEACON_BAYS, undefined, "maj");
     for (const u of mission.units) if (u.side === "player") downAlly(mission, u);
     expect(mission.beaconHolderId()).toBeNull();
+  });
+});
+
+// =====================================================================
+// beaconHolderId — House Amaranth (Marrow), added 6 Sep 2026 same
+// conversation as the Rourke rank gate above. Unlike Rourke, Marrow needs
+// no rank check at all — see engine/mission.ts's own header on why she's
+// unconditional. Also documents, rather than hides, that this is currently
+// unreachable in an actual played House Amaranth campaign (no hub exists
+// yet to build the three bays canPlaceBeacon still requires there) — these
+// tests exercise the engine layer directly, the same way a real House
+// Amaranth hub eventually would.
+// =====================================================================
+
+describe("Mission.beaconHolderId — House Amaranth (Marrow)", () => {
+  it("is Marrow from Mission 1 on, no rank gate needed", () => {
+    const mission = quietHouseAmaranthMission();
+    const marrow = mission.units.find((u) => u.pilotId === "pilot_marrow")!;
+    expect(mission.beaconHolderId()).toBe(marrow.instanceId);
+  });
+
+  it("stays Marrow even at rourkeRank's real campaign-wide default (2nd_lt) — that field means nothing on this side", () => {
+    const mission = new Mission(HOUSE_AMARANTH_MISSION_1, undefined, ALL_BEACON_BAYS, {
+      rng: () => 1,
+      beaconCratesRemaining: 3,
+      beaconChargesRemaining: 3,
+      rourkeRank: "2nd_lt",
+    });
+    for (const u of mission.units) if (u.side === "hostile") u.downed = true;
+    const marrow = mission.units.find((u) => u.pilotId === "pilot_marrow")!;
+    expect(mission.beaconHolderId()).toBe(marrow.instanceId);
+  });
+
+  it("is null while Marrow is downed — nobody else steps in for her either", () => {
+    const mission = quietHouseAmaranthMission();
+    const marrow = mission.units.find((u) => u.pilotId === "pilot_marrow")!;
+    downAlly(mission, marrow);
+    expect(mission.beaconHolderId()).toBeNull();
+  });
+
+  it("canPlaceBeacon works for Marrow once the three bays exist, same gates as Rourke's side", () => {
+    const mission = quietHouseAmaranthMission();
+    const holderId = mission.beaconHolderId()!;
+    expect(mission.canPlaceBeacon(holderId)).toBe(true);
   });
 });
 
@@ -143,10 +225,9 @@ describe("Mission.canPlaceBeacon", () => {
 
   it("false for anyone who is NOT the current holder", () => {
     const mission = quietMission();
-    pilot(mission, "pilot_bosk").tier = "A"; // makes Bosk the holder
-    const rourke = pilot(mission, "pilot_rourke");
-    expect(mission.beaconHolderId()).not.toBe(rourke.instanceId);
-    expect(mission.canPlaceBeacon(rourke.instanceId)).toBe(false);
+    const bosk = pilot(mission, "pilot_bosk"); // never the holder now — only Rourke can be
+    expect(mission.beaconHolderId()).not.toBe(bosk.instanceId);
+    expect(mission.canPlaceBeacon(bosk.instanceId)).toBe(false);
   });
 
   it("false for a hostile even if (nonsensically) passed as the holder id", () => {

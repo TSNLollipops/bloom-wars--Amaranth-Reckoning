@@ -89,6 +89,13 @@ function quietWarden(stock?: Pick<MissionOptions, "beaconCratesRemaining" | "bea
     rng: () => 1,
     beaconCratesRemaining: stock?.beaconCratesRemaining ?? 3,
     beaconChargesRemaining: stock?.beaconChargesRemaining ?? 3,
+    // Beacon Control's holder gate (6 Sep 2026, the same evening as this
+    // file — the two builds landed in parallel and only met when both were
+    // on disk): beaconHolderId() is Rourke at Captain or higher, null at
+    // the "2nd_lt" default. These tests are about the CRATE source, not the
+    // holder rule (beaconControl.test.ts owns that), so promote her the way
+    // that file's own helper does.
+    rourkeRank: "maj",
   });
   for (const u of mission.units) {
     if (u.side === "hostile") u.downed = true;

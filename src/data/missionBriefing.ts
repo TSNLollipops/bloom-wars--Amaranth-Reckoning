@@ -13,18 +13,16 @@
 // handleBriefRequest) already has the real CampaignState in hand and passes
 // state.lastMissionEcho straight through.
 //
-// Scope: Warden Company only. Hub.ts (the scene that owns the CO and the
-// briefing panel built on top of this) is built entirely around
-// WARDEN_PILOTS / the Warden roster — engine/campaignState.ts's own
-// baseSceneKeyFor() routes any save without pilot_rourke to Hangar instead,
-// which has no CO and no chat at all. House Amaranth has no Hub yet
-// ("ill do the hub some other day" — Maxime, 1 Sep 2026, that same file's
-// comment), so there is no live-briefing consumer for that roster's mission
-// order to serve. If that ever changes, WARDEN_MISSION_ORDER is the one
-// constant a second, House-Amaranth-scoped order would sit alongside, not
-// replace.
+// Scope: both campaigns, since 6 Sep 2026. This file was Warden-only while
+// House Amaranth had no Hub ("ill do the hub some other day" — Maxime, 1 Sep
+// 2026); the House Amaranth Hub build gave it one (scenes/Hub.ts running the
+// HOUSE_AMARANTH_FACILITY profile), and the profile's `nextMission` points
+// at nextHouseAmaranthMission below — the second, House-Amaranth-scoped order
+// this header always said would sit alongside WARDEN_MISSION_ORDER, not
+// replace it. wardenMissionIndex / the codex gating stay Warden-scoped.
 import type { CampaignMission } from "./types";
 import { AMARANTH_ACT1, AMARANTH_ACT2, AMARANTH_ACT3 } from "./campaignAmaranth";
+import { HOUSE_AMARANTH_ACT1, HOUSE_AMARANTH_ACT2, HOUSE_AMARANTH_ACT3 } from "./campaignHouseAmaranth";
 import { BLOOM } from "./bloom";
 import { ALL_HOSTILE_MECHS } from "./units";
 
@@ -67,10 +65,28 @@ export const WARDEN_MISSION_ORDER: CampaignMission[] = [...AMARANTH_ACT1, ...AMA
  * risking a silent blank panel.
  */
 export function nextWardenMission(lastMissionEcho: { missionId: string } | undefined): CampaignMission | null {
-  if (!lastMissionEcho) return WARDEN_MISSION_ORDER[0] ?? null;
-  const idx = WARDEN_MISSION_ORDER.findIndex((m) => m.id === lastMissionEcho.missionId);
-  if (idx === -1) return WARDEN_MISSION_ORDER[0] ?? null;
-  return WARDEN_MISSION_ORDER[idx + 1] ?? null;
+  return nextMissionIn(WARDEN_MISSION_ORDER, lastMissionEcho);
+}
+
+/**
+ * House Amaranth's own 36-mission order and next-mission lookup — 6 Sep
+ * 2026, House Amaranth Hub build. Exactly the "second, House-Amaranth-scoped
+ * order sitting alongside WARDEN_MISSION_ORDER" this file's own header said
+ * would arrive with a House Amaranth Hub. Same rules as the Warden one (a
+ * missing or unrecognised echo means Mission 1; past the last mission means
+ * the campaign is complete, null).
+ */
+export const HOUSE_AMARANTH_MISSION_ORDER: CampaignMission[] = [...HOUSE_AMARANTH_ACT1, ...HOUSE_AMARANTH_ACT2, ...HOUSE_AMARANTH_ACT3];
+
+export function nextHouseAmaranthMission(lastMissionEcho: { missionId: string } | undefined): CampaignMission | null {
+  return nextMissionIn(HOUSE_AMARANTH_MISSION_ORDER, lastMissionEcho);
+}
+
+function nextMissionIn(order: CampaignMission[], lastMissionEcho: { missionId: string } | undefined): CampaignMission | null {
+  if (!lastMissionEcho) return order[0] ?? null;
+  const idx = order.findIndex((m) => m.id === lastMissionEcho.missionId);
+  if (idx === -1) return order[0] ?? null;
+  return order[idx + 1] ?? null;
 }
 
 /**

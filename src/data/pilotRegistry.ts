@@ -24,6 +24,8 @@ import {
   HOUSE_AMARANTH_MEKS,
   HOUSE_AMARANTH_SECOND_LANCE_PILOTS,
   HOUSE_AMARANTH_SECOND_LANCE_MEKS,
+  HOUSE_AMARANTH_THIRD_LANCE_PILOTS,
+  HOUSE_AMARANTH_THIRD_LANCE_MEKS,
 } from "./campaignHouseAmaranth";
 
 // Second Lance (25 Aug 2026, Act II batch 2) — the exact pilot-lookup gap
@@ -44,6 +46,12 @@ import {
 // includes Third Lance ids starting with Mission 25, so this entry is
 // what keeps `npm run sim -- mission_amaranth_25` resolving them instead
 // of throwing "Unknown pilot id."
+//
+// House Amaranth's own Third Lance (6 Sep 2026) — same gap, House
+// Amaranth's turn this time: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD
+// (campaignHouseAmaranth.ts) includes these five ids starting with
+// Mission 21, so this entry is what keeps
+// `npm run sim -- mission_house_amaranth_21` resolving them.
 const PILOT_INDEX: Record<string, PilotRecord> = Object.fromEntries(
   [
     ...PILOTS,
@@ -53,6 +61,7 @@ const PILOT_INDEX: Record<string, PilotRecord> = Object.fromEntries(
     ...THIRD_LANCE_PILOTS,
     ...HOUSE_AMARANTH_PILOTS,
     ...HOUSE_AMARANTH_SECOND_LANCE_PILOTS,
+    ...HOUSE_AMARANTH_THIRD_LANCE_PILOTS,
   ].map((p) => [p.id, p])
 );
 
@@ -64,6 +73,7 @@ const MEK_INDEX: Record<string, MekArchetype> = {
   ...THIRD_LANCE_MEKS,
   ...HOUSE_AMARANTH_MEKS,
   ...HOUSE_AMARANTH_SECOND_LANCE_MEKS,
+  ...HOUSE_AMARANTH_THIRD_LANCE_MEKS,
 };
 
 export function findPilot(pilotId: string | undefined): PilotRecord | undefined {

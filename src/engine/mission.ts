@@ -11,9 +11,9 @@ import type {
   MekArchetype,
   PilotRecord,
   RescuePilotBonusObjective,
-  Tier,
   TileType,
 } from "../data/types";
+import type { Rank } from "./campaignState";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
 import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, createCivilianUnit, type BattleUnit, type OnHitEffectKind, type Side } from "./units";
 import { findPilot } from "../data/pilotRegistry";
@@ -374,20 +374,18 @@ export interface MissionOptions {
    */
   beaconCratesRemaining?: number;
   beaconChargesRemaining?: number;
+  /**
+   * Rourke's own campaign rank (CampaignState.rourkeRank), snapshotted here
+   * for Beacon Control's holder gate — see beaconHolderId()'s own header for
+   * the 6 Sep 2026 rule it replaced. Defaults to "2nd_lt", which is NOT a
+   * "no data" placeholder the way beaconCratesRemaining/beaconChargesRemaining
+   * default to 0 — it's the real rank every new campaign actually starts at
+   * (createWardenCampaignState's own default), so a call site that doesn't
+   * pass this gets the honest answer: Beacon Control correctly locked out
+   * until she's promoted, not a silently-granted ability nobody's earned yet.
+   */
+  rourkeRank?: Rank;
 }
-
-/**
- * Duplicated from engine/campaignEconomy.ts's own TIER_ORDER (same G→A
- * ladder, S deliberately excluded — see that file's own comment for why S
- * is off the purchase ladder entirely) rather than imported: campaignEconomy.ts
- * imports Mission/UnitPerformance FROM this file already, so importing
- * TIER_ORDER back the other way would be a real circular dependency, not
- * just a style choice. If these two ever need to be the same array instead
- * of two arrays that happen to agree, the fix is moving TIER_ORDER to a
- * neutral file (data/types.ts, alongside Tier itself) that both sides can
- * import from — flagged here rather than silently duplicated.
- */
-const BEACON_TIER_ORDER: Tier[] = ["G", "F", "E", "D", "C", "B", "A"];
 
 export interface RepairOutcome {
   healerId: string;
@@ -796,6 +794,9 @@ export class Mission {
   // field's own comment for why the default is 0/0, not a nonzero guess.
   beaconCratesRemaining: number = 0;
   beaconChargesRemaining: number = 0;
+  // Rourke's own rank, snapshotted from MissionOptions.rourkeRank — see that
+  // field's own comment for the default. Read only by beaconHolderId() below.
+  private readonly rourkeRank: Rank;
   // How many beacon revives actually landed this mission — read at Debrief
   // (engine/campaignEconomy.ts's applyBeaconReviveCosts) to charge the
   // mission's own point-payout percentage per use. Kept separately from
@@ -864,6 +865,7 @@ export class Mission {
     this.foughtOnHitEffectKinds = options.foughtOnHitEffectKinds ?? [];
     this.beaconCratesRemaining = options.beaconCratesRemaining ?? 0;
     this.beaconChargesRemaining = options.beaconChargesRemaining ?? 0;
+    this.rourkeRank = options.rourkeRank ?? "2nd_lt";
     if (mission.objective === "protect_asset") {
       this.assetMaxHp = mission.objectiveParams.assetMaxHp ?? PROTECT_ASSET_DEFAULT_MAX_HP;
       this.assetHp = this.assetMaxHp;
@@ -2778,36 +2780,94 @@ export class Mission {
   }
 
   /**
-   * Beacon Control's ability holder — "whichever deployed pilot currently
-   * holds the highest chassis/gear grade... looked up live each mission,"
-   * Maxime's own framing (source doc §2), explicitly NOT hardcoded to
-   * Rourke/the Commander so this same lookup can generalize to Gladiator
-   * mode's own champions later. Recomputed on every call rather than
-   * cached at deploy — "currently holds" and "deployed" are both read as
-   * live conditions: a downed holder loses the role to the next-highest
-   * living pilot until they're revived or the mission ends, same as any
-   * other ability that requires being alive and on the field to use.
+   * Beacon Control's ability holder. Warden Company: Rourke, once she's
+   * reached Captain or higher. House Amaranth: Marrow, unconditionally —
+   * see that campaign's own paragraph below for why no rank check is
+   * needed there.
    *
-   * S-tier (Heirloom) pilots rank above every purchasable tier, same -1-off
-   * handling purchaseWeaponBranch/purchaseTierUpgrade already need for the
-   * same reason (S sits outside TIER_ORDER's own ladder — see that
-   * constant's comment in campaignEconomy.ts). Ties (two pilots at the same
-   * tier, or two S-tier Heirloom-holders) resolve to whichever this.units
-   * lists first — an arbitrary but harmless tiebreak; nothing in the source
-   * doc specifies one.
+   * CHANGED 6 Sep 2026. The original 4 Sep rule was "whichever deployed
+   * pilot currently holds the highest chassis/gear grade," Maxime's own
+   * framing at the time (source doc §2) — deliberately NOT hardcoded to
+   * Rourke, so the same lookup could generalize to Gladiator mode's own
+   * champions later. In practice it meant Beacon Control followed whoever
+   * had the best gear that mission, which is how it ended up on Osric
+   * Ferrow's kit (the heaviest loadout in the game) and pushed his action
+   * bar past 6 verbs. Maxime's correction, live in chat: "beacon is rourke
+   * only as the major. or the one rank before who can deploy it" —
+   * confirmed as Rourke specifically, gated by her own rank
+   * (CampaignState.rourkeRank), not a second character. She's locked out
+   * at 2nd Lieutenant and eligible from Captain on ("the one rank before"
+   * Major) through Major itself.
+   *
+   * The old rule's Gladiator-mode reasoning doesn't stop being true — it's
+   * just not what Warden Company gets today. Gladiator mode will need its
+   * own equivalent "who's on top" lookup for whichever champion isn't
+   * Rourke, built when that mode actually exists, not preserved here as
+   * unused generality.
+   *
+   * Hardcodes the "pilot_rourke" id directly rather than a PilotRecord flag
+   * — contrast exemptFromPermadeath (data/types.ts), which exists so THAT
+   * check isn't a hardcoded id, but is scoped by its own comment to the
+   * permadeath check alone; reusing it here would tie two unrelated rules
+   * to one flag for no reason. The bare literal matches how every other
+   * file that needs her (Hub.ts, campaignState.ts, heirlooms.ts) already
+   * refers to her — there's no shared constant for it on purpose:
+   * campaignEconomy.ts's own ROURKE_PILOT_ID can't be imported here without
+   * a circular dependency, since campaignEconomy.ts already imports Mission
+   * from this file.
+   *
+   * House Amaranth's own commander equivalent — 6 Sep 2026, same
+   * conversation as the Rourke change above. Maxime, checking the
+   * cross-campaign gap this rule originally left open: "house amaranth is
+   * also the mc the player play who get the beacon gated the same way.
+   * exept. they can use it since mission 1. since marrow is [Colonel] at
+   * the start." Correcting one detail in that question for the record:
+   * pilot_marrow's own displayName (data/campaignHouseAmaranth.ts) is
+   * "Col. Ysolde Marrow" — Colonel, not Corporal ("Cpl." is a real,
+   * distinct title in that same roster, pilot_meir's). Doesn't change his
+   * conclusion — Colonel already sits above Captain on this project's own
+   * rank ladder (Bloom_Wars_Rank_And_Command_v1.md, and House Amaranth's
+   * own ladder in Bloom_Wars_House_Amaranth_Hub_Facility_Plan_v1.md, which
+   * runs Brigadier > Colonel > everything under it) — so gated "the same
+   * way" as Rourke's Captain-or-higher rule, Marrow clears the bar from
+   * the campaign's first mission and every mission after, same as he said.
+   *
+   * Built as an unconditional check rather than a second rank field: unlike
+   * rourkeRank, Marrow has no promotion schedule anywhere in this codebase
+   * — "Col. Ysolde Marrow" is fixed, authored flavor from Mission 1 on, per
+   * her own PilotRecord comment ("this campaign's own 1:1 mirror to
+   * Rourke") and campaignState.ts's own repeated note that no
+   * Marrow-equivalent rank field has ever been designed. A rank field with
+   * exactly one value forever is a field that isn't doing anything — this
+   * reads as what it actually is, "always eligible while she's up," rather
+   * than manufacturing a Rank-typed field just to hold one constant.
+   *
+   * IMPORTANT, told to Maxime directly rather than left to surface itself
+   * later: this branch is correct but currently unreachable in an actual
+   * played House Amaranth campaign. canPlaceBeacon() below still requires
+   * builtBays to include beaconControl + restockRoom + generator, and the
+   * only code anywhere that can ever add to builtBays is Hub.ts's bay-
+   * building UI (Antfarm) — Warden's own hub. House Amaranth's base scene
+   * (scenes/Hangar.ts) is a 136-line placeholder with no bay-building
+   * capability at all, and Maxime's own build log already lists a real
+   * House Amaranth hub as explicitly deferred ("I'll do the hub some other
+   * day"). So today, Marrow can never actually place a beacon in a played
+   * campaign — not because of this rank check, but because there's no in-
+   * game way to ever build the three bays it also requires. Covered by
+   * engine-level tests (beaconControl.test.ts's own Marrow describe block)
+   * that construct a Mission directly and pass builtBays in by hand, the
+   * same way a real House Amaranth hub eventually would.
+   *
+   * Recomputed on every call rather than cached, same as before: a downed
+   * Rourke or Marrow loses the role until revived or the mission ends.
    */
   beaconHolderId(): string | null {
-    let bestId: string | null = null;
-    let bestRank = -1;
-    for (const u of this.units) {
-      if (u.side !== "player" || u.downed || !u.pilotId) continue;
-      const rank = u.tier === "S" ? BEACON_TIER_ORDER.length : BEACON_TIER_ORDER.indexOf(u.tier ?? "G");
-      if (rank > bestRank) {
-        bestRank = rank;
-        bestId = u.instanceId;
-      }
-    }
-    return bestId;
+    const marrow = this.units.find((u) => u.side === "player" && !u.downed && u.pilotId === "pilot_marrow");
+    if (marrow) return marrow.instanceId;
+
+    if (this.rourkeRank === "2nd_lt") return null;
+    const rourke = this.units.find((u) => u.side === "player" && !u.downed && u.pilotId === "pilot_rourke");
+    return rourke?.instanceId ?? null;
   }
 
   /**

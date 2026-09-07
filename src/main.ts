@@ -13,6 +13,11 @@ import { Battle } from "./scenes/Battle";
 import { Debrief } from "./scenes/Debrief";
 import { Hangar } from "./scenes/Hangar";
 import { Hub } from "./scenes/Hub";
+// House Amaranth Hub, 6 Sep 2026 — the SAME Hub scene class, running a
+// different facility profile (see engine/facility.ts). Registered as an
+// instance because Phaser instantiates a bare class reference with no
+// arguments (which is exactly how the Warden `Hub` entry stays the Antfarm).
+import { HOUSE_AMARANTH_FACILITY } from "./engine/facilityHouseAmaranth";
 import { applyDisplayScale, getStoredDisplayScaleId } from "./engine/displayScale";
 
 // Screen Resolution Plan v1, 2 Sep 2026 — apply the player's saved display-
@@ -83,7 +88,7 @@ const __bwGame = new Phaser.Game({
   // the "reading order" comment above: Boot always hands off to Preloader
   // now (see Boot.ts), which loads every portrait/splash file once before
   // handing off to wherever Boot was actually headed.
-  scene: [Boot, Preloader, MainMenu, CampaignSetup, LoadGame, Options, Codex, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub],
+  scene: [Boot, Preloader, MainMenu, CampaignSetup, LoadGame, Options, Codex, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub, new Hub(HOUSE_AMARANTH_FACILITY)],
   render: { pixelArt: false, antialias: true },
   // Build Plan §9 piece #3, 26 Aug 2026 — first use of Phaser's DOM Element
   // game object in this project, for the Hub's real typed-chat input

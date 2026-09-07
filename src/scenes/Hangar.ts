@@ -121,10 +121,14 @@ export class Hangar extends Phaser.Scene {
     // SELECT (CARD_R - 130 = 800, 260 wide, so 670..930): 395..655 with
     // clearance either side, and wider still on an Ironman save where
     // SAVE AS... isn't drawn at all.
-    if (baseSceneKeyFor(this.state) === "Hub") {
+    // 6 Sep 2026, House Amaranth Hub — any save with a hub (both sides now;
+    // only the archived Team One roster still lands on "Hangar") gets the
+    // button, and it goes to THAT side's hub.
+    const hubKey = baseSceneKeyFor(this.state);
+    if (hubKey !== "Hangar") {
       makeShopButton(this, this.footerLayer, 525, 604, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
         saveCampaignState(this.state);
-        this.scene.start("Hub");
+        this.scene.start(hubKey);
       });
     }
   }

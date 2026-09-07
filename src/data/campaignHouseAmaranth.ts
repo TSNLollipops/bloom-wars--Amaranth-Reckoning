@@ -216,6 +216,106 @@ export const HOUSE_AMARANTH_SECOND_LANCE_ROSTER_IDS = HOUSE_AMARANTH_SECOND_LANC
 // scenes/TransporterPad.ts) reads the live roster instead, not this.
 export const HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD = [...HOUSE_AMARANTH_ROSTER_IDS, ...HOUSE_AMARANTH_SECOND_LANCE_ROSTER_IDS];
 
+// ---- Third Lance (6 Sep 2026) -------------------------------------------
+// Closes the gap this file has been flagging since 31 Aug/1 Sep 2026 (see
+// HOUSE_AMARANTH_SECOND_LANCE_PILOTS' own header and Mission 21's own
+// comment below, both of which said "no Third Lance integration exists
+// for this roster yet" as a stated-not-yet, not a stated-never). Maxime's
+// call, 6 Sep 2026: House Amaranth mirrors Warden Company's own 15-pilot
+// roster (three five-pilot lances), part of the same session's larger
+// "both campaigns fight each other's full named roster" request (see
+// Bloom_Wars_Build_Log_Addendum_HouseAmaranthThirdLance_06Sep2026.md).
+// All five designed together in chat rather than generated, same
+// discipline every other named pilot in this file got.
+//
+// Rank: all five Private, Maxime's own explicit call -- distinct from
+// every existing House Amaranth pilot (Sgt/Cpl/S.Sgt/Spec, no Pvt at all
+// across the first ten), and reads as the story beat it plainly is:
+// House Amaranth's newest hands, thrown into a mech for the first time,
+// nothing higher earned yet. Amsel's own background (a Ward-Crop
+// Technician thirteen months ago -- Missions 27/31 already establish
+// that job title for this campaign's civilians) makes the lance's
+// through-line explicit: these are the people this war ran out of anyone
+// else to send.
+//
+// Species/path picked to round out the roster's spread rather than repeat
+// it: House Amaranth's first ten are Tank x2 / Meeps x3 / Reeps x3 / Munti
+// x2. This lance adds Tank x1 / Meeps x2 / Reeps x1 / Munti x1, landing
+// the full 15 at Tank x3 / Meeps x5 / Reeps x4 / Munti x3 -- not identical
+// to Warden's own final spread, deliberately; House Amaranth's roster has
+// read differently from Warden's since Marrow's own Tank lead (this
+// file's header above), no reason for the two campaigns to converge now.
+export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
+  {
+    id: "pilot_thorne",
+    displayName: "Pvt. Emeka Thorne — “Harrow”",
+    // Human/bipedal, matching Marrow/Bray/Kessler/Solano's own default
+    // read for an unspecified pilot (HOUSE_AMARANTH_PILOTS' own comment
+    // sets that precedent). Ex-terrace foreman, never in a uniform before
+    // this -- holds ground the way he used to hold a harvest line.
+    archetypeId: "arch_tank_bipedal",
+    mekId: "mek_thorne",
+    tier: "G",
+  },
+  {
+    id: "pilot_kastan",
+    displayName: "Pvt. Liora Kastan — “Scarecrow”",
+    archetypeId: "arch_meeps_centauroid", // Hiopi/centauroid, the third of this roster's now-three
+    mekId: "mek_kastan",
+    tier: "G",
+  },
+  {
+    id: "pilot_osei",
+    displayName: "Pvt. Bram Osei — “Silo”",
+    archetypeId: "arch_reeps_vibrissal", // Osnian/vibrissal -- this roster's first Reeps of that species, contrast with Bray/Solano's human-bipedal Reeps
+    mekId: "mek_osei",
+    tier: "G",
+  },
+  {
+    id: "pilot_dunmore",
+    displayName: "Pvt. Sera Dunmore — “Chaffwind”",
+    archetypeId: "arch_munti_centauroid", // Hiopi/centauroid, matching Marrin's own pairing
+    mekId: "mek_dunmore",
+    tier: "G",
+  },
+  {
+    id: "pilot_amsel",
+    displayName: "Pvt. Teo Amsel — “Rootbind”",
+    archetypeId: "arch_meeps_bipedal", // Human/bipedal -- a Ward-Crop Technician thirteen months ago, per this section's own header
+    mekId: "mek_amsel",
+    tier: "G",
+  },
+];
+
+// Track assignments, same discipline as every roster above: Thorne (Tank)
+// gets Armorer, matching Marrow/Kessler's own Tank-track precedent.
+// Kastan (this roster's third Meeps) gets Runemaster, the same lead-Meeps
+// vision-track pick Vondra/Vantana/Rourke all carry. Osei gets
+// Quartermaster -- not yet used anywhere in House Amaranth's own roster
+// (only Delgado, on Warden's side, has it) -- matching "always has one
+// more shot stashed" better than Fabricator would have. Dunmore (this
+// roster's third Munti) gets Fieldwright, same as every Munti in either
+// roster so far (Orin, Marrin). Amsel gets Armorer, the same young/green
+// pick Meir's own "young, aggressive-by-conviction" reasoning already set
+// a precedent for -- fitting for someone thirteen months removed from
+// civilian work.
+export const HOUSE_AMARANTH_THIRD_LANCE_MEKS: Record<string, MekArchetype> = {
+  mek_thorne: { id: "mek_thorne", displayName: "Thorne's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_kastan: { id: "mek_kastan", displayName: "Kastan's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_osei: { id: "mek_osei", displayName: "Osei's Mek", primary: "quartermaster", secondary: null, spareParts: 0 },
+  mek_dunmore: { id: "mek_dunmore", displayName: "Dunmore's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_amsel: { id: "mek_amsel", displayName: "Amsel's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+};
+
+export const HOUSE_AMARANTH_THIRD_LANCE_ROSTER_IDS = HOUSE_AMARANTH_THIRD_LANCE_PILOTS.map((p) => p.id);
+
+// Act III's own static playerPilotIds default (6 Sep 2026) -- same role as
+// HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD above, and same "sim/test only, never
+// read by a real playthrough" caveat that constant's own comment already
+// states. Every Act III mission below is retuned onto this in this same
+// pass -- see each mission's own playerPilotIds.
+export const HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD = [...HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD, ...HOUSE_AMARANTH_THIRD_LANCE_ROSTER_IDS];
+
 // ---- Missions ----------------------------------------------------------
 
 // Mission 1, "First Harvest" (Act I -- Harvest Ground, plan doc §6). A
@@ -1674,11 +1774,13 @@ export const HOUSE_AMARANTH_ACT2: CampaignMission[] = [
 // Act III, "The Stalling Season" (plan doc §6) -- opens Mission 21.
 // House Amaranth's own front from here on: after Mission 20's shared
 // convergence, this campaign no longer mirrors Warden's Act 2/3 beats
-// (plan doc §2, decision 2 -- "a genuinely separate front"). Still on
-// HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD -- no Third Lance integration exists
-// for this roster yet (grep-confirmed against campaignAmaranth.ts's own
-// integrateThirdLance() precedent before assuming otherwise), so the
-// 10-pilot squad from Act II carries over unchanged until that's built.
+// (plan doc §2, decision 2 -- "a genuinely separate front"). Now on
+// HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD (6 Sep 2026) -- the Third Lance
+// integration this comment used to flag as not-yet-built now exists
+// (integrateHouseAmaranthThirdLance, engine/campaignState.ts, gated on
+// this same Mission 20 win), so the roster grows to 15 here, the same
+// beat Warden's own ACT3_DEFAULT_SQUAD switch already established for
+// its own Mission 24/25 boundary.
 //
 // Mission 21, "After the Line" (plan doc §6: "Marrow returns from the
 // duel changed -- not broken from the bargain, committed to it harder,
@@ -1713,7 +1815,7 @@ export const HOUSE_AMARANTH_MISSION_21: CampaignMission = {
     "The line held. Marrow came back from it quieter, not shaken — quieter the way a decision looks once it's actually been made. Whatever she saw out there past Rourke's own escort, she hasn't said. What she has said is that the terraces don't get to slip while she puts it into words. Clear the ground. The bargain doesn't pause for anyone's feelings, hers included.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     {
       archetypeId: "bloom_undertow",
@@ -1780,7 +1882,7 @@ export const HOUSE_AMARANTH_MISSION_22: CampaignMission = {
     "The governor's own auditor picked today of all days to walk the relay floor in person, clipboard and all, and the Bloom picked today to walk it too. Marrow's read is blunt: whoever gets there first decides what the audit actually finds. Hold the relay. Whatever's left standing is the only report that matters.",
   objective: "protect_asset",
   objectiveParams: { turnLimit: 14, assetName: "relay" },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     {
       archetypeId: "bloom_sporethrower",
@@ -1847,7 +1949,7 @@ export const HOUSE_AMARANTH_MISSION_23: CampaignMission = {
     "The Wellroot's never done this before. It's not spreading, not retreating — it's answering. Every time the seal crew tightens the containment ring, something under the terrace pushes back at exactly that spot, like it's counting. Marrow's own read: it's not attacking. It's negotiating, in the only language it has. Hold the ring. Let it finish saying whatever this is.",
   objective: "hold_zone",
   objectiveParams: { turnLimit: 12, holdUntilTurn: 8 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     {
       archetypeId: "bloom_wellroot",
@@ -1907,7 +2009,7 @@ export const HOUSE_AMARANTH_MISSION_24: CampaignMission = {
     "Sector command's stopped asking questions and started sending troops — Halcyon's own seal-holder called it a liability review. Marrow calls it what it is. Get her to the far tree line before sector command's own regulars close the gap. This isn't a negotiation anymore.",
   objective: "extract_unit",
   objectiveParams: { turnLimit: 14 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   civilianSpawns: [{ at: { x: 2, y: 5 }, displayName: "Halcyon Amaranth" }],
   enemyWaves: [
     { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 1 }] },
@@ -1946,7 +2048,7 @@ export const HOUSE_AMARANTH_MISSION_25: CampaignMission = {
     "The relay to sector command's gone quiet, and so has the line to Warden's own border post — not damaged, silenced, on purpose, by someone who wanted the terrace alone before tonight started. No reinforcement, no channel out, nothing but what's already standing here. Hold the ground. Nobody's coming.",
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 14 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     {
       archetypeId: "bloom_crawlmass",
@@ -2007,7 +2109,7 @@ export const HOUSE_AMARANTH_MISSION_26: CampaignMission = {
     "Whatever's growing out there isn't the drift the program is built to manage. It's not tame, it's not slow, and it isn't stopping at the containment lines like every other patch on this terrace has for thirty years. Marrow's own read is blunt: this isn't a wilder version of the usual. It's something the bargain never accounted for. Clear it before it reaches the crop rows proper.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     {
       archetypeId: "bloom_bramble",
@@ -2051,7 +2153,7 @@ export const HOUSE_AMARANTH_MISSION_27: CampaignMission = {
     "The technicians who've kept the ward-crop rigs running all season are still at their stations, because nobody told them to stop, because until an hour ago nobody thought they'd need to. The Bramble's already through the north terrace. Get every one of them to the tree line before it's through this one too.",
   objective: "extract_unit",
   objectiveParams: { turnLimit: 16, extractThreshold: 4 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   civilianSpawns: [
     { at: { x: 2, y: 3 }, displayName: "Ward-Crop Technician — Rigs" },
     { at: { x: 2, y: 4 }, displayName: "Ward-Crop Technician — Seals" },
@@ -2160,7 +2262,7 @@ export const HOUSE_AMARANTH_MISSION_28: CampaignMission = {
     "Rourke came back for the line Marrow wouldn't hold last time — same rival, same ground, no lane out built into it this time. Marrow's read is short: last time was a withdrawal, not a surrender, and Warden Company mistook one for the other. Clear the field. There's no falling back off this one.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 15 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "hostile_mech_rourke", count: 1, atTurn: 1, spawnAt: [{ x: 11, y: 2 }] },
     { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 2 }] },
@@ -2261,7 +2363,7 @@ export const HOUSE_AMARANTH_MISSION_29: CampaignMission = {
     "Sector command isn't sending an auditor this time. This is the seizure force itself, landing on four sides of the relay at once, and there's no version of this fight where the outer terrace is still standing when it's over. Marrow's only real order is to make them pay a genuine price for it. Hold the zone as long as the ground allows.",
   objective: "hold_zone",
   objectiveParams: { turnLimit: 16, holdUntilTurn: 12 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "hostile_mech_loyalist_01", count: 4, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 10, y: 1 }] },
     { archetypeId: "hostile_mech_loyalist_02", count: 4, atTurn: 2, spawnAt: [{ x: 7, y: 3 }] },
@@ -2325,7 +2427,7 @@ export const HOUSE_AMARANTH_MISSION_30: CampaignMission = {
     "Sector command's regulars from the east, the Bramble from the west, and the squad standing on the one strip of ground between them. Marrow's not pretending this is a clean fight — it's two problems that happened to arrive on the same afternoon. Hold the middle. Neither side gets it.",
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 0, y: 2 }, { x: 1, y: 2 }] },
     { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 1, spawnAt: [{ x: 22, y: 2 }, { x: 23, y: 2 }] },
@@ -2392,7 +2494,7 @@ export const HOUSE_AMARANTH_MISSION_31: CampaignMission = {
     "Six technicians still on the terrace when the breach alarm went up, and the Bramble is already inside the evac corridor, not just behind it. Marrow's not going to pretend everyone walks away from this one — get as many to the tree line as the ground allows, and don't let the ones who don't make it be the ones closest to safety when it happens.",
   objective: "extract_unit",
   objectiveParams: { turnLimit: 18, extractThreshold: 3 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   civilianSpawns: [
     { at: { x: 3, y: 2 }, displayName: "Ward-Crop Technician — Rigs" },
     { at: { x: 3, y: 3 }, displayName: "Ward-Crop Technician — Seals" },
@@ -2462,7 +2564,7 @@ export const HOUSE_AMARANTH_MISSION_32: CampaignMission = {
     "This is the relay everything else was built to protect — lose this one and the whole diversion program stops meaning anything, terraces included. The Bramble knows it too, or acts like it does. Hold the dock. Whatever's left standing after, the Root has to be part of it.",
   objective: "protect_asset",
   objectiveParams: { turnLimit: 16, assetMaxHp: 400, assetName: "the Root" },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_bramble", count: 6, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
     { archetypeId: "bloom_bramble", count: 6, atTurn: 1, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
@@ -2517,7 +2619,7 @@ export const HOUSE_AMARANTH_MISSION_33: CampaignMission = {
     "Everything past this line is Halcyon's own house, not a terrace on a map. Five approaches, all of them Bramble, all of them converging on the one perimeter that's never had to hold before because nothing's ever gotten this close. Marrow's not talking about winning anymore. Just about still being here when it's done.",
   objective: "hold_zone",
   objectiveParams: { turnLimit: 20, holdUntilTurn: 16 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
     { archetypeId: "bloom_bramble", count: 4, atTurn: 3, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
@@ -2573,7 +2675,7 @@ export const HOUSE_AMARANTH_MISSION_34: CampaignMission = {
     "Nothing from Halcyon in three days — not a seal-holder's silence, an absence. No confirmation the program still has cover, no confirmation it doesn't. Marrow's not waiting on an answer that might not come. Eight directions, all of them bad. Just be standing here when the silence breaks, whichever way it breaks.",
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 16 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
     { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
@@ -2632,7 +2734,7 @@ export const HOUSE_AMARANTH_MISSION_35: CampaignMission = {
     "The Wellroot hasn't moved in thirty years. It's not moving now either — but the Bramble is moving AROUND it, in a pattern that isn't random, and Marrow's read on that is the only one that matters: whatever's been growing under this program long enough to know how to wait, it's done waiting. Hold the perimeter. Whatever it's coordinating, it doesn't get through.",
   objective: "hold_zone",
   objectiveParams: { turnLimit: 20, holdUntilTurn: 16 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_wellroot", count: 1, atTurn: 1, spawnAt: [{ x: 15, y: 6 }] },
     { archetypeId: "bloom_bramble", count: 7, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
@@ -2697,7 +2799,7 @@ export const HOUSE_AMARANTH_MISSION_36: CampaignMission = {
     "Thirty years of managing a bargain nobody outside this terrace ever agreed to, and it comes down to one more line, held one more time. The Wellroot's still out there, still directing, still not moving. Everything else is moving all at once. Hold until the doctrine closes. That's the whole order — hold.",
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 18 },
-  playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   enemyWaves: [
     { archetypeId: "bloom_wellroot", count: 1, atTurn: 1, spawnAt: [{ x: 17, y: 6 }] },
     { archetypeId: "bloom_bramble", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },

@@ -10,7 +10,7 @@
 // switcher comes back on its own if a second campaign is ever un-archived.
 import Phaser from "phaser";
 import { CAMPAIGNS } from "../data/allCampaigns";
-import { loadCampaignState } from "../engine/campaignState";
+import { baseSceneKeyFor, loadCampaignState } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 
@@ -89,7 +89,11 @@ export class MapSelect extends Phaser.Scene {
     // same makeShopButton styling as CAMPAIGN SHOP, positioned clear of
     // both that button and the centered title text above.
     makeShopButton(this, hangarLayer, 730, 20, 140, 30, "BACK TO HUB", true, () => {
-      this.scene.start("Hub");
+      // 6 Sep 2026, House Amaranth Hub — whichever side's hub this save
+      // belongs to (a save without one falls back to the Campaign Shop,
+      // the same way every other return-to-base button already routes).
+      const state = loadCampaignState();
+      this.scene.start(state ? baseSceneKeyFor(state) : "Hub");
     });
 
     // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1

@@ -55,7 +55,14 @@ import type { Stage } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "../data/campaignAmaranth";
 // House Amaranth — Mission Select + roster-seeding pass, 1 Sep 2026.
-import { HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_MEKS, HOUSE_AMARANTH_SECOND_LANCE_PILOTS, HOUSE_AMARANTH_SECOND_LANCE_MEKS } from "../data/campaignHouseAmaranth";
+import {
+  HOUSE_AMARANTH_PILOTS,
+  HOUSE_AMARANTH_MEKS,
+  HOUSE_AMARANTH_SECOND_LANCE_PILOTS,
+  HOUSE_AMARANTH_SECOND_LANCE_MEKS,
+  HOUSE_AMARANTH_THIRD_LANCE_PILOTS,
+  HOUSE_AMARANTH_THIRD_LANCE_MEKS,
+} from "../data/campaignHouseAmaranth";
 import { findPilot } from "../data/pilotRegistry";
 import type { SocialLogEntry } from "../data/verbs";
 import type { CarrierModuleId } from "../data/carrierModules";
@@ -709,8 +716,17 @@ export function createHouseAmaranthCampaignState(startingPoints = 0): CampaignSt
  * unconditional behavior for that archived roster too, not a new special
  * case invented for House Amaranth specifically.
  */
-export function baseSceneKeyFor(state: CampaignState): "Hub" | "Hangar" {
-  return state.pilots["pilot_rourke"] ? "Hub" : "Hangar";
+// 6 Sep 2026, House Amaranth Hub build — a House Amaranth save now has a
+// hub of its own (scenes/Hub.ts running the HOUSE_AMARANTH_FACILITY
+// profile, registered as "HubHouseAmaranth" in main.ts), so the Hangar
+// fallback above only applies to a save with NEITHER MC — the archived Team
+// One roster. Same cheapest-reliable-signal idea, one more pilot id: every
+// House Amaranth save has pilot_marrow from creation and no other roster
+// ever will.
+export function baseSceneKeyFor(state: CampaignState): "Hub" | "HubHouseAmaranth" | "Hangar" {
+  if (state.pilots["pilot_rourke"]) return "Hub";
+  if (state.pilots["pilot_marrow"]) return "HubHouseAmaranth";
+  return "Hangar";
 }
 
 // ---- Save / load (Build Brief step 11: "campaign persistence across
@@ -1606,26 +1622,38 @@ export function integrateSecondLance(state: CampaignState): SecondLanceResult {
 }
 
 /**
- * House Amaranth's own Second Lance integration (1 Sep 2026) — mirrors
- * integrateSecondLance above line for line, same idempotent/free/
- * unconditional shape. Call site (scenes/Debrief.ts) fires this gated on
+ * House Amaranth's own Second Lance integration (1 Sep 2026; reworked 6 Sep
+ * 2026 to match Warden's own post-5-Sep recruit-pool shape). Maxime, asked
+ * directly whether "the two missions should recruit the same way" meant
+ * Mission 12/20 matching each other or House Amaranth matching Warden's
+ * newer system: "House Amaranth matching Warden's newer system." This used
+ * to hand the player five finished pilots directly (mirroring
+ * integrateSecondLance's own PRE-5-Sep shape); it now mirrors
+ * integrateSecondLance's CURRENT shape instead — grants an empty lance, and
+ * the five authored pilots (Kessler, Vantana, Reyken, Solano, Marrin) move
+ * into the recruit pool (recruitCandidates) instead of arriving pre-added.
+ *
+ * This was previously reasoned to be a deliberate, permanent difference
+ * from Warden (see this function's own history: House Amaranth's Hangar.ts
+ * was believed to have no recruiting screen to present a pool on). That
+ * belief was wrong — re-checked directly against scenes/Hangar.ts and
+ * scenes/shop/ShopPanel.ts on this pass: Hangar.ts already instantiates the
+ * same scene-agnostic ShopPanel Warden's Hub.ts uses, meaning House
+ * Amaranth already had a working recruiting screen the whole time. There
+ * was never an actual blocker to unifying the two campaigns' lance-growth
+ * feel — just an unverified claim that there was one.
+ *
+ * Call site (scenes/Debrief.ts) fires this gated on
  * `mission.mission.id === "mission_house_amaranth_12" && outcome ===
  * "win"` — Mission 12, "Harvest's End," is this campaign's own Act I
  * finale, matching Warden's own "the previous act's own last mission,
- * won" trigger shape exactly. Deliberately does NOT set state.rourkeRank
- * (createHouseAmaranthCampaignState's own doc comment above explains why:
- * there's no Marrow-equivalent rank field built yet, and this pass wasn't
- * asked to build one). No Third Lance equivalent exists for this roster —
- * campaignHouseAmaranth.ts's own comment above HOUSE_AMARANTH_ACT3
- * confirms House Amaranth stays on the combined 10-pilot squad from
- * Mission 13 through Mission 36, so there is nothing for a third
- * integration function to add.
+ * won" trigger shape exactly. Deliberately does NOT set any rank field
+ * (there's no Marrow-equivalent rank field built for House Amaranth).
  */
 export function integrateHouseAmaranthSecondLance(state: CampaignState): SecondLanceResult {
-  if (state.pilots[HOUSE_AMARANTH_SECOND_LANCE_PILOTS[0].id]) return { integrated: false };
-  for (const p of HOUSE_AMARANTH_SECOND_LANCE_PILOTS) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
-  for (const [id, m] of Object.entries(HOUSE_AMARANTH_SECOND_LANCE_MEKS)) state.meks[id] = { ...m };
-  return { integrated: true, pilots: HOUSE_AMARANTH_SECOND_LANCE_PILOTS };
+  if ((state.lancesGranted ?? derivedLanceCount(state)) >= 2) return { integrated: false };
+  grantLance(state);
+  return { integrated: true, pilots: [] };
 }
 
 // ---- 8. Third Lance integration (Act III opening, 25 Aug 2026 — same-day
@@ -1666,6 +1694,31 @@ export function integrateThirdLance(state: CampaignState): ThirdLanceResult {
   if ((state.lancesGranted ?? derivedLanceCount(state)) >= 3) return { integrated: false };
   grantLance(state);
   state.rourkeRank = "maj";
+  return { integrated: true, pilots: [] };
+}
+
+/**
+ * House Amaranth's own Third Lance integration (6 Sep 2026; reworked same
+ * day to match Warden's recruit-pool shape — see
+ * integrateHouseAmaranthSecondLance's own updated doc comment above for
+ * the full story of why the original direct-add design was reversed
+ * within hours of shipping). Now mirrors integrateThirdLance exactly:
+ * grants an empty lance, and the five authored pilots (Thorne, Kastan,
+ * Osei, Dunmore, Amsel) move into the recruit pool instead of arriving
+ * pre-added.
+ *
+ * Call site (scenes/Debrief.ts) fires this gated on
+ * `mission.mission.id === "mission_house_amaranth_20" && outcome ===
+ * "win"` — Mission 20, "Marrow's Line," is this campaign's own Act II
+ * finale (Act III opens at Mission 21), the same "previous act's own
+ * last mission, won" shape every other lance-integration trigger in this
+ * file already uses. Does NOT set any rank field, matching
+ * integrateHouseAmaranthSecondLance's own reasoning above (no
+ * Marrow-equivalent rank field exists to set).
+ */
+export function integrateHouseAmaranthThirdLance(state: CampaignState): ThirdLanceResult {
+  if ((state.lancesGranted ?? derivedLanceCount(state)) >= 3) return { integrated: false };
+  grantLance(state);
   return { integrated: true, pilots: [] };
 }
 
@@ -1773,6 +1826,7 @@ export type LanceId = "a" | "b" | "c" | "d" | "e";
 
 export function lanceOfPilot(pilotId: string): LanceId {
   if (THIRD_LANCE_PILOTS.some((p) => p.id === pilotId)) return "c";
+  if (HOUSE_AMARANTH_THIRD_LANCE_PILOTS.some((p) => p.id === pilotId)) return "c";
   if (SECOND_LANCE_PILOTS.some((p) => p.id === pilotId)) return "b";
   if (HOUSE_AMARANTH_SECOND_LANCE_PILOTS.some((p) => p.id === pilotId)) return "b";
   return "a";
@@ -1829,7 +1883,7 @@ function derivedLanceCount(state: CampaignState): number {
   let n = 1;
   const has = (list: { id: string }[]) => list.some((p) => state.pilots[p.id] !== undefined);
   if (has(SECOND_LANCE_PILOTS) || has(HOUSE_AMARANTH_SECOND_LANCE_PILOTS)) n = 2;
-  if (has(THIRD_LANCE_PILOTS)) n = 3;
+  if (has(THIRD_LANCE_PILOTS) || has(HOUSE_AMARANTH_THIRD_LANCE_PILOTS)) n = 3;
   return n;
 }
 
@@ -1896,20 +1950,32 @@ export function grantLance(state: CampaignState): boolean {
 }
 
 /**
- * The authored candidates a player can recruit (5 Sep 2026). These are the
- * ten pilots who USED to be handed over as a finished 2nd and 3rd Lance —
- * Okafor, Solheim, Tarrant, Vashti, Reyes, Kova, Ness, Onwuka, Delgado,
- * Yeun. Rather than delete ten written characters to make room for
- * recruiting, recruiting draws from them: you still choose your squad, and
- * the ones you pick are real people with real names instead of generated
+ * The authored candidates a player can recruit (5 Sep 2026; made
+ * campaign-aware 6 Sep 2026 when House Amaranth adopted the same
+ * recruit-pool shape). For a Warden save these are the ten pilots who
+ * USED to be handed over as a finished 2nd and 3rd Lance — Okafor,
+ * Solheim, Tarrant, Vashti, Reyes, Kova, Ness, Onwuka, Delgado, Yeun. For
+ * a House Amaranth save it's that campaign's own ten — Kessler, Vantana,
+ * Reyken, Solano, Marrin, Thorne, Kastan, Osei, Dunmore, Amsel. Rather
+ * than delete ten written characters to make room for recruiting,
+ * recruiting draws from them: you still choose your squad, and the ones
+ * you pick are real people with real names instead of generated
  * placeholders. Which of them you end up with is now yours, and a campaign
- * where Solheim never joined is a different campaign.
+ * where Solheim (or Kessler) never joined is a different campaign.
+ *
+ * baseSceneKeyFor's own "does pilot_rourke exist" check is the established
+ * pattern for telling the two campaigns apart without a new field on
+ * CampaignState — reused here rather than inventing a second detector.
  *
  * Once the pool is exhausted, recruiting generates pilots with names from
  * RECRUIT_FIRST_NAMES/RECRUIT_SURNAMES instead, so the well never runs dry.
  */
 export function recruitCandidates(state: CampaignState): PilotRecord[] {
-  return [...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS].filter((p) => state.pilots[p.id] === undefined);
+  const authored =
+    baseSceneKeyFor(state) === "Hub"
+      ? [...SECOND_LANCE_PILOTS, ...THIRD_LANCE_PILOTS]
+      : [...HOUSE_AMARANTH_SECOND_LANCE_PILOTS, ...HOUSE_AMARANTH_THIRD_LANCE_PILOTS];
+  return authored.filter((p) => state.pilots[p.id] === undefined);
 }
 
 export type LanceAssignResult = { ok: true } | { ok: false; reason: string };
@@ -1981,8 +2047,14 @@ export function recruitIntoLance(state: CampaignState, lance: LanceId, candidate
   if (chosen) {
     pilot = { ...chosen };
     state.pilots[pilot.id] = { pilot, status: "active", personalPoints: 0, lance };
-    // The authored candidates arrive with their own written Meks.
-    const mek = { ...SECOND_LANCE_MEKS, ...THIRD_LANCE_MEKS }[pilot.mekId];
+    // The authored candidates arrive with their own written Meks. Merges
+    // both campaigns' dictionaries unconditionally rather than branching by
+    // baseSceneKeyFor like recruitCandidates does above — every mek id
+    // across all four lists is globally unique (pilotRegistry.ts's own
+    // flat MEK_INDEX merge depends on that already), so there's no
+    // collision risk and one merged lookup is simpler than repeating the
+    // branch.
+    const mek = { ...SECOND_LANCE_MEKS, ...THIRD_LANCE_MEKS, ...HOUSE_AMARANTH_SECOND_LANCE_MEKS, ...HOUSE_AMARANTH_THIRD_LANCE_MEKS }[pilot.mekId];
     if (mek) state.meks[pilot.mekId] = { ...mek };
   } else {
     pilot = generatePilot(state, randomFrom(ALL_RECRUITABLE_PATHS));
@@ -2016,6 +2088,7 @@ export function assignPilotToLance(state: CampaignState, pilotId: string, lance:
  */
 export function lanceOfMek(mekId: string): LanceId {
   if (THIRD_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "c";
+  if (HOUSE_AMARANTH_THIRD_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "c";
   if (SECOND_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "b";
   if (HOUSE_AMARANTH_SECOND_LANCE_PILOTS.some((p) => p.mekId === mekId)) return "b";
   return "a";
@@ -2024,8 +2097,9 @@ export function lanceOfMek(mekId: string): LanceId {
 /**
  * B2 — where a MEK's workshop is now, following its pilot's live lance
  * assignment (Maxime's call: "the Mek follows the pilot"). Resolves the mek
- * to its owning pilot through the same six static lists lanceOfMek walks,
- * then asks lanceOfPilotIn.
+ * to its owning pilot through the same seven static lists lanceOfMek walks
+ * (six until 6 Sep 2026's House Amaranth Third Lance addition), then asks
+ * lanceOfPilotIn.
  *
  * Falls back to lanceOfMek for any mek whose pilot can't be resolved — a
  * generated recruit's mek, or a mek id that isn't in the static roster at
@@ -2033,7 +2107,14 @@ export function lanceOfMek(mekId: string): LanceId {
  * replaces at Hub's workshop-seeding call site.
  */
 export function lanceOfMekIn(state: CampaignState, mekId: string): LanceId {
-  for (const list of [WARDEN_PILOTS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS, HOUSE_AMARANTH_PILOTS, HOUSE_AMARANTH_SECOND_LANCE_PILOTS]) {
+  for (const list of [
+    WARDEN_PILOTS,
+    SECOND_LANCE_PILOTS,
+    THIRD_LANCE_PILOTS,
+    HOUSE_AMARANTH_PILOTS,
+    HOUSE_AMARANTH_SECOND_LANCE_PILOTS,
+    HOUSE_AMARANTH_THIRD_LANCE_PILOTS,
+  ]) {
     const owner = list.find((p) => p.mekId === mekId);
     if (owner) return lanceOfPilotIn(state, owner.id);
   }

@@ -131,15 +131,28 @@ export const ACT3_DEPLOY_CAP = 15;
  * regardless of act — meaning House Amaranth's own 10-pilot Act II/III
  * squad (HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD, missions 13-36) would have
  * been capped at deploying only 5 of the 10 pilots actually available,
- * the moment a player reached Mission 13. House Amaranth has no Third
- * Lance (see integrateHouseAmaranthSecondLance's own doc comment,
- * engine/campaignState.ts) so its own tiering is simpler than Warden's:
- * just two tiers, not three.
+ * the moment a player reached Mission 13.
+ *
+ * Second bug found and fixed 6 Sep 2026, same shape: House Amaranth's own
+ * tiering used to stop at two (no Third Lance existed, so Act II and III
+ * shared ACT2_DEPLOY_CAP). Now that HOUSE_AMARANTH_THIRD_LANCE_PILOTS
+ * exists and HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD (campaignHouseAmaranth.ts)
+ * carries 15 ids into Missions 21-36, leaving this at two tiers would have
+ * silently benched 5 of every Act III player's own pilots every mission —
+ * the exact same class of bug as the one above, just one tier short this
+ * time instead of two. Three tiers now, matching Warden's own act
+ * boundaries in shape (not in number — House Amaranth's own Act II starts
+ * at 13 and Act III at 21, not 25) and the same "full roster, no bench"
+ * intent ACT3_DEPLOY_CAP's own doc comment above already states for
+ * Warden.
  */
 export function deployCapForMission(missionId: string): number {
   const houseAmaranthMatch = missionId.match(/^mission_house_amaranth_(\d+)$/);
   if (houseAmaranthMatch) {
-    return Number(houseAmaranthMatch[1]) <= 12 ? ACT1_DEPLOY_CAP : ACT2_DEPLOY_CAP;
+    const hn = Number(houseAmaranthMatch[1]);
+    if (hn <= 12) return ACT1_DEPLOY_CAP;
+    if (hn <= 20) return ACT2_DEPLOY_CAP;
+    return ACT3_DEPLOY_CAP;
   }
   const match = missionId.match(/^mission_amaranth_(\d+)$/);
   if (!match) return ACT1_DEPLOY_CAP;

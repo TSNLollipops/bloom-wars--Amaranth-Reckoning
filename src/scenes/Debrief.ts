@@ -30,6 +30,7 @@ import {
   integrateSecondLance,
   integrateThirdLance,
   integrateHouseAmaranthSecondLance,
+  integrateHouseAmaranthThirdLance,
   awardCallsign,
   baseSceneKeyFor,
   applyMissionLosses,
@@ -390,6 +391,16 @@ export class Debrief extends Phaser.Scene {
     // promotion to Major) is the trigger.
     if (this.mission.mission.id === "mission_amaranth_24" && win) {
       const result = integrateThirdLance(this.state);
+      this.thirdLancePilots = result.integrated ? result.pilots : undefined;
+    }
+    // House Amaranth's own Third Lance (6 Sep 2026) — same beat, one
+    // mission id over, mirroring the Second Lance pairing just above:
+    // Mission 20 ("Marrow's Line") is this campaign's own Act II finale,
+    // matching Mission 24's role for Warden. Mutually exclusive with the
+    // Warden gate above for the same reason 3b's own comment already
+    // gives — safe to share this.thirdLancePilots/drawThirdLanceCallout.
+    if (this.mission.mission.id === "mission_house_amaranth_20" && win) {
+      const result = integrateHouseAmaranthThirdLance(this.state);
       this.thirdLancePilots = result.integrated ? result.pilots : undefined;
     }
 
@@ -874,10 +885,58 @@ export class Debrief extends Phaser.Scene {
     return top + height;
   }
 
+  /**
+   * True for a House Amaranth mission id, false for a Warden one — the
+   * same check drawSecondLanceCallout/drawThirdLanceCallout below use to
+   * pick which campaign's location name to put in the "go recruit" line,
+   * since this.secondLancePilots/this.thirdLancePilots are shared fields
+   * that either campaign's gate can set (see the comment at this file's
+   * own Second Lance integration call site on why sharing them is safe).
+   */
+  private get isHouseAmaranthMission(): boolean {
+    return this.mission.mission.id.startsWith("mission_house_amaranth_");
+  }
+
   private drawSecondLanceCallout(top: number): number {
     if (!this.secondLancePilots) return top;
     const height = 56;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
+    // House Amaranth switched to Warden's own empty-lance-plus-recruit
+    // flow on 6 Sep 2026 (Maxime, asked whether "the two missions should
+    // recruit the same way" meant Mission 12/20 matching each other or
+    // House Amaranth matching Warden's newer system: "House Amaranth
+    // matching Warden's newer system"). integrateHouseAmaranthSecondLance
+    // now grants an empty lance exactly like integrateSecondLance does,
+    // so this.secondLancePilots is always [] for both campaigns and this
+    // callout tells the same "go recruit" story for both — it only
+    // branches to swap which screen name gets mentioned, since House
+    // Amaranth's own base scene (scenes/Hangar.ts) has no in-fiction
+    // "Hangar Deck" name the way Warden's Hub.ts does, just the generic
+    // "CAMPAIGN SHOP" label the very panel below this callout also uses.
+    //
+    // This branch briefly (6 Sep 2026, the same day) did something
+    // different — listed the five named pilots as already added directly,
+    // which was correct for House Amaranth's original direct-add design
+    // but became wrong the moment that design was reworked to match
+    // Warden's. See integrateHouseAmaranthSecondLance's own doc comment
+    // for the full history of that reversal.
+    if (this.isHouseAmaranthMission) {
+      this.add
+        .text(480, top + 16, "YOU HAVE BEEN GIVEN A SECOND LANCE — recruit it at the Campaign Shop", {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#4ade80",
+        })
+        .setOrigin(0.5);
+      this.add
+        .text(480, top + 36, "five berths, empty. The Campaign Shop below has candidates.", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#8a97a6",
+        })
+        .setOrigin(0.5);
+      return top + height;
+    }
     this.add
       // 5 Sep 2026 — this used to read "5 pilots added to the roster" and
       // list their callsigns, which stopped being true the moment lances
@@ -902,12 +961,34 @@ export class Debrief extends Phaser.Scene {
   /**
    * Third Lance integration reveal (25 Aug 2026, same-day correction) —
    * mirrors drawSecondLanceCallout exactly, fires once on the same
-   * Mission 24 win that triggers integrateThirdLance itself.
+   * Mission 24 win that triggers integrateThirdLance itself. House
+   * Amaranth branch added 6 Sep 2026 alongside its own Third Lance data
+   * (campaignHouseAmaranth.ts), reworked the same day to match
+   * integrateHouseAmaranthThirdLance's own switch to the recruit-pool
+   * shape — see drawSecondLanceCallout's own doc comment above for the
+   * full history.
    */
   private drawThirdLanceCallout(top: number): number {
     if (!this.thirdLancePilots) return top;
     const height = 56;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
+    if (this.isHouseAmaranthMission) {
+      this.add
+        .text(480, top + 16, "YOU HAVE BEEN GIVEN A THIRD LANCE — recruit it at the Campaign Shop", {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#4ade80",
+        })
+        .setOrigin(0.5);
+      this.add
+        .text(480, top + 36, "five berths, empty. The Campaign Shop below has candidates.", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#8a97a6",
+        })
+        .setOrigin(0.5);
+      return top + height;
+    }
     this.add
       .text(480, top + 16, "YOU HAVE BEEN GIVEN A THIRD LANCE — recruit it at the Hangar Deck", {
         fontFamily: "monospace",

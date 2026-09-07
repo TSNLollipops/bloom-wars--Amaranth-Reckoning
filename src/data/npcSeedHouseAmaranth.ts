@@ -9,17 +9,20 @@
 // walks NPC_SEED to seed the three hand-placed Rec Room regulars' live Hub
 // POSITIONS (see that function's own `namedSeed`/`positions` lookup), so
 // merging House Amaranth pilots into that same array would bleed into
-// Warden's own live Hub scene for no reason — there's no HubHouseAmaranth.ts
-// yet for these five pilots to walk around in (campaign plan §3c, still
-// open). This file only carries what's genuinely generic and safe to wire
-// today: catalyst picks (consumed by data/npcSeed.ts's own catalystForPilot,
-// extended below to check this file too) and NPC-to-NPC bonds (consumed by
-// data/npcBonds.ts's clique/rivalry math and engine/campaignState.ts's
-// ensureNpcSocialState, both pure functions that take a bonds Record as an
-// argument rather than reading a hardcoded global). Neither array below
-// carries stress/morale/drunk/favorability — those are live Hub-UI seed
-// values with no meaning until a House Amaranth Hub scene actually exists
-// to display them.
+// Warden's own live Hub scene for no reason. This file carries: catalyst
+// picks (consumed by data/npcSeed.ts's own catalystForPilot, extended to
+// check this file too), NPC-to-NPC bonds (consumed by data/npcBonds.ts's
+// clique/rivalry math and engine/campaignState.ts's ensureNpcSocialState,
+// both pure functions that take a bonds Record as an argument rather than
+// reading a hardcoded global), and — since 6 Sep 2026, when the House
+// Amaranth Hub scene arrived (scenes/Hub.ts running engine/
+// facilityHouseAmaranth.ts's profile) — the three Longhouse regulars' own
+// starting favorability/stress/morale, HOUSE_AMARANTH_REGULARS below. Those
+// three values were deliberately left out of this file until a scene
+// existed to display them; it exists now. Hub.ts never reads this file
+// directly: the facility profile maps these rows into its own `regulars`
+// and `bondSeed`, which is what closes the position-bleed problem above for
+// good (Build Plan §3, "NPC_SEED positions bleed").
 import type { Catalyst } from "./ambientLines";
 import { pairKey } from "./npcBonds";
 
@@ -51,3 +54,19 @@ export const HOUSE_AMARANTH_NPC_BOND_SEED: Record<string, number> = {
   [pairKey("pilot_vondra", "pilot_bray")]: 10,
   [pairKey("pilot_meir", "pilot_bray")]: -20,
 };
+
+// The three Longhouse regulars — seated at the game table on a fresh Hub
+// load, the way Bosk/Anand/Iyari are in Warden's Rec Room (npcSeed.ts's
+// NPC_SEED). Seat order matters: it indexes the facility's recroomSeats
+// ring. Vondra, Meir and Bray sit; Orin roams (the mockup's own call —
+// the youngest, the one who can't sit still). The starting values are
+// PLACEHOLDERS, same "not a locked content decision" footing NPC_SEED's
+// own carry, shaped to the bonds above: Vondra steady and warm toward the
+// new Colonel, Meir carrying real stress under the mentorship, Bray the
+// friction pair reading cool. Catalysts repeat HOUSE_AMARANTH_NPC_SEED's
+// so catalystForPilot and the seated row can never disagree.
+export const HOUSE_AMARANTH_REGULARS: { pilotId: string; catalyst: Catalyst; favorability: number; stress: number; morale: number }[] = [
+  { pilotId: "pilot_vondra", catalyst: "raven", favorability: 30, stress: 25, morale: 78 },
+  { pilotId: "pilot_meir", catalyst: "wolf", favorability: 10, stress: 55, morale: 65 },
+  { pilotId: "pilot_bray", catalyst: "bear", favorability: -5, stress: 45, morale: 60 },
+];

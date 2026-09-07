@@ -345,6 +345,29 @@ sweep with a red self-test means nothing.
 - **Close overlays between stops.** Leaving them stacked made the sweep
   report 118 buried labels that were only buried by the harness.
 
+- `genHouseAmaranthSave.ts` + `checkHubHouseAmaranth.mjs` — 6 Sep 2026,
+  House Amaranth Hub build (`claude/Bloom_Wars_House_Amaranth_Hub_Build_Plan_v1.md`,
+  step 5). `genSave.ts` is Warden-only, so the estate gets its own save
+  generator (writes `save_house_amaranth.json`; a save with `pilot_marrow`
+  is what `baseSceneKeyFor` routes to the `"HubHouseAmaranth"` scene). The
+  check boots that save, clicks CONTINUE and proves, against the live scene:
+  the save lands in the Greathouse and not the Antfarm (title bar, HUD
+  `FLOOR:` line, spawn room); the cast is the estate's (Verinis in the
+  Control Room, the three Longhouse regulars seated, Orin roaming, every
+  Mek in a Cultivar Works, Marrow NOT on the floor, no Warden pilot leaked,
+  every body on walkable floor); all six stairs reachable by real
+  `tryMove()` walking from another room on the floor AND actually taken
+  with `switchRoom` to the right landing room/floor; every walk-up point
+  (roster console, crew records, BAY, standings board, bench, plinth, the
+  CO) triggers its own `isAt*()`; the camera clamps to each floor's bounds;
+  the centred title clears the `FLOOR:` and `Day` readouts in all 20 rooms
+  (the estate's long flavour names are why `Hub.fitRoomTitle` exists); and a
+  30s roam sample strands nobody. Writes `hub_house_amaranth_report.json`
+  and one screenshot per floor (`hub_ha_rc.png`, `hub_ha_ss1.png`,
+  `hub_ha_ss2.png`, `hub_ha_yard.png`) for the eyeball pass.
+  `captureHubDecks.mjs` was scoped the same day to the live scene's own
+  decks (`hub.f.deckOrder`) — `DECK_LAYOUTS` now holds both facilities'.
+
 ## A note on speed in the cloud sandbox
 
 Headless Chromium here renders in software and runs the game at roughly
@@ -372,6 +395,9 @@ node tools/verify/checkHubInteractionAfterScroll.mjs
 node tools/verify/checkHubDoorReachability.mjs
 node tools/verify/captureHubDecks.mjs
 node tools/verify/checkDockCameraSplit.mjs
+
+npx tsx tools/verify/genHouseAmaranthSave.ts  # House Amaranth's own save
+node tools/verify/checkHubHouseAmaranth.mjs
 
 npx tsx tools/verify/genActionBarSave.ts     # its own save, not genSave's
 node tools/verify/checkActionBarPaging.mjs

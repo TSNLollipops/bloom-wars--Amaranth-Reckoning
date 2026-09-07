@@ -36,9 +36,14 @@ await page.waitForTimeout(1800);
 const shot = (name) => page.screenshot({ path: new URL(`./${name}.png`, import.meta.url).pathname });
 
 // --- whole-deck views -------------------------------------------------------
+// 6 Sep 2026, House Amaranth Hub — DECK_LAYOUTS now holds BOTH facilities'
+// decks (Warden's four and the Greathouse's four), so ask the live scene
+// which decks are ITS (hub.f.deckOrder) rather than capturing every deck in
+// the registry; the estate has its own script (checkHubHouseAmaranth.mjs).
 const decks = await page.evaluate(async () => {
   const layout = await import("/src/engine/hubLayout.ts");
-  return Object.values(layout.DECK_LAYOUTS).map((d) => ({ id: d.id, bounds: d.bounds, rooms: Object.keys(d.rooms) }));
+  const hub = window.__bwGame.scene.getScene("Hub");
+  return hub.f.deckOrder.map((id) => layout.DECK_LAYOUTS[id]).map((d) => ({ id: d.id, bounds: d.bounds, rooms: Object.keys(d.rooms) }));
 });
 // Hide every screen-pinned HUD element for the whole-deck captures (camera
 // zoom scales pinned objects too, so they'd smear across the plan), and
