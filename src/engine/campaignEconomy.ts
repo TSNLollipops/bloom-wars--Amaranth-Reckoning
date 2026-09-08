@@ -487,6 +487,40 @@ export interface CarrierModulePurchaseResult {
  * other purchase* function in this file — no throwing, the caller decides
  * how to say so.
  */
+// ---- Company points: bay construction — the Generator rule ---------------
+//
+// Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2 (23 Aug 2026): the Generator
+// "powers the grid", and the bays that draw real power can't RUN without it
+// — "built but not functional until Generator capacity exists." The
+// project's enforcement of that rule has been uneven, and this list is the
+// honest record of where it stands:
+//
+//   beaconControl, restockRoom — gated 4 Sep 2026 (Beacon Control build;
+//     Maxime: "Sadly we need it enforced. Its gotta be something plsyer
+//     chose to spend they company point on").
+//   weaponsBay, sensorArray    — gated 7 Sep 2026 (Maxime: "better fix
+//     those two buildable room"). Both were confirmed Generator-dependent
+//     on 23 Aug and both shipped without the gate — Weapons Bay 28 Aug
+//     (the delivery note flagged it and got no answer), Sensor Array as a
+//     marker with no effect at all until the same 7 Sep pass wired it.
+//   fabricator                 — NOT gated. It was the FIRST bay §11.2
+//     named as Generator-dependent ("allow you to power fabricator and
+//     other heavy room"), and it's the one Maxime's 7 Sep ask didn't name.
+//     Left as shipped and flagged, not silently changed — same discipline
+//     Hub.ts's own gate comment held on 4 Sep.
+//
+// Pure and exported rather than an inline list in scenes/Hub.ts, which is
+// where it lived from 4 Sep to 7 Sep: a rule about what the company is
+// allowed to build belongs with the other purchase rules in this file, and
+// a Phaser scene can't be unit-tested. Hub.ts's handleBuildRequest calls
+// this and owns only the CO's line.
+export const GENERATOR_DEPENDENT_BAYS: readonly ReservedBayId[] = ["beaconControl", "restockRoom", "weaponsBay", "sensorArray"];
+
+/** True when `bayId` draws Generator power and the Generator isn't built yet — the construction-time refusal, not a point-of-use one. */
+export function bayNeedsGeneratorFirst(bayId: ReservedBayId, builtBays: readonly ReservedBayId[]): boolean {
+  return GENERATOR_DEPENDENT_BAYS.includes(bayId) && !builtBays.includes("generator");
+}
+
 export function purchaseCarrierModule(state: CampaignState, moduleId: CarrierModuleId): CarrierModulePurchaseResult {
   const def = CARRIER_MODULES[moduleId];
   if (!def) return { ok: false, reason: `unknown carrier module: ${moduleId}` };

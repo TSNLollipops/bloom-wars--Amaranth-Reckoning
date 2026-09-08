@@ -52,7 +52,11 @@ const PARK: Record<string, { x: number; y: number }> = {
 };
 
 function quietMission(): Mission {
-  const mission = new Mission(AMARANTH_MISSION_1);
+  // Mission rework pass (8 Sep 2026): Muster now has waves on turns 2, 4
+  // and 6 (the ridge gaps open). This helper wants a board that stays
+  // quiet after its turn-1 hostiles are downed, so only the turn-1 waves
+  // are kept — the test is about Oathkeeper's clock, not about Muster.
+  const mission = new Mission({ ...AMARANTH_MISSION_1, enemyWaves: AMARANTH_MISSION_1.enemyWaves.filter((w) => w.atTurn === 1) });
   for (const u of mission.units) {
     if (u.side === "hostile") u.downed = true;
     else u.pos = { ...PARK[u.pilotId!] };

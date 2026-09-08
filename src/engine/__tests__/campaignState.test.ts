@@ -62,6 +62,11 @@ import {
   recruitIntoLance,
   recruitCandidates,
   awardCallsign,
+  hasSeenTutorial,
+  markTutorialSeen,
+  resetTutorialSeen,
+  areTutorialHintsEnabled,
+  setTutorialHintsEnabled,
 } from "../campaignState";
 import { testUnit } from "./testHelpers";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS } from "../../data/campaignAmaranth";
@@ -1676,5 +1681,45 @@ describe("B2 — recruiting into a lance (House Amaranth)", () => {
     expect(lanceCount(loaded)).toBe(3);
     expect(lanceRoster(loaded, "b")).toHaveLength(5);
     expect(lanceRoster(loaded, "c")).toHaveLength(5);
+  });
+});
+
+describe("tutorial hints ON/OFF switch, Options screen, 8 Sep 2026", () => {
+  function memoryStorage(): CampaignStorage {
+    const backing = new Map<string, string>();
+    return {
+      getItem: (k) => backing.get(k) ?? null,
+      setItem: (k, v) => void backing.set(k, v),
+      removeItem: (k) => void backing.delete(k),
+    };
+  }
+
+  it("reads enabled by default on a browser that's never touched the setting — an existing player's behavior doesn't change until they click OFF", () => {
+    const storage = memoryStorage();
+    expect(areTutorialHintsEnabled(storage)).toBe(true);
+  });
+
+  it("setTutorialHintsEnabled(false) then true round-trips through storage", () => {
+    const storage = memoryStorage();
+    setTutorialHintsEnabled(false, storage);
+    expect(areTutorialHintsEnabled(storage)).toBe(false);
+    setTutorialHintsEnabled(true, storage);
+    expect(areTutorialHintsEnabled(storage)).toBe(true);
+  });
+
+  it("is independent of the seen-tutorial flag — turning hints off doesn't mark them seen, and resetting seen doesn't turn hints back on", () => {
+    const storage = memoryStorage();
+    markTutorialSeen(storage);
+    setTutorialHintsEnabled(false, storage);
+    expect(hasSeenTutorial(storage)).toBe(true);
+    expect(areTutorialHintsEnabled(storage)).toBe(false);
+
+    resetTutorialSeen(storage);
+    expect(hasSeenTutorial(storage)).toBe(false);
+    expect(areTutorialHintsEnabled(storage)).toBe(false); // still off — resetting "seen" isn't the same control
+  });
+
+  it("reads enabled (never false-by-accident) when no storage is available, same contract as hasSeenTutorial", () => {
+    expect(areTutorialHintsEnabled(undefined)).toBe(true);
   });
 });

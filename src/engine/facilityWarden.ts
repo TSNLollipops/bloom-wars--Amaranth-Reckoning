@@ -17,6 +17,7 @@
 import type { FacilityProfile } from "./facility";
 import {
   BAY_MARKERS,
+  CIC_TABLE_POINT,
   CO_POINT,
   CREW_RECORDS_POINT,
   HANGAR_SHOP_POINT,
@@ -224,9 +225,11 @@ export const WARDEN_FACILITY: FacilityProfile = {
     recroomSeats: RECROOM_SEATS,
     workshopBench: WORKSHOP_BENCH_POINT,
     vaultPlinth: VAULT_PLINTH_POINT,
+    archiveTable: CIC_TABLE_POINT,
     co: CO_POINT,
     playerSpawn: PLAYER_SPAWN,
   },
+  archiveRoom: "cic",
   spawnRoom: "recroom",
 
   // The Carrier CO — Antfarm Grid v0 stress-test follow-up, 27 Aug 2026.

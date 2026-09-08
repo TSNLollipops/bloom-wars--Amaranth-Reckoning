@@ -154,7 +154,7 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   // scene's own getState() returns — null for a House Amaranth save
   // (Hangar has no CampaignState shaped like this), which Codex.ts's own
   // hasWardenSave check already treats as "no save."
-  makeShopButton(scene, layer, 480, y, 260, 36, "CODEX", true, () => {
+  makeShopButton(scene, layer, 480, y, 260, 36, "HOW TO PLAY", true, () => {
     layer.destroy();
     scene.scene.start("Codex", { returnScene: scene.scene.key, campaignState: state });
   });

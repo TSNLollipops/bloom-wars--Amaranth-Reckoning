@@ -145,7 +145,7 @@ export interface PlayerAiMissionContext {
   // typing.
   readonly mission: {
     readonly objective: "eliminate_all" | "hold_zone" | "extract_unit" | "clear_bloom" | "survive_n_turns" | "contested_landing" | "protect_asset";
-    readonly objectiveParams: { extractUnitId?: string; holdUntilTurn?: number };
+    readonly objectiveParams: { extractUnitId?: string; holdUntilTurn?: number; turnLimit?: number };
     readonly bonusObjective?: { kind: "rescue_pilot" } | { kind: "clear_bloom_patch" };
   };
   readonly map: { holdZone?: Coord[]; exitTiles?: Coord[] };
@@ -153,6 +153,15 @@ export interface PlayerAiMissionContext {
   readonly fireSupportChargesRemaining?: number;
   /** Mission.fireSupportBonusChargeReady — the Weapons Bay's reserve line. Optional for the same reason. */
   readonly fireSupportBonusChargeReady?: () => boolean;
+  /**
+   * Mission.sensorArrayBuilt (7 Sep 2026) — the Long-Range Sensor Array bay.
+   * A fog-honest bot (profile.honestVision) on a campaign that built the
+   * array sees every standing hostile, same as the player's own board
+   * would; without it the bot would be playing blinder than the human on
+   * the same save. Optional for the same reason the two above are; a
+   * hand-built test context that never mentions it gets plain fog.
+   */
+  readonly sensorArrayBuilt?: boolean;
   /**
    * Maser Lance targeting (5 Sep 2026). Unlike Missile/Fire Support's radius-
    * around-a-clicked-tile shape, the cone is a widening wedge down one of 8

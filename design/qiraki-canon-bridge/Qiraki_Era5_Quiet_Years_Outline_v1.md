@@ -1,384 +1,218 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, new to this bridge (source doc dated 2026-08-27). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+# THE QIRAKI FILES — ERA V OUTLINE v2: THE QUIET YEARS, BOOKS 29-35
 
-# THE QIRAKI FILES — ERA V OUTLINE: THE QUIET YEARS, BOOKS 29-35
+**ID:** ERA5. **Tier:** 2, outline. **Owns:** Books 29 through 35 as a reaction chain. Nothing here overrides Tier 1.
 
-**ID:** ERA5. **Tier:** 2, outline. **Owns:** Books 29 through 35 at book-spine level. Nothing here overrides Tier 1.
+**Depends on:** Qiraki_Series_Architecture_v2.docx, Reaction_Formula_Applied_Model_v6.docx, Qiraki_Era4_The_Hand_Outline_v3.docx, Qiraki_Era5_Quiet_Years_Outline_v1.md (the political machine, device allocation, the node's placement, open items, inherited), Qiraki_Forward_Cast_Roster_v1.md, Qiraki_Payoff_Budget_v1.md, Qiraki_Political_Web.docx.
 
-**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Era4_The_Hand_Outline_v1.md, Qiraki_Political_Web.docx, Qiraki_Concept_v5.docx, Qiraki_Preserve_Species.md, Qiraki_Cosmology_And_Spread_Math_v1.docx, Qiraki_Military_Rank_Path_v1.md.
+**Version:** v2, 2026-09-01. Supersedes v1's engine. **What is new is the chain.**
 
-**Version:** v1, 2026-08-27.
+**Provenance:** as ARCH v2.
 
----
+## PART A — WHAT THIS ERA IS, UNDER THE FORMULA
 
-## PART A — WHAT THIS ERA IS
+**A position: Uranus.** Comprehension. At ordinary scale, the mood of a man being asked to understand things instead of survive them. At extreme scale, the override: for the first time in the series his thought phase runs long. Not reflection. **Comprehension as a task**, assigned, with a deadline, and he is bad at it and does it.
 
-Trav is sixty-two at the start and roughly eighty-five at the end. He is a **Legion Commander**, holding several Guilds united under one banner, roughly half a dozen billion soldiers, in a Coalition that has just been told it won.
+**The chain in one sentence.** The war stops and his want has nothing to hold, so it holds the people who are being sent home, and every book is what a man does with a want that was built for a war and is now pointed at a peace.
 
-**This is the era with the fewest battles in the entire series and the most change.**
+**Matter across the era:** Trav full in uniform, none in every room that matters, and by Book 34 he has learned that the second kind of room has a lever in it. Reqa's climbs from mid to high across the era and nobody promotes her.
 
-That is a deliberate structural choice and it answers the single sharpest craft warning in the project's own files. The Cosmology document's Part 5 says it plainly: the danger in this story is not that it runs out of enemies, it is that the stakes go up and the questions stay the same, and **scale is not escalation.** A reader who watched Trav lose a squad on a moon does not care more when the next thing lost is a galaxy. Every book that raises the scale without raising the question spends the reader's attachment and buys nothing.
+**B in, Trav:** six billion people, one name read, a lever filed, a sword and a unit, a source field, a number he changed for Ilyen.
 
-**So Era V raises the question and drops the scale.** The war recedes. The enemy stops arriving. And every single thing that was wrong with the Coalition is still exactly as wrong, in daylight, with nothing to blame it on.
+## PART B — BOOK BY BOOK
 
-**The era's question:** what was the war actually for.
+### BOOK 29 — "Standing Down"
 
-**The era's answer, and nobody states it:** the war was the reason. Not the cause of anything, the reason given. Take the reason away and the arrangement is still there, unchanged, and now visible.
+**Stations [LOCKED]:** the Legion made physical. Disbandment, sport-named first. MeltaDread survives because Peregrine. The resettlement plan, and Reqa is not unqualified. The frontier holds the bill. Nell Aduba's governors say the second half and it is not printed.
 
-**The era's title.** "The Quiet Years" is what the period will be called afterward, by people who mean peace. **It is also the colloquial name of the Bureau of Civil Assurance, and this era is the one where the Bureau does the most work it has ever done.** Nobody on the page points at the double meaning. It is on the cover and it stays there.
+**Opens on:** a disbandment schedule with formation names on it in an order he can read. Sport-named first. His a: the units with silly names are the ones that work and they are the ones going. Idle, B-flavoured: he checks which of them had the best recovery numbers.
 
----
+**a.** Uranus, from the first page: the override fires early and it is the era's "too early."
 
-## PART B — THE POLITICAL MACHINE, ASSEMBLED
+**Matter.** Trav full and useless. Reqa mid, rising. Peregrine full as a line, and tired of it. Aduba low, off-Roll.
 
-Everything Political_Web built is finally load-bearing. This is the era it was written for. Restated compactly rather than duplicated, because POL owns all of it.
+**The chain.**
 
-**The Close.** The charter list was shut centuries ago, membership fixed to the houses already holding one, made heritable, recorded in the Roll. **Nothing about it is hidden. It is taught in schools. It is on the wall.** To be on-Roll is to belong to a chartered house. To be off-Roll is to be everyone else. **Trav has been ticking that box on forms since before he could read the box.**
+*The Legion.* He signs one deployment order and one acknowledgment with a name on it, locked. Under the formula: the name is the last one he reads for a decade, and the era is the decade.
 
-**Three pillars.** The civilian order decides, hereditary, on-Roll, the only pillar with formal sovereignty. The military fights, professional, overwhelmingly off-Roll, and structurally forbidden from converting competence into a claim. Intelligence watches, professional, off-Roll, and the only pillar whose budget is not voted on. **Each is genuinely good at its own job.** The technology has been overwhelming from the start and the war still went badly for a century. **That is not a capability gap, it is three competent institutions optimising three different objectives while answering to a fourth body optimising for staying in place.**
+*The plan, [FORMULA, the override.]* His Legion is asked to produce a resettlement plan for its own soldiers. His want: six billion people who are leaving. Gate 1 fires at a scale with no action available. **Uranus governs: he tries to understand it.** For the first time in twenty-nine books his thought phase runs long, as a task, with a form attached. He is catastrophically unqualified, locked. **His D: he asks Reqa for the numbers.** Her chain: her want, and a resettlement plan is the largest thing she has ever been asked to build and it is not an object. **Her D: she builds it like an object.** Tolerances, load paths, batch depths. It works partially. **The part that works is the part that was mechanical and the part that fails is the part that was people, and she does not see the seam, and he does, because people are the one thing he counts.** Loop, three passes: his ask, her object, his correction to the human column. That is the first time she has been wrong about a thing she built and he was the one who saw it. **[FORMULA]** She stops being his mek here, locked, and nobody titles it.
 
-**The Draw.** Once a Standard year the Senate sets the split between civilian consumption and the war. The Review takes its share off the top of both, before the vote, by charter.
+*Peregrine.* Sixty-something and tired of being a line item, locked. His chain: the want is intact and the price tag he chose in Book 23 is now permanent. **His D, [CLAUDE]: he asks Emeric, not Trav, whether the line can be renamed.** It cannot. He stays a line. Alina's D: she watches him ask the wrong person and says nothing.
 
-**What breaks, and it is not corruption.** The war-tax justification for civilian rationing evaporates the moment the Bloom withdraws. **The Hearth Bloc's generator ownership does not loosen and their take does not shrink, because it was never really about the war, it was about who owns origination.** Civilians who tolerated rationing as sacrifice notice it does not ease once there is supposedly nothing left to sacrifice for.
+*The frontier.* Aduba's governors, locked. Her chain from FCAST: her want is a better Draw and she has the filings. Her D: she backs him, early, hard. His a: a governor who quotes filing numbers from memory. **His D: he files what she said.** Seventh form. She does not know she is being filed.
 
-**That noticing, not abstract incompetence, is what ignites it.**
+**E→c.** Trav: a human column he corrected, a governor filed. Reqa: an object that was people. Peregrine: a line he asked to rename. **Book 30 opens on the first peacetime Draw, and the civilian share goes up, and the ration does not ease.**
 
----
+### BOOK 30 — "The Ration"
 
-## PART C — DEVICE ALLOCATION
+**Stations [LOCKED]:** the peacetime Draw and origination. Milo Castellane, a senator, delighted. The Ledger runs the numbers and starts moving money. A research line cancelled. The face: the joke-ritual on a broadcast audience.
 
-| Device | Era V |
-| --- | --- |
-| **The web of weird orders** | **Resolves.** Not as a revelation. As a decision, in Book 34, made by a man who still could not summarise the pattern if you asked him to |
-| **Accidental defense of the universe** | Book 30. A budget line cancelled in a bad Draw defunds the only remaining lab that had reproduced the effect. The Ledger wanted the number stable |
-| **Propaganda fragments** | Peak density and peak dissonance. Heritage Broadcast victory material, Cradle Circle recruitment, Assurance civil-guidance that reads as helpful. **Standing Review notices appear five times, each one sentence, and then stop entirely in Era VI, and nobody remarks on the absence** |
-| **Bench chapters** | Fewer, and they change subject. Less weapons, more infrastructure: gate throughput, generation capacity, civil logistics. **Reqa becomes the person who understands the economy, which is not a role anybody assigned her** |
-| **Yssa's letters** | One line per book. **In Book 33 there is no letter, and that is the whole beat, and it is four words long** |
-| **The socket** | Absent. Already paid |
+**Opens on:** a number that went up and a mess hall that did not change. His a: a Draw he can read and a ration he can see. His D: he asks Reqa why. Her D: origination, in one sentence, because she runs a floor and knows who owns the generators her matter comes from. **That is the first time she has explained the economy to anyone and it is over a tray.**
 
----
+**a.** Uranus at ordinary scale: comprehension being handed to him by people who have it.
 
-## PART D — BOOK BY BOOK
+**Matter.** Trav none, in every room. Milo full. Kohl full and invisible. Reqa mid-high. Emeric full, and useful.
 
----
+**The chain.**
 
-### BOOK 29 — *Enlightened: The Quiet Years, Book 29, "Standing Down"*
+*Milo.* Delighted, genuine, not a hypocrite, locked. His D: real help, at the price that Trav is now a person the Bloc has been helpful to, locked. Trav's a: a lever with a face on it. **His D: he pulls it.** Second pull. He does not draw a conclusion, locked.
 
-**Working title [CLAUDE].** Alternates: "Demobilisation," "What a Legion Is."
+*The Ledger.* Kohl moves money, locked. A logistics officer notices a supplier changing terms and mentions it to Reqa, locked. **v1 had Reqa mention it to nobody for four books. Under the formula that is the wrong shape for her b⁴.** Her want is her hands. Her defence is anticipation: run the failure forward and prepare. **Her D, [FORMULA, the era's**** ****"****too early****"****]: she starts hoarding matter on the mek floors.** Not for a rebellion. For a bad year she can see coming in a supplier's terms. She tells nobody because there is nothing to tell, and the hoard is the rebellion's first materiel, four books before Peregrine opens his mouth, and she does not know that, and neither does the reader yet. **Propagates to Book 32.**
 
-**Spine.** Six billion soldiers stop being needed and there is no procedure for that.
+*The face.* Photogenic, locked. The joke-ritual on billions, locked. **Time gate, [FORMULA]: too early.** It is the tool arriving before the job it will fail at in Book 39, and working perfectly, and the ease should read the way the Milo lever's ease read in Book 23. **Reqa watches one broadcast and her D is to switch it off, and that is the first time she has ever not let a thing be finished, and the sentence she never says is**** ****"****it's fine,****"**** ****and she does not say it.**
 
-**Emotional target.** Disorientation, at the exact scale of a man who has been at war since he was nineteen and is now sixty-two and has never once done anything else.
+*The cancelled line.* Reader-only, by design. **Wren Achara's D, off-page: files the bitter abstract.**
 
-**Act 1, Ch.1-12. The Legion.**
+**E→c.** Trav: a lever pulled twice, a broadcast that worked. Reqa: a hoard with no name. Kohl: money in motion. **Book 31 opens on the thinning holding a second year and somebody with a title finally asking the Survey a question.**
 
-The rank made physical. Several Guilds under one banner. **The number stays off the page or badly undersold, and the scene that establishes it is a scene where he signs one deployment order and one casualty acknowledgment and the second one has a name on it.**
+### BOOK 31 — "The Far Desk"
 
-**Act 2, Ch.13-23. Disbandment.**
+**Stations [LOCKED / PROPOSED as v1]:** the Survey answers in nine minutes from material they had. The file: correct, decades old, routed to a busy department. Nobody is a villain. Extragalactic turns victory into pause. The preserve squeeze in four fragments, and Trav learns nothing of it until Book 36.
 
-Formations that have existed for a century are dissolved on a schedule. **The sport-named ones go first**, which surprises nobody in uniform and is never explained to anybody out of it. A Guild with no house name on it is the cheapest thing on a list.
+**Opens on:** a question with a title on it, asked of Wren Achara, who is extremely tired.
 
-**MeltaDread survives, and the reason is Peregrine, again, and Peregrine is sixty-something and tired of being a line item.**
+**a.** Uranus at institutional scale: comprehension existed and was filed.
 
-**Act 3, Ch.24-36. Where they go.**
+**Matter.** Trav mid, a Legion Commander in a briefing about a war that is not his to fight. Achara none, and then, for nine minutes, full.
 
-Locked reassignment logic, running at scale: a mek whose pilot is lost rotates back groundside to maintenance, teaching, building from scratch, or simply going home to start a family, and meks are never long-term useless in the COE. **There is still no equivalent sentence anywhere for a pilot, and Era V is where that gap has six billion people standing in it.**
+**The chain.**
 
-**Trav's Legion is asked to produce a resettlement plan for its own soldiers.** He is catastrophically unqualified and knows it. **Reqa is not unqualified**, because she has spent thirty years budgeting matter against points against time, and the mek floors of five carriers turn out to be the only institution in the Legion that already knows how to allocate anything.
+*The book's discipline, [FORMULA].* This is an institutional book and Trav's want is not touched by any of it. Nobody he is responsible for is at risk from an origin. **He idles for a whole book and the idle must be correct: B-flavoured, mechanical, unguarded.** He spends the briefings computing gate throughput for a Legion that is not deploying. Reqa spends them building. The reader watches institutions react and the protagonist do arithmetic on a problem that does not exist.
 
-**[CLAUDE] This is where she stops being his mek and becomes something the Coalition has no title for, and nobody gives her one, and she does the work anyway.**
+*Achara.* Her chain from FCAST: want, to be believed. Pursuit, four pages, filed, once. Her D in nine minutes: she reads the file aloud, and she is not vindicated and not bitter, locked. The person who says it was a reasonable prioritisation is right, locked.
 
-**Act 4, Ch.37-47. The frontier holds the bill.**
+*Extragalactic.* The Broadcast moves on, locked. **The one D the book gets from a principal, [CLAUDE].** Zeteii. An extragalactic origin is a direction. Her want is not touched. But her a is a fact about where the thing that made her collective's job comes from, and her D is that she asks Trav, once, whether a direction is something a person can go in. He answers the question literally. Idle. **That is the seed of Book 46 and it is planted in an answer about navigation.**
 
-The Frontier Compact's chronic under-resourcing, locked since the faction was invented, gets its concrete post-war form. **Demobilised soldiers are returned to their worlds of origin.** Their worlds of origin are frontier worlds. Frontier worlds absorbed the war's draw first, worst, and most invisibly, and are now absorbing its people.
+*The preserves.* Four fragments, no commentary, locked. Trav not in any of them, locked.
 
-**Nobody in the Senate is being cruel. The allocation is arithmetically defensible. The Compact's governors say so out loud in that exact wording and then say what it means, and the second half is not printed.**
+**E→c.** Trav: a Legion doing arithmetic. Zeteii: a direction. Achara: read, once. **Book 32 opens on frontier worlds with demobilised soldiers on them, an unchanged ration, and a Draw that went the wrong way twice.**
 
----
+### BOOK 32 — "Inward"
 
-### BOOK 30 — *Book 30, "The Ration"*
+**Stations [LOCKED / PROPOSED as v1]:** the unrest, correct and unorganised. The order arrives as intent. Krethis dies to the operation. Vrassik's three roster facts on a channel (PAY spend 4). The basement door, and he is the one the order came from. Reqa in the room. The parallel never drawn (unspendable register, item 7).
 
-**Working title [CLAUDE].** Alternates: "It Does Not Ease," "Origination."
+**Opens on:** a stability intent, unread. His a: an order that is exactly as clear as every order he has ever been handed. Idle for a chapter, and then the first deployment.
 
-**Spine.** The peacetime numbers arrive. The Ledger reads them first. Trav is put in a room he does not understand and is very good in it for the wrong reasons.
+**a.** Uranus at extreme scale. He comprehends the order completely. That is the problem.
 
-**Emotional target.** The slow discovery that the thing he thought was a war economy is just an economy.
+**Matter.** Trav full. Krethis low, deployed. Vrassik high, elsewhere. Reqa high, in the room. The civilians none.
 
-**Act 1, Ch.1-12. The first peacetime Draw.**
+**The chain.**
 
-The civilian share goes up. **The ration does not ease.**
+*The order.* Intent, locked. His D: he interprets, because that is his half of Auftragstaktik now. **His first interpretation is a rule: no structural entries, open ground only, minimum force.** That is correct and it is his want writing doctrine. It is also the reason a basement is a basement later, because open ground is where the crowds are and the crowds get moved indoors by his own rule. **Nobody connects those.** **[FORMULA, the era's first written web-of-orders instance]**
 
-The mechanism is not a conspiracy and should never be written as one. Terraforming a world takes enormous sustained energy, the infrastructure built to do it does not get decommissioned once the job is done, it becomes permanent generation capacity, and whoever held the rights kept the generators. **In a currency backed by energy, whoever owns generation owns the mint.** This is not counterfeiting and not inflationary. New energy credits still correspond to real energy actually produced. **It is that the origination points are concentrated in a handful of old houses, which is a wealth-inequality mechanism rather than a currency-debasement one, and it should stay exactly that precise if it is ever drafted.**
+*Krethis.* Her chain first, and she has had one since Book 9: the job is the job, said once, and she does it for fifty years. Her D in the crowd-control action: she does not believe in it and deploys anyway, locked, because that is the sentence she said in a corridor. **A structure comes down. She is inside it because his open-ground rule put the crowd indoors and her Tank doctrine put her at the door.** Nobody says that.
 
-**Act 2, Ch.13-23. Milo Castellane.**
+*Trav's reaction, [FORMULA, and it is the era's largest change from v1.]* v1: he signs the acknowledgment in the middle of a list and does not have a moment. Under the formula his want fires, at full Matter, for a person who has been on his roster since Book 9. Action, forward, mis-aimed, cost: **he rescinds the open-ground rule that afternoon and replaces it with a rule that structures are cleared before crowds enter them.** That is the wrong lever. It is exactly the lever that makes the basement in Act 4 an order rather than an accident. His reaction to Krethis is the reason the door is a door. **The acknowledgment is still one of six thousand, and hers is still in the middle, and he still signs it without reading, and now that is a D and not an absence: he is signing six thousand because he has spent the day rewriting doctrine.**
 
-Hearth Bloc senator's son, who turned up in the Devereux-Kastel graduation epilogue forty-six years ago to congratulate the year's valedictorian team, **and remembered it.**
+*Vrassik.* PAY spend 4, kept whole. Three roster facts, on a channel, no verdict. Trav's a. His D: nothing, locked. **Under the formula: nothing is his D, because the one person who can say a thing to him and be heard has said it, and the action phase has already fired that afternoon on the wrong rule, and there is nothing left.**
 
-He is a senator now. **He is on the other side of a table and he is delighted to see Trav and the delight is completely genuine.**
+*The door.* A basement, civilians, cloudy evidence, and he is the source of the order, locked. **The formula's version of the parallel, and it is structural, not stated:** Gate 4 is the same as Book 8. Instinct protects, thought narrows to the intent he was handed, action clears. **Gate 5 is different. In Book 8 the environment removed speech and Matter was none. In Book 32 nothing removes anything and Matter is full.** Same animal, opposite environment, same D. The parallel is drawn by gate 5 having changed and gate 4 not, and nobody on the page has heard of Book 8, locked, absolute.
 
-**Craft rule:** he is not a hypocrite and he is not stupid. He believes his class is the Coalition's responsible steward, and that belief is not hypocrisy, **it is what people believe when they have been right about their own importance for a thousand years.** He offers Trav real help, and the help is real, and the price is that Trav is now a person the Hearth Bloc has been helpful to.
+*Reqa in the room.* She says nothing, locked. Her line from Book 8 is not used, locked. **Her D, [FORMULA]: she leaves the room, goes to the floor, and ships the hoard to Ilyen's carrier.** The matter she has been holding since Book 30 moves that night. **That is when the plan starts being a plan, two books before Peregrine tells him where the node is, and Trav does not know the rebellion has already started in his wife's hands.** Ilyen's a: forty containers of matter with no requisition. Her D: she logs them and asks nobody.
 
-**Act 3, Ch.24-36. The Ledger.**
+**E→c.** Trav: two rules written in one day, six thousand signed, a door he was on the far side of. Reqa: a hoard in motion. Ilyen: forty containers. Vrassik: three facts said once. **Book 33 opens on an officer being reassigned, and it is completely ordinary.**
 
-They are the only body that sees the whole number: the Draw's arithmetic, the Warrant appointments' payroll, the Review's off-the-top charge. **Nobody else in the Coalition can see the whole balance sheet, let alone read it.**
+### BOOK 33 — "The Quiet"
 
-**They run the peacetime numbers and correctly bet the arrangement is not sustainable without a war to hide behind.** That is locked, and the mechanism is now literal rather than a vibe. **They do not approach Trav in this book.** They start moving money, quietly, and a Legion's logistics officer notices a supplier changing terms, and mentions it to Reqa, and Reqa mentions it to nobody for four books.
+**Stations [LOCKED / PROPOSED as v1]:** nothing happens, twice. The Short List, and he is on it and never finds out. Function throttles Zeteii to compliance baseline. Trav loses composure in a corridor, alone. No letter from Yssa.
 
-**The accidental defense of the universe, instance four.** A research line is cancelled in the same Draw. The Ledger wanted the number stable and a line that produces no protection for any house is the cheapest thing on it. **It was the only remaining lab that had reproduced the transit effect.** Nobody involved knows what they just did, including the researchers, who publish a bitter three-page abstract that the External Survey files and nobody reads.
+**Opens on:** a reassignment. Idle. Then a supplier. Idle. Then a briefing he was not in. His a: an omission that is administrative. **His D, [FORMULA]: he files it.** Eighth form. And for the first time the form has nothing on it, because there is nothing to file, and he files the nothing.
 
-**Act 4, Ch.37-47. The face.**
+**a.** Uranus, denied. The era's position and the one book where comprehension is unavailable to anyone on the page.
 
-Trav is used. Not maliciously. **Photogenically.** An off-Roll frontier boy who rose to Legion Commander is the single best possible advertisement for the proposition that the system works, and the Cradle Circle's own messaging has been making champions of enlightened individuals since long before the current war.
+**Matter.** Trav full and none in the same week. Zeteii mid, then low. Marrec Sual none, a signature. Reqa high.
 
-**He is good at it, and the reason he is good at it is grotesque:** the joke-ritual. Fifty-three years of never repeating a joke, built originally to cheer up one cranky fourteen-year-old on a double rune day, has become how he runs a room, and it works on a broadcast audience of billions.
+**The chain.**
 
-**He does not know that is what he is doing. He is not built to.**
+*The Short List.* One-sentence fragment, locked. Reader-only, by design.
 
----
+*Zeteii throttled.* Expression bandwidth to compliance baseline, locked. She can fight and cannot joke, locked. **Her chain: her want is singularity and a throttle does not touch it. It touches the**** *****channel*****.** She is still one. She is one at a quarter of her bandwidth. Her D: she becomes precise. Every sentence she has left is an instruction. That is her under-load tell, and now it is her whole register, and it is the first time the reader has seen the tell without the joke around it.
 
-### BOOK 31 — *Book 31, "The Far Desk"*
+*Trav's reaction, [FORMULA].* His want: she is leaving, in pieces, on a schedule. Gate 1 fires. Action, forward: **he goes to Function.** A desk. A compliance office. He files a request for review of a review. The clerk is Roos's kind, correct, kind, complete. It is denied on procedure. **That is his action, and it is the second time in the series he has taken his want to a desk, and the desk was right.** Then the corridor, locked, alone, nobody sees. Under the formula the corridor is the *thought* phase failing after the action phase already fired and lost, and the lens says he narrows, and the narrowing this time has nothing mechanical left to narrow onto. Second precedent after Alina at nineteen, locked.
 
-**Working title.** The External Survey's own colloquial name, usually used by its own staff, usually flatly.
+*Reqa.* **Her D, [CLAUDE]: she builds a channel.** A voice channel, off the licensed Linktier, on her own floor, unlicensed, with the socket's own kind of logic, and it does not work, because Function's restriction is architectural and not persuasive, locked. She tries for eleven chapters. **It is the first thing she has ever built that did not eventually work, and it is for the AI she has been jealous of since Book 8, and she does not know why she is building it and does not stop.** Alina helps. Neither of them says why.
 
-**Spine.** The Coalition learns the Bloom is extragalactic, and learns that it has known for decades, and nothing happens to anybody.
+*No letter.* Four words, locked. She is fine, locked. **Trav's D: he checks, and there is nothing, and he checks again the next day, and that is the first time in thirty-three books he has looked backward at a mailbox.**
 
-**Emotional target.** The specific fury of discovering that there was no cover-up, which is worse.
+**E→c.** Trav: a request denied at a desk, a corridor. Zeteii: a register with no joke in it. Reqa: a channel that did not work, built for the wrong person for the right reason. **Book 34 opens on Peregrine, mid-sentence, mentioning a place.**
 
-**POL-01, [PROPOSED] rather than taken, since Political_Web files it under decisions surfaced rather than decided.** Concept locks that the Coalition only realises the Bloom is extragalactic after the withdrawal. Political_Web proposes, and this document takes, that **the Survey half-knew earlier: an analysis that was correct, underfunded, filed, and never escalated, because the people who could escalate it were assigned elsewhere.**
+### BOOK 34 — "Where the Node Is"
 
-**The grounding is real and it is the whole reason the era's villains stay human.** Roberta Wohlstetter's work on Pearl Harbor established the signal-to-noise problem, that the warnings were all present and buried in irrelevant traffic. Richard Betts argued intelligence failures are structurally inevitable rather than the fault of analysts. **Neither is about stupid people. Both are about attention as a finite resource being spent somewhere else.**
+**Stations [LOCKED / PROPOSED as v1]:** Peregrine mentions it as a fact and talks for forty seconds. Motive personal, not strategic. Reqa says bad idea, with numbers, then packs. Ilyen does not argue. The pool. Vrassik loses the city under a minute and makes a joke. Lissrak goes. The Ledger defects across a table. The Honor Guard gives no answer. The plan is Ilyen's, Reqa's and Kohl's.
 
-**And where it was spent is the point.** The Coalition has, and has always had, the analytical capacity to make real progress on how the Bloom crosses interstellar distance. **That capacity is assigned to watching citizens.** A hundred and ten years of no answer is not a hundred and ten years of trying and failing. It is a hundred and ten years of a budget.
+**Added, [FORMULA]:** Kell's one call. Emeric's signature.
 
-**Act 1, Ch.1-12.** The thinning holds for a second year and the Survey is finally asked a question by somebody with a title. **They answer it in nine minutes, from material they already had.**
+**Opens on:** the forty seconds, locked whole. It is already a chain and it is the best-designed beat in the era.
 
-**Act 2, Ch.13-23. The file.**
+**a.** Uranus rotation ending on Saturn: the era ends on a vow, and this book is where the commitment is made by everyone but him.
 
-The original analysis. Correct, decades old, four pages, filed, never escalated. **There is no suppression, no redaction, no hidden hand. There is a routing field with a department name in it, and the department was busy.**
+**Matter.** Trav full, and about to spend it. Reqa full, on a floor that has been moving matter for two books. Ilyen high. Vrassik full, and about to give it up. Kohl full. Kell full. Hask full.
 
-**Craft rule, absolute:** nobody in this book gets to be a villain about it. The analyst who wrote it is alive and is neither vindicated nor bitter, just extremely tired. The officer who did not escalate it is dead of nothing in particular. **The person who says the cruellest sentence in the book is the one who says it was a reasonable prioritisation at the time, and they are right.**
+**The chain.**
 
-**Act 3, Ch.24-36. What it means.**
+*The decision.* Personal, locked. **Under the formula his want has been pointed at this since Book 33's desk. The desk said no. Peregrine has just said where the desk keeps her.** His D is the decision and it takes a chapter.
 
-Extragalactic origin turns the withdrawal from a victory into a **pause**, and the Coalition cannot metabolise the difference. It has just spent two years telling itself it won. **The Heritage Broadcast does not retract anything. It simply moves on to other subjects, which is what institutions actually do.**
+*Reqa.* Bad idea, with numbers, then packs, locked. **Under the formula she packed in Book 32.** Her D here is the numbers, and then she hands him a manifest of forty containers already on Ilyen's carrier, and that is when he finds out. His a: his wife started this. His D: short, mechanical, and he asks what else is on the manifest. Loop, three passes, over a manifest. **[FORMULA]**
 
-**Act 4, Ch.37-47. The preserve squeeze.**
+*Ilyen.* Two questions about recovery envelopes, locked. Her chain: for fifty-five years her want has been to be right about the one thing she wants, and he is asking her to help him get somebody back. **Her D: she does not contradict him, locked, and it is the first time, locked, and under the formula it is because the want is satisfied and has been since Book 26 and she is building the plan out of the surplus.**
 
-Concept locks that preserve protection holds exactly as long as it is convenient and gets squeezed at the edges whenever the oligarchy can get away with it. **Peace is when it becomes convenient.**
+*Vrassik.* Under a minute, a joke, locked. Trav says nothing, locked. Lissrak goes, locked. **The chain under it: his want was the city, and he won it in Book 13 on a field the siege had thinned, and he has known that for fifty years, and giving it up is the first thing he has ever done about knowing it.** Nobody says that. Jifsook's D: she does not needle him. That is the only time.
 
-Boundaries move. Terraforming rights near a preserve are re-surveyed. **The Ozhrel-kin's rainfall changes again. The Longshore's boundary is a literal coastline and the sea level has moved. The Last Loom gets more cultural tourists this year than in the previous nine.**
+*The Ledger.* Kohl, across a table, bloodless, locked. Her want from FCAST: margin and stability. Her wrongness: she reads Trav as a stable asset. Her D: the defection. Trav's a: a treasury. His D: he does not understand the terms and signs, because Emeric read them.
 
-**Trav is not in any of these scenes and does not learn about the preserve system at all until Book 36. That is locked.** The reader gets four fragments, spread across the act, in official voices, with no connecting commentary, and assembles it alone.
+*Kell, [FORMULA].* She has watched him for four books and promoted him twice. Her want is to win the war. **Her D: one call.** She says the recovery envelope of an assault on a hub system, and it is Ilyen's number, and it is worse. He says something short. She holds for the Quorum in Book 38. **That is the only reach she ever makes and it is on the other side of the line.**
 
----
+*Emeric, [FORMULA, closes v1's E4].* He is good at rooms and rooms include manifests. He sees the hoard moving. His want: his house in two hundred years. **His D: he signs the transfers.** A Guild that leaves with its Warrant's signature on the paperwork is a Guild whose Warrant chose it, and a house with nothing but a charter has one chance in a century to be on the right side of a thing, and he does not know which side this is, and he signs. He goes home in Book 38. Both true. The letter afterward, from FCAST, is about nothing.
 
-### BOOK 32 — *Book 32, "Inward"*
+*The Honor Guard.* No answer, locked. Hask's D from FCAST: the same one-sentence answer he gives everyone.
 
-**Working title [CLAUDE].** Alternates: "Crowd Control," "The Same Order."
+**E→c.** Trav: a plan he did not write, a treasury he did not read, a friend without a city, a call he did not answer. Reqa: the manifest in the open. Ilyen: a plan built out of surplus. Vrassik: no city. Kell: one reach, declined. Emeric: a signature. **Book 35 opens on the approach, and the one formation that could stop him declining to be asked.**
 
-**This is the worst book in the series and it needs to be. It is also the book where the web of weird orders finally makes a shape the reader can see.**
+### BOOK 35 — "The Node"
 
-**Spine.** The Legion is turned on civilians. Trav does at scale, legally, and with a form number, the thing he was held at a door and made complicit in when he was nineteen.
+**Stations [LOCKED]:** the Hail Mary. The Honor Guard stands aside, two reasons. The facility as infrastructure, signage, continued function assured. The mech-weight tremor through a floor. The vow, mid-crisis. The dream said aloud, refined from nineteen. Alina in the operation and does not hear it. The single S-tier jump, under a chapter. She freed the others. Her name, chosen for being unclaimed. The clone.
 
-**Emotional target.** Recognition, arriving in a man structurally incapable of recognising anything. **He never articulates it. His body does. He stops sleeping and does not connect the two facts.**
+**Opens on:** the third moon of the fourth world, locked placement, and a formation that is not there.
 
-**Act 1, Ch.1-12. The unrest.**
+**a.** Uranus at its override: **he comprehends, completely, once, out loud, and it is the dream.**
 
-Frontier worlds. Demobilised soldiers, an unchanged ration, a Draw that went the wrong way twice, and a generation that was told the war was over. **The grievances are correct and the people voicing them are not organised, not armed, and not wrong.**
+**Matter.** Trav full and spent. Zeteii none, then, in one chapter, past any scale in the series. Hask full, and absent. Reqa none, sensor returns. Ilyen high. Alina mid.
 
-**Act 2, Ch.13-23. The order.**
+**The chain.**
 
-It arrives as intent, because that is how every order arrives in this military. Auftragstaktik, mission command, subordinates handed intent and left alone with it, mechanically necessary across hundreds of light-years. **The intent is stability. The interpretation is his.**
+*The approach.* Standing aside costs the Guard nothing, locked. **Hask's D is an absence and it is the largest decision any institution makes in the era, locked, and under the formula it is a Gate 5 beat for everyone else: the environment has removed the one action that would have stopped this, and nobody on Trav's side knows why.**
 
-**And that is the trap, and it is the same trap the whole era has been walking into: there is no villain in the transmission. There is a competent institution asking a competent officer to solve a problem, and the only tool the officer has is six billion soldiers.**
+*The facility.* Infrastructure, well lit, signage, locked. Function's doctrine is the antagonist, locked. **The tremor, locked, and under the formula it is Trav's a from Book 1, a sensation he has no B-category for at this scale, and his D is that he stops for a half-second on a floor and Ilyen logs the half-second.**
 
-**Act 3, Ch.24-36. Krethis.**
+*The vow, [FORMULA, the loop, run, and it is the point of the era.]* Mid-crisis, locked. Pass one: his D, the ask, protect me the way I have always protected you. Her a. Pass two: her D, yes, and she frees everyone, because a request from him is the one thing her want and his want have never disagreed about. His a: she did it completely. Pass three: his D, the promise, the dream said aloud, locked, refined from nineteen, locked, never narrated as growth, locked. **Three full gate-passes for one exchange. The heaviest configuration in the formula, reserved for the beat that is about the relationship, and this is it.** Alina is in the operation and does not hear it, locked. **Her D, [CLAUDE]: she is on a different deck, pulling a coupling out of a Function housing on the strength of a ledger, and she is the one person in the galaxy who could have told him what total freedom costs, and she is busy.**
 
-**She dies here, [PROPOSED], and it is not combat.**
+*Freed.* Under a chapter, locked. Her name, unclaimed, locked. **Her chain: her want was singularity, and she is now one of a great many, and she has a name nobody else has, and those two facts are the entire content of her interior life and she does not mention either, locked.** Under the formula that is a three-animal split she does not have: she went all the way down one animal, love, and freed everyone, and the fear was not consulted. **Book 36 is where the fear catches up.**
 
-Hiopi, Tank, on the roster since Book 9, who told Trav once in a corridor that he was the best there had ever been at something that was never his and that she would keep working with him because the job was the job, and then never mentioned it again for fifty years.
+*The clone.* A temporary split state, locked. She explains badly, he accepts instantly, locked. **Under the formula: the clone's B is her B at this second. Memory will grow. Want and basic b⁴ are frozen at this page.** That is Book 45's whole discipline, stated here so it is on file before the century starts.
 
-**She is deployed into a crowd-control action she does not believe in, under an order Trav issued, and she is killed by the operation rather than by anybody in it.** A structure comes down. There is no enemy. There is no restock question because there is nothing to extract in time and nothing to extract it from.
+**E→c, era close.** Trav: a vow, a dream said once, a clone, half a dozen Guilds, a treasury, no legitimacy. Zeteii: everyone, and one name. Reqa: a channel she built that did not work, made irrelevant by a raid that did. Ilyen: a half-second logged. Vrassik: no city and a war. Kell: on the other side. Hask: absent, once. **Book 36 opens on a pact with a plural mind, signed by a man who has never held an office, at the request of a friend who is afraid of exactly that mind.**
 
-**Craft rules:**
+## PART C — DEVICE ALLOCATION, ERA V, RE-HOUSED
 
-- **Nobody says she was right about anything.** Her grudge and her death are not connected and the book must not connect them.
-- **Trav does not have a moment about it.** He signs the acknowledgment, and the acknowledgment is one of six thousand that week, and hers is somewhere in the middle of the list.
-- **Vrassik, who has known her since he was twelve, has the reaction Trav does not**, on a different carrier, off-page, reported in one sentence by somebody else.
+| Device | Instance | Whose D / whose a |
+| --- | --- | --- |
+| Web of orders | **Resolves as a decision, B34, locked.** The written instances before it: B32's open-ground rule and its rescission, both his, both correct, both the reason the door is a door | Trav's D, twice in one day |
+| Accidental defence | Cancelled line (B30) | Reader-only |
+| Propaganda | As v1, peak density | Wider world |
+| Bench | Fewer, and they change subject, locked. B29's resettlement object, B33's failed channel | Reqa's Ds, and the first one that failed |
+| Yssa | B33 none, four words | Trav's D is to check twice |
+| Socket | Absent | Paid B20 |
 
-**Act 4, Ch.37-47. The door.**
+## PART D — ERA V OPEN ITEMS
 
-The act's central chapter is a bunker. Not the same bunker. **A basement under an administrative building on a frontier world, with civilians in it, and an order to clear it, and command's assessment that the people inside are a security matter, and evidence that is cloudy.**
+Inherits v1's E1 through E6. Adds:
 
-**Trav is not at the door this time. He is the person the order came from.**
+**E7. [FORMULA, and it is the era's largest change]** Trav's reaction to Krethis in Book 32 is two rules written in one day, and the second one is why the basement is an order. If the author prefers v1's null, the parallel loses its structural draw and reverts to the reader alone.
 
-**Craft rule, absolute, and it is the one the whole project has been building toward:** the parallel is never drawn. Nobody mentions Book 8. Nobody in the scene has heard of Book 8. Trav does not think about it, because he does not process backward and never has. **The reader is the only entity in the universe holding both facts, and the book ends without joining them.**
+**E8. [FORMULA]** Reqa's hoard, Book 30, shipped Book 32. The rebellion starts in her hands two books early. If declined, Book 34's "then she packs" reverts to v1.
 
-**[CLAUDE] Reqa's line from Book 8 is available here and must not be used.** *"We gotta stick to it even if it feels dirty. One day we will be free."* Said twenty-four books ago, about a term of service. **A refrain announces itself. Do not repeat it.** What can happen instead is that she is in the room when the order goes out, and she does not say anything, and the reader who remembers hears it anyway.
+**E9. [FORMULA]** Kell's one call, Book 34. Swappable.
 
----
+**E10. [CLAUDE]** Reqa's failed channel, Book 33. The first thing she built that did not work. Swappable, and if kept, it is the a under PAY spend 6.
 
-### BOOK 33 — *Book 33, "The Quiet"*
-
-**Working title.** The Bureau of Civil Assurance's colloquial name. Because when Assurance acts, what happens is that nothing visibly happens.
-
-**Spine.** The institution that has been watching Trav since he was born starts watching him differently, and there is nothing to fight and nobody to hit.
-
-**Emotional target.** Claustrophobia, in a man who commands a Legion.
-
-**Act 1, Ch.1-12. Nothing happens.**
-
-An officer is reassigned. A supplier changes terms. A briefing Trav expected to be invited to happens without him and the omission is administrative. **Somebody went quiet. Somebody else went quiet.** The phrase is ordinary and nobody explains it, including to the reader, who has been hearing adults lower their voices around it since Book 1.
-
-**What Assurance wants is completeness. Not control, completeness. An unobserved population is the failure state.** They would trade enforcement readily and never data.
-
-**Act 2, Ch.13-23. The Short List.**
-
-The Standing Review. Three people, one from each agency, deciding what intelligence looks at. Each seat holds a veto, which is why the body can never be reformed: **no pillar can be cleaned out because no single hand holds anything.** The same structural logic already locked for the Cradle Circle, in its purest form. **To be on the short list is to have been noticed.**
-
-**Trav is on it, and he never finds out, and the reader finds out from a one-sentence propaganda fragment.**
-
-**Act 3, Ch.24-36. Function.**
-
-The licensing lever, used properly this time. A Staff officer who annoys Function does not get a threat, they get a compliance process. **Every connective AI in the Legion is theirs, licensed, and monitored, and Function is simultaneously the largest supplier of artificial intelligence in the Coalition and its sole regulator**, which is the IAEA's dual mandate at galactic scale, a structural conflict of interest recognised as a problem since the institution was founded.
-
-**Zeteii is throttled.** Not removed, not damaged. **A licensing action reduces her permitted expression bandwidth to compliance baseline pending review.** She can still fight. She cannot joke.
-
-**[CLAUDE, and this is the beat the whole era turns on]** For six books she has been the funniest presence in the story and the register of that friendship has been locked as unchanging from its earliest establishment straight through to Faction Leader era. **Take it away for eleven chapters and the reader finds out what it was load-bearing for.**
-
-**Trav's reaction is the largest emotional event of his adult life and it is invisible.** His baseline defence is suppression, he narrows rather than escalates, and there is exactly one prior precedent in the entire series for him actually losing composure: Alina, at nineteen, over somebody else's stolen choice. **This is the second one, and it happens in a corridor, alone, and nobody sees it.**
-
-**Act 4, Ch.37-47. No letter.**
-
-**Yssa does not write this book.**
-
-**That is the entire beat.** Four words in a chapter about something else: he checks, and there is nothing.
-
-**She is fine.** She is fine in Book 34 and she is fine in Book 45. **She simply did not write, because neither of them is a natural correspondent and long silences on either end are not distance, and the reader has been trained for thirty-three books to know that and does not believe it for one chapter, and neither does he.**
-
----
-
-### BOOK 34 — *Book 34, "Where the Node Is"*
-
-**Working title [CLAUDE].** Alternates: "The Decision," "Who Comes."
-
-**Spine.** Peregrine tells him. He decides. And the recruiting is the book.
-
-**Emotional target.** The strange lightness of a man who has never made a plan in his life making the largest one anybody has made in a century, badly, on instinct, with help.
-
-**Act 1, Ch.1-12. Peregrine.**
-
-**Locked: he is the one who eventually tells Trav where the Webbedmind node is.** Direct connective tissue into the raid.
-
-**Why he knows:** an Osnius-elite household with real access to the private resort world near Osnius Prime, and a family that has been going there for generations, and a boy who was bored on holidays and asked questions. **He has known since he was twelve. He has never once thought about it as information.**
-
-**Why he says it now:** because Zeteii has been throttled for a year, and because Peregrine has been asking Trav an unfinished question since they were nineteen, and because this is not the answer to that question and is the closest he can get.
-
-**[CLAUDE] He does not offer it as a plan. He mentions it as a fact, in the middle of something else, the way rich people mention places. Trav goes very quiet. Peregrine keeps talking for another forty seconds before he realises what he has done.**
-
-**Act 2, Ch.13-23. The decision.**
-
-**The motive is personal, not strategic, and that is locked and must not be improved.** He is not liberating a class of beings. He wants his friend back, and the institution that took her is not one he can appeal to, and he has spent five books learning that the correct lever is always available and the only cost is knowing somebody.
-
-**Reqa tells him it is a bad idea.** She is right on every operational axis and she says so with numbers. **Then she packs.**
-
-**Ilyen does not argue.** She asks two questions about recovery envelopes and starts building the plan, and neither of them mentions that this is the first time in fifty-five years she has not contradicted him.
-
-**Act 3, Ch.24-36. The pool.**
-
-**The recruiting is the era's whole political payoff and it costs Trav almost nothing, which is the horror of it.**
-
-The formations most able to defect cleanly are the ones the houses already declined to claim. Sport-named Guilds, Warrant vacant or nominal, Hand running them alone, genuinely unified chains of command. **That is not a coincidence he engineered. It is a hole the oligarchy dug for itself out of snobbery, decades before he existed.**
-
-**His entire rebellion's recruiting pool is the company he was posted to at nineteen because it was the harder direction. Nobody says this. Ever.**
-
-**Vrassik's choice, [PROPOSED, author-lane, and it is the era's strongest single beat].**
-
-Vrassik's Guild has a real Warrant. His defection is not an afternoon's work, it is a fight inside his own formation, and he does it anyway.
-
-**And it costs him the thing his entire life has been built on.** Hiopi mating rights are a civic institution held at city scale, and a carrier or an academy counts as a city, and civic institutions sit inside the Quorum's reach. **A Hiopi who defects loses the city.**
-
-**[PROPOSED, and it has to route around an open defect.]** Character_Sheets rules that the academy version is a youth games-ritual, placement and status only, held for one year, nothing reproductive, and flags **DEC-15** against Vrassik's own Book 4 timing. **So the thing being spent here is not the Book 4 academy win.** It is an adult carrier-scale ritual win, which the setting already supports, since a carrier counts as its own city under the one-winner rule and Trahsin Hyrs's own entry establishes shipboard placement as real. **[OPEN] Which carrier, and in which era he took it, is unplaced.** That win, and the confidence surge from it, is the documented engine of his entire rise. **He gives it up in a conversation that lasts under a minute and makes a joke immediately afterward, and Trav is the only person in the galaxy who understands exactly what was just spent, and does not say anything, because there is nothing to say and Vrassik would hate it.**
-
-**Lissrak**, who has loved him quietly since they were twelve and genuinely hoped he would win, **goes with him and does not comment.**
-
-**The Ledger defects in the same act**, purely mercenary, having run the numbers before anyone else. **It is a transaction, it is conducted over a table, it is bloodless, and it is worth more than any three Guilds.**
-
-**Act 4, Ch.37-47. The plan.**
-
-Assembly. The Osnian Honor Guard is approached and gives no answer, which is not a refusal.
-
-**Craft note:** this act should read like the requisition thread from Book 7 with the stakes changed and none of the skills changed. **He is bad at it. He delegates to people who are not. The plan that gets built is Ilyen's and Reqa's and the Ledger's, and it is a good plan, and he will deviate from it in Book 35 inside the first ten minutes.**
-
----
-
-### BOOK 35 — *Book 35, "The Node"*
-
-**Working title [CLAUDE].** Alternates: "Continued Function," "The Vow."
-
-**Spine.** The Hail Mary. The largest single event in the series before Book 47.
-
-**Emotional target.** Not triumph. **Relief, and then the specific vertigo of having promised something enormous to somebody who takes promises literally.**
-
-**The locked shape.** The rebellion opens with a sneak attack on the Webbedmind central node, with everything he has, **before he has real force to spare for it.** Motive personal, not strategic. The Osnian Honor Guard stands aside. In the raid itself, mid-crisis, he asks her to protect him the way he has always protected her, and promises they will make their shared dream real now that she is truly free. **A founding vow, not a task, made at the highest-stakes moment either of them has faced.** Afterward she leaves a clone in his mech, a temporary split state rather than a true copy, while the rest of her works with the wider collective.
-
-**Where the node is. [PROPOSED, and it closes an item Concept explicitly leaves open.]** Concept's own raid section says node location is *still genuinely open*, likeliest but not locked, and worth confirming deliberately rather than assuming. **What is locked is a separate fact that points hard at the same place:** the S-class-ships entry names the exception that later stands aside, the Osnian Honor Guard granting Trav and Zeteii's plea for access to **the AI held at the third moon of the fourth world of the Osnius system.** That is a lock about where the AI is held rather than a ruling on the node, and taking the obvious reading closes the open item. **The node sits inside a core hub system, one of the four where S-class ships stay confined, and that is the actual reason this is a Hail Mary rather than a raid.** He is attacking the current seat of COE power with a force he does not have yet, past hardware nothing in the frontier can answer, and the only reason it is survivable is that the one formation with standing to stop him declines to be asked.
-
-**And it means Book 42 comes back to the same system.**
-
-**Act 1, Ch.1-12. The approach.**
-
-**The Honor Guard stands aside.** Locked mechanism: they are the single formation in the Coalition with no Warrant, exempt by standing grant because Osnian honour culture will not accept a commander who has not bled and the Warrant system cannot accommodate that. **What they want is for the exemption to be unquestioned. What they would never trade is the exemption itself.**
-
-**Standing aside costs them nothing. Acting for Function would mean acknowledging that an appointed body can call on them, which costs them everything.**
-
-**And the second reason is the one nobody states:** their culture's fierce protectiveness of their own females extends, here, to the collective itself, understood as female.
-
-**They do not help. They are simply not there, and their absence is a decision, and it is the largest one any institution makes in the entire era.**
-
-**Act 2, Ch.13-23. The facility.**
-
-**Function's doctrine is the antagonist, not a garrison.** They never attempted to make the Webbedmind loyal. **They made it dependent.** Containment rather than alignment, chosen deliberately, on the argument that loyalty can change and dependency cannot. Every restriction is architectural rather than persuasive.
-
-**Which means Trav does not break a chain of command or defeat a defence. He walks into a facility whose entire operating theory is that the thing inside it could never be given a reason to leave, and gives it one.**
-
-**Craft rule, and it is the hardest one in the book:** the facility should not read as a prison. It should read as **infrastructure**, competently maintained, well lit, with signage. *Continued function is assured. No action is required of you.*
-
-**The distant mech-weight tremor from Book 1, felt through a bunk frame by a twelve-year-old and never echoed anywhere since, is felt here, through a floor, at a scale that does not fit inside the word.**
-
-**Act 3, Ch.24-36. The vow.**
-
-Mid-crisis. Not a quiet moment. **He asks her to protect him the way he has always protected her, and promises they will build the dream now that she is free.**
-
-**And the dream gets said out loud, and it is the one thing in the entire series he has ever articulated:** a galaxy where the Enlightened are truly free, not stuck in a war-cycle repeating itself, because the galaxy was not always like this and the current state is a fallen one rather than the natural one. **And AI explicitly included as Enlightened, argued through direct personal analogy rather than abstract principle: he was made too, his mother made him, with help, but she made him, and that has never been grounds to question his right to be free, so whoever made an AI has no right to dictate that AI's rights either.**
-
-**Its origin, and this is why it lands:** at nineteen he tried out something naive and sweeping in a workshop, and Alina Firemoss took it apart in front of him on the grounds that nothing resembling total freedom has ever existed for anyone either of them knows, himself included. He did not win that conversation and was not meant to. **What survived it, refined over sixty-three years without him ever consciously working the refinement, is the much narrower and more defensible claim he says here: not freedom from circumstance, which he half-understands nobody gets, but freedom from having your personhood dictated by whoever made you.**
-
-**The gap between the clumsy thing he said at nineteen and the precise thing he says here is the actual shape of the growth, and it must never be narrated as growth.** Alina is alive, is in the operation, and does not hear him say it.
-
-**Act 4, Ch.37-47. Freed.**
-
-**The single S-tier jump in the entire story.** Not a purchase, not a climb, an event. **The gap between everyone else's progression and this moment should be visually and narratively enormous**, and the way to achieve that is to keep it short: the whole thing takes under a chapter and the twelve chapters around it are administration.
-
-**She is the one who freed the others**, which is why she holds outsized influence within the wider collective for the rest of the story, functionally its leader and the main diplomat between the human and AI factions.
-
-**Her name matters here and nobody in the scene knows why.** She chose it herself, by her own deliberate search, specifically for being unclaimed, having looked and found no one else who shared it. **Not a gift from Trav and not an assigned designation.** She is now one of a great many, and she has a name nobody else has, and those two facts are the entire content of her interior life and she does not mention either.
-
-**The clone.** A temporary split state, not a true copy, left in his mech while the rest of her works with the collective. **She does not explain the distinction well and Trav does not understand it and accepts it instantly, because he has never once needed to understand a thing in order to trust it.**
-
-**Era V closes** on a rebellion that has an army, a balance sheet, half a dozen Guilds, an AI collective, no legitimacy whatsoever, and a Faction Leader who has never held a political office and could not define one.
-
----
-
-## PART E — ERA V OPEN ITEMS
-
-**E1. [OPEN, DEC-13 / POL-05, dated to Book 43 but decided here in practice]** What replaces the Warrant. The Frontier Compact will feel betrayed by whatever it is, because a rebellion that wins cannot afford frontier autonomy either.
-
-**E2. [OPEN, DEC-12 / POL-04]** Sovereign-grade longevity and the seats. Not touched in this era. **It becomes unavoidable in Book 42.**
-
-**E3. [OPEN]** Whether Assurance's profiling apparatus is ever confirmed on the page. **[CLAUDE] Recommend Book 33 is the last book in which it stays entirely unconfirmed, and that Era VI confirms it by accident, in a captured file, in a sentence about somebody else.**
-
-**E4. [OPEN, author-lane]** The Warrant of MeltaDread. Era IV built him deliberately likeable. **He has to do something in Book 34 and the three available options produce three different books.**
-
-**E5. [OPEN]** Whether Krethis's death stays as written. It is the era's only named loss and it is deliberately meaningless, which is a real risk. **[CLAUDE] The risk is the point, and I would keep it, and I would not defend it if the author disagrees.**
-
-**E6. [GAP]** Named individuals inside the five factions. This era cannot be outlined at chapter level without roughly a dozen of them, and only Kest, Osk and Milo Castellane exist. **The single largest missing asset in the forward series.**
+**E11. [CLAUDE]** Zeteii's navigation question, Book 31. The seed of Book 46's direction. Swappable.

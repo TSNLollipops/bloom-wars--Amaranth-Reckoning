@@ -126,6 +126,10 @@ export interface FacilityPoints {
   recroomSeats: Point[];
   workshopBench: Point;
   vaultPlinth: Point;
+  // The Archive console, 7 Sep 2026 (Maxime: "make the table in the cic the
+  // place to toggle it"). Warden's is the CIC's tactical table; the House's
+  // is the records table in the Records room, which until now was decor only.
+  archiveTable: Point;
   co: Point;
   playerSpawn: Point;
 }
@@ -158,6 +162,10 @@ export interface FacilityProfile {
   doors: DoorDef[];
   reservedBays: ReservedBayDef[];
   points: FacilityPoints;
+  // Which room the archive console stands in. Carried in the profile rather
+  // than hard-coded in Hub.ts because the two buildings put it in different
+  // rooms ("cic" / "records"), exactly like every other per-building fact.
+  archiveRoom: RoomId;
   // The room the player first stands in on a fresh load.
   spawnRoom: RoomId;
 

@@ -1,8 +1,6 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25, re-synced 2026-08-27 (source doc updated 2026-08-26, previous mirror was stale). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
-
 **Working title, LOCKED:** *Enlightened*, possibly *Enlightened: The Synker Wars* as a full title, or "The Synker Wars" reserved as an arc-name for the later military-campaign books rather than the whole series. Deliberately distinct from "Qiraki," which stays the internal project name only, since Qiraki is a locked spoiler, the enemy's true name, and can never appear on a cover or anywhere a reader sees before the reveal point. See Qiraki_Process_Notes.md's spoiler lock.
 
-**Per-book title convention, LOCKED:** the academy-era books (1-7) run under the arc-name "The Academy Era," e.g. Book 1's actual title on the page reads *Enlightened: The Academy Era, Book 1,** **"**The King and the Climb.**"* Parallel structure to "The Synker Wars" reserved for the military-campaign books that follow, each major arc of the series gets its own named subtitle under the shared "Enlightened" umbrella title.
+**Per-book title convention, LOCKED:** the academy-era books (1-7) run under the arc-name "The Academy Era," e.g. Book 1's actual title on the page reads *Enlightened: The Academy Era, Book 1, "The King and the Climb."* Parallel structure to "The Synker Wars" reserved for the military-campaign books that follow, each major arc of the series gets its own named subtitle under the shared "Enlightened" umbrella title.
 
 # THE QIRAKI FILES — Concept Capture
 
@@ -18,7 +16,7 @@ The enemy, known only by what it does, has been attacking the Coalition for roug
 
 **The enemy's nature:** they arrive via an unexplained FTL method Coalition intelligence still hasn't cracked. What they send are massive creatures whose sole purpose is to crash onto a planet and convert its material into more of themselves, exploding outward like a giant pod of fish eggs, turning the planet into a swarm of large creatures that then go after more planets. The bigger and more alive a world is, the more it attracts them. Aesthetic: mass of flesh, tentacles, many eyes and legs, biological horror, deliberately escalating, "more bullshit overpowered than the last thing," Cthulhu/Zerg/Tyranid influenced.
 
-Humanity's answer is to burn and purge the enemy off contested worlds with massive mech armies. Mech pilots ("mechwarrior" being trademarked/unusable, resolved to **Synker**, see Qiraki_Technobabble_ Glossary.md) rose from what were originally sport teams repurposed to fight the enemy on the ground when the invasion first began. They became heroes, and that became history.
+Humanity's answer is to burn and purge the enemy off contested worlds with massive mech armies. Mech pilots ("mechwarrior" being trademarked/unusable, resolved to **Synker**, see Qiraki_Technobabble_Glossary.md) rose from what were originally sport teams repurposed to fight the enemy on the ground when the invasion first began. They became heroes, and that became history.
 
 ## Pilot interface, core mechanic
 
@@ -288,7 +286,7 @@ Categories to draw from so no single book leans on just one kind of material: in
 
 **RESOLVED:** Ilyen is confirmed pilot-track, participating in this debate as a full chooser, not mechanic-track. Chooses Reeps here, though it isn't her natural strength, real piloting is still demanded even at range, see her character sheet for the Book 5 repositioning to Munti that eventually corrects this. Corw locked as Tank.
 
-**Book 3 — "The Choosing"** Class specialization locks in (Trav confirmed Meeps). Path-system access opens, stimulants and genetic upgrades become available and genuinely fought over. Interspecies exposure beyond Hiopi. First real injury from the tech, the entry point into the roughest stretch still ahead. Symbiosis's counterintuitive pain-spike begins here, not felt as unusual by Trav since he has nothing to compare it to.
+**Book 3 — "The Choosing"** Class specialization locks in (Trav confirmed Meeps). Path-system access opens and is genuinely fought over. **Corrected 2026-09-06:** stimulants and genetic upgrades do not become available here, they have been available to anybody since the first week of Year 1 and both Trav and Corw already own one, per B1.CH22 and B1.CH23. What arrives in Book 3 is the income to reach the tiers above the cheapest one, see B3.CH07. Interspecies exposure beyond Hiopi. First real injury from the tech, the entry point into the roughest stretch still ahead. Symbiosis's counterintuitive pain-spike begins here, not felt as unusual by Trav since he has nothing to compare it to.
 
 **Book 4 — "Blood Between Rivals"** The roughest year physically. Trav and Vrassik genuinely hurt each other repeatedly, rivalry written into both their bodies, not just banter. First loss among the cast, real and unheroic. A foil arc deepens (Denic or Ilyen). First taste of leadership, and failing at it, seeding the real command arc years early. Vrassik wins top mating status here, the confidence surge that follows drives his rapid rise.
 
@@ -468,7 +466,7 @@ Losing a limb in combat is survivable and effectively reversible, COE medical te
 
 **Real consequence, not just a tech flex:** this makes extraction speed the actual life-or-death variable in most injuries, not the wound itself. Ties directly into the Munti's established cockpit-evacuation system (see Qiraki_Weapons_And_Progression.md), which is now doing more narrative work than just battlefield support, it's the difference between "bad day" and "permanent death" for a huge share of casualties. A severed limb is a Tuesday. Dying before the Munti reaches you is the actual tragedy.
 
-**Colloquial term, proposed:** "restock," soldier slang for getting patched and regrown, deliberately callous, treating the human body like military inventory. Fits the story's own quiet critique of the war-cycle without needing the critique stated outright anywhere. Add to Technobabble Glossary if it sticks.
+**Colloquial term, proposed:** "restock," soldier slang for getting patched and regrown. Fits the story's own quiet critique of the war-cycle without needing the critique stated outright anywhere. Add to Technobabble Glossary if it sticks.
 
 **"Getting offed," LOCKED, new, the squad-level version of the same joke.** Because restock catches nearly everything and "just alive" at retrieval is enough, squads use "getting offed" to mean losing your mech and being pulled, not dying, and say it about each other freely, in front of each other, while the person in question is still technically dead. A unit that jokes about death because death is usually reversible teaches a reader the rule without a line of explanation, which is exactly what lets the one mission where it isn't reversible land without any narration at all.
 
@@ -733,8 +731,6 @@ AI are simply better at advanced rune-work than any human could become. What the
 ## Battle clans, OPEN, needs a real pass
 
 Roster still needs to be built: some clans descend directly from the original pre-war sport teams, others formed new since the Bloom's arrival. Each needs a distinct class identity and personality, since some of the original teams' culture and temperament should plausibly have survived the transition into military-adjacent factions. Not yet built, flagged as a clear next task rather than attempted piecemeal here.
-
-**Update, 2026-08-27, see Qiraki_Forward_Cast_Roster_v1.md (FCAST) in the writing project:** the battle-clan roster this section flags as open has since been built out, MeltaDread, Ironhowl, Sunkfist, Quickmarrow, Glasswake, Hollowking and the post-Bloom clans, each with a class identity, temperament, and named Warrant/Hand figures. Not duplicated here per the single-authoritative-copy rule; this bridge mirror is current as of the 2026-08-25 snapshot and doesn't carry FCAST, which is Tier-2 planning material outside this bridge's stated scope (see README).
 
 # Cleaning log
 

@@ -1,0 +1,216 @@
+mission_amaranth_1         easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=1.45  lost/run=1.45
+mission_amaranth_1         moderate WIN=  1/40 (  3%)  LOSS=  0  CMD_DOWN= 39  TIMEOUT=  0  turns/win= 36.0  downed/run=2.23  lost/run=1.02
+mission_amaranth_1         hard     WIN=  9/40 ( 23%)  LOSS=  0  CMD_DOWN= 31  TIMEOUT=  0  turns/win= 44.0  downed/run=2.17  lost/run=0.30
+mission_amaranth_2         easy     WIN=  9/40 ( 23%)  LOSS=  1  CMD_DOWN= 30  TIMEOUT=  0  turns/win=  6.1  downed/run=1.75  lost/run=1.52
+mission_amaranth_2         moderate WIN= 18/40 ( 45%)  LOSS=  0  CMD_DOWN= 22  TIMEOUT=  0  turns/win=  6.0  downed/run=1.95  lost/run=1.95
+mission_amaranth_2         hard     WIN= 32/40 ( 80%)  LOSS=  1  CMD_DOWN=  7  TIMEOUT=  0  turns/win=  6.0  downed/run=0.82  lost/run=0.00
+mission_amaranth_3         easy     WIN= 20/40 ( 50%)  LOSS=  0  CMD_DOWN= 17  TIMEOUT=  3  turns/win= 54.0  downed/run=0.57  lost/run=0.38
+mission_amaranth_3         moderate WIN= 13/40 ( 33%)  LOSS=  0  CMD_DOWN= 21  TIMEOUT=  6  turns/win= 82.4  downed/run=0.72  lost/run=0.40
+mission_amaranth_3         hard     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  2  turns/win= 61.7  downed/run=0.25  lost/run=0.00
+mission_amaranth_4         easy     WIN=  9/40 ( 23%)  LOSS=  0  CMD_DOWN= 31  TIMEOUT=  0  turns/win=  8.0  downed/run=0.15  lost/run=0.03
+mission_amaranth_4         moderate WIN= 29/40 ( 73%)  LOSS=  0  CMD_DOWN= 11  TIMEOUT=  0  turns/win= 10.2  downed/run=1.65  lost/run=0.65
+mission_amaranth_4         hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 13.1  downed/run=0.88  lost/run=0.03
+mission_amaranth_5         easy     WIN= 32/40 ( 80%)  LOSS=  0  CMD_DOWN=  8  TIMEOUT=  0  turns/win=  9.8  downed/run=1.50  lost/run=1.30
+mission_amaranth_5         moderate WIN= 21/40 ( 53%)  LOSS=  0  CMD_DOWN= 19  TIMEOUT=  0  turns/win=  6.7  downed/run=0.97  lost/run=0.70
+mission_amaranth_5         hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.7  downed/run=0.65  lost/run=0.00
+mission_amaranth_6         easy     WIN= 25/40 ( 63%)  LOSS=  0  CMD_DOWN= 15  TIMEOUT=  0  turns/win=  4.8  downed/run=1.38  lost/run=1.35
+mission_amaranth_6         moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.9  downed/run=0.40  lost/run=0.15
+mission_amaranth_6         hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win=  5.7  downed/run=0.00  lost/run=0.00
+mission_amaranth_7         easy     WIN= 14/40 ( 35%)  LOSS=  1  CMD_DOWN= 25  TIMEOUT=  0  turns/win=  6.0  downed/run=1.00  lost/run=0.25
+mission_amaranth_7         moderate WIN=  9/40 ( 23%)  LOSS=  5  CMD_DOWN= 26  TIMEOUT=  0  turns/win=  6.0  downed/run=1.55  lost/run=1.05
+mission_amaranth_7         hard     WIN=  0/40 (  0%)  LOSS= 11  CMD_DOWN= 29  TIMEOUT=  0  turns/win=    -  downed/run=1.95  lost/run=0.80
+mission_amaranth_8         easy     WIN= 21/40 ( 53%)  LOSS=  0  CMD_DOWN= 19  TIMEOUT=  0  turns/win= 10.9  downed/run=1.13  lost/run=0.05
+mission_amaranth_8         moderate WIN= 28/40 ( 70%)  LOSS=  0  CMD_DOWN= 12  TIMEOUT=  0  turns/win= 14.3  downed/run=1.00  lost/run=0.00
+mission_amaranth_8         hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 10.3  downed/run=1.00  lost/run=0.00
+mission_amaranth_9         easy     WIN=  9/40 ( 23%)  LOSS=  0  CMD_DOWN= 31  TIMEOUT=  0  turns/win= 10.0  downed/run=1.98  lost/run=1.75
+mission_amaranth_9         moderate WIN=  3/40 (  8%)  LOSS=  0  CMD_DOWN= 37  TIMEOUT=  0  turns/win= 10.0  downed/run=1.20  lost/run=0.47
+mission_amaranth_9         hard     WIN= 35/40 ( 88%)  LOSS=  0  CMD_DOWN=  5  TIMEOUT=  0  turns/win= 10.0  downed/run=1.13  lost/run=0.05
+mission_amaranth_10        easy     WIN= 31/40 ( 78%)  LOSS=  0  CMD_DOWN=  9  TIMEOUT=  0  turns/win=  4.0  downed/run=0.85  lost/run=0.85
+mission_amaranth_10        moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.70  lost/run=0.00
+mission_amaranth_10        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.60  lost/run=0.00
+mission_amaranth_11        easy     WIN= 20/40 ( 50%)  LOSS=  0  CMD_DOWN= 20  TIMEOUT=  0  turns/win=  6.0  downed/run=0.85  lost/run=0.00
+mission_amaranth_11        moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=1.00  lost/run=0.00
+mission_amaranth_11        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.00  lost/run=0.00
+mission_amaranth_12        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=0.97  lost/run=0.47
+mission_amaranth_12        moderate WIN= 17/40 ( 43%)  LOSS=  0  CMD_DOWN= 23  TIMEOUT=  0  turns/win= 10.6  downed/run=4.00  lost/run=3.00
+mission_amaranth_12        hard     WIN= 27/40 ( 68%)  LOSS=  1  CMD_DOWN= 12  TIMEOUT=  0  turns/win= 10.7  downed/run=3.20  lost/run=1.57
+mission_amaranth_13        easy     WIN=  2/40 (  5%)  LOSS=  0  CMD_DOWN= 38  TIMEOUT=  0  turns/win= 15.5  downed/run=1.90  lost/run=0.47
+mission_amaranth_13        moderate WIN= 23/40 ( 57%)  LOSS=  0  CMD_DOWN= 17  TIMEOUT=  0  turns/win= 16.7  downed/run=2.83  lost/run=0.00
+mission_amaranth_13        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 11.8  downed/run=0.25  lost/run=0.00
+mission_amaranth_14        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=0.72  lost/run=0.15
+mission_amaranth_14        moderate WIN= 27/40 ( 68%)  LOSS=  0  CMD_DOWN= 13  TIMEOUT=  0  turns/win= 13.9  downed/run=1.57  lost/run=0.17
+mission_amaranth_14        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 14.2  downed/run=0.42  lost/run=0.00
+mission_amaranth_15        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=1.00  lost/run=0.03
+mission_amaranth_15        moderate WIN=  7/40 ( 18%)  LOSS=  0  CMD_DOWN= 33  TIMEOUT=  0  turns/win= 16.1  downed/run=2.65  lost/run=0.07
+mission_amaranth_15        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 15.6  downed/run=2.42  lost/run=0.00
+mission_amaranth_16        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=5.20  lost/run=4.20
+mission_amaranth_16        moderate WIN= 24/40 ( 60%)  LOSS=  0  CMD_DOWN= 16  TIMEOUT=  0  turns/win= 10.9  downed/run=2.92  lost/run=0.95
+mission_amaranth_16        hard     WIN= 33/40 ( 83%)  LOSS=  0  CMD_DOWN=  6  TIMEOUT=  1  turns/win= 11.8  downed/run=2.27  lost/run=0.42
+mission_amaranth_17        easy     WIN=  9/40 ( 23%)  LOSS=  0  CMD_DOWN= 31  TIMEOUT=  0  turns/win=  6.0  downed/run=0.23  lost/run=0.00
+mission_amaranth_17        moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=1.00  lost/run=0.00
+mission_amaranth_17        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.00  lost/run=0.00
+mission_amaranth_18        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=2.80  lost/run=1.02
+mission_amaranth_18        moderate WIN= 33/40 ( 83%)  LOSS=  0  CMD_DOWN=  7  TIMEOUT=  0  turns/win= 26.3  downed/run=3.08  lost/run=0.07
+mission_amaranth_18        hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 12.7  downed/run=1.32  lost/run=0.00
+mission_amaranth_19        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=2.48  lost/run=0.28
+mission_amaranth_19        moderate WIN= 28/40 ( 70%)  LOSS=  0  CMD_DOWN= 12  TIMEOUT=  0  turns/win= 20.0  downed/run=2.23  lost/run=0.28
+mission_amaranth_19        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 17.3  downed/run=0.00  lost/run=0.00
+mission_amaranth_20        easy     WIN=  9/40 ( 23%)  LOSS=  0  CMD_DOWN= 31  TIMEOUT=  0  turns/win=  8.8  downed/run=4.53  lost/run=3.05
+mission_amaranth_20        moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.6  downed/run=0.72  lost/run=0.07
+mission_amaranth_20        hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win=  9.0  downed/run=0.15  lost/run=0.00
+mission_amaranth_21        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=2.92  lost/run=0.85
+mission_amaranth_21        moderate WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=4.92  lost/run=2.92
+mission_amaranth_21        hard     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 36  TIMEOUT=  4  turns/win=    -  downed/run=2.05  lost/run=0.20
+mission_amaranth_22        easy     WIN=  0/40 (  0%)  LOSS= 40  CMD_DOWN=  0  TIMEOUT=  0  turns/win=    -  downed/run=1.65  lost/run=0.00
+mission_amaranth_22        moderate WIN=  0/40 (  0%)  LOSS= 40  CMD_DOWN=  0  TIMEOUT=  0  turns/win=    -  downed/run=0.35  lost/run=0.00
+mission_amaranth_22        hard     WIN=  6/40 ( 15%)  LOSS= 23  CMD_DOWN= 11  TIMEOUT=  0  turns/win= 21.0  downed/run=1.68  lost/run=0.00
+mission_amaranth_23        easy     WIN= 36/40 ( 90%)  LOSS=  0  CMD_DOWN=  4  TIMEOUT=  0  turns/win=  5.1  downed/run=2.13  lost/run=0.82
+mission_amaranth_23        moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.0  downed/run=1.57  lost/run=0.60
+mission_amaranth_23        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.00  lost/run=0.00
+mission_amaranth_24        easy     WIN=  2/40 (  5%)  LOSS=  0  CMD_DOWN= 38  TIMEOUT=  0  turns/win= 10.5  downed/run=0.50  lost/run=0.03
+mission_amaranth_24        moderate WIN=  5/40 ( 13%)  LOSS=  0  CMD_DOWN= 35  TIMEOUT=  0  turns/win= 10.6  downed/run=1.60  lost/run=0.53
+mission_amaranth_24        hard     WIN= 37/40 ( 93%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  1  turns/win= 12.9  downed/run=2.73  lost/run=0.30
+mission_amaranth_25        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=1.38  lost/run=0.00
+mission_amaranth_25        moderate WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 39  TIMEOUT=  1  turns/win=    -  downed/run=6.38  lost/run=2.13
+mission_amaranth_25        hard     WIN= 32/40 ( 80%)  LOSS=  0  CMD_DOWN=  8  TIMEOUT=  0  turns/win= 32.9  downed/run=4.55  lost/run=0.23
+mission_amaranth_26        easy     WIN= 27/40 ( 68%)  LOSS=  0  CMD_DOWN= 13  TIMEOUT=  0  turns/win=  9.0  downed/run=1.25  lost/run=0.25  loss:kill= 25% turn= 22%
+mission_amaranth_26        moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_amaranth_26        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_amaranth_27        easy     WIN= 17/40 ( 43%)  LOSS=  4  CMD_DOWN= 19  TIMEOUT=  0  turns/win= 13.8  downed/run=3.20  lost/run=0.30  loss:kill= 65% turn= 71%
+mission_amaranth_27        moderate WIN= 14/40 ( 35%)  LOSS= 17  CMD_DOWN=  9  TIMEOUT=  0  turns/win= 15.3  downed/run=4.55  lost/run=0.42  loss:kill= 82% turn= 90%
+mission_amaranth_27        hard     WIN= 27/40 ( 68%)  LOSS= 12  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 14.2  downed/run=1.05  lost/run=0.00  loss:kill= 94% turn=100%
+mission_amaranth_28        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=3.13  lost/run=0.82  loss:kill= 12% turn= 33%
+mission_amaranth_28        moderate WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=8.13  lost/run=1.77  loss:kill= 50% turn= 73%
+mission_amaranth_28        hard     WIN= 26/40 ( 65%)  LOSS=  0  CMD_DOWN= 14  TIMEOUT=  0  turns/win= 21.3  downed/run=5.75  lost/run=0.68  loss:kill= 67% turn= 90%
+mission_amaranth_29        easy     WIN=  4/40 ( 10%)  LOSS= 12  CMD_DOWN= 24  TIMEOUT=  0  turns/win= 13.0  downed/run=4.33  lost/run=0.00  loss:kill= 32% turn= 40%
+mission_amaranth_29        moderate WIN= 22/40 ( 55%)  LOSS= 16  CMD_DOWN=  2  TIMEOUT=  0  turns/win= 10.9  downed/run=3.13  lost/run=0.00  loss:kill= 58% turn= 59%
+mission_amaranth_29        hard     WIN= 38/40 ( 95%)  LOSS=  2  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 10.1  downed/run=1.52  lost/run=0.00  loss:kill= 63% turn= 63%
+mission_amaranth_30        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=2.98  lost/run=0.07  loss:kill= 29% turn= 33%
+mission_amaranth_30        moderate WIN=  6/40 ( 15%)  LOSS=  0  CMD_DOWN= 34  TIMEOUT=  0  turns/win= 23.8  downed/run=6.50  lost/run=0.55  loss:kill= 66% turn= 72%
+mission_amaranth_30        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 20.9  downed/run=1.68  lost/run=0.00  loss:kill=   - turn=   -
+mission_amaranth_31        easy     WIN= 13/40 ( 33%)  LOSS= 27  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.7  downed/run=0.42  lost/run=0.00  loss:kill= 69% turn= 50%
+mission_amaranth_31        moderate WIN= 30/40 ( 75%)  LOSS=  7  CMD_DOWN=  3  TIMEOUT=  0  turns/win=  9.3  downed/run=1.20  lost/run=0.00  loss:kill= 66% turn= 51%
+mission_amaranth_31        hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.6  downed/run=0.23  lost/run=0.00  loss:kill=   - turn=   -
+mission_amaranth_32        easy     WIN= 11/40 ( 28%)  LOSS=  0  CMD_DOWN= 29  TIMEOUT=  0  turns/win= 19.1  downed/run=4.60  lost/run=0.82  loss:kill= 48% turn= 39%
+mission_amaranth_32        moderate WIN= 35/40 ( 88%)  LOSS=  0  CMD_DOWN=  5  TIMEOUT=  0  turns/win= 17.8  downed/run=1.43  lost/run=0.07  loss:kill= 80% turn= 55%
+mission_amaranth_32        hard     WIN= 26/40 ( 65%)  LOSS=  0  CMD_DOWN= 14  TIMEOUT=  0  turns/win= 20.1  downed/run=0.80  lost/run=0.00  loss:kill= 30% turn= 19%
+mission_amaranth_33        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=3.13  lost/run=0.03  loss:kill= 27% turn= 28%
+mission_amaranth_33        moderate WIN=  7/40 ( 18%)  LOSS=  0  CMD_DOWN= 33  TIMEOUT=  0  turns/win= 16.0  downed/run=5.55  lost/run=0.13  loss:kill= 59% turn= 54%
+mission_amaranth_33        hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 16.0  downed/run=1.10  lost/run=0.00  loss:kill= 77% turn= 82%
+mission_amaranth_34        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=1.90  lost/run=0.25  loss:kill= 43% turn= 34%
+mission_amaranth_34        moderate WIN= 16/40 ( 40%)  LOSS=  0  CMD_DOWN= 24  TIMEOUT=  0  turns/win= 14.0  downed/run=4.67  lost/run=0.75  loss:kill= 62% turn= 65%
+mission_amaranth_34        hard     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win= 14.0  downed/run=7.70  lost/run=0.00  loss:kill= 59% turn= 86%
+mission_amaranth_35        easy     WIN=  1/40 (  3%)  LOSS=  0  CMD_DOWN= 39  TIMEOUT=  0  turns/win= 16.0  downed/run=4.10  lost/run=0.28  loss:kill= 41% turn= 35%
+mission_amaranth_35        moderate WIN= 10/40 ( 25%)  LOSS=  1  CMD_DOWN= 29  TIMEOUT=  0  turns/win= 16.1  downed/run=6.72  lost/run=0.88  loss:kill= 61% turn= 64%
+mission_amaranth_35        hard     WIN= 28/40 ( 70%)  LOSS=  0  CMD_DOWN= 12  TIMEOUT=  0  turns/win= 16.2  downed/run=2.48  lost/run=0.00  loss:kill= 64% turn= 55%
+mission_amaranth_36        easy     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=2.73  lost/run=0.03  loss:kill= 42% turn= 32%
+mission_amaranth_36        moderate WIN=  4/40 ( 10%)  LOSS=  0  CMD_DOWN= 36  TIMEOUT=  0  turns/win= 16.0  downed/run=4.80  lost/run=0.23  loss:kill= 57% turn= 57%
+mission_amaranth_36        hard     WIN= 37/40 ( 93%)  LOSS=  0  CMD_DOWN=  3  TIMEOUT=  0  turns/win= 16.0  downed/run=8.32  lost/run=0.00  loss:kill= 57% turn= 77%
+mission_house_amaranth_1   easy     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win=  9.0  downed/run=0.13  lost/run=0.00  loss:kill= 50% turn= 69%
+mission_house_amaranth_1   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.3  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_1   hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 10.0  downed/run=0.03  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_2   easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.13  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_2   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.28  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_2   hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_3   easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.60  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_3   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.38  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_3   hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_4   easy     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win=  8.0  downed/run=0.60  lost/run=0.00  loss:kill= 50% turn= 60%
+mission_house_amaranth_4   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.8  downed/run=0.17  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_4   hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win=  8.7  downed/run=0.07  lost/run=0.00  loss:kill= 50% turn= 50%
+mission_house_amaranth_5   easy     WIN= 38/40 ( 95%)  LOSS=  2  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.1  downed/run=0.25  lost/run=0.10  loss:kill= 44% turn=100%
+mission_house_amaranth_5   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_5   hard     WIN= 15/40 ( 38%)  LOSS= 25  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.6  downed/run=1.05  lost/run=0.23  loss:kill= 65% turn=100%
+mission_house_amaranth_6   easy     WIN= 20/40 ( 50%)  LOSS=  0  CMD_DOWN= 20  TIMEOUT=  0  turns/win= 13.6  downed/run=2.52  lost/run=0.45  loss:kill= 66% turn= 95%
+mission_house_amaranth_6   moderate WIN= 35/40 ( 88%)  LOSS=  0  CMD_DOWN=  5  TIMEOUT=  0  turns/win= 13.3  downed/run=0.80  lost/run=0.15  loss:kill= 64% turn=100%
+mission_house_amaranth_6   hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 10.7  downed/run=0.07  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_7   easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_7   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.0  downed/run=0.30  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_7   hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.0  downed/run=0.20  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_8   easy     WIN=  5/40 ( 13%)  LOSS=  0  CMD_DOWN= 35  TIMEOUT=  0  turns/win= 10.0  downed/run=1.13  lost/run=0.13  loss:kill= 43% turn= 56%
+mission_house_amaranth_8   moderate WIN=  6/40 ( 15%)  LOSS=  0  CMD_DOWN= 34  TIMEOUT=  0  turns/win= 10.0  downed/run=2.45  lost/run=0.72  loss:kill= 55% turn= 74%
+mission_house_amaranth_8   hard     WIN= 15/40 ( 38%)  LOSS=  0  CMD_DOWN= 25  TIMEOUT=  0  turns/win= 10.0  downed/run=1.55  lost/run=0.13  loss:kill= 31% turn= 80%
+mission_house_amaranth_9   easy     WIN= 20/40 ( 50%)  LOSS= 16  CMD_DOWN=  4  TIMEOUT=  0  turns/win=  7.7  downed/run=1.75  lost/run=0.82  loss:kill= 43% turn= 66%
+mission_house_amaranth_9   moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.3  downed/run=0.80  lost/run=0.38  loss:kill=   - turn=   -
+mission_house_amaranth_9   hard     WIN= 35/40 ( 88%)  LOSS=  5  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.9  downed/run=1.18  lost/run=0.00  loss:kill= 80% turn=100%
+mission_house_amaranth_10  easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.5  downed/run=0.53  lost/run=0.05  loss:kill=   - turn=   -
+mission_house_amaranth_10  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 10.6  downed/run=0.05  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_10  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.1  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_11  easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.0  downed/run=0.23  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_11  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_11  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  4.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_12  easy     WIN= 31/40 ( 78%)  LOSS=  5  CMD_DOWN=  4  TIMEOUT=  0  turns/win=  7.5  downed/run=0.57  lost/run=0.25  loss:kill= 44% turn= 55%
+mission_house_amaranth_12  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_12  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_13  easy     WIN=  5/40 ( 13%)  LOSS=  0  CMD_DOWN= 35  TIMEOUT=  0  turns/win= 11.8  downed/run=2.92  lost/run=0.90  loss:kill= 33% turn= 44%
+mission_house_amaranth_13  moderate WIN= 35/40 ( 88%)  LOSS=  0  CMD_DOWN=  5  TIMEOUT=  0  turns/win= 12.7  downed/run=2.88  lost/run=0.15  loss:kill= 80% turn= 83%
+mission_house_amaranth_13  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 11.6  downed/run=0.38  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_14  easy     WIN= 36/40 ( 90%)  LOSS=  0  CMD_DOWN=  4  TIMEOUT=  0  turns/win=  6.5  downed/run=1.20  lost/run=0.00  loss:kill= 48% turn= 36%
+mission_house_amaranth_14  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=1.80  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_14  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_15  easy     WIN=  9/40 ( 23%)  LOSS=  4  CMD_DOWN= 27  TIMEOUT=  0  turns/win=  6.7  downed/run=1.60  lost/run=0.00  loss:kill= 26% turn= 41%
+mission_house_amaranth_15  moderate WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=1.00  lost/run=0.00  loss:kill= 19% turn= 30%
+mission_house_amaranth_15  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.2  downed/run=0.47  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_16  easy     WIN=  8/40 ( 20%)  LOSS=  0  CMD_DOWN= 32  TIMEOUT=  0  turns/win= 10.3  downed/run=4.75  lost/run=2.85  loss:kill= 51% turn= 53%
+mission_house_amaranth_16  moderate WIN= 24/40 ( 60%)  LOSS=  0  CMD_DOWN= 16  TIMEOUT=  0  turns/win=  9.8  downed/run=4.00  lost/run=1.02  loss:kill= 65% turn= 66%
+mission_house_amaranth_16  hard     WIN= 36/40 ( 90%)  LOSS=  0  CMD_DOWN=  4  TIMEOUT=  0  turns/win=  8.8  downed/run=0.38  lost/run=0.00  loss:kill= 62% turn= 44%
+mission_house_amaranth_17  easy     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win=  8.5  downed/run=0.42  lost/run=0.00  loss:kill= 64% turn= 33%
+mission_house_amaranth_17  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.2  downed/run=1.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_17  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.07  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_18  easy     WIN= 26/40 ( 65%)  LOSS=  0  CMD_DOWN= 14  TIMEOUT=  0  turns/win= 11.5  downed/run=3.88  lost/run=0.28  loss:kill= 53% turn= 54%
+mission_house_amaranth_18  moderate WIN= 24/40 ( 60%)  LOSS=  0  CMD_DOWN= 16  TIMEOUT=  0  turns/win= 12.9  downed/run=5.53  lost/run=3.48  loss:kill= 64% turn= 75%
+mission_house_amaranth_18  hard     WIN= 17/40 ( 43%)  LOSS=  0  CMD_DOWN= 23  TIMEOUT=  0  turns/win= 14.0  downed/run=6.15  lost/run=1.68  loss:kill= 64% turn= 79%
+mission_house_amaranth_19  easy     WIN= 22/40 ( 55%)  LOSS=  3  CMD_DOWN= 15  TIMEOUT=  0  turns/win=  8.7  downed/run=4.25  lost/run=0.10  loss:kill= 61% turn= 73%
+mission_house_amaranth_19  moderate WIN= 24/40 ( 60%)  LOSS=  7  CMD_DOWN=  9  TIMEOUT=  0  turns/win=  9.6  downed/run=3.95  lost/run=0.00  loss:kill= 77% turn= 78%
+mission_house_amaranth_19  hard     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win=  7.2  downed/run=1.90  lost/run=0.00  loss:kill= 40% turn= 50%
+mission_house_amaranth_20  easy     WIN= 39/40 ( 98%)  LOSS=  1  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.2  downed/run=8.15  lost/run=5.63  loss:kill=100% turn=100%
+mission_house_amaranth_20  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.2  downed/run=7.28  lost/run=4.13  loss:kill=   - turn=   -
+mission_house_amaranth_20  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.1  downed/run=3.17  lost/run=0.65  loss:kill=   - turn=   -
+mission_house_amaranth_21  easy     WIN= 37/40 ( 93%)  LOSS=  0  CMD_DOWN=  3  TIMEOUT=  0  turns/win=  9.5  downed/run=2.67  lost/run=0.00  loss:kill= 78% turn= 50%
+mission_house_amaranth_21  moderate WIN= 12/40 ( 30%)  LOSS=  0  CMD_DOWN= 28  TIMEOUT=  0  turns/win= 10.9  downed/run=2.23  lost/run=0.00  loss:kill= 15% turn= 19%
+mission_house_amaranth_21  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.1  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_22  easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 14.4  downed/run=1.35  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_22  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 15.0  downed/run=0.00  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_22  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 15.0  downed/run=0.07  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_23  easy     WIN= 37/40 ( 93%)  LOSS=  3  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.0  downed/run=6.42  lost/run=0.57  loss:kill= 67% turn= 89%
+mission_house_amaranth_23  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.3  downed/run=2.95  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_23  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.1  downed/run=3.08  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_24  easy     WIN=  6/40 ( 15%)  LOSS= 34  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=4.38  lost/run=0.33  loss:kill= 15% turn= 15%
+mission_house_amaranth_24  moderate WIN= 29/40 ( 73%)  LOSS= 11  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.3  downed/run=1.82  lost/run=0.00  loss:kill= 33% turn= 15%
+mission_house_amaranth_24  hard     WIN= 20/40 ( 50%)  LOSS= 20  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.8  downed/run=0.13  lost/run=0.00  loss:kill= 29% turn= 15%
+mission_house_amaranth_25  easy     WIN=  7/40 ( 18%)  LOSS=  0  CMD_DOWN= 33  TIMEOUT=  0  turns/win= 14.0  downed/run=1.18  lost/run=0.00  loss:kill= 27% turn= 20%
+mission_house_amaranth_25  moderate WIN= 33/40 ( 83%)  LOSS=  0  CMD_DOWN=  7  TIMEOUT=  0  turns/win= 14.0  downed/run=3.95  lost/run=0.13  loss:kill= 66% turn= 56%
+mission_house_amaranth_25  hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 14.0  downed/run=3.52  lost/run=0.03  loss:kill= 63% turn= 50%
+mission_house_amaranth_26  easy     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win=  7.8  downed/run=2.88  lost/run=0.00  loss:kill= 31% turn= 25%
+mission_house_amaranth_26  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  8.5  downed/run=3.60  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_26  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  7.7  downed/run=0.80  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_27  easy     WIN= 10/40 ( 25%)  LOSS= 30  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  5.0  downed/run=0.00  lost/run=0.00  loss:kill= 80% turn= 79%
+mission_house_amaranth_27  moderate WIN=  0/40 (  0%)  LOSS= 40  CMD_DOWN=  0  TIMEOUT=  0  turns/win=    -  downed/run=0.00  lost/run=0.00  loss:kill= 29% turn= 41%
+mission_house_amaranth_27  hard     WIN=  0/40 (  0%)  LOSS= 40  CMD_DOWN=  0  TIMEOUT=  0  turns/win=    -  downed/run=0.00  lost/run=0.00  loss:kill= 84% turn= 57%
+mission_house_amaranth_28  easy     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win=  8.2  downed/run=6.58  lost/run=2.45  loss:kill= 59% turn= 33%
+mission_house_amaranth_28  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  9.1  downed/run=3.83  lost/run=0.95  loss:kill=   - turn=   -
+mission_house_amaranth_28  hard     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win=  9.2  downed/run=2.13  lost/run=0.00  loss:kill= 56% turn= 27%
+mission_house_amaranth_29  easy     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 12.0  downed/run=3.90  lost/run=0.75  loss:kill=   - turn=   -
+mission_house_amaranth_29  moderate WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win= 12.0  downed/run=1.35  lost/run=0.13  loss:kill= 38% turn= 22%
+mission_house_amaranth_29  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 12.0  downed/run=0.53  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_30  easy     WIN= 37/40 ( 93%)  LOSS=  0  CMD_DOWN=  3  TIMEOUT=  0  turns/win= 11.2  downed/run=4.92  lost/run=0.68  loss:kill= 82% turn= 71%
+mission_house_amaranth_30  moderate WIN= 33/40 ( 83%)  LOSS=  0  CMD_DOWN=  6  TIMEOUT=  1  turns/win= 13.0  downed/run=5.83  lost/run=0.68  loss:kill= 80% turn= 77%
+mission_house_amaranth_30  hard     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win=  9.9  downed/run=2.33  lost/run=0.00  loss:kill= 79% turn= 56%
+mission_house_amaranth_31  easy     WIN=  5/40 ( 13%)  LOSS= 35  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.0  downed/run=0.00  lost/run=0.00  loss:kill= 64% turn= 32%
+mission_house_amaranth_31  moderate WIN=  0/40 (  0%)  LOSS= 40  CMD_DOWN=  0  TIMEOUT=  0  turns/win=    -  downed/run=0.00  lost/run=0.00  loss:kill= 64% turn= 50%
+mission_house_amaranth_31  hard     WIN= 16/40 ( 40%)  LOSS= 24  CMD_DOWN=  0  TIMEOUT=  0  turns/win=  6.1  downed/run=0.00  lost/run=0.00  loss:kill= 95% turn= 71%
+mission_house_amaranth_32  easy     WIN= 25/40 ( 63%)  LOSS=  0  CMD_DOWN= 15  TIMEOUT=  0  turns/win= 10.2  downed/run=2.60  lost/run=0.00  loss:kill= 34% turn= 23%
+mission_house_amaranth_32  moderate WIN= 28/40 ( 70%)  LOSS=  0  CMD_DOWN= 12  TIMEOUT=  0  turns/win= 11.1  downed/run=4.30  lost/run=0.40  loss:kill= 51% turn= 25%
+mission_house_amaranth_32  hard     WIN=  0/40 (  0%)  LOSS=  0  CMD_DOWN= 40  TIMEOUT=  0  turns/win=    -  downed/run=1.00  lost/run=0.00  loss:kill= 22% turn= 19%
+mission_house_amaranth_33  easy     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 16.0  downed/run=3.13  lost/run=0.03  loss:kill= 75% turn= 30%
+mission_house_amaranth_33  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 16.0  downed/run=1.45  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_33  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 16.0  downed/run=0.35  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_34  easy     WIN= 35/40 ( 88%)  LOSS=  0  CMD_DOWN=  5  TIMEOUT=  0  turns/win= 16.0  downed/run=6.28  lost/run=1.32  loss:kill= 56% turn= 73%
+mission_house_amaranth_34  moderate WIN= 37/40 ( 93%)  LOSS=  0  CMD_DOWN=  3  TIMEOUT=  0  turns/win= 16.0  downed/run=4.47  lost/run=0.45  loss:kill= 53% turn= 71%
+mission_house_amaranth_34  hard     WIN= 38/40 ( 95%)  LOSS=  0  CMD_DOWN=  2  TIMEOUT=  0  turns/win= 16.0  downed/run=5.40  lost/run=0.50  loss:kill= 55% turn= 63%
+mission_house_amaranth_35  easy     WIN= 34/40 ( 85%)  LOSS=  0  CMD_DOWN=  6  TIMEOUT=  0  turns/win= 16.0  downed/run=5.38  lost/run=0.60  loss:kill= 63% turn= 45%
+mission_house_amaranth_35  moderate WIN= 37/40 ( 93%)  LOSS=  0  CMD_DOWN=  3  TIMEOUT=  0  turns/win= 16.0  downed/run=5.58  lost/run=0.72  loss:kill= 76% turn= 62%
+mission_house_amaranth_35  hard     WIN= 11/40 ( 28%)  LOSS=  0  CMD_DOWN= 29  TIMEOUT=  0  turns/win= 16.0  downed/run=1.20  lost/run=0.00  loss:kill= 67% turn= 45%
+mission_house_amaranth_36  easy     WIN= 39/40 ( 98%)  LOSS=  0  CMD_DOWN=  1  TIMEOUT=  0  turns/win= 18.0  downed/run=2.95  lost/run=0.00  loss:kill= 81% turn= 56%
+mission_house_amaranth_36  moderate WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 18.0  downed/run=3.27  lost/run=0.00  loss:kill=   - turn=   -
+mission_house_amaranth_36  hard     WIN= 40/40 (100%)  LOSS=  0  CMD_DOWN=  0  TIMEOUT=  0  turns/win= 18.0  downed/run=1.05  lost/run=0.00  loss:kill=   - turn=   -

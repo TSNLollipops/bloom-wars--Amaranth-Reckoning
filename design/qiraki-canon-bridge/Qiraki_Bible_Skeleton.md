@@ -1,12 +1,20 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-09-08. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
-# THE QIRAKI FILES — Bible Skeleton
+# THE QIRAKI FILES — Bible Skeleton (v8)
 
 *Part of the Qiraki files. Structured skeleton built from Qiraki_Concept.md.**** ******Precedence, resolved 2026-08-06:****** ****this Bible is authoritative for anything already organized into it below. Qiraki_Concept.md remains authoritative for raw material this Bible hasn’t absorbed yet. If the two ever appear to conflict on something already covered here, that’s a sign Concept.md is stale on that point, not a genuine disagreement, check dates and fix the stale side rather than picking one silently. See Qiraki_Process_Notes.md before drafting anything, it has a spoiler lock that matters.*
 
 **Standing check, added 2026-08-21, mirrors Qiraki_Defect_Queue.md.** BIBLE gets opened at the same sessions IDX does, book-worth-of-new-material sessions especially, so it carries the same one-line check redundantly rather than relying on QUEUE alone: confirm Qiraki_Master_Index.md is present and current before closing the session. Two files checking is cheap insurance against the exact failure that took out BIBLE, Qiraki_Concept.md, Qiraki_Physical_Description_Bank.md, and IDX itself, all in the same week.
 
 ## Revision changelog
+
+**2026-09-07, later same day — Block times corrected: real gaps, not back to back.** The author’s actual Year 1 schedule is Block 1 06:00–08:00, Block 2 08:20–10:20, Block 3 12:00–14:00, free from 14:00 on. The version of this section written earlier the same day assumed no gaps at all, three blocks running straight 06:00 to 12:00. That wrong model had already reached a B1.CH24 draft, which had Denic’s classmate proposing to mark an exact minute at “twenty past three” against “class runs till four,” a beat built entirely on the wrong picture of the day. Both fixed together: this section now carries the real gap structure, and the chapter moved the same beat to a time that actually falls inside Block 3 rather than trying to preserve a birth-hour that no longer meant anything once the schedule was right. Third same-day correction to this one section. See Qiraki_Defect_Queue.md.
+
+**2026-09-07 — §2a completed: block length, full weekly pattern, and weekly class-hour totals, all author-confirmed.** Rune-patterning and engineering run three 2-hour blocks Monday through Thursday, alternating which one gets two slots a day (rune Mon/Wed, eng Tue/Thu), 12 hours a week each. Combat holds at 8 hours a week, Friday and Saturday mornings only, already locked elsewhere and now cross-referenced here. **Corrects a standing misreading:** Thursday’s notice-driven schedule shift was previously read as the first block moving to 06:30. It’s the third block, rune, that moves; eng sits first on Thursday and is the block the notice names as not moving. Also corrects B1.CH22’s Tuesday line, “the rune block” to “the eng block,” since Tuesday’s first block is eng. Prompted by a B1.CH24 draft inventing a rune rate from nothing and getting a chapter’s central number wrong as a result, caught and reworked twice before this section existed to check against. See Qiraki_Defect_Queue.md for the drafting-side failure, this entry is the fix on the reference side.
+
+**2026-09-06 — Stage 7 write-back, B1.CH23 delivered, and one new consolidating section.** New §2a, **The academy day**, holding the ring, the sittings and the block times that until now lived only in delivered prose. Added because a B1.CH23 draft put a breakfast scene at half six when the first block runs at six, and the author caught it. The schedule was never wrong, it was only ever unwritten. See BUILD v8, which adds the load row and the brief line that make somebody read this before drafting. No canon changed.
+
+**2026-09-03 — Stage 7 write-back, B1.CH18 delivered.** Three entries added to §11a, all opened by the same chapter: the extra evening rounds, the manual canopy release, and the west-end medical door. The first of these is the largest open thread in Book 1 and the one most exposed to a later pass deciding it wants closing. It does not close. No other section touched, no canon changed.
 
 *Most recent entry first. One paragraph per revision, cross-referenced by section name.*
 
@@ -57,6 +65,30 @@ Humanity spread across most of the galaxy, allied with a handful of other spacef
 **Population scale, LOCKED, explicit calibration:** this is a planetary-scale, pan-galactic civilization, not a small, intimate population. Academies exist at planetary scale, number varies by planet, sometimes a planet’s academy sits on a different nearby world entirely. Explicit anti-comparison on file: this is not Hogwarts and its tiny sorcerer population, resist defaulting to small numbers just because the named cast is small. A tight cast inside an enormous, faceless population is the intended contrast.
 
 **Naming philosophy, LOCKED:** most in-universe slang traces to a culture raised on kinetic-pad and tablet games, simple, punchy, often two common words smashed together. Exceptions: species’ own self-descriptions (Longsight, Sprout) and Sovereign/Heirloom-grade naming, which deliberately breaks the convention since inherited privilege should sound different from earned gear.
+
+## 2a. The academy day, LOCKED, consolidated rather than decided
+
+*Added 2026-09-06, Stage 7 write-back for B1.CH23. Expanded 2026-09-07, author’s own ruling, with the full weekly block pattern, block length, and weekly class-hour totals.** ****Corrected again same day:**** **the first pass assumed three blocks running back to back, 06:00–12:00 with no gap. The author’s actual schedule has two gaps, a short one and a long one, and block 3 sits two hours later than the back-to-back model had it. That wrong version reached this document and a B1.CH24 draft before the gap was caught, both fixed in the same pass, see below and Qiraki_Defect_Queue.md.*
+
+| Marker | Time | Where it is actually established |
+| --- | --- | --- |
+| The ring | 05:00 | B1.CH02, CH05, CH07, CH09, CH13. Stated flatly and repeatedly, and it never moves. |
+| Morning sitting | Between the ring and the first block | B1.CH22. Breakfast sits inside that hour and nowhere else. |
+| Block 1 | 06:00 – 08:00 | Author’s ruling, 2026-09-07. |
+| Block 2 | 08:20 – 10:20 | Author’s ruling, 2026-09-07. Twenty minutes after Block 1 ends, not back to back. |
+| Block 3 | 12:00 – 14:00 | Author’s ruling, 2026-09-07. An hour forty after Block 2 ends, the long gap of the day. **Superseded value:** an earlier pass of this section had Block 3 at 10:00–12:00, back to back with Block 2. Wrong, corrected same session. |
+| Everything after 14:00 | Free, for study or personal projects | Author’s ruling, 2026-09-07. This is not evening free time on top of a full day of class, it is most of the afternoon. |
+| Weekly block pattern, Monday-Thursday | Mon: rune, rune, eng. Tue: eng, eng, rune. Wed: rune, rune, eng. Thu: eng, eng, rune. | Author’s ruling, 2026-09-07. Unaffected by the block-time correction, still six rune blocks and six eng blocks a week, twelve hours each. |
+| Thursday’s shift | Block 3, rune, starts 12:30 instead of the normal 12:00. Both eng blocks keep their normal times. | B1.CH20, Doyle reading the notice: “Rune block moves half an hour later on Thursdays from this week. Engineering doesn’t move.” **Corrected same session as the block-time fix above:** the shift is off Block 3’s real time, 12:00, not the 10:00 an earlier pass assumed. |
+| Combat class days | Friday and Saturday mornings, four hours each, Year 1-2. Thursday to Saturday from Year 3. Afternoons free on combat days, Sunday fully free. | Qiraki_Combat_Curriculum_Reference, B1.CH04, CH18, CH23. Weekly total confirmed directly by the author, 2026-09-07. |
+| Last meal | Around half five, early sitting and a later one | B1.CH19. **Read as evening on the strength of**** ****“****last meal.****”** If a later chapter needs it otherwise, this is the line to check first, because it is the one figure here that rests on an inference rather than a statement. |
+| Lights-out | Evening, exact hour open | B1.CH22, the wall panel reads an hour and forty to lights-out. |
+
+**Weekly class-hour totals, use these rather than inventing a rate.** Rune-patterning: 12 hours a week. Engineering: 12 hours a week. Combat: 8 hours a week, Friday and Saturday only, nothing on the other five days.
+
+**The constraint this produces, corrected along with the block times above.** No Year 1 cadet is asleep or waking after six on a weekday. Class runs in three two-hour blocks, 06:00–08:00, 08:20–10:20, and 12:00–14:00 (12:30–14:30 for Block 3 on Thursdays), which means a genuinely free window sits between 10:20 and 12:00 every weekday, an hour and forty long, and the whole afternoon from 14:00 is free on top of it. **This is a materially freer day than the previous version of this table implied**, which had class running solid to noon or later with nothing open before evening. A scene needing a cadet free for an hour or so on any weekday now has a real place to put it. No Year 1 cadet has a free Friday or Saturday morning, both are combat days, though both afternoons are open, and Sunday is free entirely.
+
+**Open, and do not invent this.** Whether the 10:20–12:00 gap holds a meal. It is long enough to hold one and every other stretch of the day this long has food in it somewhere, but nothing has said so on the page and this document isn’t the place to decide it.
 
 ## 3. Timeline (loose, book-scale)
 
@@ -230,13 +262,17 @@ Full detail in Qiraki_Technobabble_Glossary.md, key terms only here:
 
 | Thread | Opened in | Status | Notes |
 | --- | --- | --- | --- |
-| The socket from Yssa | B1.CH01 | Resolved, awaiting Book 7 outline | Locked as the Year 7 AI-maintenance workshop part. No mention Books 2-6 by design. |
+| The socket from Yssa | B1.CH01 | Open within Book 1, resolved destination still awaiting Book 7 outline | **Updated 2026-09-01, checked against delivered prose rather than assumed.** Recurs three times within Book 1 itself, all quiet, none of them dialogue about what it is: Ch.10, cleaned and put back in the drawer during room inspection, a smear worn bright where his hand goes now the same as his mother’s did; Ch.11, sitting in the drawer, referenced only as one of three things that don’t need doing tonight; Ch.12, Yssa asks whether he’s still kept it and he says he has, and a folded transit slip goes into the same pocket the socket used to ride in, the comparison made and not examined. **The status column above was wrong before this pass and is corrected now:** “Resolved, awaiting Book 7 outline” described the endgame plan, not the Book 1 thread, which is still visibly open and being carried, not resolved, for the whole book so far. No mention Books 2-6 by design, that part of the original note still holds. |
 | Krethis’s resentment | B2.CH03 | Open | Recurs through Bk6 with neither in-book resolution nor downstream echo. Needs a decision, see Defect Queue DEC-04. |
 | Cross-year mentorship (B2.CH08) | B2.CH08 | Open | In-book resolution stated, no downstream echo planted anywhere. |
 | The wash-out (B2.CH21-22) | B2.CH21 | Open | A cadet leaves. No echo in Books 3-6. |
 | Symbiosis pain, Book 6 silence | B3.CH08 | Open | Present through Bk5, silent in Bk6. Needs a decision, see Defect Queue DEC-05. |
-| Instructor Vantree | B1.CH04 | Open | Locked as combat instructor years 1-6, appears once. |
 | Toma Ruiz | B4.CH25 | Deliberately dropped after B5.CH31 | Resolved by design, see Qiraki_Outline_Update_Log.md §9. Moved to another unit, off-page. |
+| Yssa’s crossed-out ledger line | B1.CH12 | Open | Trav catches her closing a ledger with a job crossed clean through, right before she walks him back to the transit stand. She says she pushed the job back a few days, “because the timing didn’t line up,” not because he was there, though he doesn’t believe that and neither does the prose. Same shape as the socket, deliberately unresolved. |
+| The extra evening rounds | B1.CH18 | Open, and open on purpose for the rest of the academy era | Opened the evening of the accident and running by the end of the chapter, two nights in. **Nobody on the page knows why, including him, and no character ever asks**, per B1.OUT’s three absolute constraints. The cohort reads it as ambition from Ch.20 on, which is the ordinary reading and the wrong one. Nothing scores after class hours, per WEAP’s own no-participation-bonus rule, and a Row Four cadet says so at breakfast in the same chapter that the habit starts. **Carries to B2.CH01**, which per B1.OUT §2.2 opens on him at the arena in January, out of season, in a slot nobody scheduled. Not to be resolved, explained, or noticed by anyone in Books 1 through 6. |
+| The manual canopy release | B1.CH18 | Open, one week | Trav gets both hands on a lever he cannot move and Vantree turns it a quarter first and it comes. B1.CH19’s study session is lever mechanics and manual canopy release, the following week, and neither of them connects the two out loud. Logged because the coincidence is load-bearing and a later pass could mistake it for one and remove it. |
+| The medical door, west end | B1.CH18 | Open | A door he has walked past every Friday since January and looked at once. No further use assigned. |
+| Petra and Ilyen tracking something on the band | B1.CH09 | Open | Recurs B1.CH10, CH11, CH12, always the same gesture, Ilyen’s band tipped flat, a thumb working the underside of it between traces, Petra watching without asking. Never named on the page, never explained to anyone who notices. Real candidate for a later payoff, not currently assigned to one. |
 
 ## 11. Open / undecided
 
@@ -253,4 +289,3 @@ Full detail in Qiraki_Technobabble_Glossary.md, key terms only here:
 - A new name for the Coalition during the 500-year expansion era, author explicitly requested help with this, not yet done.
 
 - Whether rune-patterning and engineering ever get a joint Year 7 capstone project, flagged as a strong option, not decided.
-</content>

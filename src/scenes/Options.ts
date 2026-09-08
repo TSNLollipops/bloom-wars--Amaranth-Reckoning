@@ -21,7 +21,7 @@
 // a bigger monitor (Maxime's own "the UI gotten too big" report). See
 // src/engine/displayScale.ts and claude/Bloom_Wars_Screen_Resolution_Plan_v1.md.
 import Phaser from "phaser";
-import { hasSeenTutorial, resetTutorialSeen } from "../engine/campaignState";
+import { hasSeenTutorial, resetTutorialSeen, areTutorialHintsEnabled, setTutorialHintsEnabled } from "../engine/campaignState";
 import { clearStats, exportStatsJson, listMissionSummaries } from "../engine/statsStore";
 import { currentGameVersion } from "../engine/telemetry";
 import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getStoredDisplayScaleId, setStoredDisplayScaleId } from "../engine/displayScale";
@@ -39,6 +39,9 @@ export class Options extends Phaser.Scene {
   // its own label instead, the same idiom ShopPanel.ts already uses for
   // states like "AT MAX" rather than a separate highlight color.
   private displayScaleLayer: Phaser.GameObjects.Container | null = null;
+  // Tutorial hints ON/OFF toggle, 8 Sep 2026 — same rebuild-on-click shape
+  // as displayScaleLayer above, same bracket-the-active-option idiom.
+  private tutorialToggleLayer: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super("Options");
@@ -52,6 +55,7 @@ export class Options extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#0a0d10");
     this.exportPanel = null;
     this.displayScaleLayer = null;
+    this.tutorialToggleLayer = null;
     this.add.text(480, 50, "OPTIONS", { fontFamily: "monospace", fontSize: "26px", color: "#e8e2d4" }).setOrigin(0.5);
 
     this.add
@@ -61,9 +65,10 @@ export class Options extends Phaser.Scene {
       .text(480, 174, "", { fontFamily: "monospace", fontSize: "11px", color: "#6b7a8a" })
       .setOrigin(0.5);
     this.refreshStatus();
+    this.refreshTutorialToggleRow();
 
     const layer = this.add.container(0, 0);
-    makeShopButton(this, layer, 480, 216, 320, 36, "RESET TUTORIAL HINTS", true, () => {
+    makeShopButton(this, layer, 480, 252, 320, 36, "RESET TUTORIAL HINTS", true, () => {
       resetTutorialSeen();
       this.refreshStatus();
     });
@@ -147,7 +152,37 @@ export class Options extends Phaser.Scene {
     });
   }
 
+  /**
+   * ON/OFF row for whether Mission 1 shows tutorial hints at all, 8 Sep
+   * 2026 — Maxime's own call, a simple Options toggle rather than a bigger
+   * separate tutorial-mission system. Same rebuild-on-click shape as
+   * refreshDisplayScaleRow above, same bracket-the-active-option idiom.
+   * Independent of RESET TUTORIAL HINTS below it: that button clears the
+   * "already seen" flag so the sequence plays again; this switch controls
+   * whether it's ever allowed to play at all, seen or not.
+   */
+  private refreshTutorialToggleRow() {
+    this.tutorialToggleLayer?.destroy(true);
+    const row = this.add.container(0, 0);
+    this.tutorialToggleLayer = row;
+    const enabled = areTutorialHintsEnabled();
+    makeShopButton(this, row, 440, 206, 80, 26, enabled ? "[ON]" : "ON", true, () => {
+      setTutorialHintsEnabled(true);
+      this.refreshTutorialToggleRow();
+      this.refreshStatus();
+    });
+    makeShopButton(this, row, 524, 206, 80, 26, enabled ? "OFF" : "[OFF]", true, () => {
+      setTutorialHintsEnabled(false);
+      this.refreshTutorialToggleRow();
+      this.refreshStatus();
+    });
+  }
+
   private refreshStatus() {
+    if (!areTutorialHintsEnabled()) {
+      this.statusText.setText("turned off — Mission 1 won't show hints, even on a browser that's never seen them");
+      return;
+    }
     this.statusText.setText(
       hasSeenTutorial() ? "already shown on this browser — reset to see them again on your next Mission 1" : "not shown yet — nothing to reset"
     );

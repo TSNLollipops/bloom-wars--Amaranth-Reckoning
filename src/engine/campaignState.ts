@@ -368,6 +368,18 @@ export interface CampaignState {
   // date, and every fresh createCampaignState() call, has none yet;
   // ensureNpcSocialState() is the only thing that ever creates it.
   npcSocial?: NpcSocialState;
+  // Social state for Hub NPCs who are NOT on the roster — the ship's CO and
+  // every Mek. Those have no CampaignPilotEntry to hang a `social` off, so
+  // until 7 Sep 2026 ensureHubSocialState handed them a fresh throwaway
+  // object every load: Hub.ts's persistNpcSocial dutifully mutated it and
+  // called saveCampaignState, the save succeeded, and the change went
+  // nowhere. Every drink with the CO and every point of favorability with a
+  // Mek was lost on reload, silently, with no error anywhere.
+  //
+  // Same optional/lazy shape as npcSocial directly above: absent on every
+  // save written before today, created on first write, so nothing needs
+  // migrating. Keyed by the same pilotId the Hub's own NPC records use.
+  npcSocialStates?: Record<string, HubPilotSocialState>;
   // Rec Room Standings & NPC Learning, slice 2 (3 Sep 2026) — every
   // pilot's win/loss record at the three Rec Room minigames, plus the
   // player's own under PLAYER_RECORD_ID. Optional and lazily created by
@@ -931,6 +943,31 @@ export function resetTutorialSeen(storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
   s.removeItem(TUTORIAL_SEEN_KEY);
+}
+
+// Tutorial hints ON/OFF switch — Options screen, 8 Sep 2026 (Maxime's own
+// call, put to him directly in a popup: a simple hint toggle rather than a
+// bigger XCOM-style separate tutorial mission). Deliberately its own key,
+// same shape as TUTORIAL_SEEN_KEY above and for the same reason: this is a
+// standing browser preference ("don't ever show me these"), not campaign
+// state, so it must survive a New Game the same way the seen-flag does.
+// Absent key reads as enabled (true) — an existing player who's never
+// touched this control keeps today's behavior exactly as shipped; only an
+// explicit OFF click changes anything.
+const TUTORIAL_HINTS_ENABLED_KEY = "bloomwars_tutorial_hints_enabled_v1";
+
+/** True unless the player has explicitly turned tutorial hints off in Options. Also true (never false-by-accident) on no storage — same contract as hasSeenTutorial. */
+export function areTutorialHintsEnabled(storage?: CampaignStorage): boolean {
+  const s = resolveStorage(storage);
+  if (!s) return true;
+  return s.getItem(TUTORIAL_HINTS_ENABLED_KEY) !== "0";
+}
+
+/** Sets the tutorial-hints preference. A no-op when no storage is available, same contract as its siblings above. */
+export function setTutorialHintsEnabled(enabled: boolean, storage?: CampaignStorage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  s.setItem(TUTORIAL_HINTS_ENABLED_KEY, enabled ? "1" : "0");
 }
 
 // ---- 1 & 3. Live Munti-gated restock/permadeath check ------------------
@@ -2466,13 +2503,13 @@ export interface HubPilotSocialState {
  * persistNpcSocial() re-copies those back in after every mutation, right
  * before calling saveCampaignState.
  *
- * Fails open for a pilotId with no CampaignPilotEntry at all (shouldn't
- * happen for the three currently-seeded Hub NPCs — all real WARDEN_PILOTS
- * ids — but Hub.ts's own WARDEN_PILOTS.find() fallback already treats a
- * missing pilot as "fail open to something harmless" rather than throwing,
- * so this matches): hands back a fresh, unattached HubPilotSocialState
- * instead of throwing. It just won't be there to reload next time, since
- * there's no CampaignPilotEntry to hang it off of.
+ * A pilotId with no CampaignPilotEntry — the ship's CO, and every Mek — is
+ * kept in CampaignState.npcSocialStates instead (7 Sep 2026). It used to get
+ * a fresh unattached object every call, which meant persistNpcSocial wrote
+ * the CO's and the Meks' favorability into something nobody held and the
+ * save that followed dropped it on the floor. Same behaviour for callers
+ * either way: ask, get the object, mutate it, save. The difference is that
+ * it is still there next load.
  */
 export function ensureHubSocialState(
   state: CampaignState,
@@ -2481,7 +2518,16 @@ export function ensureHubSocialState(
 ): HubPilotSocialState {
   const entry = state.pilots[pilotId];
   if (!entry) {
-    return { favorability: seed.favorability, stress: seed.stress, morale: seed.morale, inRelationship: false, socialLog: [] };
+    // Not on the roster (the CO, any Mek) — keep it in the side table so it
+    // survives a reload, instead of handing back an orphan nobody holds.
+    const table = (state.npcSocialStates ??= {});
+    return (table[pilotId] ??= {
+      favorability: seed.favorability,
+      stress: seed.stress,
+      morale: seed.morale,
+      inRelationship: false,
+      socialLog: [],
+    });
   }
   if (!entry.social) {
     entry.social = { favorability: seed.favorability, stress: seed.stress, morale: seed.morale, inRelationship: false, socialLog: [] };

@@ -32,6 +32,7 @@
 
 import type { FacilityProfile } from "./facility";
 import {
+  GH_ARCHIVE_TABLE_POINT,
   GH_BAY_MARKERS,
   GH_BENCH_POINT,
   GH_CO_POINT,
@@ -192,9 +193,11 @@ export const HOUSE_AMARANTH_FACILITY: FacilityProfile = {
     recroomSeats: GH_SEATS,
     workshopBench: GH_BENCH_POINT,
     vaultPlinth: GH_PLINTH_POINT,
+    archiveTable: GH_ARCHIVE_TABLE_POINT,
     co: GH_CO_POINT,
     playerSpawn: GH_PLAYER_SPAWN,
   },
+  archiveRoom: "records",
   spawnRoom: "recroom",
 
   // Brigadier Verinis Amaranth — locked 4 Sep 2026 (Facility Plan §5):
@@ -206,18 +209,27 @@ export const HOUSE_AMARANTH_FACILITY: FacilityProfile = {
   // caps him, Verinis isn't capped.
   // Colour: amaranth-rose, the House's own — not Arangement's brass, not a
   // PATH_COLORS pick (he's no more a deployable pilot than Arangement is).
-  // Catalyst: shark — PLACEHOLDER, mine, flagged. catalystProfile.ts reads
-  // shark as ambition/drive/relentless, and CATALYST_CLASH_PAIRS puts it
-  // against wolf (Meir) and rabbit (Orin): a CO whose read grates on two of
-  // the five is what "asshole, plain and simple" sounds like in the one
-  // dial the ambient system has. Stage "command", same as Arangement — he
-  // isn't on the tier-promotion track either. The social seed copies
-  // Arangement's placeholder triple.
+  // Catalyst: CAT — resolved 7 Sep 2026 (Maxime), replacing the shark
+  // placeholder that stood here since 4 Sep. Two independent lines landed on
+  // it. The catalyst gauntlet derives it from his own background (Aerius /
+  // Terrace Farmstead / Conservatory -> Frontier x Forged -> Spider -> Cat),
+  // and his 63 shipped voice lines contain no ambition anywhere: he is not
+  // climbing, he is holding ground that is already his. Shark was the
+  // opposite reading and it was mine, not the material's.
+  //
+  // This changes who he grates on. Shark clashed with wolf (Meir) and rabbit
+  // (Orin); CATALYST_CLASH_PAIRS puts cat against wolf (Meir) and dog. Meir
+  // survives the change, which is the friction the character was built for.
+  //
+  // See Bloom_Wars_Catalyst_Gauntlet_v2_ThirdLance_Verinis_Recruits.md 4.3
+  // for the derivation and Bloom_Wars_Verinis_Voice_Bank_v1.md 12 for what
+  // the lines settle. Stage "command", same as Arangement — he isn't on the
+  // tier-promotion track either. The social seed copies Arangement's triple.
   co: {
     displayName: "Brig. Verinis Amaranth",
     color: 0xb04a6a,
     species: "human",
-    catalyst: "shark",
+    catalyst: "cat",
     stage: "command",
     room: "controlRoom",
     socialSeed: { favorability: 0, stress: 20, morale: 70 },

@@ -259,6 +259,13 @@ export const GH_ROSTER_CONSOLE_POINT = { x: 850, y: 600 };
 export const GH_CREW_RECORDS_POINT = { x: 1070, y: 600 };
 export const GH_BENCH_POINT = { x: 150, y: 600 };
 export const GH_PLINTH_POINT = { x: 310, y: 250 };
+// The Records room's archive console, 7 Sep 2026 — the House's counterpart
+// to the CIC's tactical table. NOT new furniture: this is the centre of the
+// readingTable(1250, 760) that has stood in Records since the floor-plan
+// pass, which that room's own spec comment has been calling "the future home
+// of a records terminal" ever since. The table was already there. It just had
+// nothing to open.
+export const GH_ARCHIVE_TABLE_POINT = { x: 1310, y: 790 };
 export const GH_CO_POINT = { x: 560, y: 760 };
 export const GH_PLAYER_SPAWN = { x: 480, y: 760 };
 export const GH_SEATS = [210, 330, 90].map((deg) => {
@@ -496,7 +503,9 @@ function buildDeepFloor(): DeckLayout {
     // The Control Room does the grotto's job (the CO's post) with the
     // opposite register: a command floor, not a garden. Two doors.
     { id: "controlRoom", box: { left: 60, top: SPINE_BOTTOM, right: 1060, bottom: 1060 }, doors: [{ side: "top", at: 310, w: 84 }, { side: "top", at: 810, w: 84 }], tint: 0x161b22 },
-    // Records — decor-only (Q5): the future home of a records terminal.
+    // Records — the House's archive. Decor-only until 7 Sep 2026, when the
+    // records terminal this comment promised became real: the reading table
+    // below is the Archive console (GH_ARCHIVE_TABLE_POINT).
     { id: "records", box: { left: 1060, top: SPINE_BOTTOM, right: 1560, bottom: 1060 }, doors: [{ side: "top", at: 1310, w: 84 }], tint: 0x1a1a18 },
   ];
   const a = assembleRooms(specs);
@@ -561,7 +570,7 @@ function buildDeepFloor(): DeckLayout {
   // Records — filing walls east and west, a desk console, the reading table.
   pieces.push(lockerRow(1067, 600, 8, true), lockerRow(1533, 600, 8, true));
   pieces.push(consolePiece(1067, 523, 60, 22)); // flush to the west wall and clear of the door gap (1268–1352), where the mockup's x=1230 sat half in it
-  pieces.push(readingTable(1250, 760));
+  pieces.push(readingTable(GH_ARCHIVE_TABLE_POINT.x - 60, GH_ARCHIVE_TABLE_POINT.y - 30));
   pieces.push(chair(1230, 790), chair(1390, 790));
 
   const p = collect(pieces);

@@ -469,11 +469,21 @@ export function retreatPath(map: MapDefinition, unit: BattleUnit, enemies: Battl
   const movementKind = chassisToMovementKind(unit.chassis ?? "bipedal", false);
   const reachable = reachableTiles(map, unit.pos, unit.moveRange, movementKind, occupiedSet(allUnits, unit.instanceId));
   const currentNearest = Math.min(...enemies.map((e) => chebyshevDistance(unit.pos, e.pos)));
+  // Mission rework pass (8 Sep 2026): a VIP (commander / last Munti) never
+  // retreats to a tile with no ally within 2 — the map corner is where a
+  // slow Tank commander (House Amaranth's Marrow) went to die alone in
+  // every First Harvest run traced. Distance from the enemy still ranks
+  // the tiles; being alone just stops being an option while a covered
+  // tile exists at all.
+  const allies = needsFrontLineProtection(unit) ? allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId) : [];
+  const covered = (pos: Coord) => !allies.length || allies.some((a) => chebyshevDistance(a.pos, pos) <= 2);
+  const anyCovered = allies.length ? [...reachable.keys()].some((k) => { const [x, y] = k.split(",").map(Number); return covered({ x, y }); }) : false;
   let bestTile: Coord | null = null;
   let bestScore = -Infinity;
   for (const key of reachable.keys()) {
     const [x, y] = key.split(",").map(Number);
     const pos = { x, y };
+    if (anyCovered && !covered(pos)) continue;
     const nearestDist = Math.min(...enemies.map((e) => chebyshevDistance(pos, e.pos)));
     const score = nearestDist * 10 - threatCount(pos, enemies) + terrainQuality(map, pos);
     if (score > bestScore) {
@@ -650,6 +660,16 @@ export function focusFireTargetInRange(map: MapDefinition, unit: BattleUnit, fro
   // squad-shared discipline weakestTarget's own header already requires of
   // `allies`.
   const vipThreatIds = enemiesThreateningVips(allUnits, targets);
+  // Mission rework pass (8 Sep 2026): a cork counts as a threat to the
+  // extraction target. A sessile hostile (Gallcyst) standing within four
+  // tiles of the unit the mission is about is the thing between her and
+  // the tree line, and by raw toughness it was always the LAST thing the
+  // squad would shoot — Foraging Party, traced: two full-HP Gallcyst in the
+  // gap at the turn limit with the whole escort standing next to them.
+  const extractee = allUnits.find((u) => !u.downed && u.side === unit.side && u.isExtractionTarget);
+  if (extractee) {
+    for (const t of targets) if (t.moveRange === 0 && chebyshevDistance(t.pos, extractee.pos) <= 4) vipThreatIds.add(t.instanceId);
+  }
   return damageable.length ? weakestTarget(damageable, livingSameSideMechs(unit, allUnits), true, vipThreatIds) : undefined;
 }
 

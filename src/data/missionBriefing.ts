@@ -127,6 +127,30 @@ export function highestWardenMissionIndexReached(lastMissionEcho: { missionId: s
 }
 
 /**
+ * The same question, asked of whichever campaign the save actually belongs
+ * to. Added 7 Sep 2026 because the Archive (scenes/Archive.ts) gates content
+ * on BOTH consoles and this file's own header warned what would happen if
+ * anyone forgot: "wardenMissionIndex / the codex gating stay Warden-scoped."
+ *
+ * A House Amaranth save's ids are `mission_house_amaranth_N`, which appear
+ * nowhere in WARDEN_MISSION_ORDER, so highestWardenMissionIndexReached
+ * returns its unrecognized-id -1 for every one of them. Read as progress
+ * that is a permanently locked archive: correct-looking, silent, and wrong
+ * on one of the two campaigns.
+ *
+ * Same under-unlock-on-unknown-id behaviour as the Warden version, for the
+ * same reason: an id from neither order returns -1 rather than guessing.
+ */
+export function highestMissionIndexReached(
+  facility: "warden" | "amaranth",
+  lastMissionEcho: { missionId: string } | undefined,
+): number {
+  if (!lastMissionEcho) return -1;
+  const order = facility === "amaranth" ? HOUSE_AMARANTH_MISSION_ORDER : WARDEN_MISSION_ORDER;
+  return order.findIndex((m) => m.id === lastMissionEcho.missionId);
+}
+
+/**
  * A plain-English mechanics line for a mission's objective — the briefing
  * panel's own second block, under the mission's already-written narrative
  * `briefing` text. Every branch reads only the objectiveParams fields that

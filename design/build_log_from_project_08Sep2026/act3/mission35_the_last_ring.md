@@ -1,0 +1,17 @@
+# Mission 35 — The Last Ring
+
+**Objective:** hold_zone (holdUntilTurn 16 / turnLimit 22). **Map:** single-doorway walled room, same shape as Mission 33. **Enemy:** the campaign's final boss, **The Cradle** (`bloom_cradle`), debuts turn 6.
+
+The Cradle — Independent Campaign doc §8's "true final boss, largest Endurance wall in the campaign." Same lineage as Heartwood (concussive/sessile/seismic/emergent), every stat pushed past it: END 400→560 (+40%), VIT 60→70 (nudged up but still low enough to stay Severance-vulnerable per the Collapse rule), attackPower 60→75, attackRange [1,4]→[1,5], vision 8→9.
+
+**A real interpretation call, documented rather than left implicit:** the doc tags this mission "[final boss breaches]," not "[eliminate_all boss]" the way Mission 21 tagged Heartwood — read literally as hold_zone, not eliminate_all. Killing the Cradle is a reasonable way to play (560 endurance is a lot to burn while also holding a doorway) but never required; the win check never reads hostile-alive count.
+
+**A real bug in the first draft, not a tuning number:** the Cradle's sealed pocket was placed beside the room's east wall (~9 tiles from where the squad naturally clusters to plug the doorway) — it spawned every run but never once logged an attack in 20 test runs, since hold_zone doesn't require covering every tile. Fixed by moving the pocket to a single sealed tile centered under the room's south wall, so its [1,5] attack range covers every hold tile from one position (worst case exactly 5, at the far corners) regardless of how the squad spreads out.
+
+**Result (original tuning, 25 Aug 2026, 12-pilot Act II/III squad):** 11/20 (55%) — the campaign's hardest fight by design, real permanent losses even on wins.
+
+**Superseded 28 Aug 2026 — the 55% figure above is stale and describes a squad that no longer exists.** The 26 Aug deploy-cap retuning pass (`engine_systems/squad_and_deploy_structure.md`) grew the Act III roster from 12 pilots to 15 as a side effect of an unrelated change, and that doc already notes "Mission 34 and 35 went from near-unwinnable to healthy" — but this file was never updated with the actual new number. The Weapon Branch balance check (`Bloom_Wars_Weapon_Branch_Mission_Balance_Check_v1.md`, 28 Aug 2026) caught the drift directly: re-running this mission through the real harness (N=100, branches off, current 15-pilot squad, deep-cloned mission object per trial) gives **72%** — not 88% as an earlier same-day headline number suggested before the full N=100 pass landed, and not the stale 55%. Equipping weapon branches (Impact Lance/Grinder Claw/Missiles/Rapid Response across the squad) made no reliable difference here (also 72%) — this mission doesn't show the same branch sensitivity Mission 21 does.
+
+**Current number for this mission is 72% (15-pilot squad, branches on or off) — not 55%.** No number was changed to produce this; it's a re-measurement of the mission exactly as shipped, against the harness, after a roster change that had already happened. Whether 72% is still "the campaign's hardest fight by design" at the intended difficulty is a design read Maxime may want to weigh in on, but nothing here requires a code or data change — this is a doc-drift fix, not a balance fix.
+
+Full narrative: archive, "Batch 7, 25 Aug 2026: Act III finale," "The Cradle archetype" and Mission 35's own sections. Roster-growth context: `engine_systems/squad_and_deploy_structure.md`. Re-measurement source: `Bloom_Wars_Weapon_Branch_Mission_Balance_Check_v1.md`.

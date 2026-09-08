@@ -10,10 +10,9 @@ import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission, type DeployRosterEntry } from "../engine/mission";
 import type { BattleUnit } from "../engine/units";
 import { coordKey, tileAt } from "../engine/grid";
-import { unitsVisibleToSide } from "../engine/ai";
 import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen } from "../engine/campaignState";
+import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen, areTutorialHintsEnabled } from "../engine/campaignState";
 import { fieldedHeirloom, heirloomForPilot, abilityRank } from "../engine/heirlooms";
 import { HEIRLOOMS } from "../data/heirlooms";
 // Calendar economy, 2 Sep 2026 — mission time feeds the same campaign clock
@@ -708,7 +707,10 @@ export class Battle extends Phaser.Scene {
     // otherwise a player who finished the sequence on an earlier Mission 1
     // attempt this session would carry tutorialHasSelected etc. into a
     // fresh one and see no hints at all, independent of hasSeenTutorial().
-    this.tutorialActive = this.mission.mission.id === "mission_amaranth_1" && !hasSeenTutorial();
+    // areTutorialHintsEnabled() added 8 Sep 2026 — the Options screen ON/OFF
+    // switch; a player who's turned hints off never sees this sequence at
+    // all, even on a browser that's never marked it seen.
+    this.tutorialActive = this.mission.mission.id === "mission_amaranth_1" && !hasSeenTutorial() && areTutorialHintsEnabled();
     this.tutorialHasSelected = false;
     this.tutorialHasMoved = false;
     this.tutorialHasAttacked = false;
@@ -2088,12 +2090,15 @@ export class Battle extends Phaser.Scene {
    * sight range — future polish, not required for the fog itself.
    */
   private visibleHostileIds(): Set<string> {
-    // The turn argument (ability-depth pass, 23 Aug 2026) is what lets an
-    // abil_sensor_sweep paint show through the fog: a hostile whose
-    // revealedUntilTurn hasn't expired counts as visible to the whole
-    // player side regardless of distance, and regardless of being burrowed.
-    // engine/ai.ts owns that expiry rule; this passes it the clock.
-    return unitsVisibleToSide("player", this.mission.units, this.mission.turn);
+    // Routed through the Mission since 7 Sep 2026 rather than asking
+    // engine/ai.ts directly: Mission.playerVisibleHostileIds is the same
+    // unitsVisibleToSide call this used to make (turn argument included —
+    // that's what lets an abil_sensor_sweep paint show through the fog),
+    // plus the Long-Range Sensor Array bay's reveal once it's built. The
+    // Mission is the one thing here that knows which bays the campaign
+    // built, so it's the one place the bay can be applied; asking ai.ts
+    // from here was exactly why a built Sensor Array changed nothing.
+    return this.mission.playerVisibleHostileIds();
   }
 
   private filterToVisibleHostiles(units: BattleUnit[]): BattleUnit[] {

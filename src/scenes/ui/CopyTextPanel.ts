@@ -77,9 +77,35 @@ export function showCopyTextPanel(scene: Phaser.Scene, blob: string, onClose: ()
 
   const closeLayer = scene.add.container(0, 0);
   const panel = scene.add.container(0, 0, [bg, title, area, closeLayer]);
-  makeShopButton(scene, closeLayer, 480, 556, 200, 30, "CLOSE", true, () => {
+
+  // 7 Sep 2026 — Maxime got stuck on this exact panel (Debrief's COPY
+  // MISSION LOG) with no way out: at any Display Size other than 100%
+  // (engine/displayScale.ts — 150% is the DEFAULT every new player gets),
+  // this textarea's real on-screen footprint grows enough to sit over the
+  // CLOSE button below it, and a real HTML <textarea> always paints in
+  // front of anything Phaser draws on the canvas, so the click never
+  // reached the button. Root cause not fully pinned down remotely (the
+  // DOM element scales roughly in step with the canvas, so it isn't a
+  // simple missing-multiplier bug — worth a proper look with Maxime
+  // actually driving at his own resolution rather than guessed further
+  // from here), but the FIX that matters doesn't depend on nailing that:
+  // give the panel a way to close that never depends on a canvas-drawn
+  // button being reachable at all. Escape now always works, whatever the
+  // Display Size setting and whatever's covering what on screen.
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  };
+  document.addEventListener("keydown", onKeyDown);
+
+  function close() {
+    document.removeEventListener("keydown", onKeyDown);
     panel.destroy(true);
     onClose();
-  });
+  }
+
+  makeShopButton(scene, closeLayer, 480, 556, 200, 30, "CLOSE (or press Esc)", true, close);
   return panel;
 }

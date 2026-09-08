@@ -1,0 +1,159 @@
+# THE QIRAKI FILES — Points Economy, the Arithmetic (v4)
+
+**ID:** PTS-MATH. **Tier:** 2, decision document. **Status:** RULED 2026-09-06. **Supersedes** Qiraki_Points_Economy_Math_v1 and the v2 rebuild of the same day.
+
+**Changelog v3 (2026-09-06).** The Saturday question is ruled and the path boards are repriced against the gate rather than carried over from v1. Both changes below. **A finding worth stating first, because it is the more useful one:** the Saturday question was never actually open. Qiraki_Combat_Curriculum_Reference has carried "combat class runs Friday/Saturday only in Years 1-2, expands to Thursday-Saturday from Year 3 on" as a locked line for some time, and v1 of this document listed it as unresolved anyway. Nobody checked CBT. Worse, CBT's own version is contradicted by every delivered Year 1 chapter, which is Friday-only throughout, in narration and in dialogue. The ruling below fixes the doc rather than the chapters.
+
+**On this rebuild, stated plainly rather than papered over.** A v2 of this file was written and is lost. This is a rebuild from v1 plus the author's ruling of 2026-09-06, not a recovery of it. The lost v2 was reported as correcting four defects; only one of those, the weapon-progression ladder, is recoverable from surviving material and is corrected in §5 below. If the other three surface again they will surface as new finds, and that is the honest state of it. Separately, Qiraki_Points_Economy_Audit_v1, named throughout v1 as this file's companion, is not in the project folder and has not been for at least three sessions.
+
+## 1. The ruling
+
+v1 ended by asking for gated or ungated. The answer is neither column on its own.
+
+- **The four path boards are gated behind year-3 specialisation.** Meeps, Reeps, Tank, Munti. No cadet buys a path weapon, power unit or role equipment before choosing a path. Years 1 and 2 fight on issued gear.
+
+- **The universal genetic and stimulant board is ungated.** Open from the first week of year one, to anybody, regardless of path or standing. Price alone rations it.
+
+- **Combat class runs one day a week in Year 1, two from Year 2, three from Year 3.** Friday only, then Friday and Saturday, then Thursday to Saturday. Corrects CBT, which had Saturday running from Year 1 and was contradicted by every delivered Year 1 chapter.
+
+- **Path prices are rederived against the Year 3 gate,** not carried from v1. v1's ungated column was priced against v1's own grade-by-year mapping, where E belonged to Year 2. Under the gate E belongs to Year 3, and v1's E price of 130,000 sat at a quarter of what a cadet has banked the day the gate opens, which gave the gate no bite at the one moment it is supposed to have all of it.
+
+**Confirmed in delivered prose, B1.CH22.** Five boards on the combat-corridor wall, four paths and one narrower open board in the middle. Seven items on the open board. Cheapest 130, third one down 74,000, bottom of the board 76,000,000. Those four figures are on the page and are canon.
+
+**What the gate does that pricing alone could not.** v1 §6 flagged the real cost of going ungated: the Year 1 cohort's uniform appearance on the field, which every delivered combat chapter has assumed, loses its explanation. The path gate restores it and does it better than a grade rule would. Nobody in years 1 and 2 can buy a weapon at any price, so the cohort looks identical on the field regardless of what any individual has banked, and the difference between a cadet with fourteen thousand and a cadet with four hundred is invisible until the year everybody chooses.
+
+**What the gate deliberately does not do.** It does not gate grade. Once a cadet has a path in year 3, every grade on that board is open and price is the only constraint. The snowball lock survives intact: two cadets who specialise the same week walk out with different kit, and the gap widens from there.
+
+## 2. The model
+
+Unchanged from v1 and re-verified against delivered prose this pass. Every parameter is either locked in Qiraki_Weapons_And_Progression or forced by a number already on the page.
+
+| Parameter | Value | Where it comes from |
+| --- | --- | --- |
+| Combat points per win | 20 x month index | LOCKED table |
+| Class activity per success | 10 x month index | LOCKED table |
+| Baseline per graded item | 1 x month index | LOCKED table |
+| Combat sessions per month, Y1 | 4 | Friday only, every delivered chapter |
+| Combat sessions per month, Y2 | 8 | Friday and Saturday, ruled 2026-09-06 |
+| Combat sessions per month, Y3-7 | 12 | Thursday to Saturday, CBT's own schedule |
+| Wins per Friday, Year 1 | 3, 5, 6, 8, 11, 15, 17, 18, 19, 20, 20, 20 | Fitted. Ch.18 puts Corw at 11 in May, Ch.21 puts Trav at 19 in June |
+| Wins per session, Y2 onward | 20 | Plateau, opponents scale with him |
+| Graded class successes per month | 8 | Fitted |
+| Graded baseline items per month | 20 | Fitted |
+
+**Monthly income formula:** month m with s sessions and w wins per session yields **m x (20sw + 100)**. Year 1 is s = 4, Year 2 is s = 8, Years 3 to 7 are s = 12. The 100 is class activity and graded baseline, which do not scale with combat days and are the reason Year 2 does not simply double.
+
+**Fit against the page, four independent figures from four chapters.**
+
+| Figure | Modelled | Delivered | Source |
+| --- | --- | --- | --- |
+| Trav, mid-June Y1 | 14,680 | 14,640 | B1.CH21 |
+| Corw, year to date, 21 June | 16,790 | 16,500 | B1.CH21, B1.CH22 |
+| Corw, early March | 2,100 | 2,140 | B1.CH11 |
+| Corw, one Friday in May | 1,100 | 1,100 | B1.CH18 |
+
+## 3. Year 1, month by month
+
+Reproduced in full because B1.CH22 now depends on it directly.
+
+| Month | Wins per Friday | Per win | Income |
+| --- | --- | --- | --- |
+| 1 | 3 | 20 | 340 |
+| 2 | 5 | 40 | 1,000 |
+| 3 | 6 | 60 | 1,740 |
+| 4 | 8 | 80 | 2,960 |
+| 5 | 11 | 100 | 4,900 |
+| 6 | 15 | 120 | 7,800 |
+| 7 | 17 | 140 | 10,220 |
+| 8 | 18 | 160 | 12,320 |
+| 9 | 19 | 180 | 14,580 |
+| 10 | 20 | 200 | 17,000 |
+| 11 | 20 | 220 | 18,700 |
+| 12 | 20 | 240 | 20,400 |
+
+First half 18,740. Second half 93,220. Total 111,960. **Ratio 4.97.**
+
+**That ratio is Corw's five and it is load-bearing in B1.CH22.** Worth flagging for anyone checking the chapter: the five is only derivable with the win-count climb included. The per-win rates alone, 20 into 120 into 240, give about 2.7. A reader who does the arithmetic off what Corw actually says out loud will not reach five.
+
+## 4. Academy and military income
+
+| Year | Days a week | Per win, year end | Year income | Cumulative | Income per month at year start |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 1 | 240 | 111,960 | 111,960 | 340 |
+| 2 | 2 | 480 | 732,600 | 844,560 | 42,900 |
+| 3 | 3 | 720 | 1,793,400 | 2,637,960 | 122,500 |
+| 4 | 3 | 960 | 2,499,000 | 5,136,960 | 181,300 |
+| 5 | 3 | 1,200 | 3,204,600 | 8,341,560 | 240,100 |
+| 6 | 3 | 1,440 | 3,910,200 | 12,251,760 | 298,900 |
+| 7 | 3 | 1,680 | 4,615,800 | 16,867,560 | 357,700 |
+
+**Year 1 is untouched by the Saturday ruling,** which is the whole reason for putting Saturday at Year 2 rather than Year 1. Every delivered figure, Ch.11's 2,140, Ch.21's 14,640, Corw's 16,500 and 406, and B1.CH22's entire middle-board scene, stands exactly as written.
+
+**Year 2 rises to 732,600, not 754,800.** Doubling the Year 2 total is the wrong arithmetic and I did it that way once before writing this table. Class activity and graded baseline don't scale with combat days, only the combat component does.
+
+The climb is steepest at Years 1 to 2 and 2 to 3, which is now a schedule fact rather than a curve: the number of combat days a week goes one, two, three, and the per-win value keeps climbing underneath it. The Year 3 step coincides with the specialisation gate opening, which is convenient rather than accidental. The year a cadet can finally buy a weapon is the year the income arrives to buy one with.
+
+**Military,** at eight missions a month and two kills a mission.
+
+| Service month | Income per month |
+| --- | --- |
+| 1 | 112,000 |
+| 6 | 1,312,000 |
+| 12 | 2,752,000 |
+| 24 | 5,632,000 |
+| 36 | 8,512,000 |
+| 36, unit-commander tier | 25,536,000 |
+
+First year of service alone, 17,184,000, more than the entire seven-year academy.
+
+## 5. The path boards, repriced against the gate
+
+**The rule.** A path grade is priced so that it takes a real bite out of what a cadet has when that grade realistically lands, measured against the gate rather than against a grade-year table. The first purchase after specialising should cost about half of everything the cadet has ever earned. G stays where it is, since G is issued gear priced for comparison.
+
+| Grade | Band | Lands | Against |
+| --- | --- | --- | --- |
+| G | 180 – 220 | Issued, Y1 | Not really bought |
+| F | 360,000 – 430,000 | Y3, at specialisation | 844,560 banked the day the gate opens |
+| E | 1,400,000 – 1,700,000 | Late Y3 | Y3 income 1,793,400 |
+| D | 3,700,000 – 4,400,000 | Y4-5 to afford, later to actually buy | Cumulative 8,341,560 by end Y5 |
+| C | 15,000,000 | Military era | First service year 17,184,000 |
+| B | 60,000,000 | Mid service | Month-24 income 5,632,000 |
+| A | 250,000,000 | Unit-commander standing | 25,536,000 a month at that tier |
+
+**The genetic board does not move and cannot.** 130, 74,000 and 76,000,000 are on the page in B1.CH22. That leaves the open board sitting more than twenty times below the path boards at E, which is a deliberate asymmetry rather than an inconsistency, and it has a reason the prose must never state: the institution prices what it wants cadets to want. A weapon is visible and creates rank. The thing that goes in you doesn't show, so it's cheap, and two thousand cadets walk past it for five months without one of them looking up.
+
+## 5a. Trav's locked ladder against the new prices
+
+v1 §5 placed the Heavylance in Year 1 Q2 and the Twinlance in Year 2. Both are impossible under the gate and both contradict the locked chapter addresses. This is the defect the lost v2 caught and it is corrected here against those addresses, which are the authority.
+
+| Purchase | Address | Cost | What he has, what it leaves |
+| --- | --- | --- | --- |
+| Stocklance | Issued, Y1 | 200 | Issued to every cadet, priced for comparison only |
+| Heavylance | B3.CH24 | 400,000 | Holding about 1,653,000 mid-Y3, leaves 1,253,000 |
+| Twinlance | B3.CH43 | 1,600,000 | Holding about 2,062,000 late-Y3, leaves 462,000 |
+| Pairblade | B6.CH13 | 4,000,000 | Clears it during Y5, buys in Y6 |
+| Arcblade | Military era | 15,000,000 | Academy endpoint is the Pairblade, per WEAP |
+
+**Two things this shape does that the old one didn't.**
+
+He ends Year 3 nearly cleaned out. Two purchases in the year the gate opens, and the second one takes seventy-eight percent of everything he's holding. That is a year with a real cost attached rather than a year with two acquisitions in it.
+
+The Pairblade delay is a character fact and not an economic one. He can afford it from partway through Year 5 and doesn't buy it until Year 6, because the swap is a philosophy shift he has to actually discover. The catalog always required that and the old pricing quietly undercut it by making the blades arrive exactly on schedule.
+
+**His underinvestment is now worth naming.** Skipping Steadyburn is skipping 4,000,000. That is a visible, expensive choice by Year 5, not thrift.
+
+## 6. Corrections this ruling forces elsewhere
+
+- **Qiraki_Points_Shop_Catalog, regenerated as v3.** Single price column, path boards at the bands in §5, genetic board frozen at the page figures. Quickstep moves 150 to 130, which is on the page in B1.CH22 and is therefore not optional.
+
+- **Qiraki_Combat_Curriculum_Reference, v5.** Its schedule line ran Saturday from Year 1 and is contradicted by every delivered Year 1 chapter. Corrected to one day, two days, three days across Years 1, 2 and 3 on.
+
+- **Qiraki_Weapons_And_Progression, v4.** Its genetic/stimulant line calls the upgrades "role-specific tracks" available "years 1-3." Wrong on both counts under this ruling and against delivered prose: the board is universal, not role-specific, and it is open from week one. Its weapon-progression line reading "lance (Y1)" also needs to distinguish the issued Stocklance from the Heavylance purchase, which lands at specialisation.
+
+- **A full kit is weapon plus power unit plus stimulant.** At E that is 3,274,000 against 2,637,960 cumulative by the end of Year 3, so a full E kit is just out of reach in the year a cadet specialises and lands early in Year 4. At D it is 8,340,000 against 8,341,560 cumulative by the end of Year 5, which means a cadet who saves everything is fully D-kitted almost to the point at the end of Year 5 and a cadet earning half as much has the weapon and nothing else. That gap is the snowball, and it is now visible in kit rather than asserted.
+
+## 7. Still open
+
+- **Baseline per graded item or per practice repetition.** v1 cited its companion audit's §6.1 for this. That audit is missing, so the question survives without its reasoning.
+
+- **Does the mek matter-cost spend draw on the same points pool.** WEAP's cost split establishes that meks buy raw matter per unit while pilots buy the schematic. Nothing states whether that comes out of the same balance a pilot spends from, which matters the first time a chapter shows Reqa budgeting.

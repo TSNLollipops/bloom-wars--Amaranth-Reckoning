@@ -10,6 +10,13 @@
 //   npm run sim:batch -- 100 --all-tiers             easy / moderate / hard side by side
 //   npm run sim:batch -- 100 --seed=1000             seeded: run i uses seed 1000+i, so any loss is replayable with `npm run sim -- <id> --seed=N`
 //   npm run sim:batch -- 100 --json=out.json         also dump every run's MissionSummary record (the shape Debrief writes for humans)
+//   npm run sim:batch -- 100 --progression           deploy the reference progression roster (src/sim/progressionRoster.ts) instead of the static G-tier registry
+//
+// Mission rework pass (8 Sep 2026) added two "how close was it" columns so a
+// 0% row can be read as "unfair" vs "the bot nearly had it": on LOSSES,
+// kill% = hostiles killed / hostiles ever spawned, and turn% = turn reached /
+// turnLimit (capped at 100). A mission that loses at 90% kills on turn 95%
+// is hard; one that loses at 15% kills on turn 30% is a wall.
 //
 // Per mission and tier it prints WIN/LOSS/COMMANDER_DOWN/TIMEOUT counts,
 // the win %, and the two numbers Maxime's "XCOM is the benchmark" framing
@@ -23,6 +30,7 @@ import { profileForTier, type PlayerAiTier } from "./playerAi";
 import { driveMission, type DriveResult } from "./driveMission";
 import type { MissionSummary } from "../engine/missionSummary";
 import { writeFileSync } from "node:fs";
+import { buildProgressionRoster, describeProgression } from "./progressionRoster";
 
 const args = process.argv.slice(2);
 const positional = args.filter((a) => !a.startsWith("--"));
@@ -38,6 +46,7 @@ const ids = onlyIds.length ? onlyIds : Object.keys(MISSIONS_BY_ID);
 const tiers: PlayerAiTier[] = flag("all-tiers") !== undefined ? ["easy", "moderate", "hard"] : [((flag("tier") || "moderate") as PlayerAiTier)];
 const seedBase = flag("seed") ? Number(flag("seed")) : undefined;
 const jsonPath = flag("json") || null;
+const progression = flag("progression") !== undefined;
 
 interface Tally {
   win: number;
@@ -47,10 +56,14 @@ interface Tally {
   turnsOnWin: number[];
   downed: number;
   lost: number;
+  lossKillPct: number[];
+  lossTurnPct: number[];
+  bonusDone: number;
 }
 
 function runOnce(missionId: string, tier: PlayerAiTier, seed: number | undefined): DriveResult {
-  return driveMission(MISSIONS_BY_ID[missionId], { profile: profileForTier(tier), seed, resetLog: true });
+  const def = MISSIONS_BY_ID[missionId];
+  return driveMission(def, { profile: profileForTier(tier), seed, resetLog: true, deployRoster: progression ? buildProgressionRoster(def) : undefined });
 }
 
 const records: MissionSummary[] = [];
@@ -69,11 +82,19 @@ for (const id of ids) {
     continue;
   }
   for (const tier of tiers) {
-    const t: Tally = { win: 0, loss: 0, commander_down: 0, ongoing_timeout: 0, turnsOnWin: [], downed: 0, lost: 0 };
+    const t: Tally = { win: 0, loss: 0, commander_down: 0, ongoing_timeout: 0, turnsOnWin: [], downed: 0, lost: 0, lossKillPct: [], lossTurnPct: [], bonusDone: 0 };
     for (let i = 0; i < N; i++) {
       const r = runOnce(id, tier, seedBase !== undefined ? seedBase + i : undefined);
       t[r.outcome === "ongoing" ? "ongoing_timeout" : r.outcome] += 1;
       if (r.outcome === "win") t.turnsOnWin.push(r.mission.turn);
+      else {
+        const spawned = r.mission.units.filter((u) => u.side === "hostile").length;
+        const killed = Object.values(r.summary.hostilesKilledByArchetype).reduce((a, b) => a + b, 0);
+        t.lossKillPct.push(spawned ? Math.min(1, killed / spawned) : 0);
+        t.lossTurnPct.push(Math.min(1, r.mission.turn / Math.max(1, r.summary.turnLimit ?? 1)));
+      }
+      const b = r.summary.bonusObjective;
+      if (b && b.outcome === "succeeded") t.bonusDone += 1;
       t.downed += r.summary.squad.filter((p) => p.downed).length;
       t.lost += r.summary.squad.filter((p) => p.permanentlyLost).length;
       if (jsonPath) records.push(r.summary);
@@ -84,8 +105,11 @@ for (const id of ids) {
     agg.downed += t.downed;
     agg.lost += t.lost;
     const meanTurns = t.turnsOnWin.length ? (t.turnsOnWin.reduce((a, b) => a + b, 0) / t.turnsOnWin.length).toFixed(1) : "-";
+    const mean = (xs: number[]) => (xs.length ? `${String(Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100)).padStart(3)}%` : "   -");
+    const bonus = MISSIONS_BY_ID[id].bonusObjective ? `  bonus=${pct(t.bonusDone, N)}` : "";
+    const squad = progression ? `  squad=[${describeProgression(MISSIONS_BY_ID[id])}]` : "";
     console.log(
-      `${id.padEnd(26)} ${tier.padEnd(8)} WIN=${String(t.win).padStart(3)}/${N} (${pct(t.win, N)})  LOSS=${String(t.loss).padStart(3)}  CMD_DOWN=${String(t.commander_down).padStart(3)}  TIMEOUT=${String(t.ongoing_timeout).padStart(3)}  turns/win=${meanTurns.padStart(5)}  downed/run=${(t.downed / N).toFixed(2)}  lost/run=${(t.lost / N).toFixed(2)}`
+      `${id.padEnd(26)} ${tier.padEnd(8)} WIN=${String(t.win).padStart(3)}/${N} (${pct(t.win, N)})  LOSS=${String(t.loss).padStart(3)}  CMD_DOWN=${String(t.commander_down).padStart(3)}  TIMEOUT=${String(t.ongoing_timeout).padStart(3)}  turns/win=${meanTurns.padStart(5)}  downed/run=${(t.downed / N).toFixed(2)}  lost/run=${(t.lost / N).toFixed(2)}  loss:kill=${mean(t.lossKillPct)} turn=${mean(t.lossTurnPct)}${bonus}${squad}`
     );
   }
 }

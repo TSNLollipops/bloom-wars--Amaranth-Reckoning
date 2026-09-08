@@ -15,6 +15,10 @@
 # the live file's own declaration order (Act I -> II -> III).
 GRIDS = {
     "map_amaranth_muster": {
+        # Mission rework pass (8 Sep 2026):
+        # rubble islands at (6-7,4),(11-12,4),(6-7,6),(11-12,6) so the field
+        # has cover on the way to the road and the pocket has corners to fight
+        # from.
         "name": 'Muster — Thistledown Watch',
         "const": "MUSTER_TILES",
         "w": 20, "h": 12,
@@ -23,9 +27,9 @@ GRIDS = {
             '^,,..##........,,,,^',
             ',,...##..........,,,',
             'P..=============..,,',
-            'PP.==.........==..E,',
+            'PP.==.%%...%%.==..E,',
             'P..==.%%..##..==..,,',
-            'PP.==.........==..E,',
+            'PP.==.%%...%%.==..E,',
             'P..==.%%..##..==..,,',
             ',,...##..........E,,',
             '^,,..##........,,,,^',
@@ -100,22 +104,29 @@ GRIDS = {
         ],
     },
     "map_amaranth_foraging_party": {
+        # Mission rework pass (8 Sep 2026):
+        # a sump column at x=17 (rows 1-4 and 7-11) with the seams moved to
+        # (18,3)/(18,9) and the exits shuffled to x=20-21: the extraction now
+        # runs through a two-tile gap the Bloom can cork (Gallcyst in the gap,
+        # its first appearance, earlier than the story's Mission 9) instead of
+        # an open field the target strolls across. Rubble at (9,3)/(9,9) for
+        # the escort.
         "name": 'Foraging Party',
         "const": "FORAGING_PARTY_TILES",
         "w": 22, "h": 13,
         "ascii": [
             '^^^,,,,,,,,,,,,,,,,^^^',
-            '^^^................^^^',
-            ',....................,',
-            ',.............E......,',
-            'P........%%..........X',
+            '^^^..............w.^^^',
+            ',................w...,',
+            ',........%.......wE..,',
+            'P........%%......w...X',
             'PP.......%%.........XX',
-            'P..........##...E....X',
-            'PP.........##.......XX',
-            'P........%%..........X',
-            ',..............E.....,',
-            ',....................,',
-            '^^^................^^^',
+            'P..........##.......X.',
+            'PP.........##....w..XX',
+            'P........%%......w...X',
+            ',........%.......wE..,',
+            ',................w...,',
+            '^^^..............w.^^^',
             '^^^,,,,,,,,,,,,,,,,^^^',
         ],
     },
@@ -199,43 +210,53 @@ GRIDS = {
         ],
     },
     "map_amaranth_the_amaranth_betrayal": {
+        # Mission rework pass (8 Sep 2026):
+        # the extraction is a walled compound (x=18-22, rows 2-10) with doors
+        # at (18,3) and (18,9) and the exit tiles inside it: the collaborators
+        # hold a building, not a field edge. Seams pulled back to
+        # (8,2)/(16,2)/(8,10).
         "name": 'The Amaranth Betrayal',
         "const": "THE_AMARANTH_BETRAYAL_TILES",
         "w": 24, "h": 13,
         "ascii": [
             '^^^^^^^^^^^^^^^^^^^^^^^^',
             ',,,,,,,,,,,,,,,,,,,,,,,,',
-            ',,......E.......E.....,,',
-            ',,....................,,',
-            ',,........##..........,,',
-            ',,.PP.....##........XX,,',
-            ',,.PP....=======....XX,,',
-            ',,.P......##........X.,,',
-            ',,........##..........,,',
-            ',,...........~~~~.....,,',
-            ',,......E....~~~~.E...,,',
+            ',,......E.......E.BBBBB,',
+            ',,.................XXXB,',
+            ',,........##......BXXXB,',
+            ',,.PP.....##......B...B,',
+            ',,.PP....=======..B...B,',
+            ',,.P......##......B...B,',
+            ',,........##......BXXXB,',
+            ',,...........~~~~..XXXB,',
+            ',,......E....~~~~.BBBBB,',
             ',,,,,,,,,,,,,,,,,,,,,,,,',
             '^^^^^^^^^^^^^^^^^^^^^^^^',
         ],
     },
     "map_amaranth_the_long_walk_back": {
+        # Mission rework pass (8 Sep 2026):
+        # the ridge column at x=6-7 is sump from row 0 to 12 except rows 5-7:
+        # one three-tile gap between Lask and the pads, which the Undertow
+        # cork. Ridge is passable at cost 2, so ridge alone never made a wall
+        # — traced: Lask walked around it.
         "name": 'The Long Walk Back',
         "const": "THE_LONG_WALK_BACK_TILES",
         "w": 34, "h": 13,
         "ascii": [
-            '^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
-            ',,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,',
-            ',,....^^....www......E..........,,',
-            ',,....^^....www....%%.......E...,,',
-            ',,....^^....www....%%.....%%....,,',
+            '^^^^^^ww^^^^^^^^^^^^^^^^^^^^^^^^^^',
+            ',,,,,,ww,,,,,,,,,,,,,,,,,,,,,,,,,,',
+            ',,....ww....www......E..........,,',
+            ',,....ww....www....%%.......E...,,',
+            ',,....ww....www....%%.....%%....,,',
             ',,XX.......E===...........%%.PP.,,',
             ',,XX........===...........%%.PP.,,',
             ',,X.........===E..........%%.P..,,',
-            ',,....^^....www.......%%..%%....,,',
-            ',,....^^....www.......%%....E...,,',
-            ',,....^^....www......E..........,,',
-            ',,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,',
-            '^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
+            ',,....ww....www.......%%..%%....,,',
+            ',,....ww....www.......%%....E...,,',
+            ',,....ww....www......E..........,,',
+            ',,,,,,ww,,,,,,,,,,,,,,,,,,,,,,,,,,',
+            '^^^^^^ww^^^^^^^^^^^^^^^^^^^^^^^^^^',
         ],
     },
     "map_amaranth_the_fallow_line": {
@@ -260,6 +281,9 @@ GRIDS = {
         ],
     },
     "map_amaranth_new_colors": {
+        # Mission rework pass (8 Sep 2026):
+        # a bloom mat at (20-22,6-7) beside the east seam for the
+        # clear_bloom_patch bonus objective.
         "name": 'New Colors — The Muster Ground',
         "const": "NEW_COLORS_TILES",
         "w": 26, "h": 14,
@@ -270,8 +294,8 @@ GRIDS = {
             'P............======.......',
             'P...........^======....EE.',
             'P..,........^.............',
-            'P..,........^.............',
-            'P..,........^.............',
+            'P..,........^.......~~~...',
+            'P..,........^.......~~~...',
             'P..,........^.............',
             'P...........^======....EE.',
             'P............======.......',
@@ -346,24 +370,30 @@ GRIDS = {
         ],
     },
     "map_amaranth_wellroot": {
+        # Mission rework pass (8 Sep 2026):
+        # rebuilt as three walled tiers (walls at rows 4 and 9, gaps at
+        # (22-23,4) and (5-6,9)) with the pads at (2-4,1-3), seams at
+        # (20,2)/(21,7)/(20,11) and the exits at (1-2,12)/(1-3,13): the way to
+        # Solheim is down through two gaps and the way out is the same two
+        # gaps with the Bloom behind you.
         "name": 'The Wellroot Uncovered',
         "const": "WELLROOT_TILES",
         "w": 28, "h": 15,
         "ascii": [
             'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            'B,PPP,,,,,,,,,,,,,,,,,,,,,,B',
+            'B,PPP,,,,,,,,,,,,,,,E,,,,,,B',
+            'B,PPP,,,,,,,,,,,,,,,,,,,,,,B',
+            'BBBBBBBBBBBBBBBBBBBBBB,,BBBB',
             'B,,,,,,,,,,,,,,,,,,,,,,,,,,B',
-            'B,P,,,,,,,,,,,,,,,,,E,,,,,,B',
-            'B,P,,,,,,,,,,,,,,,,,,,,,,,,B',
-            'B,P^^^^^,^^^^^^^^^,^^^^E^,,B',
-            'B,P,,,,,,,,,,,,,,,,,,,,,,,,B',
-            'B,P,,,,,,,,,~~~,,,,,,,,,,X,B',
-            'B,P,,,,,,,,,~~~,,,,,,,,,,XXB',
-            'B,P,,,,,,,,,,~,,,,,,,,,,,X,B',
-            'B,P^^^,^^^^^^^^^,^^^^^,E^,,B',
-            'B,P,,,,,,,,,,,,,,,,,,,,,,,,B',
+            'B,,,,,,,,,,,~~~,,,,,,,,,,,,B',
+            'B,,,,,,,,,,,~~~,,,,,,E,,,,,B',
+            'B,,,,,,,,,,,,~,,,,,,,,,,,,,B',
+            'BBBBB,,BBBBBBBBBBBBBBBBBBBBB',
             'B,,,,,,,,,,,,,,,,,,,,,,,,,,B',
             'B,,,,,,,,,,,,,,,,,,,E,,,,,,B',
-            'B,,,,,,,,,,,,,,,,,,,,,,,,,,B',
+            'BXX,,,,,,,,,,,,,,,,,,,,,,,,B',
+            'BXXX,,,,,,,,,,,,,,,,,,,,,,,B',
             'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
         ],
     },
@@ -476,22 +506,27 @@ GRIDS = {
         ],
     },
     "map_amaranth_the_amaranth_accord": {
+        # Mission rework pass (8 Sep 2026):
+        # a wall column at x=19 (gaps at (19,2) and (19,10)) between the field
+        # and the extraction block, seams moved to (23,2) and the gap mouths:
+        # the last walk to the tree line goes through one of two doors the
+        # Accord's own people are standing in.
         "name": 'The Amaranth Accord',
         "const": "THE_AMARANTH_ACCORD_TILES",
         "w": 26, "h": 13,
         "ascii": [
             'BBBBBBBBBBBBBBBBBBBBBBBBBB',
+            'B,,,,,,,,,,,,,,,,,,B,,,,,B',
+            'B,,,,,,,,,,,,,,,,,,,,,,E,B',
+            'B,,,,,,,,##,,,,,,,,BXXXXXB',
+            'BPPP,,,,,#,,,,,,,,,BXXXXXB',
+            'BPPP,,,,,,,,,,,,,,,BXXXXXB',
+            'BPPP,,,,,,,,~~,,,,,BXXXXXB',
+            'BPPP,,,,,,,,,,,,,,,BXXXXXB',
+            'BPPP,,,,,,,,,,,#,,,BXXXXXB',
+            'B,,,,,,,,,,,,,,##,,BXXXXXB',
             'B,,,,,,,,,,,,,,,,,,,,,,,,B',
-            'B,,,,,,,,,,,,,,,,,E,,,,,,B',
-            'B,,,,,,,,##,,,,,,,,,XXXXXB',
-            'BPPP,,,,,#,,,,,,,,,,XXXXXB',
-            'BPPP,,,,,,,,,,,,,,,,XXXXXB',
-            'BPPP,,,,,,,,~~,,,,,,XXXXXB',
-            'BPPP,,,,,,,,,,,,,,,,XXXXXB',
-            'BPPP,,,,,,,,,,,#,,,,XXXXXB',
-            'B,,,,,,,,,,,,,,##,,,XXXXXB',
-            'B,,,,,,,,,,,,,,,,,E,,,,,,B',
-            'B,,,,,,,,,,,,,,,,,,,,,,,,B',
+            'B,,,,,,,,,,,,,,,,,,B,,,,,B',
             'BBBBBBBBBBBBBBBBBBBBBBBBBB',
         ],
     },
@@ -610,6 +645,14 @@ GRIDS = {
     },
     "map_amaranth_outer_ring_falls": {
         "name": 'The Outer Ring Falls',
+        # Mission rework pass (8 Sep 2026): the blockhouse's east wall is gone
+        # (rows 5-8 at x=14 open). Sim-traced: with one west door the Bloom
+        # queued single-file at it and the hold was a fortress (30/30 Hard
+        # wins at under one mech down against 100+ hostiles); a matching
+        # two-tile east door just moved the queue to the other side, with
+        # a full-HP Choir plugging the doorway on a hold tile until the turn
+        # limit (0/30). The east face is open now: the Bloom floods the box
+        # instead of queuing at it, and the fight inside actually resolves.
         "const": "OUTER_RING_FALLS_TILES",
         "w": 30, "h": 16,
         "ascii": [
@@ -618,10 +661,10 @@ GRIDS = {
             '^...............,,%,.......EE^',
             '^...............,%,,.........^',
             '^........BBBBBB.%,,,.........^',
-            '^.PPPP...BHHHHB.,,,,.........^',
-            '^.PPPP....HHHHB.,,,%.........^',
-            '^.PPPP....HHHHB.,,%,........E^',
-            '^.PPPP...BHHHHB.,%,,........E^',
+            '^.PPPP...BHHHH..,,,,.........^',
+            '^.PPPP....HHHH..,,,%.........^',
+            '^.PPPP....HHHH..,,%,........E^',
+            '^.PPPP...BHHHH..,%,,........E^',
             '^........BBBBBB.%,,,.........^',
             '^...............,,,,.........^',
             '^...............,,,%.........^',

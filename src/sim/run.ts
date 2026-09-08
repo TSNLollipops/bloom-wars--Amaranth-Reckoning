@@ -13,10 +13,12 @@
 //   --tier=easy|moderate|hard|legacy   which profile plays (default moderate)
 //   --seed=N                           replay this exact run (dodge rolls + Easy's mistakes)
 //   --ai-log[=path.json]               dump every bot decision as JSON
+//   --progression                      deploy the reference progression roster (see progressionRoster.ts)
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { playerAiLog, profileForTier, type PlayerAiReason } from "./playerAi";
 import { driveMission } from "./driveMission";
 import { writeFileSync } from "node:fs";
+import { buildProgressionRoster, describeProgression } from "./progressionRoster";
 
 const args = process.argv.slice(2);
 const positional = args.filter((a) => !a.startsWith("--"));
@@ -43,7 +45,9 @@ console.log(`=== ${mission.displayName} === (tier ${tier}${seed !== undefined ? 
 console.log(mission.briefing);
 console.log("");
 
-const result = driveMission(mission, { profile: profileForTier(tier), seed });
+const progression = flag("progression") !== undefined;
+if (progression) console.log(`Progression roster: ${describeProgression(mission)}`);
+const result = driveMission(mission, { profile: profileForTier(tier), seed, deployRoster: progression ? buildProgressionRoster(mission) : undefined });
 const m = result.mission;
 
 for (const line of m.log) console.log(line);

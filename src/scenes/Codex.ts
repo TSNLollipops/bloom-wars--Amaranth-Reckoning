@@ -31,20 +31,7 @@
 // here") rather than inventing a new scroll idiom for one screen.
 import Phaser from "phaser";
 import { makeShopButton } from "./shop/ShopPanel";
-import type { CampaignState, CampaignPilotEntry } from "../engine/campaignState";
-import { highestWardenMissionIndexReached } from "../data/missionBriefing";
-import {
-  PERSONNEL,
-  personnelStatusText,
-  BESTIARY,
-  isBestiaryEntryUnlocked,
-  WORLD,
-  latestUnlockedWorldRevision,
-  SYSTEMS,
-  RANKS,
-  GLOSSARY,
-  type LivePilotStatus,
-} from "../data/codex";
+
 
 // ---- Palette — the game's existing UI chrome colors (panel/card/border/
 // text) plus HOW_TO_PLAY.html's own semantic colors for anything that's
@@ -152,6 +139,7 @@ const TERRAIN: TerrainRow[] = [
   { swatch: 0x7a2430, name: "Spawn seam", cost: "1", def: "—", desc: "Where hostiles enter the map. Yours to avoid loitering near." },
   { swatch: 0x3d8a4a, name: "Exit", cost: "1", def: "+", desc: "Extraction tile — the win condition on an extract_unit mission." },
   { swatch: 0x8a7a2a, name: "Hold zone", cost: "1", def: "++", desc: "The ground you're defending on a hold_zone mission." },
+  { swatch: 0x2f4f4f, name: "Dock perimeter", cost: "1", def: "\u2605\u2605", desc: "The defended ring around a protect_asset objective. Two defence stars — and every hostile that ENDS its turn inside it costs the asset health." },
   { swatch: 0x151515, name: "Wall", cost: "∞", def: "—", desc: "Solid. Nothing gets through it, flyers included." },
 ];
 
@@ -164,7 +152,7 @@ const ABILITIES: AbilityRow[] = [
   { name: "Overshield", tag: "Tank, passive", desc: "While an Overshield Tank is alive on the board, every adjacent ally gets +1 terrain defence star (10% less damage taken). Doesn't stack with a second Tank." },
   { name: "Repair", tag: "Munti, active", desc: "Instead of attacking: heal one adjacent ally 30 HP (38 if the Munti's mek runs Fieldwright as primary). Costs 1 action, doesn't end the turn." },
   { name: "Charge", tag: "Centauroid, passive", desc: "Move 3+ tiles in an unbroken straight line over cost-1 terrain, then attack at the end of it — +25% damage." },
-  { name: "Sensor Sweep", tag: "Vibrissal, passive", desc: "On the sheet for vibrissal-chassis pilots (Cpl. Anand). Honest flag: burrow-reveal isn't wired up in this build yet — treat it as flavour, not a mechanical edge against Undertow." },
+  { name: "Sensor Sweep", tag: "Vibrissal, passive", desc: "Vibrissal-chassis pilots passively detect burrowed units within their own radius — a real mechanical edge against Undertow, wired up as of 6 Sep 2026. A Runemaster-primary Mek extends that reach further." },
   { name: "Meeps Dodge", tag: "house rule", desc: "40% chance to take zero damage from any single hit — as the target, and again on the counter-hit a Meeps eats after attacking something that counters back. Two independent rolls." },
   { name: "Tank Shield", tag: "house rule", desc: "Overshield also grants a real 20-point shield (absorbs before HP) to the Tank and every adjacent ally. Regens 8/turn only if that unit took zero damage since the last tick." },
   { name: "Munti Regen", tag: "house rule", desc: "Every living Munti passively heals itself and same-side allies within 2 tiles for 8 HP/turn — free, stacks with active Repair, doesn't stack across multiple Muntis." },
@@ -176,10 +164,19 @@ interface ObjectiveRow {
   color: "go" | "danger";
   desc: string;
 }
+// Rewritten 7 Sep 2026. This documented three objective types; the game has
+// shipped seven since Mission 22 (data/types.ts's own union). A player who
+// hit protect_asset or contested_landing had no way to learn the win
+// condition except by losing. "color" is the card's heading tint: go = the
+// clock cannot beat you, danger = it can.
 const OBJECTIVES: ObjectiveRow[] = [
-  { name: "eliminate_all", color: "go", desc: "Kill every hostile. No turn limit — the turn count shown is a future bonus-scoring target, not a deadline. Only losing every unit ends the mission early." },
-  { name: "hold_zone", color: "danger", desc: "Get a unit onto the gold hold tiles and keep every hostile off them from the hold-turn on. Real deadline — hostiles controlling the zone unopposed past turn 2 is an instant loss." },
-  { name: "extract_unit", color: "danger", desc: "Get the named unit onto a green exit tile before the turn limit. Real deadline — a deliberate rescue-mission clock, kept on purpose." },
+  { name: "eliminate_all", color: "go", desc: "Kill every hostile. The turn number on the briefing is a bonus target, not a deadline — running past it costs you a reward, never the mission. Only losing your whole squad ends it early." },
+  { name: "hold_zone", color: "danger", desc: "Get a unit onto the gold hold tiles and keep every hostile off them from the hold-turn on. Real deadline: hostiles holding the zone unopposed past turn 2 is an instant loss." },
+  { name: "extract_unit", color: "danger", desc: "Get the named unit onto a green exit tile before the turn limit. Real deadline — the rescue-mission clock, kept on purpose." },
+  { name: "clear_bloom", color: "go", desc: "Win when no bloom-mat tile is left on the board. The mat regrows each environment step, so clear it faster than it spreads. No timeout loss." },
+  { name: "survive_n_turns", color: "go", desc: "Win the instant the turn count is reached with the squad still standing. Nothing else has to survive — a squad wipe already ends any mission." },
+  { name: "contested_landing", color: "go", desc: "Mechanically the same as eliminate_all: kill everything, no timeout loss. The name is a warning about the opening, not a different rule — hostiles are already on top of your deploy pads at turn 1, with no grace period before contact." },
+  { name: "protect_asset", color: "danger", desc: "Something off-board has its own health bar and a defended perimeter around it. It loses health once a turn for EVERY HOSTILE THAT ENDS ITS TURN INSIDE THE PERIMETER — not for every hostile that attacks. Pulling them out of the zone is the whole job. Reaching the turn limit with the asset alive is a win; the asset hitting zero is the loss." },
 ];
 
 interface RosterRow {
@@ -190,12 +187,17 @@ interface RosterRow {
   mek: string;
   role: string;
 }
+// Rewritten 7 Sep 2026. This was five hard-coded Warden pilots — wrong
+// content for a House Amaranth save, and redundant since the Archive's
+// Personnel shelf reads the live roster. A manual's job is the SYSTEM, so
+// the rows below are the three things that decide what a mech does before
+// it is handed a single piece of gear. Column headers reused as-is.
 const ROSTER: RosterRow[] = [
-  { callsign: "Lark", name: "2nd Lt. Dessa Rourke", path: "Meeps", chassis: "Human / bipedal", mek: "Runemaster", role: "Squad lead. Aggressive, quick, still learning patience." },
-  { callsign: "Anvil", name: "M.Sgt. Halvard Bosk", path: "Tank", chassis: "Human / bipedal", mek: "Armorer", role: "The mentor. Put him in the doorway." },
-  { callsign: "Foxfire", name: "Pvt. Tegan Iyari", path: "Meeps", chassis: "Hiopi / centauroid", mek: "Armorer", role: "Second melee voice — can Charge." },
-  { callsign: "Farsight", name: "Cpl. Priya Anand", path: "Reeps", chassis: "Osnian / vibrissal", mek: "Runemaster", role: "The squad's eyes. Keep her at range." },
-  { callsign: "Patch", name: "Spec. Corin Lask", path: "Munti", chassis: "Human / bipedal", mek: "Fieldwright", role: "Keeps everyone standing. Protect him." },
+  { callsign: "PATH", name: "Meeps · Reeps · Tank · Munti", path: "role", chassis: "sets the class triangle", mek: "—", role: "The combat role. Meeps beat Tank, Tank beats Reeps, Reeps beat Meeps. Munti sits outside it entirely and loses every column: it is not a fighting path and no matchup makes it one." },
+  { callsign: "CHASSIS", name: "bipedal · centauroid · vibrissal", path: "species", chassis: "never changes", mek: "—", role: "Comes from the pilot's species and is fixed for life. Bipedal is the default. Centauroid can Charge. Vibrissal reads the ground close-in and finds what is buried in it." },
+  { callsign: "MEK", name: "Fabricator · Armorer · Runemaster · Fieldwright · Quartermaster", path: "track", chassis: "the cradle", mek: "primary", role: "The person in the cradle. A Mek's PRIMARY track changes what that one pilot's frame actually does, which is why two identical mechs with different Meks are not identical mechs. Five tracks; a Mek can buy a secondary." },
+  { callsign: "TIER", name: "G · F · E · D · C · B · A · S", path: "gear", chassis: "bought with points", mek: "—", role: "The gear ladder, climbed with that pilot's own personal points rather than time served. S is the Heirloom rung and nothing can be bought up to it." },
+  { callsign: "ROSTER", name: "not fixed", path: "live", chassis: "recruit · assign · lose", mek: "—", role: "Pilots are recruited into lances, moved between them, and lost. Who is on yours right now is in the Archive's Personnel shelf, not in this manual." },
 ];
 
 interface MissionRow {
@@ -204,30 +206,29 @@ interface MissionRow {
   desc: string;
   tip: string;
 }
+// Rewritten 7 Sep 2026. This listed four missions from a build that had four
+// missions in it; there are now 36 per campaign across two campaigns, and
+// enumerating 72 does not belong in a manual. What DOES belong is how to
+// read the briefing panel, because misreading the turn number is the most
+// common way a squad loses a mission it was winning.
 const MISSIONS: MissionRow[] = [
   {
-    title: "I.1 — Muster",
-    tags: ["eliminate_all", "6 Crawlmass", "bonus by turn 8"],
-    desc: "First light on the Fallow Line. A tutorial fight, meant to be an easy clean win.",
-    tip: "No clock to fail on — take your time, keep the squad together, let Bosk lead the way in.",
+    title: "The turn number means two different things",
+    tags: ["read this one", "bonus target vs. deadline"],
+    desc: "For eliminate_all, clear_bloom, contested_landing and protect_asset it is a BONUS TARGET — running past it costs a reward and nothing else. For hold_zone, extract_unit and survive_n_turns it IS the mission. Same number, same place on the panel, opposite meaning. Check the objective name first, every time.",
+    tip: "If the objective is one of the four bonus-target kinds, you are never on a clock. Take the careful line.",
   },
   {
-    title: "I.2 — Wire and Mud",
-    tags: ["hold_zone", "6 Splitfang, staggered", "hold from turn 6, limit 10"],
-    desc: "Hold the forward listening post until the survey detail clears.",
-    tip: "There is exactly one doorway into the hold room. Park Bosk in it — everyone else spreads out on the gold tiles behind him.",
+    title: "The threat list is what intelligence expected",
+    tags: ["not a guarantee", "waves arrive on their own schedule"],
+    desc: "The panel names what the briefing was told to expect. Waves arrive on their own timer and the briefing does not always know about the second one. Plan the fight you were given, then keep a unit uncommitted for the one you were not.",
+    tip: "A squad that has spent every action by turn 3 has no answer to a wave that lands on turn 4.",
   },
   {
-    title: "I.3 — The Low Ground",
-    tags: ["eliminate_all", "8 Crawlmass + 2 Splitfang", "bonus by turn 12"],
-    desc: "Bloom mat came up through the terraces overnight — a supply detail was caught crossing at first light.",
-    tip: "The purple ground is bloom mat — 5 damage every turn you end a move on it (Sec. 03). Don't linger; kill and keep moving.",
-  },
-  {
-    title: "I.4 — Tunnel Rats",
-    tags: ["eliminate_all", "3 burrowed Undertow + 4 Crawlmass", "bonus by turn 12"],
-    desc: "First burrower contact on the Line.",
-    tip: "Burrowed units render faded but are already targetable at range — lead with Anand's Reeps rather than walking a melee unit in blind.",
+    title: "Terrain is on the panel before you deploy",
+    tags: ["Sec. 03", "bloom mat, ridge, structure"],
+    desc: "Tile colour is rules data, not decoration. Bloom mat costs you for ending a move on it. Ridge and Structure are the two worth walking further to reach. The map is visible from the briefing — look at where the defence stars are before you pick your deploy pads, not after first contact.",
+    tip: "Put the Tank in the doorway. There is almost always a doorway.",
   },
 ];
 
@@ -260,24 +261,17 @@ interface CodexSection {
    * and Glossary are flavor-only and always fully browsable — see that
    * same header's gate note #3 for why.
    */
-  needsSave: boolean;
 }
 const SECTIONS: CodexSection[] = [
-  { id: "controls", num: "01", title: "Controls", dek: "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.", pageCount: 1, needsSave: false },
-  { id: "units", num: "02", title: "Reading the Board", dek: "No sprites yet — every unit is a shape. Shape says class, fill says side, outline says chassis.", pageCount: 1, needsSave: false },
-  { id: "terrain", num: "03", title: "Terrain", dek: "Tile colour on the board is the actual rules data, not decoration.", pageCount: 2, needsSave: false },
-  { id: "bars", num: "04", title: "Health, Shield & Collapse", dek: "Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.", pageCount: 1, needsSave: false },
-  { id: "triangle", num: "05", title: "The Class Triangle", dek: "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.", pageCount: 1, needsSave: false },
-  { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "A few of these aren't in the original design docs — added during Maxime's own playtesting.", pageCount: 2, needsSave: false },
-  { id: "objectives", num: "07", title: "Objectives", dek: "Three objective types across these four missions. Only one still has a hard clock.", pageCount: 1, needsSave: false },
-  { id: "roster", num: "08", title: "Warden Company Roster", dek: "All five deploy on every Act I mission. All tier G, no Heirloom charge yet.", pageCount: 1, needsSave: false },
-  { id: "missions", num: "09", title: "Mission Briefings — Act I", dek: "The four Amaranth missions currently in the build, with one tactical note each.", pageCount: 2, needsSave: false },
-  { id: "personnel", num: "10", title: "Personnel", dek: "Warden Company's own roster — real bios, real Meks, and a live read of how each of them is actually doing in your save.", pageCount: Math.ceil(PERSONNEL.length / 2), needsSave: true },
-  { id: "bestiary", num: "11", title: "Bloom Bestiary", dek: "The Bloom, catalogued the way a soldier would write it up. Unlocks as you actually meet each one.", pageCount: Math.ceil(BESTIARY.length / 3), needsSave: true },
-  { id: "world", num: "12", title: "World", dek: "The Amaranth Reach, House Amaranth, Meridian, and the wider Coalition — updates as your campaign moves forward.", pageCount: Math.ceil(WORLD.length / 2), needsSave: true },
-  { id: "systemsLore", num: "13", title: "Systems", dek: "How the war's own systems actually work, told straight rather than as a stat sheet.", pageCount: Math.ceil(SYSTEMS.length / 2), needsSave: false },
-  { id: "ranksLore", num: "14", title: "Ranks & Command", dek: "How rank and command actually work in Warden Company. Paper only for now — nothing here changes a pilot's numbers yet.", pageCount: 1, needsSave: false },
-  { id: "glossary", num: "15", title: "Glossary", dek: "Quick lookups for the jargon the game already uses on you from Mission 1.", pageCount: Math.ceil(GLOSSARY.length / 5), needsSave: false },
+  { id: "controls", num: "01", title: "Controls", dek: "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.", pageCount: 1 },
+  { id: "units", num: "02", title: "Reading the Board", dek: "No sprites yet — every unit is a shape. Shape says class, fill says side, outline says chassis.", pageCount: 1 },
+  { id: "terrain", num: "03", title: "Terrain", dek: "Tile colour on the board is the actual rules data, not decoration. Fourteen types.", pageCount: 2 },
+  { id: "bars", num: "04", title: "Health, Shield & Collapse", dek: "Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.", pageCount: 1 },
+  { id: "triangle", num: "05", title: "The Class Triangle", dek: "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.", pageCount: 1 },
+  { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "Four that come with a chassis or a path, and four house rules this game made up for itself.", pageCount: 2 },
+  { id: "objectives", num: "07", title: "Objectives", dek: "Seven objective types. Four cannot be lost on the clock. Three can.", pageCount: 2 },
+  { id: "roster", num: "08", title: "Paths, Chassis and Mek Tracks", dek: "The three things that decide what a mech does before you buy it a single piece of gear.", pageCount: 1 },
+  { id: "missions", num: "09", title: "Reading a Briefing", dek: "The briefing panel is the only place that names the win condition. Read the turn number correctly.", pageCount: 2 },
 ];
 
 export class Codex extends Phaser.Scene {
@@ -288,12 +282,6 @@ export class Codex extends Phaser.Scene {
   private contentLayer!: Phaser.GameObjects.Container;
   private navLayer!: Phaser.GameObjects.Container;
 
-  // Codex Rebuild & Live Briefing Plan v1, Part A — whatever save (if any)
-  // this Codex was opened against. MainMenu.ts and MenuOverlay.ts both
-  // already have a live `CampaignState | null` in scope at their own
-  // Codex-launch call sites (loadCampaignState() / getState() respectively)
-  // — see this file's own SECTIONS.needsSave comment for how it's used.
-  private campaignState: CampaignState | null = null;
 
   private readonly contentX = 262;
   private readonly contentY = 96;
@@ -304,50 +292,21 @@ export class Codex extends Phaser.Scene {
     super("Codex");
   }
 
-  init(data: { returnScene?: string; campaignState?: CampaignState | null }) {
+  // campaignState is still passed by MainMenu.ts and MenuOverlay.ts and is
+  // deliberately ignored: as of 7 Sep 2026 nothing in this scene reads a
+  // save. Every lore section that did moved to scenes/Archive.ts, which is
+  // reached from the tactical table in the CIC and gets the live state from
+  // the Hub. Left in the call signature rather than chased through two call
+  // sites, so this can be re-typed rather than re-plumbed if it ever needs
+  // the save again.
+  init(data: { returnScene?: string }) {
     this.returnScene = data.returnScene ?? "MainMenu";
-    this.campaignState = data.campaignState ?? null;
     this.sectionIndex = 0;
     this.page = 0;
   }
 
-  // Personnel/Bestiary/World are Warden-scoped (data/codex.ts's own header)
-  // — a Warden save is identified the same cheap way
-  // engine/campaignState.ts's own baseSceneKeyFor does: pilot_rourke's
-  // presence on the roster. False for no save at all (Main Menu, no
-  // CONTINUE yet) and for a House Amaranth save (Hangar has no
-  // pilot_rourke and never will — see missionBriefing.ts's own header).
-  private get hasWardenSave(): boolean {
-    return !!this.campaignState && "pilot_rourke" in this.campaignState.pilots;
-  }
 
-  private get highestMissionIndexReached(): number {
-    return highestWardenMissionIndexReached(this.campaignState?.lastMissionEcho);
-  }
 
-  /**
-   * The minimal LivePilotStatus data/codex.ts's own personnelStatusText
-   * needs, extracted from the real CampaignPilotEntry — see codex.ts's own
-   * header for why that extraction happens here rather than importing the
-   * engine type into src/data. Undefined pilotId (shouldn't happen for any
-   * of the four ordinary roster entries on a real Warden save — they're
-   * seeded at creation) reads the same as "active" in personnelStatusText.
-   */
-  private liveStatusFor(pilotId: string): LivePilotStatus | undefined {
-    const entry: CampaignPilotEntry | undefined = this.campaignState?.pilots[pilotId];
-    if (!entry) return undefined;
-    if (entry.status === "active") return { kind: "active" };
-    if (entry.status === "reassigned") return { kind: "reassigned" };
-    if (entry.status === "discharged") return { kind: "discharged" };
-    // status === "permanently_lost" from here down. lostContext is only
-    // truly optional for a save from before that field existed, or a
-    // status flip through the test-only applyPermadeathCheck path rather
-    // than the real Debrief-driven applyMissionLosses (see that function's
-    // own header) — "unknown"/turn 0 is a defensive fallback for a state
-    // that shouldn't occur on any real save, not an expected case.
-    if (entry.lostContext) return { kind: "permanently_lost", missionId: entry.lostContext.missionId, turn: entry.lostContext.turn };
-    return { kind: "permanently_lost", missionId: "unknown", turn: 0 };
-  }
 
   create() {
     this.cameras.main.setBackgroundColor(PAL.bg);
@@ -362,8 +321,8 @@ export class Codex extends Phaser.Scene {
   private drawChrome() {
     const ccx = this.cameras.main.centerX;
     this.add.text(ccx, 26, "THE BLOOM WARS", { fontFamily: "monospace", fontSize: "11px", color: PAL.textFaint }).setOrigin(0.5);
-    this.add.text(ccx, 48, "FIELD MANUAL", { fontFamily: "monospace", fontSize: "24px", color: PAL.text }).setOrigin(0.5);
-    this.add.text(24, 26, "UNCLASSIFIED — WARDEN CO. INTERNAL USE", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint }).setOrigin(0, 0.5);
+    this.add.text(ccx, 48, "HOW TO PLAY", { fontFamily: "monospace", fontSize: "24px", color: PAL.text }).setOrigin(0.5);
+    this.add.text(24, 26, "OUT-OF-FICTION HELP — LORE LIVES AT THE ARCHIVE", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint }).setOrigin(0, 0.5);
     this.add.rectangle(ccx, 74, this.cameras.main.width - 40, 1, PAL.cardBorder);
 
     this.add
@@ -464,33 +423,14 @@ export class Codex extends Phaser.Scene {
       case "objectives": this.renderObjectives(bodyX, bodyTop, bodyW, bodyH); break;
       case "roster": this.renderRoster(bodyX, bodyTop, bodyW, bodyH); break;
       case "missions": this.renderMissions(bodyX, bodyTop, bodyW, bodyH); break;
-      case "personnel": this.renderPersonnel(bodyX, bodyTop, bodyW, bodyH); break;
-      case "bestiary": this.renderBestiary(bodyX, bodyTop, bodyW, bodyH); break;
-      case "world": this.renderWorld(bodyX, bodyTop, bodyW, bodyH); break;
-      case "systemsLore": this.renderSystemsLore(bodyX, bodyTop, bodyW, bodyH); break;
-      case "ranksLore": this.renderRanksLore(bodyX, bodyTop, bodyW, bodyH); break;
-      case "glossary": this.renderGlossary(bodyX, bodyTop, bodyW, bodyH); break;
     }
 
-    // A needsSave section with no usable save shows one honest placeholder
-    // message (renderXxx itself draws it) instead of paginated content —
-    // no page nav makes sense over a single static message, regardless of
-    // that section's own nominal pageCount.
-    const showPageNav = sec.pageCount > 1 && (!sec.needsSave || this.hasWardenSave);
-    if (showPageNav) this.drawPageNav(sec.pageCount);
+    // Every section left in this scene is out-of-fiction help with no save
+    // requirement, so page nav is purely "does this one have more than one
+    // page." The needsSave branch went with the lore sections.
+    if (sec.pageCount > 1) this.drawPageNav(sec.pageCount);
   }
 
-  /** The shared "no save, or the wrong campaign" message for a needsSave section. */
-  private renderNoSavePlaceholder(x: number, y: number, w: number, h: number, categoryLabel: string) {
-    this.txt(x, y + h / 2 - 24, `${categoryLabel} is Warden Company's own record.`, { fontFamily: "monospace", fontSize: "12px", color: PAL.text, wordWrap: { width: w } });
-    this.txt(x, y + h / 2, "Start or load a Warden Company campaign to see it — a House Amaranth save, or no save at all, doesn't have one yet.", {
-      fontFamily: "monospace",
-      fontSize: "10px",
-      color: PAL.textMuted,
-      wordWrap: { width: w },
-      lineSpacing: 3,
-    });
-  }
 
   private drawPageNav(pageCount: number) {
     const y = this.contentY + this.contentH - 18;
@@ -745,13 +685,22 @@ export class Codex extends Phaser.Scene {
 
   // ---- SEC. 07 — Objectives -------------------------------------------
   private renderObjectives(x: number, y: number, w: number, h: number) {
-    const cardW = (w - 32) / 3;
-    const cardH = Math.min(190, h);
-    OBJECTIVES.forEach((o, i) => {
-      const cx = x + i * (cardW + 16);
-      this.drawCard(cx, y, cardW, cardH, "");
-      this.txt(cx + 12, y + 10, o.name, { fontFamily: "monospace", fontSize: "12px", color: o.color === "go" ? PAL.go : PAL.danger });
-      this.txt(cx + 12, y + 32, o.desc, {
+    // Was three cards across one row, sized for exactly three objectives.
+    // There are seven (data/types.ts), so this is renderAbilities' own 2x2
+    // paged grid instead — the layout already proven on four longer cards.
+    const perPage = 4;
+    const items = OBJECTIVES.slice(this.page * perPage, this.page * perPage + perPage);
+    const cardW = (w - 16) / 2;
+    const cardH = (h - 16) / 2;
+    items.forEach((o, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const cx = x + col * (cardW + 16);
+      const cy = y + row * (cardH + 16);
+      this.drawCard(cx, cy, cardW, cardH, "");
+      this.txt(cx + 12, cy + 10, o.name, { fontFamily: "monospace", fontSize: "12px", color: o.color === "go" ? PAL.go : PAL.danger });
+      this.txt(cx + 12, cy + 28, o.color === "go" ? "NO TIMEOUT LOSS" : "REAL DEADLINE", { fontFamily: "monospace", fontSize: "8px", color: PAL.textFaint });
+      this.txt(cx + 12, cy + 44, o.desc, {
         fontFamily: "monospace",
         fontSize: "9px",
         color: PAL.textMuted,
@@ -761,40 +710,29 @@ export class Codex extends Phaser.Scene {
     });
   }
 
+
   // ---- SEC. 08 — Roster --------------------------------------------
   private renderRoster(x: number, y: number, w: number, h: number) {
-    const cols = [
-      { key: "callsign", label: "CALLSIGN", w: 60 },
-      { key: "name", label: "NAME", w: 145 },
-      { key: "path", label: "PATH", w: 55 },
-      { key: "chassis", label: "CHASSIS", w: 120 },
-      { key: "mek", label: "MEK TRACK", w: 75 },
-    ] as const;
-    let cx = x;
-    const colX: number[] = [];
-    cols.forEach((c) => {
-      colX.push(cx);
-      this.txt(cx, y, c.label, { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint });
-      cx += c.w;
-    });
-    const roleX = cx;
-    this.txt(roleX, y, "ROLE", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint });
-
-    const rowH = Math.min(60, Math.floor((h - 22) / ROSTER.length));
+    // Was a five-column table of five hard-coded Warden pilots. The rows are
+    // now the three systems that decide what a mech is, whose text does not
+    // fit a 145px column, so this renders as stacked cards instead. The live
+    // roster moved to the Archive's Personnel shelf.
+    const rowH = Math.floor(h / ROSTER.length);
     ROSTER.forEach((r, i) => {
-      const ry = y + 22 + i * rowH;
-      this.txt(colX[0], ry, r.callsign, { fontFamily: "monospace", fontSize: "11px", color: PAL.accent });
-      this.txt(colX[1], ry, r.name, { fontFamily: "monospace", fontSize: "10px", color: PAL.text, wordWrap: { width: cols[1].w - 6 } });
-      this.txt(colX[2], ry, r.path, { fontFamily: "monospace", fontSize: "10px", color: PAL.textMuted });
-      this.txt(colX[3], ry, r.chassis, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: cols[3].w - 6 } });
-      this.txt(colX[4], ry, r.mek, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: cols[4].w - 6 } });
-      this.txt(roleX, ry, r.role, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: x + w - roleX } });
-      if (i < ROSTER.length - 1) {
-        const line = this.add.rectangle(x + w / 2, y + 22 + (i + 1) * rowH - 10, w, 1, PAL.cardBorder, 0.6);
-        this.contentLayer.add(line);
-      }
+      const ry = y + i * rowH;
+      this.drawCard(x, ry, w, rowH - 6, "");
+      this.txt(x + 12, ry + 8, r.callsign, { fontFamily: "monospace", fontSize: "11px", color: PAL.accent });
+      this.txt(x + 96, ry + 9, r.name, { fontFamily: "monospace", fontSize: "9px", color: PAL.text, wordWrap: { width: w - 108 } });
+      this.txt(x + 12, ry + 26, r.role, {
+        fontFamily: "monospace",
+        fontSize: "9px",
+        color: PAL.textMuted,
+        wordWrap: { width: w - 24 },
+        lineSpacing: 2,
+      });
     });
   }
+
 
   // ---- SEC. 09 — Mission briefings (paged, 2/2) ------------------------
   private renderMissions(x: number, y: number, w: number, h: number) {
@@ -828,116 +766,4 @@ export class Codex extends Phaser.Scene {
     });
   }
 
-  // ---- SEC. 10 — Personnel (paged, 2/page) -----------------------------
-  private renderPersonnel(x: number, y: number, w: number, h: number) {
-    if (!this.hasWardenSave) { this.renderNoSavePlaceholder(x, y, w, h, "Personnel"); return; }
-    const perPage = 2;
-    const items = PERSONNEL.slice(this.page * perPage, this.page * perPage + perPage);
-    const cardH = (h - 12) / perPage;
-
-    items.forEach((p, i) => {
-      const cy = y + i * (cardH + 12);
-      this.drawCard(x, cy, w, cardH, "");
-      this.txt(x + 12, cy + 8, p.displayName, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
-      const status = personnelStatusText(p, this.liveStatusFor(p.id));
-      this.txt(x + 12, cy + 28, status, { fontFamily: "monospace", fontSize: "9px", color: PAL.accent, wordWrap: { width: w - 24 }, lineSpacing: 2 });
-      this.txt(x + 12, cy + 48, p.bio.join("\n\n"), {
-        fontFamily: "monospace",
-        fontSize: "9px",
-        color: PAL.textMuted,
-        wordWrap: { width: w - 24 },
-        lineSpacing: 3,
-      });
-      const tailY = cy + cardH - 40;
-      if (p.mek) {
-        this.txt(x + 12, tailY, `MEK — ${p.mek.idLine}`, { fontFamily: "monospace", fontSize: "8px", color: PAL.accent });
-        this.txt(x + 12, tailY + 12, p.mek.bio, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 2 });
-      } else if (p.catalystLine) {
-        this.txt(x + 12, tailY, "CATALYST", { fontFamily: "monospace", fontSize: "8px", color: PAL.accent });
-        this.txt(x + 12, tailY + 12, p.catalystLine, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 2 });
-      }
-    });
-  }
-
-  // ---- SEC. 11 — Bloom Bestiary (paged, 3/page) -------------------------
-  private renderBestiary(x: number, y: number, w: number, h: number) {
-    if (!this.hasWardenSave) { this.renderNoSavePlaceholder(x, y, w, h, "The Bloom Bestiary"); return; }
-    const perPage = 3;
-    const items = BESTIARY.slice(this.page * perPage, this.page * perPage + perPage);
-    const cardH = (h - 24) / perPage;
-    const highestIdx = this.highestMissionIndexReached;
-
-    items.forEach((b, i) => {
-      const cy = y + i * (cardH + 12);
-      const unlocked = isBestiaryEntryUnlocked(b, highestIdx);
-      this.drawCard(x, cy, w, cardH, "");
-      this.txt(x + 12, cy + 8, unlocked ? b.displayName : "??? — not yet encountered", { fontFamily: "monospace", fontSize: "12px", color: unlocked ? PAL.text : PAL.textFaint });
-      if (unlocked) {
-        this.txt(x + 12, cy + 26, b.body, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
-      } else {
-        this.txt(x + 12, cy + 26, "Scans haven't turned up anything matching this signature yet.", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint, wordWrap: { width: w - 24 } });
-      }
-    });
-  }
-
-  // ---- SEC. 12 — World (paged, 2/page) -----------------------------------
-  private renderWorld(x: number, y: number, w: number, h: number) {
-    if (!this.hasWardenSave) { this.renderNoSavePlaceholder(x, y, w, h, "World"); return; }
-    const perPage = 2;
-    const items = WORLD.slice(this.page * perPage, this.page * perPage + perPage);
-    const cardH = (h - 12) / perPage;
-    const highestIdx = this.highestMissionIndexReached;
-
-    items.forEach((entry, i) => {
-      const cy = y + i * (cardH + 12);
-      const rev = latestUnlockedWorldRevision(entry, highestIdx);
-      this.drawCard(x, cy, w, cardH, "");
-      this.txt(x + 12, cy + 8, entry.title, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
-      if (rev) {
-        this.txt(x + 12, cy + 28, rev.text, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
-      } else {
-        this.txt(x + 12, cy + 28, "Not yet encountered.", { fontFamily: "monospace", fontSize: "9px", color: PAL.textFaint });
-      }
-    });
-  }
-
-  // ---- SEC. 13 — Systems (lore, paged 2/page) ----------------------------
-  private renderSystemsLore(x: number, y: number, w: number, h: number) {
-    const perPage = 2;
-    const items = SYSTEMS.slice(this.page * perPage, this.page * perPage + perPage);
-    const cardH = (h - 12) / perPage;
-    items.forEach((s, i) => {
-      const cy = y + i * (cardH + 12);
-      this.drawCard(x, cy, w, cardH, "");
-      this.txt(x + 12, cy + 8, s.title, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
-      this.txt(x + 12, cy + 28, s.body.join("\n\n"), { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
-    });
-  }
-
-  // ---- SEC. 14 — Ranks & Command (single page) ---------------------------
-  private renderRanksLore(x: number, y: number, w: number, h: number) {
-    const cardH = (h - 12) / RANKS.length;
-    RANKS.forEach((r, i) => {
-      const cy = y + i * (cardH + 12);
-      this.drawCard(x, cy, w, cardH, "");
-      this.txt(x + 12, cy + 8, r.title, { fontFamily: "monospace", fontSize: "13px", color: PAL.text });
-      this.txt(x + 12, cy + 28, r.body.join("\n\n"), { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 24 }, lineSpacing: 3 });
-    });
-  }
-
-  // ---- SEC. 15 — Glossary (paged, 5/page) --------------------------------
-  private renderGlossary(x: number, y: number, w: number, h: number) {
-    const perPage = 5;
-    const items = GLOSSARY.slice(this.page * perPage, this.page * perPage + perPage);
-    const rowH = Math.floor(h / perPage);
-    items.forEach((g, i) => {
-      const ry = y + i * rowH;
-      this.txt(x, ry, g.term, { fontFamily: "monospace", fontSize: "11px", color: PAL.accent });
-      this.txt(x + 150, ry, g.def, { fontFamily: "monospace", fontSize: "9px", color: PAL.textMuted, wordWrap: { width: w - 150 }, lineSpacing: 2 });
-      if (i < items.length - 1) {
-        const line = this.add.rectangle(x + w / 2, ry + rowH - 6, w, 1, PAL.cardBorder, 0.6);
-        this.contentLayer.add(line);
-      }
-    });
-  }
 }

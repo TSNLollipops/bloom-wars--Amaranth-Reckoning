@@ -81,17 +81,17 @@ export const map_house_amaranth_the_long_contract = makeMap(
 // for Mission 2 above.
 const SECOND_HARVEST_TILES: TileType[][] = [
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
-  ["bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "spawn", "plain", "plain", "bloom_mat"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "plain", "plain", "exit"],
   ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit"],
-  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "exit"],
-  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit"],
-  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "plain"],
+  ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "sump", "plain", "plain", "exit", "exit"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "plain", "plain", "exit"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "spawn", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "bloom_mat", "bloom_mat", "bloom_mat"],
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
 ];
 
@@ -216,8 +216,8 @@ const DEEPER_TERRACES_TILES: TileType[][] = [
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "bloom_mat"],
-  ["bloom_mat", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "bloom_mat"],
+  ["bloom_mat", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "bloom_mat"],
+  ["bloom_mat", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "bloom_mat"],
@@ -341,18 +341,18 @@ export const map_house_amaranth_the_choir_heard_from_afar = makeMap(
 // to you in this terrain and stay hidden, the actual mechanical reading of
 // "the growth zone swallowed her."
 const WHAT_THE_TERRACES_COST_TILES: TileType[][] = [
-  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "sump", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "sump", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "sump", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "sump", "plain", "plain", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
   ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "bloom_mat"],
   ["deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "bloom_mat"],
-  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "spawn", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "spawn", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "exit", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "spawn", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "spawn", "plain", "plain", "bloom_mat", "sump", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "bloom_mat", "plain", "plain", "plain", "plain", "bloom_mat", "sump", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "sump", "bloom_mat", "bloom_mat", "bloom_mat"],
 ];
 
 export const map_house_amaranth_what_the_terraces_cost = makeMap(
@@ -444,17 +444,17 @@ export const map_house_amaranth_new_terraces_new_faces = makeMap(
 // comment on the composition) -- this campaign's first time using
 // Undertow as the PRIMARY threat rather than a small secondary addition.
 const THE_GOVERNORS_PATIENCE_TILES: TileType[][] = [
-  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["deploy", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "exit"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "sump", "bloom_mat", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "bloom_mat"],
+  ["deploy", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "sump", "plain", "exit"],
   ["deploy", "deploy", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "exit", "exit"],
   ["deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit"],
   ["deploy", "deploy", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "exit", "exit"],
-  ["deploy", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "plain", "plain", "exit"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
+  ["deploy", "plain", "plain", "rubble", "rubble", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "rubble", "rubble", "sump", "plain", "exit"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "sump", "plain", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "sump", "plain", "bloom_mat"],
+  ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "sump", "bloom_mat", "bloom_mat"],
 ];
 
 export const map_house_amaranth_the_governors_patience = makeMap(
@@ -539,14 +539,14 @@ export const map_house_amaranth_the_long_ledger = makeMap(
 // being surveyed sits directly in the squad's own path out.
 const WHAT_GROWS_BENEATH_TILES: TileType[][] = [
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
-  ["bloom_mat", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "sump", "plain", "plain", "bloom_mat"],
   ["bloom_mat", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "bloom_mat"],
   ["bloom_mat", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "bloom_mat"],
   ["bloom_mat", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "bloom_mat"],
   ["bloom_mat", "deploy", "deploy", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "exit", "exit", "bloom_mat"],
-  ["bloom_mat", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "bloom_mat"],
-  ["bloom_mat", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "ridge", "ridge", "plain", "ridge", "ridge", "ridge", "ridge", "bloom_mat"],
+  ["bloom_mat", "plain", "plain", "plain", "plain", "spawn", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "spawn", "plain", "sump", "plain", "plain", "bloom_mat"],
+  ["bloom_mat", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "sump", "sump", "plain", "sump", "sump", "sump", "sump", "bloom_mat"],
   ["bloom_mat", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "bloom_mat"],
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
 ];
@@ -656,16 +656,16 @@ export const map_house_amaranth_the_weight_of_the_seal = makeMap(
 // skirted.
 const HOUSE_AMARANTH_MARROWS_LINE_TILES: TileType[][] = [
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
-  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "spawn", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "exit", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub", "scrub", "scrub", "exit", "exit", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "exit", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "exit", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "spawn", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
-  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "spawn", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "exit", "exit", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub", "scrub", "sump", "scrub", "exit", "exit", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "exit", "exit", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "deploy", "deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "exit", "exit", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "spawn", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
+  ["bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "rubble", "rubble", "scrub", "scrub", "scrub", "ridge", "ridge", "scrub", "scrub", "scrub", "scrub", "sump", "scrub", "scrub", "scrub", "scrub", "bloom_mat"],
   ["bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat", "bloom_mat"],
 ];
 
@@ -934,10 +934,10 @@ const HOLD_THE_ROOT_TILES: TileType[][] = [
   ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub"],
   ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub"],
   ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
-  ["deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
-  ["deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub"],
-  ["deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub"],
-  ["deploy", "deploy", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "deploy", "deploy", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "deploy", "deploy", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "deploy", "deploy", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "spawn", "scrub"],
+  ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "deploy", "deploy", "dock", "dock", "dock", "dock", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],
   ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub"],
   ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "bloom_mat", "bloom_mat", "scrub", "scrub", "scrub", "scrub"],
   ["scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "spawn", "spawn", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub", "scrub"],

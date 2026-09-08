@@ -1,0 +1,561 @@
+# THE QIRAKI FILES — BOOK 1, “THE KING AND THE CLIMB,” CHAPTERS 16-47 (v8)
+
+**ID:** B1.OUT. **Tier:** 2, outline. **Owns:** chapter-level construction for Ch. 16-47 only. Ch. 1-15 are drafted and are not restated here except where a delivered chapter overrides the v5 outline. **Supersedes** Qiraki_Book1_Chapter_Outline_v5’s Act 2 tail, Act 3 and Act 4 entirely. v5’s front matter (weekly schedule, staging note, propaganda frequency, daily-rhythm classification, chapter-count note) is inherited unchanged and not restated.
+
+**Depends on:** Reaction_Formula_Applied_Model_v6.docx, Qiraki_Character_Sheets_v16.docx, Qiraki_Combat_Curriculum_Reference_RECOVERED_v4.docx, Qiraki_Master_Style_Guide_v3.docx, Qiraki_Path_Audit_Books1-6.docx, delivered Ch. 1-15.
+
+**Version:** v10, 2026-09-06. **v10:** Ch.23 gains Trav’s first purchase and Corw’s, per the author’s ruling of the same date. See the entry itself and Qiraki_Character_Sheets’s hoard lock.
+
+**Version:** v9, 2026-09-03. v7 adds Part Zero for handoff to a drafting session and expands thin chapters with drafting-facing detail. v8 corrects Ch.20’s stale “eight weeks” figure, caught during Ch.17 drafting. **v9, written back after Ch.18 was delivered:** Ch.18 marked delivered with its own date on the page, Ch.20’s estimate confirmed against that date and closed, Ch.21’s “two months” corrected on the same arithmetic, and the Act Three header corrected from Ch.23 to Ch.24 against CHIDX and the locked act split, see the note at Act Three below.
+
+**Provenance:** Unmarked text restates existing locks. **[CLAUDE]** is construction, swappable. **[AUTHOR]** is a ruling given this session. **[OPEN]** has none. **[FORMULA]** marks a beat that is the direct output of running Reaction_Formula_Applied_Model_v6, offered at that gate’s own stated confidence.
+
+**Why this file exists.** v5 ran 3,431 words for 47 chapters, roughly 73 words a chapter, and carried no scene-want, no collision, no agency weight and no forward field. Book 7 v40 runs 11,665 words for 54 and carries all four. The gap is not length, it is that v5 named events and Book 7 names what people want inside them. This file closes that gap for the 32 chapters not yet drafted.
+
+## PART ZERO — DRAFTING HANDOFF
+
+**Read this first if you are drafting from this file.**
+
+**Ch. 1-15 are delivered.** They are the voice reference and they override this outline anywhere the two disagree, per §1.1’s worked example. Read Ch. 13, 14 and 15 before drafting Ch. 16, because the three of them establish where the cohort’s voice, the bay group’s shape and Trav’s literacy level actually sit at the seam.
+
+**Load order before drafting any chapter in this book.** Chapter Build Protocol’s LOAD stage governs. In addition to the standing load, this book requires: delivered Ch. 1-15, the Character Sheets entries for Vantree, Soren Adair, Yssa, Mikka Reyes, Perrin Cato and the four meks, the Combat Curriculum’s King of the Hill and Hill Ladder entries, the Rune-Tech literacy timeline, and the Propaganda Bank’s Year 1 fragments.
+
+**The four chapters that carry the book.** Ch. 18, Ch. 27, Ch. 43, Ch. 44. If a session has limited attention, spend it there. Ch. 18 is the one that propagates furthest, into Books 4, 5 and 6.
+
+**What the tags oblige you to do.** **[LOCKED]** and unmarked text are not yours to change. **[AUTHOR]** is a ruling given this session and has the same force. **[CLAUDE]** is construction and can be overridden by the author, but log rather than silently drop. **[OPEN]** wants an author ruling, surfaced as a single-select fork rather than resolved at the desk. **[FORMULA]** beats are the applied model’s output and changing one changes later books, so flag rather than adjust.
+
+**The six things this book will break if you are not watching for them.**
+
+- **Soren’s name near the Spawn Line.** §1.2. The two never appear in the same chapter, in this book or any later one. If a sentence wants to make the connection, that is the sentence to cut.
+
+- **Explaining why he trains.** He never states a reason and never thinks one, and no character asks. The ones who would ask read it as ambition, which is the ordinary reading and the wrong one.
+
+- **The Reqa spelling.** Narration uses Reqa throughout. §1.1. Do not reintroduce “Reaka” outside dialogue, ever.
+
+- **Naming interior emotion.** Standing LINT rule. Fear goes in motion, grief goes in displacement, and no paragraph closes on what anything meant.
+
+- **The peak-line roughness rule.** Standing, and Ch. 44 is where it is most at risk. The climactic line of any beat must be shorter and rougher than its setup, not more carefully scoped.
+
+- **Trav’s cognition.** Non-reflective, forward, no backward processing. If a draft has him working out why he did something, that is out of voice, in every chapter of this book.
+
+**Word-count floor is 4,500.** Under it, add found-family socialization from the bay group, not description. Chapters flagged below as floor chapters are where that is the primary content by design.
+
+**POV.** Trav throughout. Book 1 has no exceptions and Book 2’s Ch. 3 is the first one in the series.
+
+## PART ONE — WHAT CHANGED FROM v5
+
+### 1.1 The Reqa name rule is closed, and the delivered prose beat the plan
+
+**[AUTHOR, 2026-09-02.]** Qiraki_Path_Audit_Books1-6 §1.1 called this Severity 1, a locked rule with no chapter to happen in, blocking drafting. It checked out stale. The delivered prose already resolved it and resolved it better.
+
+Narration has never used “Reaka.” Three instances exist across fifteen chapters, all dialogue. **Ch. 2:** she introduces herself with the correction pre-loaded, wrong one first, in her own mouth, before anyone else can get there. **Ch. 3:** she does it again unprompted and he calls her on it, having never once gotten it wrong. She says maybe later. He says we’ll see. **Ch. 8:** Denic misreads it off the assignment board and Trav is the one who corrects him.
+
+That is the whole arc, complete by week four, and it does what the planned rule could not. The reader watches a girl armor herself against an insult that has not happened yet, and then watches the one person who never delivered the insult become the thing standing in front of it. **No spelling sweep is required. §1.1 closes.**
+
+**What is actually still open, and it is smaller and better.** Ch. 3’s “maybe later” has no payoff. The scene where Reqa says her own name once, plain, without the correction in front of it, in his hearing, does not exist. **Placed at Ch. 46.** See there.
+
+### 1.2 Trav’s Gate 1 fires at Ch. 18, and it fires forward
+
+**[AUTHOR, ruling given 2026-09-02.]** Under the formula, a hit on the long-term want produces a reaction, and his want is on file: don’t lose anyone else. v5 gave him no reaction anywhere in the book. Ch. 18’s accident is the year’s hit and he acts on it.
+
+**[FORMULA]** His basic b⁴ is all-the-way-down forward. Instinct toward the problem, thought narrowing to the mechanical, action short and immediate. The locked no-backward-processing rule governs the thought phase and nothing else. So the output is an **action**, mechanically shaped, mis-aimed, at real cost, and it propagates. It is never narrated, never named, and he never once considers why he is doing it.
+
+The full chain is laid out at Ch. 18 and tracked through Ch. 20, 26, 33, 43 and 47.
+
+### 1.3 Vantree recurs, and her open question gets answered
+
+**[AUTHOR.]** Three beats: Ch. 18, Ch. 27, Ch. 43. Her sheet’s open question, whether she clocks Trav before he is obviously exceptional, resolves to **yes, in Ch. 27, and she does not tell him.** Details at each chapter.
+
+### 1.4 Perrin Cato is placed
+
+**[CLAUDE.]** His sheet locks him as Vrassik’s mek matched in Book 1 and Book 1 does not contain him. Placed silent at Ch. 33, on the page and not introduced, the same way Doyle first appeared in Ch. 8. Path Audit §1.3 closes.
+
+### 1.5 The mek beats
+
+**[CLAUDE.]** Path Audit §2.1 found the four non-Reqa meks vanish after Book 2. Fixed inside existing chapters with no additions. **Doyle:** Ch. 21. **Fenn:** Ch. 32. **Petra:** Ch. 29 and Ch. 39. Sana Voight does not exist until Book 2 and is correctly absent.
+
+## PART TWO — THE ENGINE FIELDS
+
+### 2.1 Trav’s Matter, tracked
+
+**[FORMULA, Gate 2.]** The formula’s own worked example of floor-level agency is an illiterate character who cannot read a note. That is this book. Matter is the single most trackable variable in Book 1 and v5 did not track it. Positions, low to high:
+
+| Chapter | Matter | What moved it |
+| --- | --- | --- |
+| 1-4 | floor | Cannot read. Cannot act on anything written. |
+| 5-13 | rising, slowly | T/D reversal closes by Ch. 13. He can read a duty board. |
+| 16-18 | flat | Literacy is not a lever on a person getting hurt. |
+| 19-27 | **falling** | The Ch. 18 reaction eats his study time. His one real lever degrades while he uses a fake one. |
+| 24 | ceiling revealed | Faction Money. He learns some of the ceiling was never his to move. |
+| 28-36 | recovering | Reqa gets the reading back on track without either of them framing it as a rescue. |
+| 43-47 | institutional | He places at King of the Hill. His standing rises for a reason unrelated to why he trained. |
+
+**Nobody on the page tracks any of this.** It is a drafting instrument, not content.
+
+### 2.2 E→c, Book 1 into Book 2
+
+**[FORMULA, and this is the field v5 had no version of.]**
+
+**What Book 1 leaves, and in whose B.** In Trav: an unexamined habit of grinding extra Spawn Line rounds, started in April for a reason he never named, still running in December with nothing left to train for. In Reqa: the knowledge that his reading slipped for four months and that she never asked why, only fixed it. In Ilyen: a first data point about what he does when someone gets hurt, filed and unremarked, the raw material of five books of tells. In Denic: a debt he thinks was repaid at Ch. 15 and was not. In Vantree: a name.
+
+**What Book 2 opens on.** Not the return after Kinship. Not the harder Discipline-month ramp. **[CLAUDE, and this is a proposed override of Book 2’s Ch. 1 as currently written.]** Book 2 opens on Trav at the Spawn Line in the first week of January, alone, out of season, in a slot nobody scheduled, doing the thing he started in April. The academy being familiar now is the second paragraph, not the first. The chapter’s own content does not change. What changes is that the book opens on residue from a person instead of on a date.
+
+### 2.3 The book’s collisions
+
+**[FORMULA, Gate 6.]** One per act minimum. A character’s D landing on another as their a.
+
+- **Act 2, Ch. 17.** Denic’s D from Ch. 15 lands on Trav as an a and the argument comes out of it. See there.
+
+- **Act 3, Ch. 26.** Corw’s D lands on Trav mid-exercise and costs them both the result.
+
+- **Act 3, Ch. 32.** Fenn’s non-reaction is the D that lands on Corw. One-directional. She never knows it worked.
+
+- **Act 4, Ch. 44.** The book’s one **loop**, the heaviest configuration in the formula, reserved for the beat that is actually about the relationship. Trav and Reqa. See there.
+
+### 2.4 The unspendable register for this book
+
+Facts the reader assembles and no character ever states. Protected absolutely under Rule 4.
+
+- **King of the Hill is the safe version.** Locked in the Combat Curriculum Reference: the Year 1 exam is non-mech, low-stakes, deliberately gentle, the version families and outside staff actually see. It arrives four chapters after a cadet was carried out of an ordinary Friday. Nobody on the page compares them. **This is the largest unstated thing in Book 1 and v5 did not use it.**
+
+- **Why Trav places well.** Four months of unscheduled extra rounds he started because of Soren. Nobody, including Trav, connects the two.
+
+- **The extraction worked.** In Book 1 the system reaches a hurt kid in time. Book 4 is the same system failing at the same task. No line in either book may point at the other.
+
+- **The reading slipped.** Four months. Reqa noticed. She fixed it by working next to him instead of asking.
+
+## ACT TWO, CONTINUED — Ch. 16-22, April into July
+
+### Ch. 16 — The Rumor
+
+**Scene-want, Trav:** to get through the day without being looked at. **Scene-want, Ilyen:** to find out whether the thing being said is true, without asking anyone including him.
+
+Rumor-spiral chapter, the cohort’s first. **[CLAUDE, on the rumor’s content, and it should be about literacy.]** Something circulates about who in the year still cannot read properly. It is not about Trav specifically and it does not need to be, because at twelve, a category is enough. The specific horror is that he cannot verify it, cannot trace it, and cannot ask.
+
+**[FORMULA, Gate 5, environment.]** The rune-patterning room is dorm-based, same slot academy-wide. He cannot leave it, cannot pick where he sits, and cannot get through a session without producing legible output in front of the exact population the rumor is about. The environment removes every action except finishing the pattern. That is the chapter.
+
+**Ilyen’s beat, and it is the loop-opening from Ch. 6 escalated.** She does not ask him. She checks his work, unasked, the way she did in Ch. 6, and finds it fine, and the checking is the tell rather than the finding. **[CLAUDE]** This is the first appearance of the faculty that runs all five of her Books 2-6 tells: she gets information by watching rather than by asking, and she has never once been wrong about him.
+
+**Unstated:** Soren is in the same literacy group and the rumor is about him too. Nobody says his name. **He is the only person in the room Trav does not look at, and the prose gives no reason.**
+
+### Ch. 17 — First Real Fight
+
+**Scene-want, Denic:** to be taken seriously about one specific thing for once. **Scene-want, Trav:** to end the conversation.
+
+**[FORMULA, Gate 6, the act’s collision, and it is built on delivered material.]** Ch. 15 closes on Denic’s dew argument, Corw’s pulley correction landing without Denic registering it, and Denic being let off. That let-off is the D. It lands on Denic across the intervening weeks as an a: he has worked out that he was corrected, and worked out that everybody let him keep talking anyway.
+
+So the argument is not about something small that escalates, which is what v5 had. **[CLAUDE, and it is the better version.]** It is about Trav not correcting him. Denic would rather be told he is wrong than be managed, and the accusation is accurate, and Trav has no answer because he did not know he was doing it.
+
+**Trav’s Gate 1:** the scene-want is touched and the reaction is to end it, which he does badly, forward, and short. **He walks out mid-sentence.** No line explains why. The chapter does not repair it.
+
+**Repair happens off-page between chapters.** By Ch. 18 they are fine and nobody says how. **[CLAUDE]** Twelve-year-old rupture-and-repair does not run through a conversation and writing one would be the softer, falser version.
+
+### Ch. 18 — The Accident
+
+**DELIVERED 2026-09-03, v1, 4,514 words. Date on the page: a Friday in May, week nineteen or so of the year, one Monday after Ch.16’s month-line turnover and two days after Ch.17.** Everything below is retained as the build record. Where the delivered chapter and this entry disagree, the chapter wins, per Part Zero’s own rule.
+
+**What the draft resolved that this entry left open.** The accident is a bad landing on the return, left leg turned about ten degrees out of the machine’s line of travel, knee takes it and gives. **The arena’s automated pull does not fire, because he is not in a bout,** which is the mechanism this entry gestured at with “the gap between one thing and the next” and never actually specified. Ilyen states that fact flat at the gate and nobody does anything with it. Corw supplies the interval, ninety-one seconds, counted because there was nothing else to do. Trav reaches him first and cannot work the manual release, and Vantree can, and the difference between them is a quarter turn and forty kilos. **Soren is conscious-adjacent at no point on the page:** broken left arm, blood in the hair, out cold through the recovery. He is fine by Ch.20 per that entry, which is unchanged.
+
+**Naming constraint, held and worth restating for every remaining chapter in this book.** The delivered chapter contains the word Soren three times and the words Spawn Line zero times. “The return,” “the line,” “the square” carry it throughout, matching Ch.11’s own delivered alternates. Ch.20 and Ch.21 both carry Soren or the extra rounds and must do the same.
+
+**The year’s Gate 1 hit. The most load-bearing chapter between here and Act 4.**
+
+**[AUTHOR, ruling: the cadet hurt is Soren Adair.]**
+
+**Why Soren and not Denic.** Three reasons and they compound. First, it is the honest mechanical pick: Soren is Meeps, same path as Trav, which is the exact reason he is exposed to the same danger, and that is already locked as the mechanism behind Book 4. Second, it solves Path Audit §2.6 from the front instead of the back, giving him real weight in Book 1 rather than four retrofitted touchpoints in Books 2 and 3. Third, and this is the actual argument: **Trav’s first reaction to nearly losing someone happens at twelve, and in Book 4 he does the same thing again and it does not work.** The pattern is set here, cheap, in a chapter where everyone survives.
+
+**Risk, named and answered.** His sheet says nothing about him should read as foreshadowing. An accident he walks away from clean is not foreshadowing, because the chapter’s content is not Soren’s danger, it is Trav’s reaction. Restock does its job visibly and completely. **The reader’s takeaway is that this system works.** That is exactly what has to be true for Book 4 to land.
+
+**The accident itself.** Ordinary Friday combat class, First Contact format, wound-emulation active. **[CLAUDE]** Not a dramatic failure. A bad landing off the Spawn Line during a reset, the kind of injury that happens in the gap between one thing and the next rather than during the thing itself. He is down for maybe ninety seconds before anyone reaches him. **Vantree reaches him.**
+
+**Vantree, beat one of three.** She runs the response and her voice does not change. Flat, unhurried, the same register she used to tell a room of twelve-year-olds they would be fighting each other. She works with both hands and the seam is visible the whole time because she wears short sleeves specifically so it is. **[CLAUDE, craft]** The horror in the chapter is entirely in how routine she is. She is not being cold. She has genuinely stopped being afraid of this. Nobody comments and no cadet has the vocabulary to.
+
+**Trav’s chain, the full pass.**
+
+- **Gate 1.** Scene-want, nothing. Long-term want, hit directly. Someone he is responsible for being near did not get up.
+
+- **Gate 2.** Time: right beat. Volume: small now, large later, the standard pattern, and it stays small on the page. **Matter: near floor and this is the point.** He is twelve, illiterate four months ago, with no rank, no standing, no medical training and no lever of any kind on what just happened. Zero agency is the floor of the same scale, not a different mechanism.
+
+- **Gate 3.** Fear, read as motion, never named.
+
+- **Gate 4.** Single animal, all the way down. This is not an internal-conflict beat. He is not conflicted. He is moving.
+
+- **Gate 5.** The arena is the only environment that offers him any action at all.
+
+- **Gate 7.** It propagates for four months.
+
+**The action.** He starts taking extra Spawn Line rounds. The respawn loop is open outside class hours, it costs nothing but time, and nobody has to approve it. He goes back that evening. Then the next. Then it is a thing he does.
+
+**Why it is mis-aimed, which is the formula working rather than a flaw.** Soren was hurt in a reset, by a bad landing, in a gap. More rounds does not touch that. It could not have prevented it and cannot prevent the next one. **He is not doing it because it works. He is doing it because it is the only available action and his thought phase narrows to the mechanical.** That is what all-the-way-down forward produces at floor agency.
+
+**The cost, and it has to be real.** Rune-patterning. His literacy is four months old and fragile and it is the one thing that actually raises his Matter, and he spends the hours that were going into it on the arena instead. **His reading slips through Act 3.** Not back to zero, just back to effortful, the half-beat hesitation from Ch. 12 returning without anyone naming its return.
+
+**Hard constraints, all three absolute.** He never states a reason. He never thinks one. **No character asks him why**, because the ones who would ask read it as ambition, which is the ordinary reading and the wrong one. The word Soren does not appear anywhere in the same chapter as the word Spawn Line, for the entire book.
+
+### Ch. 19 — Study Session II
+
+**Scene-want, Reqa:** to teach the lever properly. **Scene-want, Trav:** to be finished.
+
+Engineering-side session, Manual Canopy Release, lever mechanics, per the Path Audit’s study-session tracker. Real reader-facing Year 1 content.
+
+**[CLAUDE, and this is where the cost becomes visible for the first time.]** He is tired, and he is tired in a specific direction. He is sharp on the mechanical content, because his hands are in it and his hands are where he lives. He is slow on the written portion in a way he was not slow at Ch. 14, where he taught her the T/D mechanism from the far side of it.
+
+**Reqa’s reaction, and it is the whole beat.** She notices, in one paragraph, and does nothing about it. She adjusts. She reads the written part out loud as if she is thinking through it herself rather than delivering it to him, which is a thing she does anyway when she is working, so it is deniable in both directions. **[FORMULA, Gate 1, idle done correctly]** This is not a reaction to a want-hit, hers or his. It is a small B-flavored beat, the ordinary shape of a person who fixes things instead of discussing them, and it is exactly what the formula’s idle floor is for.
+
+**Unstated:** she does this for four months.
+
+### Ch. 20 — June
+
+Ordinary ensemble daily-rhythm chapter. First Bloom curriculum fragment lands, Curiosity month.
+
+**[CLAUDE]** The chapter’s job is to make the Ch. 18 residue ordinary. By June nobody thinks it is strange that Trav is at the arena in the evenings. **Corrected 2026-09-03, was**** ****“****eight weeks,****”**** ****caught during Ch.17 drafting against the two anchors this book actually has:** Ch.16 opens the month of Courage (May) on the page, and Ch.20 opens Curiosity (June) the same way, which caps the whole Ch.16-to-Ch.20 span at four to five weeks, before Ch.18 has even happened inside it. **It has been closer to three weeks.** Still enough for the cohort to have stopped noticing, not enough to round up to two months. **Confirmed 2026-09-03 against delivered Ch.18 and closed:** the chapter dates itself mid-May, Friday, and the habit starts that same evening, so three weeks to a June opener is right and the flag comes off. It is just a thing he does, and the cohort has absorbed it as ambition, and Corw has started needling him about it in the register he uses for people he takes seriously.
+
+**Soren is in this chapter, fine, healed, unremarkable, in a scene that has nothing to do with any of it.** One exchange, ordinary, about something else entirely. **Do not let it be a moment.**
+
+### Ch. 21 — Second Blood
+
+Vrassik rivalry deepens, escalated from Ch. 11 and still short of the Years 3-4 scale.
+
+**[CLAUDE, and the fight should read differently than Ch. 11 did for a reason the prose does not give.]** He is better. **Corrected 2026-09-03, was**** ****“****two months,****”**** ****flagged in DEF-45 and re-verified once Ch.18 delivered its own date:** Ch.18 is mid-May and Ch.21 sits after Ch.20’s June opener, so the run is about five weeks, not two months. Five weeks of extra rounds is still five weeks of extra rounds, and the RPD library is exactly the kind of thing that builds on volume. He does not notice. Vrassik notices, because Vrassik is the person in the cohort paying the most attention to Trav specifically, and says so in the way he says things, direct and without malice.
+
+**Denic’s institutional notice.** His cockpit aptitude gets its first real flag from the system, per v5. **[CLAUDE]** It arrives as a line on a board, not as praise from a person, consistent with the instructor ratio.
+
+**Doyle’s mek beat, closing Path Audit §2.1 for him.** He has already read the board before Denic gets there and has already started adjusting the bench for it. He does not congratulate him. **[CLAUDE]** Takes real pride in the cockpit gift specifically because it means his careful numbers go somewhere, and the way that pride shows is that the tools are where they need to be for a thing Denic has not been told about yet.
+
+### Ch. 22 — Midpoint
+
+**Scene-want, Denic:** to settle something from Ch. 17 without saying that is what he is doing. **Scene-want, Corw:** rankings, as ever.
+
+Act 2 closer. Full ensemble, every relationship gets a real beat before Act 3.
+
+**[CLAUDE, drafting]** Word-count floor chapter and the primary content is the eight-kid bay group. Twelve and thirteen years old, four months in, and the group is genuinely a group now in a way it was not in Ch. 10.
+
+**[CLAUDE, Gate 0, and this is how a plotless chapter earns its length.]** Whatever the group is doing moves through all eight of them and each one deflects it differently. Corw counts. Denic escalates and then over-commits. Fenn declines to be impressed. Petra gets somebody to say more than they meant to. Doyle labels. Ilyen watches and is right. Reqa solves it and nobody notices she solved it. **Trav is the one who keeps it going, and that is a function rather than a personality, and it is the first visible version of what he becomes.**
+
+**[CLAUDE]** The act ends with the group intact, the year going fine, and one kid quietly spending his evenings somewhere. Two of those three facts are noticed by everybody and the third is noticed by nobody. **Do not have anyone put them together.**
+
+**The Ch. 17 repair is visible here and is never described.** Trav walked out mid-sentence five chapters ago. They are fine. No conversation happened on the page and none happened off it either, in the sense that neither boy could have told you when it stopped.
+
+## ACT TWO CLOSER — Ch. 23, July
+
+**Corrected 2026-09-03, and this is a real defect rather than a formatting slip.** v8 opened Act Three at Ch.23. CHIDX puts Act Three at Ch.24-36 and the act split is LOCKED at 12/11/13/11, which makes Act Two Ch.13-23 and Act Three thirteen chapters, not fourteen. BUILD Stage 1 is explicit that chapter numbers come from CHIDX and are never computed from act position, so CHIDX wins and this file was wrong. Ch.23 sits in Act Two and its month is July, not August.
+
+**What this does not resolve, and it is author-lane.** Ch.22’s own entry below calls itself the Act Two closer and its content is written as one, the ensemble chapter that ends the act with the group intact. Ch.23 is now structurally the closer and is currently written as an Act Three opener. Two candidate fixes, neither taken here: keep Ch.22’s ensemble content and let Ch.23 close the act on the underdog beat, which means Ch.23 loses its August placement and gains a handoff obligation into Ch.24; or move the ensemble content to Ch.23 and give Ch.22 something else. **Flagged, not decided.**
+
+### Ch. 23 — The Underdog
+
+**Scene-want, Mikka Reyes:** nothing in particular, which is the point. **Scene-want, Corw:** to have been right about the rankings.
+
+Trope-bank draw, a background classmate briefly outshines everyone. Mikka Reyes gets her Book 1 existence here.
+
+**The purchases, new 2026-09-06, author’s ruling, and they are the chapter’s second track rather than its subject.** Corw buys from the open board on the Saturday between Ch.22 and this chapter, having been told by Reqa in Ch.22 that he could already afford it three times. Quickstep, 130 points, the cheapest thing on the wall. **Trav buys one too, and this is the first purchase dramatized anywhere in the series, so STYLE Rule 14 lands here first:** the figure reaches the page, in scene, counted out, no system window.
+
+**Why Quickstep specifically and not just because it is cheap.** His locked build philosophy is weapon and the ability to move and react before all else, and he underinvests in power and protection permanently. A reaction-time patch is the only item on that board that agrees with the rest of him. He buys the one thing consistent with who he already is, once, and then buys nothing again until the military era.
+
+**Execution constraint, and it is the load-bearing half.** The hoard lock (CAST, Trav’s entry) runs entirely from the other side. He does not comment on the purchase, does not justify it, does not compare it to his balance, and nobody gets a line where he agrees with anyone’s read of him. Somebody else can notice. He cannot.
+
+**[CLAUDE, and it is free.]** Mikka Reyes outshines the whole year in the same week the cohort’s top earner spends a hundred and thirty points on the only thing he will buy for six years. **Nobody connects them and nobody should.**
+
+**[CLAUDE]** Her sheet’s locked trait is unforced ease moving between social groups, so the chapter’s real content is not the outshining, it is that she is the only person in the year who is friendly with both Trav’s table and Vrassik’s without it being a project. **In-book resolution, per the two-part trope discipline:** the result stands, nobody explains it, and she goes back to being ordinary the following week without any of it being a turning point for her. **Downstream:** B6.CH16 draws the same trope as a deliberate echo.
+
+## ACT THREE — Ch. 24-36, August into October
+
+### Ch. 24 — Faction Money
+
+**Scene-want, Trav:** to work out what the difference actually is. **[FORMULA, Gate 2, and this is the book’s Matter chapter.]**
+
+First real glimpse of faction-sponsored privilege, seeding Book 2’s institutional-stakes beat.
+
+**[CLAUDE, and the shape matters more than the incident.]** Not a legacy cadet being handed something better. That is Book 2’s Ch. 7 and it should stay there. This is the earlier, blunter version a twelve-year-old can actually perceive: a Cradle-sponsored cadet is somewhere Trav is not, doing something Trav has no route to, and the reason is not merit and is not secret. It is simply how it works and nobody is hiding it.
+
+**Why this belongs in the Matter column.** Everything Trav has learned this year has been that effort converts. Reading converted. Rounds convert, or feel like they do. This is the first fact he meets that does not convert at any exchange rate. **The formula calls that a hard structural fact sitting at the floor of the agency scale, and it is the same mechanism as not being able to read a note, arriving in a form he has no name for.**
+
+**He does not get angry.** That is Book 5, at sixteen, when abstract reasoning is online and he can hold a pattern. At twelve he notices it and it goes nowhere. **Rule 4 at full force. No character articulates the critique, and the chapter ends on something else.**
+
+### Ch. 25 — The Other Side
+
+**Scene-want, Jifsook:** to be scored on her own sheet. **Scene-want, Trav:** to work out what the Hiopi cadets are actually doing, because it is not what he would do.
+
+Rare cross-cohort day, human and Hiopi cadets in a mixed exercise. Jifsook and Lissrak get their Book 1 seeds.
+
+**[CLAUDE, drafting, and the no-caricature rule is the whole discipline here.]** The Hiopi cadets are not the exotic ones. They are a cohort with its own internal politics, its own competent and incompetent members, and its own opinions about the humans. **Write at least three of them as distinct.** The reader should finish the chapter able to say what two Hiopi cadets disagreed about.
+
+**[CLAUDE]** Jifsook’s Book 1 function should not be needling Vrassik, because that is her function in four later books and the Path Audit already flagged that she exists as a verb rather than a person. Give her one thing she wants here that is hers: she is Reeps, she is better at range than her brother is at anything, and nobody in either cohort has said so out loud.
+
+**Lissrak, planted and never explained.** Her devotion to Vrassik is locked as legible only in retrospect. In Book 1 she opens a lane for him during the exercise, once, at cost to her own scoring, and the prose treats it as ordinary Tank work. **It is.** That is what makes it work.
+
+### Ch. 26 — The Test That Goes Sideways
+
+**Scene-want, Corw:** to lead it. **Scene-want, Trav:** to finish it.
+
+“Prove yourself” trope chapter, real consequence, not a clean result.
+
+**[FORMULA, Gate 6, the act’s collision, one-directional.]** Corw’s D, made under his own scene-want, lands on Trav as an a mid-exercise and there is no time to do anything with it except react. Trav reacts fast and wrong. The result is bad for both of them and it is genuinely nobody’s fault in the way twelve-year-olds mean that.
+
+**[CLAUDE]** The chapter’s actual content is that Trav’s reaction was faster than his read, which is the first appearance of the exact split the whole command arc runs on. Recognition-primed and expert in the body, nothing at all in the deliberative library. **Nobody names it, nobody could, and it will take six books and a war for anyone to.**
+
+**Trav’s reading is at its worst in this chapter.** Two months into the Ch. 18 residue. He misreads a written instruction under time pressure and that is part of why the exercise goes sideways. **No line connects that to the evenings he has been spending elsewhere.**
+
+### Ch. 27 — Ambition Month
+
+August, sharpest rivalry energy of the year.
+
+**Vantree, beat two of three, and this answers her sheet’s open question.**
+
+**[AUTHOR: yes, she clocks him early, and she does not tell him.]**
+
+**[CLAUDE, the mechanism.]** Mid-demonstration, mass session, hundreds of cadets, individualized correction officially handled by each cadet’s Guardian. She corrects Trav directly, by name, once, on something small. Then she moves on and does not do it again.
+
+**Why it lands.** Per the locked staging rule, a human instructor at this ratio cannot know one specific kid well enough for this. So the fact that she did means she has been watching him for months, which means she started before he was obviously anything. **She does not say that. She says the correction.** The correction itself is technical and unremarkable and would not tell a reader anything on its own. What tells the reader is that it happened at all, at this ratio, and that Trav does not register the significance because he has no idea what the ratio implies.
+
+**[CLAUDE]** She is not being kind and she is not recruiting him. Her locked register is that brutal preparation is the actual act of care. Better he learns it here, under her watch. That is all this is.
+
+**Denic’s cockpit gift shown plainly in the same chapter’s combat-class portion, per v5.**
+
+### Ch. 28 — Study Session III
+
+**Subject:** Diagnostic Ping, per the study-session tracker. A subject not yet used.
+
+**[CLAUDE, and this is where the cost starts to reverse.]** Reqa has been quietly carrying the written half since Ch. 19 and this is the session where it stops being enough, because the Diagnostic Ping content is genuinely reading-dependent and he cannot get through it on hands alone.
+
+**She does not confront him.** She reschedules. She moves their sessions from after class to before it, and gives a reason that is true, the bench is free earlier. **[FORMULA, Gate 6, one-directional and quiet]** Her D lands on him as a straightforward logistical fact and the second effect, that mornings are before the arena rather than after it, is not stated by her and not noticed by him.
+
+**Unstated, and it is the chapter’s whole point:** she has worked out that he is tired in the evenings, and she has not worked out why, and she has fixed the part she can reach without ever asking about the part she cannot. **Nobody says any of this. She never mentions it again in seven books.**
+
+### Ch. 29 — Unity Month
+
+**Scene-want, Petra:** to talk to everyone in the room. **Scene-want, Ilyen:** to get through it.
+
+September, interspecies cultural-exchange texture, deliberate two-month runway into Homecoming.
+
+**[CLAUDE, drafting]** Establish the month properly, because B2.CH29 and B3.CH29 are both built as the same event going stale, which only works if the first one is specific. **What actually happens during Unity month?** Give it a structure: mixed sessions, something ceremonial, something administrative, something the cadets genuinely enjoy. **The enjoyable part is the one that goes stale fastest and it should be identifiable.**
+
+**Petra’s mek beat, first of two, closing Path Audit §2.1 for her.** **[CLAUDE]** Her locked trait is the kind of face that makes a quiet person feel safe volunteering something. Unity month gives her a room full of cadets who have to talk to strangers, and she is the only one enjoying it. Ilyen is beside her, saying almost nothing, and is fine, which she would not be beside anybody else.
+
+**[CLAUDE, planted, never explained]** Petra will clock Ilyen’s feelings by Book 2. This is the chapter where she gets the raw material, and the raw material is that Ilyen is easy in a crowd only when she is near one of two specific people. Petra is one of them. **Petra does not draw the conclusion here. The reader can.**
+
+### Ch. 30 — The Long Middle
+
+**Scene-want, Reqa:** to find out whether a thing she suspects about a joint is true. **Scene-want, Trav:** to be wherever she is doing that.
+
+Ordinary daily-rhythm chapter.
+
+**Padded per v5:** Reqa’s technical instincts visibly outpacing what is formally taught.
+
+**[CLAUDE, drafting, and this is the chapter where her ceiling first shows.]** The Year 1 engineering curriculum is deliberately basic. She is past it and has been for a while, and the way that shows is not that she says so, it is that she is running an experiment nobody assigned, on a bench, in the evening, with a specific question. **Give her the question and let it be a real one.** The reader should be able to follow it and should finish the chapter aware that she is the most technically able person in her year and that the institution has no mechanism for noticing.
+
+**[CLAUDE]** Also the chapter where his reading is measurably back, and the prose marks it by not marking it. He reads something in passing, quickly, without the beat of hesitation, and the sentence does not stop to notice. **Ch. 26’s misread and this are 4,000 words apart and nothing connects them.**
+
+**[MATCH, technique 3]** He is there because she is there. He does not know that is why. He would say he was interested in the joint, and he is, and that is also not why.
+
+### Ch. 31 — Vigilance Begins
+
+**Scene-want, the institution’s, and that is unusual and deliberate.**
+
+October opens. Second and third Bloom curriculum fragments land here.
+
+**[CLAUDE]** The strongest of the two should sit against the calmest material available in the chapter, per the standing placement principle. Vigilance month is the year’s most propaganda-dense stretch and the cohort is thirteen now and has stopped hearing it, which is its own quiet fact and does not get stated.
+
+**[CLAUDE, drafting, and the technique for the whole chapter.]** The fragments go in cold, in the bank’s own voice, with nothing framing them. Then ordinary training for four thousand words. **No cadet mentions either fragment. No instructor refers to them.** The gap between what was said and what everyone then does is the entire device and adding any commentary destroys it.
+
+**[CLAUDE]** Nine months ago these fragments would have frightened them. The chapter’s real content is that they no longer do, and that nothing about the fragments changed. **Rule 4 at maximum. Nobody observes this and no paragraph closes on it.**
+
+**Word-count floor chapter.** If short, the training block gets longer and more specific, never more reflective.
+
+### Ch. 32 — Corw’s Ego-Test
+
+Corw’s overconfidence costs him something real and specific in a graded exercise.
+
+**Fenn’s mek beat, closing Path Audit §2.1 for her, and it is the act’s cleanest collision.**
+
+**[FORMULA, Gate 6, one-directional, and the D is a non-reaction.]** Corw comes back from the graded result loud, because loud is what he does with everything. Fenn’s locked trait is that she finds his confidence amusing rather than obnoxious and never feeds it. So she does not console him, does not agree with him, does not argue, and does not change what she is doing. **She hands him a part and asks him a question about the part.**
+
+That lands on him as an a. He answers the question, because it is a real question, and answering it takes about four minutes, and by the end of the four minutes the thing he came in doing has stopped. **She did not do that on purpose and does not know it worked.** Nobody in the room including Corw notices it happen. **[CLAUDE]** This is the seed of the entire Books 3-5 Corw arc and it costs one page.
+
+### Ch. 33 — Vrassik, Sharper
+
+**Scene-want, Vrassik:** to find out how much of the gap is real.
+
+Rivalry intensifies heading into exam season.
+
+**[CLAUDE, drafting]** Vrassik is the most important non-team character in seven books and Book 1 gives him four chapters. **This is the one that establishes his register for the series**, so spend the words: direct without malice, competitive without resentment, and genuinely interested in the answer rather than in winning the exchange. He is fourteen and Trav is thirteen and the year of difference is visible.
+
+**Perrin Cato, first appearance, silent, closing Path Audit §1.3.** **[CLAUDE]** He is at Vrassik’s bench, working, named once in passing by somebody else, and does not speak. Same shape as Doyle’s Ch. 8 first appearance. Nothing about him is introduced.
+
+**[CLAUDE, and this is the chapter that pays the Ch. 18 residue forward without saying so.]** Six months of extra rounds. The gap between Ch. 11 and here is real and physical and Vrassik is the one who measures it, out loud, because he is the only person keeping score that closely. **He is not gracious about it and he is not resentful either.** He states it as a fact about the season and then makes it a problem to solve.
+
+**Do not let Trav react to being told he has improved.** He has no framework for it. It goes past him.
+
+### Ch. 34 — What the AI Knows
+
+Direct callback to Ch. 9’s Protocol Guardian thread, and the direct payoff of Ch. 15’s rule-bending.
+
+**[CLAUDE]** A cohort-wide moment where the scale of the oversight becomes visible to the kids themselves. Ch. 15 had Denic building a legal case against dew and getting an exact number out of his Guardian. The joke there was that it answered. The chapter here is the same fact stripped of the joke: it answered because the answer was never the point, and it has the number for every cadet, and it has always had it.
+
+**[FORMULA, Gate 7, absent archetypes]** The propagation channel that works here is the institutional one. Nobody in the room did anything, and something changes anyway, somewhere they cannot see. **Do not show that somewhere.**
+
+**Rule 4 at maximum. No cadet articulates what this means and no narration closes the chapter on it.**
+
+### Ch. 35 — The Cohort Holds
+
+**Scene-want, nobody’s, on purpose.**
+
+Ensemble chapter, every core relationship gets one more beat before Act 4.
+
+**[CLAUDE]** Word-count floor chapter by design. The eight-kid workshop-bay group in full. This is the last genuinely easy chapter before the ritual.
+
+**[CLAUDE, drafting, and the instruction that matters.]** Ch. 38 is a coliseum with real blood in it and these are twelve and thirteen year olds who have never seen anything like it. **This chapter is the last time they are unmarked.** Which means it must not be written as a last-good-day: no lingering, no wistfulness, no closing image. **The way to make Ch. 39 land is to make this chapter forgettable at the time.** If a draft produces something beautiful to end on here, that is the tell it has gone wrong.
+
+**Mikka Reyes is in it**, ordinary, twelve chapters after Ch. 23, moving between the bay group and Vrassik’s table without it being a project. **One crossing, unremarked, and it is the whole payoff of her chapter.**
+
+### Ch. 36 — Countdown
+
+King of the Hill’s format and stakes explained in-world for the first time.
+
+**[CLAUDE, and this is where the book’s largest unstated fact gets set up without being touched.]** The exam is described accurately by the institution: non-mech, staged, individually scored, families invited, the Hill Ladder feeding the ranking. It sounds gentle because it is gentle. The cohort is excited about it.
+
+**Eighteen chapters ago a kid was carried off an ordinary Friday.** The chapter does not mention that, does not allude to it, does not have a cadet half-say it and stop. **The gap between what the exam is and what every Friday actually is, is the whole content, and it lives entirely in the reader.** This is a Gate 7 reader-only channel and one of the very few this book keeps.
+
+## ACT FOUR — Ch. 37-47, November into December
+
+### Ch. 37 — Homecoming
+
+**Scene-want, Petra:** to run the exchange. **Scene-want, Trav:** to work out what you are supposed to give people.
+
+November opens. Gift exchange, elaborate social texture.
+
+**[CLAUDE]** First one, so it is all novelty and no weight, which is the deliberate contrast the Books 2-6 versions are built against. Nothing here should be poignant. It gets to be poignant in retrospect, five books later, and only if it is not poignant now.
+
+**[CLAUDE, drafting, and the tradition wants inventing properly here because six later chapters inherit it.]** Establish the mechanics concretely: who gives to whom, whether it is drawn or chosen, what counts as an acceptable gift among cadets with no money and a points economy they cannot spend on this. **Get the arithmetic right, because B4.CH37 runs it one person short and the arithmetic being off is that chapter’s whole device.**
+
+**[CLAUDE]** Trav is bad at this. Not comically, just genuinely without a template, because his household did not do it. **Yssa is not mentioned and the absence of a reference point is the whole characterization.**
+
+**Soren is at this exchange and gets an ordinary gift from an ordinary person.**
+
+### Ch. 38 — The Coliseum
+
+First witnessed Hiopi ritual. Bewildered outsider POV, real blood, real stakes, genuine set piece.
+
+**[CLAUDE]** Full gritty-gorgeous weight, unhurried, sensory weight given to both the spectacle and the threat. Vrassik competes. He does not win, and he is fourteen, and nobody expected him to.
+
+**[CLAUDE, craft]** Trav’s lens perceives socially last and wrongly, which is exactly right for a chapter where he does not know what he is looking at. He gets the mechanics before he gets the meaning, and never fully gets the meaning, and the prose does not supply it either.
+
+**Jifsook and Lissrak both present, both reacting, and their reactions are not the same as each other’s.** Per the no-caricature rule, the Hiopi in the stands are not one crowd with one response.
+
+### Ch. 39 — After
+
+Aftermath of witnessing the ritual, the cohort processing what they saw.
+
+**[CLAUDE]** The processing is bad, physical, inarticulate and age-appropriate. Nobody has a framework. The kids who handle it worst are not the squeamish ones, they are the ones who found it exciting and cannot say so.
+
+**Petra’s second beat.** She is the one who gets somebody to say something, and it is not Ilyen and not anyone she is close to, it is a kid she has known for four weeks. **[CLAUDE]** That is what her locked trait actually means in practice and it should be shown with a stranger rather than a friend so it reads as a property of her rather than a favor.
+
+**Book 1’s residue rule, per v5’s realism flag, holds absolutely.** Small, wordless, a flinch, a bad night. Nothing named, nothing resolved. The mechanism that eventually processes it does not exist until Book 4.
+
+### Ch. 40 — The Hill, Day One
+
+King of the Hill begins. Multi-chapter set piece.
+
+**[CLAUDE]** Families are present. That is the detail that matters and it should be physical rather than mentioned. Parents in the stands at an academy where the weekly Friday is not open to anyone.
+
+**Yssa, [OPEN, author-lane].** Whether she is in the stands. Path Audit §2.3 flags that she appears once in the whole book and that no Choice chapter specifies who is home. **[CLAUDE, recommendation:** she is not there. She is freelance and groundside and the household means declined when his father died, and the exam is a four-day event across a transit she cannot afford to lose the work for.**** ****Nobody says any of that.**** ****She sends the standard message. The device from Ch. 3 does the whole job in one line and it is the coldest thing in the book.**]**
+
+### Ch. 41 — The Hill, Day Two
+
+**Scene-want, Corw:** to still be near the top on day three.
+
+**[CLAUDE]** Ladder format, individually scored, escalating. Real physical-literacy content per the combat reference, balance and coordination and spatial awareness, genuinely low-stakes and genuinely hard.
+
+**[CLAUDE, drafting]** Spend words on the format itself. The Hill Ladder is the year’s only sustained competitive structure and it wants to be legible enough that the reader can track standings across three chapters. **Balance, coordination, spatial awareness, no weapons, no wound-emulation, no mechs.** It is a school sports day run by an institution that also teaches twelve-year-olds to absorb simulated wounds, and the two facts sit in the same building and nobody compares them.
+
+**Denic does badly and does not mind.** His hands go still in a cockpit and there is no cockpit here, and the reader has been given that tell three times by now and gets to use it.
+
+Soren is competing. He is fine. He is average. **One line, no weight.**
+
+### Ch. 42 — The Hill, Day Three
+
+**Scene-want, Trav:** to finish, and he has no stake in the result and has not had one all week.
+
+**[CLAUDE]** The field narrows and Corw is in it and so is Vrassik and so is Trav, and Corw was the one who won the Ch. 7 ranking exercise in March, which is nine months and one entire skill acquisition ago.
+
+**[CLAUDE, drafting, and this is the chapter where the reader should start wondering.]** He should not be here. His March ranking said so. The reader has watched him spend eight months at an arena and has not been told it was training. **Somebody in the stands or on the ladder remarks that he has come further than expected, and the remark is ordinary and admiring and completely wrong about the reason.**
+
+**Vrassik is above him and the gap is narrow.** Establish that number, because Books 2 through 6 measure against it.
+
+**Ilyen is out by now and is watching.** One line. She has been right about him since Ch. 6 and this is not a surprise to her.
+
+### Ch. 43 — The Hill, Final
+
+Exam concludes, placements land.
+
+**Vantree, beat three of three.** **[CLAUDE]** She is present at an event that is beneath her. This is the safe version, non-mech, staged, scored, and she teaches the other one. She is there anyway, at the edge, not officiating. **She says nothing to Trav and he does not see her.**
+
+**Trav’s result.** **[AUTHOR, and it should not be a win.]** He places high. Top handful, not first. **[CLAUDE, why]** First place at twelve makes the six-book Vrassik rivalry a formality and makes the Book 6 transfer slot a foregone conclusion, and the series architecture explicitly keeps the rivalry close through Year 1 to protect six books of competitive tension. Placing high on a ladder he had no business being high on is the more useful fact, and it is the one that is actually explained by four months nobody knows about.
+
+**Unstated, and it is the second-largest thing in the book:** the reason he places is Ch. 18. Nobody knows. Including him.
+
+### Ch. 44 — What It Cost
+
+Immediate aftermath, real weight given to who placed where and what it took.
+
+**The book’s one loop. [FORMULA, Gate 6, three full gate-passes for one exchange, reserved for the beat that is actually about the relationship.]**
+
+**[CLAUDE, and this is the chapter I would protect hardest in the whole back half.]**
+
+**Pass one.** Reqa’s a: the placement itself, and she was not surprised by it, and she works out in the space of about a second why she was not surprised. She has the whole data set. Four months of tired evenings, a slipped reading level, a rescheduled study session she moved herself, and now this. She is the only person alive holding all of it. **Her D is that she does not congratulate him.** She says something about the result being obvious and moves to something else, fast, and the speed is the tell, because her locked echo is anger read as speed.
+
+**Pass two.** That lands on Trav as an a. He does not understand it. His scene-want was nothing, he had no stake in the result, and the one person whose reaction would have registered has given him a reaction he cannot read. **His D is the joke.** He gives her one, out of rhythm, in the wrong place, badly, because the ritual is the only tool he has and Ch. 8 built it for exactly this.
+
+**Pass three.** It lands back on her. **[CLAUDE, and this is the whole reason the loop is here rather than anywhere else in the book]** She has been the one being cheered up since April, by a boy who was not fine, and she takes the joke, and it is the first time in the series that taking it costs her something. **She takes it anyway.** She laughs, short, the sound she does not spend on just anybody, per Ch. 15’s delivered version of it.
+
+**Nothing is stated. Nobody names a feeling. The chapter does not close on what any of it meant.**
+
+**Downstream, and this is the point:** the Book 4 reversal is not a new mechanism arriving in a crisis. It is Reqa doing in Book 4 the thing she first wanted to do here, at thirteen, and could not, because the machinery only ran one direction and neither of them had built the other half yet. **No line in Book 4 may refer to this chapter.**
+
+### Ch. 45 — Kinship
+
+**Scene-want, Corw:** to run it. **Scene-want, Reqa:** to be left alone with a bench for one hour, and she is not, and she does not mind.
+
+December’s own season, quieter, every seeded bond gets one more small real beat.
+
+**[CLAUDE, drafting]** First Kinship in the series and six later chapters inherit it, so establish what the season actually is: what it commemorates in-world, what the academy does about it, what the cadets do that the academy did not plan. **The last of those three is the part that matters and is the part B4.CH46 eventually splits off from.**
+
+**[CLAUDE]** Warm, unhurried, the sugar on the rot. The year’s grit is entirely in the background objects and facts by now and none of it is in the dialogue, per the standing register rule.
+
+**Soren is at this table.** **[CLAUDE, and the instruction is the constraint]** He is there, he is funny, he laughs half a second before he is sure something was funny, and it is the last real ensemble scene he gets before Book 2 pushes him to the edges. **Nothing about the scene is elegiac. Nobody looks at him too long.**
+
+### Ch. 46 — Loose Threads
+
+Ordinary chapter, deliberately calm, the cohort settling into who they have become across the year.
+
+**The Reqa name payoff, closing the thread Ch. 3 opened. [AUTHOR, placement.]**
+
+**[CLAUDE, the beat.]** Somebody outside the group asks her name. She says it. Once. Plain. **Nothing in front of it.**
+
+Trav is there. He notices, and what he notices is factual and small, that she said it differently, and he does not pursue why, because he does not pursue why about anything. **He does not mention it to her.** The reader has Ch. 2 and Ch. 3 and does the rest.
+
+**Why here and not at the exam.** The exam is the loud chapter. A girl deciding she no longer needs to defend her own name in advance is not a loud fact and putting it next to a placement result would make it look like a consequence of one. It is not. It is eleven months of somebody never once getting it wrong.
+
+### Ch. 47 — Bridge
+
+Closes Year 1, opens the door into Book 2’s team-formation year.
+
+**[FORMULA, E→c, and this is the field v5’s version of this chapter did not have.]**
+
+**[CLAUDE]** It is late December. There is no exam, no season, no schedule, nothing to train for and nothing being scored. **He goes to the Spawn Line anyway.**
+
+Not framed as ominous, not framed as dedication, not framed at all. It is a Tuesday and that is where he goes, the way it has been since April, and the chapter has other business and gets on with it.
+
+**That is what Book 1 leaves in his B, and it is what Book 2 opens on.**
+
+## OPEN ITEMS THIS FILE SURFACES
+
+- **[OPEN, author-lane]** Yssa at King of the Hill, Ch. 40. Recommendation on file: absent, standard message, unremarked.
+
+- **[OPEN, author-lane]** Whether Book 2’s Ch. 1 accepts the §2.2 override and opens on the Spawn Line rather than on the return. Affects one paragraph of Book 2’s outline and nothing else.
+
+- **[OPEN]** Blood-numbering scheme, per Path Audit §4.1. Book 1 uses First/Second Blood within the year. Book 6 uses Fifth Blood across the series. Unresolved and not resolvable inside this file.
+
+- **[CLAUDE, flagged]** Ch. 18’s ruling makes Soren load-bearing in Book 1, which means Path Audit §2.6’s four retrofitted Book 2 and Book 3 touchpoints may now be redundant or may need re-shaping. Not touched here. Worth a look before Book 2 is rebuilt.
+
+- **Working titles throughout.** Not locked prose chapter titles.

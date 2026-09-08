@@ -1,6 +1,14 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-09-08. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
-# MASTER STYLE GUIDE & MANDATORY RULES — THE QIRAKI FILES
+# MASTER STYLE GUIDE & MANDATORY RULES — THE QIRAKI FILES (v8)
+
+**Changelog v8 (2026-09-06):** Added Rule 17, question marks now belong in dialogue tags for genuine short questions immediately preceding a tag. Author’s own call, applies forward from B1.CH23 only, Chs.1-22 explicitly left alone and unflagged.
+
+**Changelog v7 (2026-09-05):** Added Rule 16, no dialect *was sat / was stood*. Caught by the author in a B1.CH22 draft line and then found sitting in delivered prose as well, so this is a rule plus a retroactive correction rather than a rule alone. Five instances fixed across two delivered chapters, listed in the rule.
+
+**Changelog v6 (2026-09-05):** Added the question-mark convention to Rule 3, the surprised-echo exception in particular. Formally captures a rule that had been running in delivered prose since Ch.17 without ever being written down, caught during Ch.21’s nitpick pass.
+
+**Changelog v5 (2026-09-04):** Added Rule 15, always tag the speaker. Formally captures a rule that previously only existed in session memory, never in this file.
 
 Modeled on The Ninth’s own Master Style Guide, adapted for this project’s different genre and different discipline. Where the two conflict, they’re not supposed to agree, these are separate projects with separate rules, see Qiraki_Process_Notes.md’s standing reminder not to cross-apply.
 
@@ -22,9 +30,11 @@ Natural contractions throughout, no artificial stiffness.
 
 Zero em dashes, zero semicolons. Same absolute rule as The Ninth.
 
-Minimize “thing,” “stuff,” “true,” per the author’s own flagged weakness, this is a personal habit to cut, not a stylistic choice worth preserving. See Qiraki_Emotion_Craft_Reference.md’s theoretical grounding section for the actual mechanism behind why “true” specifically misfires as a character’s private verdict on their own thought.
+Minimize “thing,” “stuff,” “true,” per the author’s own flagged weakness, this is a personal habit to cut, not a stylistic choice worth preserving. See Qiraki_Emotion_Craft_Reference.md’s theoretical grounding section for the actual mechanism behind why “true” specifically misfires as a character’s private verdict on their own thought. **Added 2026-08-31:** “plain”/“plainly” joins this list, same treatment, same standing. Ten uses had quietly accumulated across Books 1’s delivered chapters by Ch.13, always the same reach, describing a voice, a shape, or a delivery as unadorned. Minimize the same way, cut where the sentence works without it, replace with something concrete and specific to the moment rather than a second stock qualifier standing in for the first.
 
 No mid-sentence train shifts, complete one thought before starting the next.
+
+**Added 2026-09-05, question-mark convention.** Grammatically interrogative dialogue is punctuated the same as any other line, comma before the tag, period after, no question mark, matching the flat, non-dramatic register this project already runs on. The pattern was already running in every delivered chapter from Ch.17 onward and had simply never been written down, caught during Ch.21’s own nitpick pass when a line broke it. **Exception, genuine surprise:** a short line that echoes back something just said, in disbelief rather than seeking new information, keeps its question mark (“There’s a count?”, B1.CH19; “You’ve got eleven now?” and “How do you have that?”, both B1.CH20; “You do that in your head?”, B1.CH21). The test is which job the line is doing, not its grammatical shape. “How do you know” asks for information and gets a comma. “There’s a count?” reacts to information just given and keeps the mark. **Applied retroactively:** Ch.20 v1’s “How do you have that,” corrected to “How do you have that?” in v2, the one instance found on a pass back through delivered prose. No other delivered chapter needs a matching correction, checked directly rather than assumed.
 
 Flows read-aloud clean, no forced or archaic syntax, this is a kinetic-pad-game generation’s story, the prose should never sound like it’s straining for gravitas it hasn’t earned.
 
@@ -34,11 +44,11 @@ Same rule as The Ninth, absolute. Never close a paragraph or scene by explaining
 
 **Worked examples, added 2026-08-05:**
 
-WRONG: *“************…and something in him settled, the way it always did once the plan was moving instead of just spoken.************”* (states what the moment meant to him)
+WRONG: *“**********…and something in him settled, the way it always did once the plan was moving instead of just spoken.**********”* (states what the moment meant to him)
 
-WRONG: *“************…he’d never tell Reqa what it cost him to say it, and some part of him already knew he never would.************”* (names the emotional mechanism directly)
+WRONG: *“**********…he’d never tell Reqa what it cost him to say it, and some part of him already knew he never would.**********”* (names the emotional mechanism directly)
 
-RIGHT: End on the concrete image or the choice itself, cut the sentence that would have explained it. *“************He racks the last magazine and doesn’t look at her while he does it.************”* Stop there. Let the reader supply the rest, the same discipline as Emotion_Craft_Reference’s “tell, not the feeling” entry, applied at the scene level instead of the sentence level.
+RIGHT: End on the concrete image or the choice itself, cut the sentence that would have explained it. *“**********He racks the last magazine and doesn’t look at her while he does it.**********”* Stop there. Let the reader supply the rest, the same discipline as Emotion_Craft_Reference’s “tell, not the feeling” entry, applied at the scene level instead of the sentence level.
 
 ## 5. NO SYMMETRICAL SENTENCES
 
@@ -46,9 +56,9 @@ Avoid structural dualism and perfectly balanced sentence construction. Same rule
 
 **Worked example, added 2026-08-05:**
 
-WRONG: *“************He trusted the mech with his life, and the mech answered with everything it had.************”* (mirrored halves, matched clause lengths, the sentence balancing on itself instead of moving)
+WRONG: *“**********He trusted the mech with his life, and the mech answered with everything it had.**********”* (mirrored halves, matched clause lengths, the sentence balancing on itself instead of moving)
 
-RIGHT: Break the pair apart, give each half its own weight rather than a matched set. *“************He trusts the mech with his life. It’s never once given him a reason not to.************”* Two sentences doing different work instead of one sentence doing the same work twice.
+RIGHT: Break the pair apart, give each half its own weight rather than a matched set. *“**********He trusts the mech with his life. It’s never once given him a reason not to.**********”* Two sentences doing different work instead of one sentence doing the same work twice.
 
 ## 6. GROUNDED THEORY & RESEARCHED REALISM (the project’s own version of “anthropological realism”)
 
@@ -60,7 +70,7 @@ No caricatures. Every species gets the same anthropological seriousness Auel gav
 
 ## 7. PACING AND STRUCTURE
 
-~4,500 word average chapters, ~210,000 word books (47 chapters, unchanged chapter count), one book per academy year for the first seven, weekly posting. **Revised 2026-08-14**, up from the original 2,500/130,000 target. Chapter count and the Act split (12/11/13/11) are unaffected, only the per-chapter and per-book length changed, so Qiraki_Chapter_Index.md does not need regenerating. B1.CH01 (4,672 words, delivered) was already running at this weight before the target caught up to it. **Book 7 exception, new 2026-08-20:** the one series-wide break from 47 chapters — 54 chapters, 12/11/13/18, per Qiraki_Book7_Chapter_Outline.md. Act Four’s own content (naming arc, Heirloom exercises, the exam, the epilogue) didn’t fit 11 chapters even at the low end of every range; rather than split into two books, it runs longer instead. Chapter-length target is unaffected, same 4,500 average applies.
+~4,500 word average chapters, ~210,000 word books (47 chapters, unchanged chapter count), one book per academy year for the first seven, weekly posting. **Revised 2026-08-14**, up from the original 2,500/130,000 target. Chapter count and the Act split (12/11/13/11) are unaffected, only the per-chapter and per-book length changed, so Qiraki_Chapter_Index.md does not need regenerating. B1.CH01 (4,672 words, delivered) was already running at this weight before the target caught up to it. **Book 7 exception, new 2026-08-20:** the one series-wide break from 47 chapters, 54 chapters, 12/11/13/18, per Qiraki_Book7_Chapter_Outline.md. Act Four’s own content (naming arc, Heirloom exercises, the exam, the epilogue) didn’t fit 11 chapters even at the low end of every range, rather than split into two books, it runs longer instead. Chapter-length target is unaffected, same 4,500 average applies.
 
 **Clarification added, discussion of chapter length vs. realism, 2026-08-05, figures updated 2026-08-14.** “~4,500 average” means average across the book, not a per-chapter floor or ceiling. A chapter’s length is decided by where it actually finishes doing its job, not by a target number. Some chapters will run shorter, some longer, that’s the average working as intended. The failure mode to actually watch for isn’t a chapter landing at 4,000, it’s a *pattern* of chapters consistently landing under ~3,500 across a stretch, that’s usually a sign the grounding work itself is being cut short (resistance beats skipped, sensory weight thin, researched detail undersold), a discipline problem wearing a word-count shape. Diagnose it as the latter before reaching for word count as the fix, adding words back rarely repairs what thin grounding actually costs a chapter.
 
@@ -94,7 +104,7 @@ Any potential sex scenes involving adult characters, once that’s actually reac
 
 **Scope, added 2026-08-05.** Any rule added here applies to all new prose and to any chapter currently open for revision. It does not apply retroactively to already-finished chapters (currently: Book1 Chapter 1 v2, Book1 Chapter 2) unless a dedicated full-manuscript pass is scheduled to sweep them, same standing rule as The Ninth’s Rule 8.
 
-*(Both candidates below have been promoted, 2026-08-05, at Maxime’s call. Full text pulled from Qiraki_Emotion_Craft_Reference.md and made canonical here — that document now carries only a short pointer back to this one, so there’s a single authoritative copy instead of two that can quietly drift apart.)*
+*(Both candidates below have been promoted, 2026-08-05, at Maxime’s call. Full text pulled from Qiraki_Emotion_Craft_Reference.md and made canonical here, that document now carries only a short pointer back to this one, so there’s a single authoritative copy instead of two that can quietly drift apart.)*
 
 ### 10. Ordinary resistance under duress
 
@@ -110,7 +120,7 @@ Every locked character’s emotional register in the Character Sheets already ro
 
 ### 12. Isolated single-line paragraphs are a tool, not a habit
 
-*(Added, Cross-Project Writer’s Note update — Lesson 11, 2026-08-05.)*
+*(Added, Cross-Project Writer’s Note update, Lesson 11, 2026-08-05.)*
 
 Holding a line alone as its own paragraph earns its keep only when the line marks a genuine narrative hinge, the exact moment suspicion turns into fact, a search becomes a discovery. Used to dress up an ordinary beat, a hit landing, a mundane detail, an aside, it reads as posturing the material hasn’t earned.
 
@@ -126,7 +136,70 @@ The setting is genuinely bleak, war-widow economics, an illiterate twelve-year-o
 
 **Grounding check, added same date:** checked against the current Ch.1 draft rather than assumed. Denic already does this correctly, funny, warm, immediately likable, against a setup that’s just as bleak as everyone else’s. Every other relationship in the same draft, Trav and his mother, Trav and the shop owner, currently isn’t, rationed down to bare-minimum lines or silent gesture instead of real exchange. The gap between Denic’s scene and the rest of the chapter is the actual proof this rule is right, not a hypothetical.
 
+### 14. Progression needs its numbers on the page
+
+*(Added, Maxime’s call, 2026-09-03. Resolves the open item Qiraki_Points_Shop_Catalog.md left standing, whether an upgrade ever gets a real chapter beat instead of background economy.)*
+
+Whenever Trav actually upgrades, buys a piece of gear, crosses a grade threshold, banks or spends points, the specific number has to reach the page. Not vague forward motion, “he felt faster now,” but the real figure, the cost, the grade letter, the name of the thing he’s carrying now that he wasn’t carrying yesterday. This is a progression story before it’s anything else, per the author’s own framing, and a progression story that won’t show its numbers is asking the reader to trust a climb it never actually lets them see.
+
+The numbers land in scene, not as a system window or a stat block breaking the fourth wall. This isn’t that kind of book, per Rule 2’s locked first-person continuous-present immersion and Rule 6’s Auel discipline. A price gets counted out at a counter, tracked against a balance Trav’s keeping in his own head, mentioned in passing between him and Reqa comparing what they’ve each got left to spend. The figure stays real and precise, it just arrives the way a person actually runs into a number, not the way a game interface announces one.
+
+Ties directly to Rule 3’s already-standing exception for figurative “cost” language, literal Points Shop pricing was already the one place that word’s correct usage, not a hedge. This rule generalizes that permission into an actual requirement wherever an upgrade happens on the page, rather than leaving it optional.
+
+### 15. Always tag the speaker
+
+*(Added, Maxime’s call, 2026-09-04, Ch.19 nitpick pass. Supersedes an older, looser rule,**** ****“****at least one anchoring tag when a third voice enters or a line repeats near-verbatim,****”**** ****that turned out to have never actually been written into this file, it only lived in a prior session’s memory. Writing the real version down here for the first time.)*
+
+Every line of dialogue gets a clear speaker, not just enough anchors scattered through a stretch of back-and-forth to let the reader infer the rest. This costs real words, and it’s worth it anyway, per the author’s own call: the found-family ensemble this project runs on is large by design, eight kids in a bay, a full breakfast table, and unattributed ping-pong dialogue that reads fine with three people in the room stops being trackable at six or seven.
+
+This doesn’t mean “X says” on every single line, mechanically repeated. Vary the method same as always, action beats that reveal who’s talking, a physical tic, a name used in the line itself, before falling back to a plain tag. But the reader should never have to count backward through a stretch of quotes to work out who’s speaking, not even for a line or two.
+
+**Grounding check, added same date:** checked Chs.1 through 16 directly rather than assumed. No upgrade purchase has been dramatized on page yet anywhere in the delivered run, Trav’s still on stock gear this early in Year 1, so nothing here needs a retroactive fix. This rule governs new prose going forward, and whichever chapter eventually gives him his first real purchase, a Stocklance swap, a first Quickstep patch, is the one this rule actually lands on first.
+
+### 16. No dialect “was sat” or “was stood”
+
+*(Added, Maxime’s call, 2026-09-05, B1.CH22 pass. The author flagged the line as reading weird and proposed the fix, which was the right one.)*
+
+**The construction:** a form of *to be* plus a past participle where standard English wants the progressive. *He is sat at the bench. She was stood by the ladder. You were sat on before you moved.* Standard across most of England in speech and **not grammatically wrong**, which is exactly why it slips in unnoticed. It is a **dialect marker**, and it is not this project’s register. Cut on sight.
+
+**The distinction that matters, because two of these are correct and must not be**** ****“****fixed****”****:**
+
+| Form | Verdict |
+| --- | --- |
+| “he **is sat** at the bench” | **CUT.** Dialect progressive. → *is sitting* |
+| “forty of us **are stood** in the corridor” | **CUT.** Dialect progressive. → *are standing* |
+| “he **sat** down” | **KEEP.** Ordinary simple past |
+| “it **has sat** empty since the first week” | **KEEP.** Standard perfect, means a completed span |
+| “the tools **are laid** along the back edge” | **KEEP.** Ordinary passive, somebody laid them |
+
+The test is whether the sentence describes **a body currently in a position** (progressive, use *sitting* / *standing*) or **a completed action or span** (perfect or passive, leave it alone). A pass that strips every *was sat* without checking will break the perfect-tense lines, which are correct and are already load-bearing in delivered prose.
+
+**Retroactive corrections, executed 2026-09-05.** Found by sweeping every delivered chapter directly rather than assuming Ch.22 was the only carrier.
+
+- **B1.CH10 → v12.** “about forty of us **are stood** in the corridor” → *are standing*. “Ilyen **is stood** at the end of the bench” → *is standing*.
+
+- **B1.CH21 → v3.** “She’**s stood** at the foot of the ladder” → *’s standing*. “He’**s been sat** on the whole of it since January” → *’s been sitting* (Corw, dialogue, confirmed by the author as a slip rather than a character tic). “Corw’**s stood** over her with the band up” → *’s standing*.
+
+- **B1.CH22.** Seven instances in the working draft, all cut before delivery.
+
+- **Checked and deliberately left alone:** Ch.15’s “it’s sat empty since the first week” and “the second loop’s laid itself over the first,” Ch.16’s “before Denic’s sat down,” Ch.21’s “the tools are laid along the back edge.” All perfect or passive, all correct.
+
+**Standing lint, every chapter.** Add to the Stage 6 sweep alongside the em-dash, semicolon, and symmetrical-sentence checks. Regex that catches it without false-flagging the legitimate cases: search (was|were|is|are|’s|’m|’re) (sat|stood) and read each hit for progressive versus perfect. *been sat* and *been stood* are always wrong. **Rule 3’s read-aloud-clean requirement is the parent rule here**, this is one specific way the prose stops sounding like itself.
+
+### 17. Question marks belong in dialogue tags now
+
+*(Added, Maxime’s call, 2026-09-06, B1.CH23 pass. The whole delivered run to this point had been running short questions right up against a speaker tag with a comma instead of a mark,** **“**Is that good,**”** **Corw says, never written down as a rule, just never broken either. The author asked directly whether the mark would actually be clearer and decided yes.)*
+
+**The construction that changes:** a short line of dialogue that is a genuine question, sitting immediately before its own tag. Comma becomes a question mark, tag stays exactly as it would after a comma, no capitalization change, proper names keep their capital regardless of position. “Is that good?” Corw says. “How many?” Vrassik says.
+
+**What does not change:** a question mark that already sits mid-passage inside a longer quote, away from the tag boundary, was never part of the old pattern and was already correct, “I stopped counting in the second hour. Is that on the board?” needed nothing. Imperatives and exclamations are untouched, this rule is about genuine interrogatives only, “Read the line,” Petra says stays exactly as it is.
+
+**Scope, stated precisely because it matters:** this governs new prose from B1.CH23 forward. **Chapters 1 through 22 are not retroactively corrected and are not flagged as a defect anywhere**, author’s explicit ruling. The old convention wasn’t wrong when it was written, it just isn’t the convention anymore. A future full-manuscript consistency pass is the only context where anyone should touch the older chapters over this, and that pass does not exist yet and isn’t implied by this rule.
+
+**Executed same pass, B1.CH23 v22.** Twenty-six comma-to-mark conversions applied across the chapter for internal consistency, since the chapter itself was still unposted and had been drafted entirely under the old convention. Full list not reproduced here, the chapter file is the record.
+
+**Standing lint, every chapter from here on.** Before delivery, check every short dialogue line sitting directly against a tag: if it’s a real question, it gets the mark. Same tier as the em-dash, semicolon, symmetry, and *was sat* checks.
+
 ## A NOTE ON WHAT THIS GUIDE PROTECTS
 
 The Auel comparison is a genuine, earned one, not just a flattering reference. It gives this project real permission to be dense with researched material, real science under the systems, real anthropology under the species, without apologizing for the length that takes. The version of this story that skips the research and just gestures at “sci-fi stuff happening” is a weaker, more generic book than the one already being built tonight. Protect the discipline that’s already working.
-</content>

@@ -1,6 +1,6 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25. Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-25, re-synced 2026-09-08 (source: Qiraki_Engineering_Curriculum_Reference_v6.docx — adds a new Year 1 catalog entry, Seat Rail, per B1.CH17). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
 
-# THE QIRAKI FILES — Engineering Curriculum Reference
+# THE QIRAKI FILES — Engineering Curriculum Reference (v6)
 
 *Part of the Qiraki files. Companion to Qiraki_Rune_Tech_Reference.md,**** ****same discipline: real, established engineering fields carry the**** ****curriculum as far as they legitimately can, invented material only**** ****where real science genuinely runs out, and that boundary is named**** ****explicitly rather than blurred. Already-locked anchor:**** ****“****Years 1-2**** ****roughly cockpit-area maintenance, expanding outward, by year 7 students**** ****are working weapon systems directly,****”**** ****from Qiraki_Concept.md’s academy**** ****structure section. This document extrapolates the specific real fields**** ****that fill that arc.*
 
@@ -54,6 +54,10 @@ Format for new entries:
 
 **Real field:** hydraulics/pneumatics **Taught:** Year 3 **Function:** Powers limb and joint movement, mounting and priority differ meaningfully by class (Meeps prioritizes speed and range of motion, Tank prioritizes load-bearing strength). **Notes:** First genuinely class-differentiated coursework, matches rune-patterning’s own Year 3 split.
 
+### Seat Rail (adjustable seat, manual)
+
+**Real field:** simple machines, inclined plane **Taught:** Year 1 **Function:** Manual seat-position adjustment on a hinged, tiltable rail, powered adjust dies, the seat still has to move and still has to hold wherever it’s put, so it runs on a graduated-tilt rail instead. **Notes:** On the page, Ch.17, “First Real Fight.” Pairs directly with the friction concept, unlike the pulley and the wheel-and-axle (both delivered, see below), an inclined plane doesn’t return the full trade, some of the push is lost to the rail rubbing against the frame, and there’s a real, findable tilt past which the seat stops holding its own position and slides. Good candidate for the “ideal number vs. the number you actually get” lesson generally, since Year 1’s other simple-machine content up to this point has been clean, frictionless trades. **Flagged, not fixed this pass:** the pulley (manual seat-restraint tensioner, Ch.15) and the wheel-and-axle (manual canopy crank, Ch.16) are both on the page and real, functioning Year 1 content, and neither has a catalog entry yet. Worth a dedicated pass to backfill both in the same format as this one, not done here to keep this session’s edit scoped to what Ch.17 itself delivered.
+
 ### [Open slot: Year 4 materials-science named exercise]
 
 Not yet designed. Good candidate: a stress-testing exercise that doubles as an early, unheroic loss beat, a piece of gear failing under real, boring, explicable materials-science reasons rather than dramatic plot convenience.
@@ -67,4 +71,3 @@ Not yet designed.
 - Materials-science and thermodynamics slots (Years 4-5) still need specific named exercises, structurally planned above but not yet filled in with concrete catalog entries.
 
 - Whether the two curricula (rune-patterning and engineering) ever get a joint capstone project in Year 7, given they’ve been quietly converging since Year 6, not yet decided, feels like a strong, earned option worth considering deliberately rather than defaulting into.
-</content>

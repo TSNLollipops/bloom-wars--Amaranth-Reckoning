@@ -84,6 +84,21 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
     // nothing (mission_1a: the survivor's commit move ended on the same
     // tile his cautious move did).
     memory.commitThisTurn = memory.squadStallTurns >= SQUAD_STALL_LIMIT;
+    // Mission rework pass (8 Sep 2026): a hold_zone past its hold turn with
+    // hostiles still standing in the zone is a stall by definition — the
+    // mission cannot end until they're cleared, and Hard's danger bars had
+    // the squad shooting from the safe half of the ring at full-HP
+    // sporethrowers on the other half until the turn limit (The Outer
+    // Ring Falls, 0/30 with nobody down). Commit, the same way the stall
+    // breaker above does.
+    if (missionDef.objective === "hold_zone" && !memory.commitThisTurn) {
+      const holdUntil = missionDef.objectiveParams.holdUntilTurn ?? missionDef.objectiveParams.turnLimit ?? 99;
+      const hold = m.map.holdZone ?? [];
+      if (m.turn >= holdUntil && hold.length) {
+        const hostileInZone = m.livingUnits().some((u) => u.side === "hostile" && hold.some((c) => c.x === u.pos.x && c.y === u.pos.y));
+        if (hostileInZone) memory.commitThisTurn = true;
+      }
+    }
     // Hard moves in role order (Tanks first, commander last) so the
     // commander's threat read sees the finished front line — hard.ts.
     const playerUnits = m.livingUnits().filter((u) => u.side === "player");

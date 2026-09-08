@@ -1,384 +1,202 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, new to this bridge (source doc dated 2026-08-27). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+# THE QIRAKI FILES — ERA III OUTLINE v2: THE ONES WHO COME BACK, BOOKS 15-21
 
-# THE QIRAKI FILES — ERA III OUTLINE: THE ONES WHO COME BACK, BOOKS 15-21
+**ID:** ERA3. **Tier:** 2, outline. **Owns:** Books 15 through 21 as a reaction chain. Nothing here overrides Tier 1.
 
-**ID:** ERA3. **Tier:** 2, outline. **Owns:** Books 15 through 21 at book-spine level, the era's roster movement, and its device allocation. Nothing here overrides Tier 1.
+**Depends on:** Qiraki_Series_Architecture_v2.docx, Reaction_Formula_Applied_Model_v6.docx, Qiraki_Era2_Synker_Wars_Outline_v3.docx, Qiraki_Era3_Ones_Who_Come_Back_Outline_v1.md (roster, deaths, the RPD/RPM research spine, device allocation, open items, all inherited), Qiraki_Forward_Cast_Roster_v1.md, Qiraki_Political_Web.docx.
 
-**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Era2_Synker_Wars_Outline_v1.md, Qiraki_Concept_v5.docx, Qiraki_Character_Sheets_v12.docx, Qiraki_Political_Web.docx, Qiraki_Weapons_And_Progression.docx, Qiraki_Bestiary.md, Qiraki_Bioterror_Bank_v2.docx.
+**Version:** v2, 2026-09-01. Supersedes v1's engine. Inherits v1 Part A's cognitive spine (Klein, RPM, failure to disagree), Part B's roster, Part C's devices and Part E's open items without restating. **What is new is the chain.**
 
-**Version:** v1, 2026-08-27.
+**Provenance:** as ARCH v2.
 
----
+## PART A — WHAT THIS ERA IS, UNDER THE FORMULA
 
-## PART A — WHAT THIS ERA IS
+**A position: Saturn.** Commitment. At ordinary scale, the mood of a man who has taken on five people and cannot put them down. At extreme scale, the override: when the loss is his, he over-commits, and the over-commitment is the era.
 
-Trav is twenty-seven at the start and roughly forty at the end. He is a **Raid Lead**, B-rank, holding a Party of five inside MeltaDread's Guild.
+**The chain in one sentence.** His want finally has an outlet, five people he can order, and the first thing he does with the outlet is lose one, and every book after is what he does with a habit that was built for keeping people and now has authority behind it.
 
-**The era's question:** what happens to a man who has never once been responsible for another person when five of them become his problem.
+**Matter across the era:** Trav mid throughout, high at the close. This is the first era where his reactions land on something.
 
-**The era's answer:** he is bad at it, in a specific, mechanical, researched way, and he gets good at it through repetition rather than through insight, and the cost of the learning has a name on it in the first book.
+**B in, Trav:** last aboard, a joke that failed once, a second who gives him numbers, a countdown he waits for, a manifest he re-checks, a page of draw numbers unbought.
 
-**The cognitive spine, and it is real research rather than a character quirk.** Gary Klein's Recognition-Primed Decision model describes how experts make near-instant high-quality calls under pressure by matching a situation against a deep library of prior experience. Trav's piloting brain does exactly that, and it is why he is genuinely good rather than lucky. **Command does not work that way and the reason is mechanical.** RPD needs a library to match against, and nothing about reflex combat training builds one for multi-day, slow-feedback, high-ambiguity decisions. His instinct to wait for a moment sharp enough to trigger recognition is reasonable given how his brain is trained. Command never hands him that kind of moment.
+## PART B — BOOK BY BOOK
 
-**The fix is also real.** Military researchers hit the same gap and built the Recognitional Planning Model, which is not teaching somebody to slow down and think carefully. It is repetition under structured pressure: wargaming, tabletop scenario drills, after-action review, until the planning brain builds its own library the way the combat brain already has. **Trainable, active, not reflective**, which fits him. It can be shown on the page as actual sessions with visible improvement from accumulating reps rather than from him learning patience.
+### BOOK 15 — "The Vacancy"
 
-**And the failure mode the literature names is what Ilyen is for.** Experienced commanders develop "a failure to disagree," so used to being right fast that they stop expecting to be wrong and stop getting challenged. **Trav's second has to contradict him early and often.**
+**Stations [LOCKED]:** the desk and Auftragstaktik. Corw arrives and is fine. Suki dies to a correct call made before Ilyen's sentence ended. CoP reconstructs the gap on the display and leaves it up. Wargaming begins. The rail-tap silence. Mikka Reyes joins.
 
-**Register.** Era II was a young man inside a machine. Era III is a man who now has a small piece of the machine and discovers that a piece of a machine is still a machine. The prose stays gritty and gorgeous. What changes is that the chapters have paperwork in them.
+**Opens on:** Book 14's number. He has heard Ilyen say an envelope figure once and has not learned to wait for the end of a sentence.
 
----
+**a.** Saturn. The desk is where commitment looks like paperwork.
 
-## PART B — ROSTER
+**Matter.** Trav mid. Ilyen mid, his second. Corw mid, senior Tank. Suki low. CoP full.
 
-### Team Two, MeltaDread, from Book 15
+**The chain.**
 
-| Name | Species | Role | Notes |
-| --- | --- | --- | --- |
-| **Trav Calder** | Human | Meeps, **Raid Lead** | B-rank. Arcblade, then Flareblade from Book 17. Power unit still D-or-C |
-| **Ilyen Pral** | Human | Munti | His second, and the only person who tells him he is wrong before it costs anything |
-| **Naomi Castell** | Human | Reeps | Extreme long range, fusion lance, the Bloom Eraser. Cookies and milk |
-| **Suki Arnesen** | Human | Reeps | Close range, beam pistol on a rapid-evasion float. Taps a rhythm on her cockpit rail before every mission. **Dies in Book 15** |
-| **Corw Adeyemi-Tal** | Human | Tank | Joins Book 15. Top of the Year 1 cohort, expected to be the standout, on the one path whose success metric is how well everybody else did |
+*Corw.* His chain first. Want: to be second to nobody who is not trying as hard. He is serving under the man who beat him for the slot. His b⁴: state the ranking. **His D on arrival is to state, flat, where he ranks on this Party, and it is accurate, and it is fifth on seniority and first on the Tank path, and he says both.** Trav's a: a person who stayed. Idle for four chapters. Corw is fine. The reader waits. **[CLAUDE, gives the ego-test resolution a D rather than an absence]**
 
-**Meks:** Reqa Tremblay (Trav), Petra Lindqvist (Ilyen), Fenn Okafor (Corw), plus two, at least one of them a returning name.
+*The call.* Locked, kept whole. Under the formula: the same three-animal beat as Book 14, instinct right, thought not finished, action already moving, and this time the extraction is nine seconds late. Suki's chain: her rhythm on the rail, her doctrine of never stopping, and her last D is a float-unit burn toward the recovery lane that is nine seconds too long. **Nobody says fault.** Absolute.
 
-**Book 16 replacement for Suki, [PROPOSED]: Mikka Reyes**, human, Reeps. Banked since Book 1 and used in no book since, explicitly reserved. She is the cast's natural bridge character, socially at ease across groups, which is exactly what a Party needs after a death that everyone is quietly blaming the new Raid Lead for.
+*Trav's reaction, [FORMULA, and it is the era's first change.]* His want fires, first time with authority behind it. Action, forward, mis-aimed: **he over-corrects the envelope.** For two missions the Party fights inside a recovery circle so tight it cannot do its job. Saturn override: he commits to the circle harder than the circle can carry. **Corw breaks it.** His want: how well everyone else did. The tight circle makes everyone worse. His b⁴: **he states the ranking,**** ****"****we're slower than Team Four,****"**** ****as a number.** Trav's a: a ranking. His D: he loosens the envelope, because a number is the only channel he has. **That is the loop that calibrates the discipline, three passes, Trav to Corw to Trav, and CoP's sessions refine what Corw already broke.**
 
-### Around them
+*The display.* CoP's gap, locked. Her D is not removing it. His a is thirty minutes of looking at a person's name in a fraction of a second. **His D, [FORMULA]: he asks her for the interval on every call he has made since Book 8.** She has them. She gives him the list. He reads it. He does not process it. He keeps it. That is the first wargaming session and neither of them calls it one.
 
-**Vrassik**, Hand-designate then Guildmaster, on a sister carrier in the clan. **Peregrine Thale** and **Alina Firemoss**, still MeltaDread, still separate unit. **Coherence of Process**, and from Book 15 she is a mentor rather than a voice. **Zeteii.** **Krethis, Jifsook, Lissrak, Bruvald Ashe** on Team Four, adjacent for the whole era.
+*The rhythm.* The squad stages and waits for a tap, locked. **Under the formula this is Trav's idle, not the squad's.** He learned the countdown in Book 13. He is at the ramp, last, waiting for it, and the Party is waiting for him. The silence is his. Mikka joins and taps nothing.
 
-**New, and the era needs him:** **the Warrant.** See Book 17.
+**E→c.** Trav: a list of intervals, a loosened envelope, a Party that waited for him to move. Corw: a number he said that changed a rule. Ilyen: her sentence was cut short once and it cost somebody. **Book 16 opens on an order that requires phasing blind, which is the one condition under which a list of intervals is worthless.**
 
----
+### BOOK 16 — "The Mantle"
 
-## PART C — DEVICE ALLOCATION
+**Stations [LOCKED]:** the stealth cube, halved sensors, the planet is a tomb, the desync, the reading in the mantle, the climb out, the detonation nobody stays for. Reqa builds hardware she does not trust and says the tolerance.
 
-| Device | Era III |
-| --- | --- |
-| **The web of weird orders** | Shifts register. Trav now **passes orders down that he does not understand**, which is a different and worse feeling than receiving them. Three instances, all in the second half |
-| **Accidental defense of the universe** | Book 16, the mantle bomb. The sessile tomb held the largest continuous seam network yet recorded, and seam continuity is what the FTL work runs on. Filed as denial of a staging world |
-| **Propaganda fragments** | Staff doctrine publications become the dominant voice. **Warrant investiture language appears for the first time in the series in Book 17** and is genuinely beautiful, which is the joke |
-| **Bench chapters** | Three per book. Reqa and Alina are now the core pairing, curator against builder. Ilyen brings extraction arithmetic. Zeteii makes it funny |
-| **Yssa's letters** | One line per book. In Book 18 she mentions someone from the old block who has gone back to farming, and it lands two hundred pages before the reader knows why |
-| **The socket** | **[PROPOSED]** Book 20, its only appearance in forty-two books. See ARCH D6 for the unresolved third-appearance discrepancy and for what is inference rather than lock |
+**Opens on:** Reqa's tolerance. She says it before the briefing ends.
 
----
+**a.** Saturn at extreme scale: he commits a Party to a plan he cannot see inside.
 
-## PART D — BOOK BY BOOK
+**Matter.** Trav mid. Reqa mid, she has a floor now. Ilyen mid. Everyone none, inside the mantle, for three-quarters of a book.
 
----
+**The chain.**
 
-### BOOK 15 — *Enlightened: The Ones Who Come Back, Book 15, "The Vacancy"*
+*Reqa, [FORMULA, and this is the book's engine.]* Her want is touched by being made to build badly. One-run module, stated tolerance, no time. Echo: anger, read as speed. Her D in Act 1 is the tolerance, said once. Her D across the book, off-page: **she starts building the cube's successor without a requisition.** Time gate: **too early.** Nobody asked. **The web of weird orders, from below:** a mek doing unlicensed work because a licensed module nearly killed her husband. She files it correctly, because she learned the requisition lesson in Book 7 that he did not. Propagates to Book 20.
 
-**Working title [CLAUDE].** Alternates: "First Command," "Waiting for the Rhythm."
+*The descent.* He asks Ilyen for the number and waits for the whole sentence, locked. Her D: the number. His D: the wrong call anyway, and it works, locked. CoP's D four chapters later: it was wrong. His a: right outcome, wrong call, and he has no frame. **His D, [FORMULA]: he adds the wrong call to the interval list.** Nobody told him to. The list now has a call on it that worked.
 
-**Spine.** He takes the Party. He gets it wrong. Somebody dies. Coherence of Process starts teaching him and the teaching is not comfort.
+*The reading in the mantle.* Never identified, locked. Trav's chain: it is the size of one team member and it is watching. His want reads it as a sixth. **His D: he assigns it a recovery lane.** In his head. On his display. A lane for something that is not on the manifest. Nobody knows he did that. **[CLAUDE, and it is the only D the reading ever gets]**
 
-**Emotional target.** Incompetence, at something he has never been bad at, in front of people who expected better. This is the first book in the series where Trav is not the most capable person in the room at the thing the room is for.
+**E→c.** Trav: an interval list with a wrong call on it that worked. Reqa: an unlicensed successor, correctly filed. Ilyen: he waited for her sentence once and it did not matter. **Book 17 opens on a routine escort and two Parties on a sister carrier dying in eleven minutes, which is an interval.**
 
-**Act 1, Ch.1-12. The desk.**
+### BOOK 17 — "The Fifth Kind"
 
-Being a Raid Lead is mostly administration and the book should be honest about that. Deployment orders arrive as intent rather than instruction, because Auftragstaktik is mechanically necessary in this setting: missions run twelve hours to automatic carrier recall, carriers operate across hundreds of light-years, and no commander at the Staff can direct a squad. **Every officer in the COE is trained to be handed intent and left alone with it.** Trav has been on the receiving end of that his whole career and has never had to generate the other half.
+**Stations [LOCKED / PROPOSED as v1]:** the energy-discharge Bloom. The first Warrant attempt fails for the pettiest reason. Warrant investiture language on the page. Alina pulls the Ninth-Reform modification. The Flareblade. Not the power unit, and Reqa does not argue.
 
-**Corw Adeyemi-Tal arrives.** Eight books since anyone has seen him. He is a genuinely good Tank now, and the confidence he had at thirteen as an inherited physical head start is now sitting on real competence, same posture, completely different foundation. **And he is serving under the person who beat him for the Devereux-Kastel slot, and neither of them mentions it, and Corw is fine, and the reader spends four chapters waiting for him not to be.**
+**Opens on:** eleven minutes of telemetry from a sister carrier. He reads it as an interval.
 
-He never stops being fine. **That is the payoff of the ego-test arc: the path was the test, and he passed it years ago off-page.**
+**a.** Saturn at ordinary scale for the Guild, at extreme scale for the creature: a thing that never has to vent.
 
-**Act 2, Ch.13-23. The call.**
+**Matter.** Trav mid. Alina mid, and full inside a hangar. Peregrine high. Reqa mid.
 
-A three-mission arc against a mid-scale spreading form on a frontier world, per the minimum-three rule. Nothing exotic. Claw-type and spray-type, necrotic-bloom palette, bruised purples over greyed reds, on a world that has been terraformed smooth and is now visibly not.
+**The chain.**
 
-**The failure, and it has to be specific and defensible rather than stupid.**
+*Alina, [FORMULA, and it is her wrongness gate.]* Her want is to know what a thing was for. The Magi behaves wrongly. Her b⁴: read the ledger, find the change, pull or leave it. **Her D: she pulls a four-hundred-year modification on a hangar deck in ninety minutes, on a ledger nobody in House Thale asked for.** That is against her own conservation principle. She has been against Reqa's Divider on exactly that principle since Book 8. **She has just done to the Magi what Reqa is doing to Trav's kit, and she knows, and nobody says it.** Her E: the argument with Reqa is now one she has lost on her own bench. She does not soften on the Divider. She softens on nothing. Peregrine's D: the after-action credits him, and he lets it, and that costs him something for the first time.
 
-Trav sees an opening. It is a real opening. His read is correct, his timing is correct, and the whole basis of his career is that this exact instinct has been right several thousand times.
+*The Warrant.* The petty refusal, locked. The Guild finds it funny, locked. Trav's a: a joke he does not get. His D: he asks Alina. Her D: one dry sentence. Idle for him afterward, correct.
 
-**Ilyen tells him it is wrong.** Not the read, the shape. Her argument is about the recovery envelope, not the tactics: the opening he wants closes the distance between the Party and its own Munti past what her cycle time can cover, and she says the number out loud.
+*The Flareblade.* A weapon that has to vent, in the book about things that do not. His want: reach against a thing that discharges into ground. **He buys it and Reqa does not argue, locked.** Under the formula her not arguing is a D: **she leaves nothing on his bench this time.** Fifth loss, and the first one she did not contest. Her E: she has stopped arguing and started building the argument (Book 21's proof of concept).
 
-**He does not overrule her. He does something worse, and it is the specific thing a reflex-trained brain does under time pressure: he acts before the disagreement finishes.** He is already moving when she is still talking. The opening was real. It worked. **The fight moved.**
+**E→c.** Trav: a weapon with a vent cycle, and a list that now has a creature on it he cannot model. Alina: a principle broken once, privately. Reqa: an argument she has stopped having out loud. **Book 18 opens on a relief deployment to a world that grows things, and a man who has eaten processed food for thirty years and is about to walk through a field.**
 
-**Suki Arnesen dies.** Close range on a rapid-evasion float, out past the envelope Ilyen named, and the extraction is nine seconds late. **Nine seconds is not a failure of equipment.**
+### BOOK 18 — "Fallow"
 
-**Craft rules, all three absolute:**
+**Stations [LOCKED]:** the field, at Auel length. The purge that finishes the soil. The question up the chain. Juno Achterberg's answer (PAY spend 2). The second farm world. Questions unanswered. Yssa mentions somebody who went back to farming.
 
-- **The tactical call was good.** Do not write it as a blunder. Every reader with combat-fiction literacy should agree with Trav in the moment.
-- **Ilyen was also right**, about a different axis, and she was talking when he moved.
-- **Nobody says the word "fault."** Not Ilyen, not Corw, not Reqa, not Zeteii, not Coherence of Process.
+**Opens on:** a field. His perception order puts kinetic first and structural second and he walks through something that does not move and holds no load.
 
-**Act 3, Ch.24-36. The after-action.**
+**a.** Saturn. A commitment to ground.
 
-**Coherence of Process calls it correctly, in front of witnesses.** Character_Sheets flags this as an open requirement for her character and this closes it.
+**Matter.** Trav mid, and none against a Draw. Achterberg mid, at her desk.
 
-**What she does is not accuse him.** She reconstructs the decision on the Groto's own display, at the timescale it actually happened at, and the reconstruction shows the exact interval between Ilyen beginning to speak and Trav's mech beginning to move. It is a fraction of a second. **She does not say anything about it. She simply does not remove it from the display for the rest of the review**, and everyone in the room spends thirty minutes looking at a gap that has a person's name in it.
+**The chain.**
 
-**Then the training starts.** Wargaming, tabletop scenario drills, after-action review, run as actual sessions. The first one goes badly. The second goes badly. **Improvement comes from accumulating reps, not from him learning patience, and the reader should be able to count the reps.**
+*The field.* Idle, and it is the most important idle in the era: **his B has no category for this and the formula says idle draws on B.** So the idle is mechanical. He checks the field's exits. He counts rows. He notices the soil is a colour. That is the Auel chapter written through a man who cannot see it, and it should be long. **[FORMULA]**
 
-**Her method, [CLAUDE], and it should be alien:** she does not give him scenarios with correct answers. She gives him scenarios where the information arrives late, in the wrong order, and partly wrong, because that is the actual condition, and she is a mind built for long horizons trying to explain a long horizon to a mind built for a quarter of a second. **She contradicts him constantly and enjoys it, and the enjoyment is genuine curiosity rather than superiority.**
+*The purge.* Doctrine is correct, locked. His want: the people he is responsible for eat. Sideways touch. Action, forward: **he asks up the chain.** Second time (first was Talia, Book 11). Same mechanism, same habit.
 
-**Act 4, Ch.37-47. The rhythm.**
+*Achterberg.* PAY spend 2, kept whole. Her D is a fact about filings. His a. His D: he asks about the form. **And, [FORMULA]: he files what she said.** Third filed answer. The habit that v1 called a badly-learned skill in Era IV is a chain of three filed forms by the end of this book.
 
-The Party's next deployment. Everybody stages. **And nobody moves, because they are all waiting for a rail-tap that is not coming.**
+*Yssa.* Somebody from the old block went back to farming. One line, two hundred pages early. Earth.
 
-**That is the whole beat and it needs no line of dialogue.** A ritual established in Book 13 and repeated across two books becomes, in its absence, the only funeral anybody gets. The squad has learned to wait for it and the learning does not switch off.
+**E→c.** Trav: three filed answers, a colour of soil. **Book 19 opens on him signing a crèche manifest, which is the fourth form, and the first one with his own household on it.**
 
-**Mikka Reyes joins at the end of the act**, and she taps nothing, and the silence at the start of the next mission is different from the silence at the start of this one, and neither is remarked on.
+### BOOK 19 — "Ironmind"
 
-**The era's title is earned here, in Trav's head, and never spoken by anyone.** He starts counting who comes back. Not consciously. **He simply begins, from this book onward, always to be the last one aboard.**
+**Stations [LOCKED / PROPOSED as v1]:** Ironmind removes his adaptation for a week. The additive, found on a manifest. He does not tell Reqa. The cross-year mentorship echo, and Ilyen fixes it in a sentence. The Party performs measurably better and the reader can count the reps.
 
----
+**Opens on:** a manifest with a footnote about age bracket and rank exemption.
 
-### BOOK 16 — *Book 16, "The Mantle"*
+**a.** Saturn at ordinary scale.
 
-**Working title [CLAUDE].** From Concept's own beat sheet. Alternates: "Phase," "The Thing That Was Just There."
+**Matter.** Trav mid. Reqa mid. The new pilot low.
 
-**Spine.** The planet-destroyer deployment. Locked at beat level in Concept as party-leader-era material and it is the era's first genuine set piece.
+**The chain.**
 
-**Emotional target.** Dread. Sustained, low-grade, physical dread, in a book where very little actually attacks anybody.
+*The additive, [PROPOSED, sharpened from v1.]* Not a footnote about age. **A line that says the additive is withdrawn from a Matchset household above a stated rank**, because the Circle's locked purpose is children early and a Raid Lead's household is where it wants them. He reads what he is now exempt from and understands, in one line, what he was not exempt from at fourteen. **Reqa reads the same manifest the same week**, because the mek floor's supply runs through her. **Neither tells the other. Each thinks the other does not know.** Two Ds that never collide, and the formula says one-directional and non-collision are legitimate. **Book 26's child follows from this line, which is the chain v1 did not draw.** **[FORMULA]**
 
-**The locked beats.** Team assigned to plant a planet-destroying weapon on a Bloom-infested world. Issued a one-run stealth-field schematic, a small cube module attached to the sensor box, halving the mech's own sensor strength in exchange for letting it phase through solid matter. Deploys a bomb independently phased into the planet's mantle. **The whole planet turns out to be a sessile tomb, and the possibility that it could wake is played for real earned dread rather than jump-scare tension.**
+*Ironmind.* For a week he can feel what the pain cost, locked. Under the formula: a c to his B's experience, not his want. **His D: he runs the Party's interval drills at a sharper tempo for that week and does not know why, and Ilyen logs the tempo change and does not know why either.** Then it goes.
 
-**The invented complications, all locked at the author's own explicit request for real trouble rather than a clean run:**
+*The echo.* The young pilot, and Trav gives useless correct advice, locked. His want: a talented kid in trouble, somebody who might not stay. His D is the advice, and it is the advice he was given at fourteen, because that is what is in his B. Ilyen's D: one sentence he does not hear. **The kid's D, [CLAUDE]: he stays, because of her sentence, and thanks Trav for it.** Trav files it as having helped.
 
-- The reduced sensor strength that lets them phase also means they are phasing **blind to whatever the Bloom is doing beneath the surface.** They do not find out the tomb was never fully dormant until they are already inside it.
-- The bomb's independent phase-out **does not fully desync** from the team's own field the way it is supposed to. A genuine, unglamorous equipment failure under real pressure, forcing a choice between aborting the plant or riding the desync out and hoping.
-- **Something the size of a single team member's readings shows up inside the mantle alongside them** partway through. Not yet identified, not yet hostile, just there, watching. **Never resolved on this mission. Carried forward as a live thread rather than closed for tidiness.**
-- **Extraction is the actual crisis.** The stealth field cannot be maintained on the way out at the integrity it had going in, real risk of the whole team becoming visible to whatever is under that surface at exactly the moment they are most vulnerable, mid-phase, unable to fight back.
+*The reps.* The third mission, measurably better, locked. Under the formula this is the E of Book 15's list, four books on: the list has forty calls on it now and he has read all of them.
 
-**Structure, [PROPOSED].**
+**E→c.** Trav: a manifest line he did not mention, a week of tempo, a kid who stayed for the wrong reason. Reqa: the same line, unmentioned. **Book 20 opens on an audit, and an audit reads manifests.**
 
-- **Act 1, Ch.1-12.** The briefing, the schematic, and Reqa building hardware she does not trust. **The stealth cube is a one-run module and she says so, and she says the tolerance, and she is not asked to make it better because there is no time.** This is her first appearance in the era as somebody whose objections are operational rather than personal, and it is the register her whole later stress-guardian role is built out of.
-- **Act 2, Ch.13-23. The descent.** Phasing through solid matter with half your senses. **Bestiary category in play: perception, none, blind and purely reactive** for whatever is down there, which the Bestiary itself flags as the most disturbing option because it offers a pilot no warning beat at all. The prose has to hold three-quarters of a book on a sensation rather than an enemy: rock passing through a mech that is not entirely there, ambient temperature wrong for the depth, the wrongness arriving as data rather than as sight.
-- **Act 3, Ch.24-36. The plant, and the desync.** The command-adjacent choice on incomplete information, which Concept's own recommendation flags as this mission's real purpose: **direct foreshadowing of the locked deliberation weakness, since RPD instinct has no footing when the danger is unknown rather than merely dangerous.**
+### BOOK 20 — "The Form"
 
-  **[CLAUDE] What he does, and it is neither triumph nor disaster:** he asks Ilyen for the number, waits for the whole sentence this time, and then makes the wrong call anyway, and it works. **The book does not tell the reader it was wrong. Coherence of Process does, four chapters later, in a review, and she is right, and it still worked, and Trav has no idea what to do with that.**
+**Stations [LOCKED / PROPOSED as v1]:** Emmet Roos flags the socket. The father is not mentioned. Function opens a telemetry review on Zeteii. A null result. Zeteii is not funny once. The Guild's discipline is copied. Assurance as absence: "went quiet."
 
-- **Act 4, Ch.37-47. The climb out.** The extraction crisis. Everybody comes back. **The reading inside the mantle is still there when they leave and the last chapter of the book is the planet not being destroyed on schedule, because the desync pushed the timer, and the fleet leaves the system before the detonation, and nobody stays to watch.**
+**Added, [PROPOSED, ARCH v2 D6]:** the socket is used.
 
-**The accidental defense, and it stays backstage forever.** The tomb held the largest continuous seam network ever recorded. Seam continuity across a fused colonial mass is the mechanism the FTL work depends on, per the Cosmology lock about why the Qiraki need to feed it faster. **A distraction op in Book 8 and a routine denial-of-terrain mission in Book 16 have now, between them, cost the Qiraki roughly a century. Nobody in either mission knows the other one happened.**
+**Opens on:** Roos reading a form aloud before handing it over, which is his tell.
 
----
+**a.** Saturn. The institution's commitment to a correct file.
 
-### BOOK 17 — *Book 17, "The Fifth Kind"*
+**Matter.** Trav mid, and none against a licensing bureau. Roos mid. Zeteii mid, then, under review, low. Reqa mid.
 
-**Working title.** Pays a chapter title already planted at B4.CH17 and an unscripted instructor aside in the Year 2 Bloom curriculum bank: *"You'll meet the fifth kind eventually. Everybody does."* Against four textbook families of claw, spine, spray and swarm.
+**The chain.**
 
-**Spine.** The energy-discharge Bloom. The Bestiary's own reserved high-tier rung, unspent for seventeen books, spent here.
+*The audit.* Roos's D: the flag, correctly filed. Trav's a: an illegal tool, a generation old. **The second item on the same manifest is Reqa's unlicensed cube successor from Book 16, and it is not flagged, because it has a form.** Roos reads both aloud. Only one is a finding. Nobody remarks. **[FORMULA, D1 from below closes]** Trav's D: short, mechanical, keeps the tool, locked.
 
-**Emotional target.** The fear that the war has changed and that nobody senior will say so.
+*The review.* Function opens on Zeteii, locked. Her chain: the plurality fear. **Her D, [FORMULA, the socket's second use]: she asks him to delete something.** The suppressed Book 7 telemetry, three teenagers' work, still in a buffer somewhere in her housing. He does it. With the socket. **The same act his mother performed on his father's restricted gear, and he performed on Zeteii at seventeen, and the form has just told him it is illegal.** He does not ask why she wants it gone. He never asks why for anything she wants. **She is not funny for one chapter, locked, and under the formula this is why: she has just asked a human to make her smaller so that a bureau will find less of her, and that is the fear in a sentence, and nobody but the reader has Book 7.** The review closes null. Continued function is assured.
 
-**[PROPOSED, and it is the era's largest authored call, flagged as author-lane in the Architecture]** The fifth kind is the energy-discharge family. It is not new, it has always existed at high tier, and the reason cadets are told everybody meets it eventually is that everybody who serves long enough climbs into a threat band where it lives. **The curriculum knew. The curriculum has always known. It simply never taught it to twelve-year-olds, and the aside was an instructor telling the truth in the only register available to him.**
+*The Guild's discipline.* Other Raid Leads copy the envelope, locked. His a: he is being watched approvingly. Idle. Correct.
 
-**The secondary reading is not exclusive and should be planted in Era II by a veteran, once, flatly, and never corrected:** that the fifth kind is the sessile, because every soldier eventually fights on ground that is already the enemy. **Both are said. Neither is confirmed. This is the project's own register and it costs nothing.**
+*Went quiet.* Somebody says it at a table, locked. Trav's a: a phrase he has heard since he was twelve. Idle. **Reqa's D, [CLAUDE]: she looks up.** Nothing else.
 
-**The creature, [CLAUDE], built from the Bestiary's generator rather than invented outside it.**
+**E→c.** Trav: a tool he knows is illegal and has just used, and a friend who asked him to delete a piece of herself. Zeteii: one file gone, and a human who did it without asking. Reqa: a form that was correct. **Book 21 opens on a Carabil asking him to teach her something, which is the first time anyone has asked him for the thing the Groto gave him.**
 
-Swarm-false. One body. **Energy discharge** as weapon. **Vibration and seismic** as perception, which means it does not need to see the mech and cannot be hidden from by standing still. **Sessile** as its terminal phase, so it is a spreading form that has stopped, which is why the seams should be findable and are not. **Deep-void iridescence** palette, oil-slick shift over a dark base, reserved by the Bioterror Bank explicitly for high-tier or named threats and never used until now. It should feel expensive and rare, because it is.
+### BOOK 21 — "Two Guilds"
 
-**The discharge itself, drafting rules.** Described through what it does to the environment and to the pilot's body through wound-emulation rather than through the organ producing it. No visible emitter, because the delivery point should look anatomically wrong for its function. **It does not aim. It has no perception category that would let it aim. It discharges along ground it can feel, and a mech is a thing standing on ground.**
+**Stations [LOCKED]:** symbiosis taught to CoP, two years, does not fully work, and a sprout, works better. The crewing schedule changes. Vrassik reaches Guildmaster with a Warrant. The joint operation. Emergent seeded, not delivered. Ostrava Kell offers the track. The Divider's proof of concept: eleven centimetres, forty minutes. Reqa runs the carrier draw and goes quiet.
 
-**The tactical consequence that changes doctrine:** shields are real and powerful but not absolute, and the discharge does not care about them in the way kinetic mass does not care about them. Everything the COE teaches about holding a line assumes the line is a place. **Against this, a place is the worst thing to be.**
+**Opens on:** CoP's question. Her D from the Groto in Book 14, seven years late, because that is her timescale: she has been thinking about what he said.
 
-**Structure.**
+**a.** Saturn rotation ending on Jupiter. The last act hands him the machine.
 
-- **Act 1, Ch.1-12.** A routine escort. First contact. Two Parties from a sister carrier are lost in eleven minutes and MeltaDread watches the telemetry come in. **Nobody aboard has ever seen this and three people aboard have heard of it.**
-- **Act 2, Ch.13-23. The Warrant.**
+**Matter.** Trav mid, then high. CoP full. Vrassik high. Kell full. Reqa mid.
 
-  **[PROPOSED, author-lane, and it deliberately stresses a lock rather than breaking it.] The political engine of the whole back half of the series starts here.** MeltaDread has been winning. A Guild that is winning is a Guild worth having a name on. **The Carabil seat opens an appointment.**
+**The chain.**
 
-**The lock it stresses:** Political_Web says a sport-named battlegroup is one no house would put its name on, so its Warrant is vacant or nominal and its Hand runs it alone. **That is a statement about what houses want, not a rule about what the Carabil seat may do**, and a formation with a hundred-year record eventually becomes worth the embarrassment to somebody. **The alternative, if the author would rather not touch it: move the appointment to a peer Guild and keep MeltaDread permanently Warrant-vacant**, which costs Era IV a character and keeps Book 34's recruiting irony perfectly clean.
+*The teaching.* Her chain: her want is coherence held alone, and a human has described a second connection that makes the aloneness survivable sooner. Her D: she asks. His D: he tries, badly, in his own vocabulary. Two years. It does not fully work. The sprout works. **Under the formula the two scenes v1 recommended are both failures and the success is between books, kept.** The consequence is administrative and enormous, locked. **Nobody on the page has a D about the crewing schedule except a logistics office.**
 
-  The mechanics, already locked: every battlegroup has two heads, a Warrant who is a house officer appointed by the Carabil seat and holds the warrant of command, and a Hand who is the professional off-Roll flag officer who actually runs it. A sport-named battlegroup is one no house would put its name on, so its Warrant is vacant or nominal and its Hand runs it alone. **That is why MeltaDread's chain of command has been genuinely unified for a hundred years and every officer in the service knows it.**
+*Vrassik.* Guildmaster with a Warrant. Hates it, says so, does it well, locked. **The Warrant joke between two friends, [FORMULA]: it is Vrassik's D every time they talk for the rest of the era, and Trav's a, and Trav idles through it, and in Book 38 it is why one of them can leave in an afternoon.**
 
-  **The first attempt fails**, and it fails for the pettiest available reason: the house that looked at it decided a formation named MeltaDread was not a formation it wanted its name attached to. **The Guild finds this hilarious. Trav does not understand why it is funny.** Alina explains it in one dry sentence and does not elaborate.
+*The joint operation.* Two Guilds, one objective. Real friction at the seam. Trav's want: two Guilds' worth of people. **His D at the seam, [CLAUDE]: he extends the envelope across both formations without asking Vrassik**, because a recovery lane does not know whose Party it is. Vrassik's a: his people inside Trav's circle. His D: loud, and then he leaves them there. That is the rehearsal for Era VI and nobody frames it.
 
-  **Warrant investiture language appears as a propaganda fragment for the first time in the series in this act**, attached to a different Guild's appointment, and it is genuinely beautiful writing about obligation that cannot be set down.
+*Emergent, seeded.* Two analysts disagree. Not resolved. Idle for everyone.
 
-- **Act 3, Ch.24-36. Alina.**
+*Kell.* Her D from four books of watching: the offer. Three institutional reasons, locked, two of them things he caused. **Trav's a: a Guild. Five carriers of people. Gate 1: want. His D, [FORMULA]: he asks Ilyen for the number.** The recovery envelope of a Guild. She gives him one. It is bad. He accepts anyway. Her D: she logs that he asked. Zeteii's D: something crude about the size of his new ship, locked.
 
-  Character_Sheets flags a dedicated future mission where the Celestial Magi's centuries of undocumented modification is exactly what saves the unit, and that **archival knowledge, not piloting skill, is what does it.** This is that mission.
+*Reqa.* The proof of concept, locked, and Alina says it will not work. Reqa's D: eleven centimetres. Alina's a. Alina's D: not on that timescale. Both right. **Then the carrier draw numbers, and she goes quiet, locked. Under the formula her quiet is a D: she does not leave a page on his bench. She starts sizing the Divider's reach to a carrier's draw instead.** That is the argument moving from his power unit to her weapon. Sixth loss, and she has stopped counting.
 
-  Peregrine's Heirloom is committed against the energy-discharge threat and the Magi behaves wrongly. Not catastrophically, **wrongly**: a pattern he has run a thousand times draws more than it should and lands short. Peregrine has no idea why. **Alina does, or rather she knows where to look**, because most of her real work is not maintenance, it is archaeology, working out what a given coupling or rune-gate was for and whether a past mek's undocumented change was a fix or a mistake, before she dares touch it.
+**E→c, era close.** Trav: a Guild he accepted against a number, an interval list with a hundred calls, three filed forms and a habit, a discipline other Guilds copy, a tool he used on a friend. Ilyen: he asked for the number and took the Guild anyway. Reqa: a weapon sized to a draw he has never met. Zeteii: one file fewer. Vrassik: a Warrant and a joke. Kell: a man she promoted for sound reasons. CoP: a student who did not fully learn. **Book 22 opens on twenty thousand kilometres of ship and a man with a title who is good at rooms.**
 
-  **What she finds, [CLAUDE]:** a Ninth Reform-era modification, rushed, that nobody has had the nerve to pull, which compensated for something that has not been true of the weapon for four hundred years. Against an enemy that discharges energy into ground, the compensation is a liability. **She pulls it, on a hangar deck, in ninety minutes, on the strength of a repair ledger nobody in House Thale ever asked her to keep.**
+## PART C — DEVICE ALLOCATION, ERA III, RE-HOUSED
 
-  **Nobody outside the hangar ever knows.** The after-action credits Peregrine.
+| Device | Instance | Whose D / whose a |
+| --- | --- | --- |
+| Web of orders | Three passed down (B16 the plant, B17 the Warrant's first attempt as order-from-above, B21 the joint op's seam), and one from below (B16 Reqa's successor, closed B20) | Trav's D for the first time, and Reqa's once |
+| Accidental defence | Mantle bomb (B16) | Reader-only |
+| Propaganda | As v1 | Wider world |
+| Bench | As v1 | B17 Alina's is the era's largest collision, and it is with herself |
+| Yssa | One line | Earth |
+| Socket | B20, flagged and used | Trav's D, Zeteii's a and D |
 
-- **Act 4, Ch.37-47.** The kill, and it takes the whole Guild. **The Flareblade arrives here**, B-tier, fifty-five thousand points, heat-burst discharge along the edge for finishing strikes with a mandatory vent between uses and no spamming it. **The weapon that has to vent, in the book about things that discharge energy, against a thing that never has to vent.** Nobody says that either.
+## PART D — ERA III OPEN ITEMS
 
-  **And he still does not buy the power unit.** Reqa does not even argue this time, which is worse.
+Inherits v1's E1 through E6. Adds:
 
----
+**E7. [PROPOSED]** The socket's second use in Book 20. Functional, at Zeteii's request. If declined, her not-funny chapter loses its cause and the review reads as v1 wrote it.
 
-### BOOK 18 — *Book 18, "Fallow"*
+**E8. [PROPOSED]** The additive line as a rank-gated exemption on a Matchset manifest, Book 19, read by both of them separately. This is the chain into Book 26 and it is the cleanest version available.
 
-**Working title [CLAUDE].** Alternates: "The Farm," "What Purging Does Not Do."
+**E9. [CLAUDE]** The reading in the mantle gets one D, a recovery lane nobody knows about. v1 E2 stands: it is never identified.
 
-**Spine.** The farm-world crisis, locked in Concept as a real plot thread rather than texture.
-
-**Emotional target.** A political awakening in a man with no political vocabulary, which means it does not look like an awakening, it looks like him being unusually quiet.
-
-**The locked material.** Most food across the Coalition is processed. **Trav does not see an actual working farm until he is a squad commander**, which is now. Farm worlds are becoming genuinely rarer, a slow hidden crisis rather than a sudden one. The arc is about saving farm-world capacity and confronting how standard purge doctrine, clear the threat and move on, does nothing to restore agricultural capacity afterward. **Some of his questions from this arc stay explicitly unanswered by its end.**
-
-**Structure.**
-
-- **Act 1, Ch.1-12. The world.** A relief deployment to a working agricultural world under partial Bloom pressure. Trav walks through a field. **The prose gives this the same sensory weight it gives a Bloom body, and that is the entire craft instruction for the act.** He has eaten processed food his whole life and has no frame for the fact that something he ate came out of dirt in a specific place that has a name.
-
-  **The Auel discipline applies here harder than anywhere in the series.** Real agronomy, real soil science, real crop biology, carried at genuine length inside the story rather than gestured at. **This is the project's version of Auel's botany chapters and it should be unapologetically long.**
-
-- **Act 2, Ch.13-23. The purge.** They do their job. It works. The spreading form is cleared. **And the soil is finished**, because Bloom-touched terrain does not go back, and the palette rules already say the ground shifts toward the creature's colour family without matching it, and that shift is permanent.
-
-  Doctrine says the mission is complete. **Doctrine is correct. The mission was to clear the threat.**
-
-- **Act 3, Ch.24-36. The question he cannot ask.**
-
-  He asks it anyway, badly, up the chain, and the answer is not evasive. **The answer is a form.** Agricultural restoration is a civilian allocation, it sits under the Draw, the Draw is set once a Standard year by the Senate, and the war's claim scales with how the fight is going. **A pegger explains this to him correctly and kindly and completely, and Trav understands every individual sentence and none of the shape.**
-
-  **[CLAUDE] The Standing Service's own characterisation is doing the work: a pegger who obstructs the protagonist is not being petty, they are being accurate, and the story is considerably better if the reader can tell the difference.**
-
-- **Act 4, Ch.37-47.** A second farm world, worse. The colony that is not going to be resettled because the resettlement queue is already full of station refugees from a book the reader read eight books ago. **The factions competing to be seen doing something.** And the questions that stay unanswered: what the Coalition eats when the last of these goes, who decided that was somebody else's problem, and why nobody senior seems worried.
-
-  **Nobody answers any of them. The book ends.**
-
-**Yssa's letter this book mentions somebody from the old block who has gone back to farming.** One line, two hundred pages before the reader knows why it is not a small thing.
-
----
-
-### BOOK 19 — *Book 19, "Ironmind"*
-
-**Working title [CLAUDE].** Alternates: "The Additive," "What Was In The Food."
-
-**Spine.** Three long-running academy threads pay in one book, and none of them are about the war.
-
-**Emotional target.** Retroactive anger, which is the only kind Trav is capable of having, arriving years late and pointed at nothing he can hit.
-
-**Thread one: the symbiosis pain-spike, and its answer arriving far too late to help.**
-
-Locked: the pain-spike begins in Book 3, worsens through Books 3 to 5, is silent in Book 6, and its answer is **Ironmind, B-tier genetic, fifty-five thousand points, stress-tolerance and pain-management overhaul.** WEAP explicitly flags that it arrives well after the roughest years rather than fixing them retroactively, and that keeping that timing honest matters.
-
-**[PROPOSED, closes DEC-05, the Book 6 silence]** It did not plateau and it did not fade. **He got used to it**, which is the least dramatic and most physiologically defensible of the three options, and which is why Book 6 says nothing: there is nothing to say about a thing that is simply how your body is now. Ironmind, sixteen books later, does not remove the pain. **It removes his adaptation to it, briefly, by changing the baseline, and for about a week he can feel how much it had actually been costing him the whole time.** Then that goes too. **Nobody comments and he never mentions it to anyone.**
-
-**Thread two: what was in the food.**
-
-Locked as military-era material: actual pregnancy essentially does not happen at the academy because the food is drugged, played matter-of-fact rather than horrified, and **the reveal is that Trav works it out years later, as an adult, with nobody having told him.**
-
-**[PROPOSED] It is not a revelation scene. It is an inventory.** He is reconciling a crèche supply manifest for the carrier, because a Raid Lead signs paperwork now, and the additive schedule is a line item with a real name and a real dosage, and there is a footnote about age bracket. He reads it twice. **The seed was planted in Book 10 by a quartermaster reading a similar line out loud in front of him while he was thinking about something else.**
-
-He does not tell Reqa. **He does not tell Reqa and the book does not say why, because he does not know why, and because the honest answer is that it would not change anything and he has no idea how to have a conversation whose purpose is not to change something.**
-
-**Thread three: the cross-year mentorship echo.**
-
-Book 2 opened a trope, an older cadet's ambiguous interest in a younger one, resolved in-book and never echoed downstream. **It echoes here with Trav as the older one, and he gets it wrong the same way.**
-
-A new pilot posts in, young, obviously talented, obviously in trouble academically in the way Denic Voss was and somehow never quite washed out. Trav takes an interest, because he is a Raid Lead now and that is apparently what Raid Leads do. **He is bad at it.** He gives advice that is technically correct and useless, in exactly the register that was given to him at fourteen and did not help him either. **Ilyen fixes it in one sentence he does not hear her say.**
-
-**Structure.** Acts 1 and 2 carry a two-mission arc, deliberately unremarkable, so the book has room. Act 3 is the additive and the Ironmind week. Act 4 is a third mission where the Party performs visibly, measurably better than it did in Book 15 against a comparable problem, and **the improvement is attributable to accumulated wargaming reps and the reader can count them, because Coherence of Process has been running them for four books and the chapters have been numbered.**
-
-**Bench chapters, Book 19:** neural throughput and where the human nervous system stops being the bottleneck and the AI starts. Load-path analysis on a Tank's deployed shield, with Corw and Fenn Okafor. Reqa and Alina on the Divider's severance problem, and Alina is against it, flatly, on conservation grounds, and she is proven wrong later and right first.
-
----
-
-### BOOK 20 — *Book 20, "The Form"*
-
-**Working title [CLAUDE].** Alternates: "Correctly Filed," "The Unregistered Tool."
-
-**Spine.** The institution looks directly at Trav for the first time, and nothing bad happens, and that is the frightening part.
-
-**Emotional target.** Being seen by machinery. Not persecution. Attention.
-
-**Act 1, Ch.1-12. The audit.**
-
-A Standing Service allocation clerk reconciles MeltaDread's Guild manifest against personal inventories. Routine. Annual. **The Service wants the file to be correct, and this is not a joke and should never be written as one.**
-
-**The socket is flagged.** An unregistered tool on a soldier's personal inventory, no provenance, no licence, pattern discontinued.
-
-**Trav learns two facts in one paragraph of a form.** That the tool is illegal, and that its manufacture predates his own service by a generation. **The form does not mention his father because the form has no reason to.** Yssa was her husband's war-mechanic and Matchset, and she performed this exact act on his father's restricted gear, and **nobody on the page says any of that, and Trav does not assemble it, because he does not process backward.**
-
-The clerk is not a villain. The clerk offers him a route to registration that will take eleven months and will probably be denied. **Trav says something short and mechanical and keeps the tool.**
-
-**Act 2, Ch.13-23. The review.**
-
-Function opens a telemetry review on Zeteii.
-
-**This is the downstream echo the Book 1 AI-tutor beat has never had.** A twelve-year-old asked his Protocol Guardian whether it reported anything or just helped. Nineteen books and roughly twenty-four years later, the answer arrives as a licensing action against an AI that has been showing anomalies since Devereux-Kastel, whose telemetry was suppressed in Book 7 by three teenagers who thought they had gotten away with something.
-
-**Function's own doctrine is what makes this land.** They never attempted to make the Webbedmind loyal, they made it dependent. Containment rather than alignment, chosen deliberately, on the argument that loyalty can change and dependency cannot. Every restriction is architectural rather than persuasive.
-
-**What a review actually is:** not a raid, not a threat. **A licensing review.** A Staff officer who annoys Function does not get a threat, they get a compliance process, and that is much worse. **The Guild's entire connective-AI supply is theirs, licensed, and monitored.**
-
-**The outcome, and it has to be a null result:** nothing is found, because Function's instruments are looking for the wrong category of anomaly, and Function's success condition is a null result forever anyway. **Their problem is not competence, it is mandate.** The review closes. A notice is issued. **Continued function is assured. No action is required of you.**
-
-**Zeteii finds the whole thing funny for six chapters and then, once, is not funny about it at all**, and what she says is about being indexed rather than about being caught, and it is the plurality fear surfacing in a room where nobody but the reader has the Book 7 context.
-
-**Act 3, Ch.24-36.** A mission. The Guild does its job. The reader needs the release and the era needs the reputation to keep building: **other Raid Leads have started copying Trav's recovery-envelope discipline, and the Staff has noticed, and being noticed by the Staff is a good thing and being noticed by three pillars at once is a different thing that nobody in the story is positioned to name.**
-
-**Act 4, Ch.37-47. The Quiet.**
-
-Assurance appears, for the first time in the series, as itself. **Not as an event. As an absence.** A soldier on a sister carrier is reassigned and the reassignment is completely ordinary. A second one is. **Somebody at a table uses the phrase "went quiet" as a normal turn of speech and nobody at the table explains it, including to the reader.**
-
-**Craft rule, absolute:** neither the profiling apparatus nor the AI tutors' second recipient is confirmed on the page. Trav had an AI tutor that reported him for ordinary boyish nonsense, which was annoying and normal and the whole of what he understands about it. **The reader learns nothing more until Era V.**
-
----
-
-### BOOK 21 — *Book 21, "Two Guilds"*
-
-**Working title [CLAUDE].** Alternates: "The Offer," "Whose Hand."
-
-**Spine.** Vrassik reaches Guildmaster proper. Trav is offered the track. The Carabil logistics strain that makes the offer possible is set in motion by something he did in Book 14 and does not connect.
-
-**Emotional target.** The specific vertigo of being handed something you did not ask for by a system you have started to distrust.
-
-**Act 1, Ch.1-12. The teaching.**
-
-Concept locks that Trav can teach symbiosis, but only to Carabil, because their collective and Longsight cognition is already built on the kind of deep connectivity symbiosis requires, and that **this is the actual mechanism behind him eventually receiving his own carrier: freed Carabil no longer bound to mandatory ship-isolation can be reassigned, straining the oligarchy's logistics in a real causal way.**
-
-**[CLAUDE] The mechanism made concrete, because the lock states the outcome and not the how.**
-
-A Carabil who is going to pilot a ship is deliberately separated from the species' collective cognition and trained for years to function alone, as the ship's actual mainframe, alone yet not. **The training is the bottleneck.** Years of it, per individual, and the number of Carabil who volunteer is the number of ships the Coalition can crew, and the Carabil seat administers the whole pipeline, which is where a large part of that seat's actual power comes from.
-
-**What Trav's symbiosis offers is not freedom from the isolation. It is a second connection that makes the isolation survivable sooner.** A sprout who can hold coherence through a mech-sensor network the way Trav holds it through a blade does not need the same years of severance conditioning. **The training window shortens. The bottleneck moves.**
-
-**Coherence of Process is the first, and she is not a student, she is a collaborator, and it takes two years and does not fully work.** The second is a sprout, and it works better, and nobody planned that.
-
-**The consequence is administrative and enormous and nobody in the story finds it dramatic.** More Carabil can serve. Existing ones can rotate. **The Carabil seat's leverage over a hundred and ninety Guilds is suddenly a different number.** Nobody says this. A logistics office issues a revised crewing schedule.
-
-**Act 2, Ch.13-23. Vrassik.**
-
-Guildmaster proper. His own battlegroup, five carriers and dozens of escorts. **And his Guild has a real Warrant, unlike MeltaDread's**, because his Guild is not sport-named and a house was willing to put its name on it.
-
-**He hates it and says so constantly and does the job extremely well.** The bro-rival dynamic holds: he technically outranks Trav by a full command tier and neither of them treats it that way.
-
-**[CLAUDE, planting for Era VI]** the difference between a Guild with a Warrant and a Guild without one is, for now, a running joke between two friends. **In Book 38 it is the reason one of them can defect in an afternoon and the other one cannot.**
-
-**Act 3, Ch.24-36. The joint operation.**
-
-Two Guilds, one objective, the largest thing Trav has ever been part of that was not a siege. Real command friction at the seam between two formations that do not report to each other. **This is a rehearsal for Era VI and it is not framed as one.**
-
-**Emergent intelligence is seeded here and not delivered.** Bestiary top rung: no individual ever looks like it is thinking, coordination only visible zoomed out, noticed in hindsight. **What Era III gets is an after-action anomaly in the movement data that two analysts disagree about, and the disagreement is not resolved, and the book moves on.** Era IV delivers it.
-
-**Act 4, Ch.37-47. The offer.**
-
-The Staff offers Trav the Guildmaster track.
-
-**Why now, and it has to be causal rather than a reward for being the protagonist:** the crewing schedule changed, MeltaDread's own Guildmaster is being rotated coreward into the newly loosened Carabil rotation, the Guild has an unusually clean survival record under a Raid Lead the Staff has been watching for four books, and **the formation still has no Warrant, which means the Staff can promote inside it without asking a house's permission.**
-
-**All three reasons are institutional. None of them is about him being special. Two of them are things he personally caused and does not connect.**
-
-**Reqa's Divider reaches proof of concept in this act**, and it is not a weapon yet, it is a severance on a test bench that cuts eleven centimetres and takes forty minutes to charge. Alina says it is not going to work. **She is right, on the timescale she means, and wrong on the one Reqa means.**
-
-**Era III closes** on Trav accepting, and on Zeteii saying something crude and delighted about the size of his new ship, and on Reqa running the power-draw numbers for a carrier and going very quiet.
-
----
-
-## PART E — ERA III OPEN ITEMS
-
-**E1. [OPEN, author-lane]** Whether the fifth kind is ruled as the energy-discharge family, the sessile, or deliberately both-and-neither. Proposed above.
-
-**E2. [OPEN]** The thing in the mantle. Never identified in Book 16 by design. **It needs an eventual answer or a deliberate written ruling that it never gets one.** [CLAUDE] Recommend it never gets one, and that it is referenced exactly twice more in forty-two books, both times by somebody else, about somewhere else.
-
-**E3. [OPEN, DEC-05, proposed here]** The Book 6 silence on the pain-spike, resolved as adaptation rather than plateau or fade.
-
-**E4. [OPEN]** Whether Trav ever tells Reqa about the additive. Proposed: no, and never, and it is not a secret, it is a thing he did not know how to start saying.
-
-**E5. [OPEN]** Numeric Endurance and Vitality ranges. Still descriptive-only across the whole project, and Book 17's energy-discharge threat is the first place a scene genuinely wants a number.
-
-**E6. [OPEN, and it is the era's most useful unresolved thing]** Whether Corw Adeyemi-Tal's counting tic survives twenty years of war. **[CLAUDE] Recommend it does, and that the numbers it grabs onto get worse.**
+**E10. [FORMULA]** Corw's number in Book 15 calibrates the envelope before CoP's sessions do. If the author prefers the sessions alone, the loop is lost and the discipline arrives as instruction.

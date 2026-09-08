@@ -401,7 +401,13 @@ function rankCandidate(c: Candidate, unit: BattleUnit, allUnits: BattleUnit[], t
   if (c.repairTarget) score += 150;
   score -= c.incoming.total * incomingWeight(frontLineProtected, safe);
   score += c.terrain * TERRAIN_WEIGHT;
-  score -= isolationPenalty(unit, c.tile, allUnits);
+  // Mission rework pass (8 Sep 2026): a VIP's isolation counts four times
+  // over, like her incoming does. Traced on Wire and Mud: the commander,
+  // predicted to take ~30 next turn, walked five tiles from everyone into
+  // the map corner (8 points/tile of isolation vs 12 points/damage of
+  // incoming), got run down there alone by the wave that came in behind
+  // the squad, and ended the mission. Alone is the one place she can't be.
+  score -= isolationPenalty(unit, c.tile, allUnits) * (frontLineProtected ? 4 : 1);
   score -= c.cost * 0.1;
   return score;
 }
@@ -456,8 +462,26 @@ export function hardTierOverride(
   // (safety, shot) trade — instead of shooting from wherever it happens
   // to be. Mission 7's first-cut loss: four units outside the zone all
   // shooting happily while the one Tank inside it died.
+  // Mission rework pass (8 Sep 2026): manning starts when THIS unit's walk
+  // needs it, not at a fixed turn — a ridge eight tiles from the pads is
+  // two moves away, and holdUntil-1 was one move too late (The Fallow
+  // Line, The Outer Ring Falls: "hostiles hold the zone" with the squad
+  // still on the approach). A VIP only mans once the squad itself is in
+  // or beside the zone; the hostile AI focus-fires the commander by
+  // design, and the zone only needs one unit.
   const zone = holdZoneKeys(context);
-  if (zone && turn >= zoneManningTurn(context) && !zone.has(coordKey(unit.pos))) {
+  const manningDue = (() => {
+    if (!zone || zone.has(coordKey(unit.pos))) return false;
+    const hold = context.map.holdZone ?? [];
+    const dist = hold.reduce((best, c) => Math.min(best, chebyshevDistance(unit.pos, c)), Infinity);
+    const walk = Math.max(1, Math.ceil(dist / Math.max(1, unit.moveRange)));
+    if (turn + walk < zoneManningTurn(context)) return false;
+    if (!frontLineProtected) return true;
+    const others = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId && !needsFrontLineProtection(u));
+    if (!others.length) return true;
+    return others.filter((u) => hold.some((c) => chebyshevDistance(c, u.pos) <= 1)).length * 2 >= others.length;
+  })();
+  if (zone && manningDue) {
     const { list, reach } = candidates(map, unit, enemies, allUnits, threat, profile, memory, zone);
     if (list.length) {
       list.sort((a, b) => rankCandidate(b, unit, allUnits, threshold, frontLineProtected) - rankCandidate(a, unit, allUnits, threshold, frontLineProtected));
@@ -488,7 +512,18 @@ export function hardTierOverride(
   if (here.total < threshold) return null;
 
   const lethalHere = here.total >= unit.currentHp + (unit.shield ?? 0);
-  const { list, reach } = candidates(map, unit, enemies, allUnits, threat, profile, memory, zoneRestriction(unit, allUnits, context, frontLineProtected, lethalHere, turn, "retreat"));
+  const { list: rawList, reach } = candidates(map, unit, enemies, allUnits, threat, profile, memory, zoneRestriction(unit, allUnits, context, frontLineProtected, lethalHere, turn, "retreat"));
+  // Mission rework pass (8 Sep 2026): same rule as combat.ts's retreatPath
+  // — a VIP's pre-emptive retreat only considers tiles with an ally within
+  // 2 while any such tile is reachable. See rankCandidate's isolation note.
+  let list = rawList;
+  if (frontLineProtected) {
+    const allies = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId);
+    if (allies.length) {
+      const covered = list.filter((c) => allies.some((a) => chebyshevDistance(a.pos, c.tile) <= 2));
+      if (covered.length) list = covered;
+    }
+  }
   let ranked = list.sort((a, b) => rankCandidate(b, unit, allUnits, threshold, frontLineProtected) - rankCandidate(a, unit, allUnits, threshold, frontLineProtected));
   // VIP oracle re-check: the allocation model ranks, the real hostile AI decides among the top few.
   if (profile.hostileOracle && frontLineProtected && ranked.length > 1) {

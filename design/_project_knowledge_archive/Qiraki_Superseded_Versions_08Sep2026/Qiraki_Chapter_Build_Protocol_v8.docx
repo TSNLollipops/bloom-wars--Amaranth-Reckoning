@@ -1,0 +1,205 @@
+# THE QIRAKI FILES — Chapter Build Protocol (v8)
+
+**Changelog v8 (2026-09-06):** Stage 2 gains a clock row, Stage 3 gains a TIME line, Stage 6 gains a clock check. Caught by the author in a B1.CH23 draft that ran a breakfast scene at half six when the first block starts at six. **The root cause is worth stating precisely, because it was not carelessness.** The academy’s daily schedule existed only in delivered prose, scattered across eight chapters, and in no reference document anywhere. There was nothing to look up, so nothing was looked up, and no row in Stage 2’s load order would have surfaced it. Ch.22 was in the load for that draft and its own line, “six in the morning on a Tuesday is the rune block for the rest of us,” was read and then contradicted four hundred words later. Fixed at the source by BIBLE §2a, which now holds the schedule, and fixed here by making somebody read it. **Same failure class as the Reqa spelling rule and as DEF-49:** the checks all ran chapters against rules, and this fact had no rule to be run against.
+
+**Changelog v7 (2026-09-05):** Added a Stage 6 item, no invented specificity. Three separate defects surfaced in one chapter’s nitpick pass from the same root cause: a surname used once in twenty-one chapters (Ch.8’s “Doyle Marsh”) reused as if established, a callback object (“the tin”) whose own setup had been cut earlier in the same draft, and a day-of-week claim (“nine’s a lot for a Tuesday”) with no antecedent anywhere in delivered prose. None of these were caught until the author read them and asked “who’s that” or “since when.” The common shape: a name, an object, or a day-specific claim that sounds plausible enough to write without checking, and isn’t checked because it doesn’t look like the kind of thing that needs checking. Adding this as its own line rather than folding it into the existing arithmetic check, since the failure mode isn’t a wrong number, it’s an uncited fact.
+
+*Part of the Qiraki files. This is the program. Input is a chapter address. Output is drafted prose plus the write-backs that keep the reference set current. Seven stages, run in order, no stage skipped. Document IDs used throughout are defined in Qiraki_Master_Index.md.*
+
+*The point of a fixed pipeline is not bureaucracy. It is that a seven-book project cannot be held in anyone’s head, and the alternative to a pipeline is not freedom, it is rediscovering the same six mistakes every few months.*
+
+## The pipeline
+
+1 ADDRESS resolve the chapter to an absolute number 2 LOAD pull the fixed context set, in order 3 BRIEF assemble the chapter brief 4 GATE check the brief against the walls before writing a word 5 DRAFT write 6 LINT run the checks against delivered text, not against the brief 7 COMMIT write back what the chapter changed
+
+Stages 1 through 4 are lookup and assembly and should be fast and boring. Stage 5 is the only stage that is writing. Stages 6 and 7 are what stop book 4 contradicting book 2.
+
+## Stage 1 — ADDRESS
+
+Resolve to CH.Bn.mm, absolute numbering.
+
+- Look the number up in CHIDX. Do not compute it from act position. Acts run 12 / 11 / 13 / 11, so act 3’s sixth chapter is Ch. 29 and act 4’s eighth is Ch. 44.
+
+- Confirm the chapter title from CHIDX, not from memory or from the outline prose.
+
+- Note the month. Act 1 is January to March, act 2 April to July, act 3 August to October, act 4 November to December.
+
+- Note the year and therefore the ages. BIBLE §3 for the arc, CAST for exact ages.
+
+Output: CH.B4.25 — “The Session” — act 3, September, year 4, Trav 15.
+
+## Stage 2 — LOAD
+
+Fixed load order. Same every time, so nothing gets skipped because it did not occur to anyone.
+
+| # | Load | From | Looking for |
+| --- | --- | --- | --- |
+| 1 | The walls | PROC spoiler lock, STYLE §9 | Anything this chapter is forbidden to contain |
+| 2 | The chapter beats | B1..B6 | What the outline says happens |
+| 3 | Neighbours | B1..B6, chapters *n*-1 and *n*+1 | What this chapter inherits and what it owes forward |
+| 4 | Who is present | CAST | Want, tell, register, execution rules, and current standing for every named body in the room |
+| 5 | The curriculum | CBT / RUNE / ENG for that year | The named exercise, the real science, the correct difficulty |
+| 6 | The gear state | WEAP, PTS | What Trav is actually carrying by this chapter, and what he is not |
+| 7 | The opener | PROP | Which fragment, and which type was used in *n*-1 |
+| 8 | Trope obligations | PLAN | What this chapter deploys, resolves, or echoes |
+| 9 | Known defects | QUEUE | Whether this chapter sits on top of an unresolved decision |
+| 10 | Delivered prose | Tier 6 files | Only if this chapter references something already written |
+| 11 | The clock | BIBLE §2a | The ring, the sitting, the first block **for that weekday**, lights-out |
+
+**Item 3 is the one people skip and the one that causes the most damage.** Cross-project Lesson 4: every edit changes what its neighbours mean, even when the neighbours’ own text has not moved. Reading *n*-1 and *n*+1 before drafting *n* is the cheap version of that lesson.
+
+**Item 9 is a stop condition, not a note.** If the chapter depends on an open DEC, stop and surface it. Drafting on top of an unresolved structural decision is how a fix becomes a rewrite.
+
+**Item 11 is new, added 2026-09-06, and it is the cheapest row in the table.** Every scene happens at an hour whether the draft names one or not, and a scene placed at an impossible hour breaks the world in a way a reader feels immediately and cannot always name. Thursdays are the only weekday mornings with slack in them. Look up the weekday before writing a long breakfast, not after.
+
+**Item 4’s standing column, added 2026-09-01.** Before drafting, note in one line what each present character may actually do right now, not what they will eventually be able to do: literate or not, ranked or not, on whose authority they can speak, who is watching. RANK, WEAP, PTS and BIBLE’s own timeline are the authoritative record of this. No separate agency-tracking document exists or is planned. This line just makes someone read that record before writing rather than after, which is the whole fix. If a scene needs a character to act past that standing, the scene needs to earn the change on the page first, not borrow it.
+
+## Stage 3 — BRIEF
+
+Assemble before writing. The brief is disposable, it exists to make stage 4 possible.
+
+ADDRESS CH.B4.25 “The Session”, act 3, September, Y4, Trav 15 POV Trav, first person, continuous present TIME weekday and hour for every scene in the chapter, each one checked against BIBLE §2a OPENER PROP fragment: [id] — type: [poster / curriculum / memo / broadcast] type used in CH.B4.24 was: [x], so this one must differ
+
+PRESENT [character] — want: [ ] — tell: [ ] — register: [ ] [character] — want: [ ] — tell: [ ] — register: [ ]
+
+CURRICULUM [named exercise from CBT/RUNE/ENG] — real grounding: [ ] what a reader learns, and through whose failure: [ ]
+
+GEAR STATE Trav carries: [ ] Trav does not yet have: [ ] any purchase this chapter: in-fiction reason FIRST, stat second
+
+BEATS 1. [ ] 2. [ ] 3. [ ] 4. [ ]
+
+TROPE deploys: [ ] resolves in-book at: CH.Bn.mm echoes: [ ] from CH.Bn.mm owes downstream: [ ] planted at CH.Bn.mm
+
+INHERITS from CH.B4.24: [ ] OWES to CH.B4.26: [ ]
+
+WALLS spoiler: [clear / touches] minors: [clear / touches] thesis risk: [which character is most likely to say the quiet part]
+
+*(SPELLING line removed 2026-08-22. See the note below.)*
+
+**On the SPELLING line, REMOVED 2026-08-22.** This line used to carry “Reaka through B1.CH08 inclusive, Reqa after.” The rule it enforced was superseded by author ruling, see CAST’s Reqa entry for the replacement. Narration is **Reqa** always, “Reaka” is dialogue-only, and no chapter carries a spelling obligation, so there is nothing left for a brief line to track. AUDIT §1.1, which flagged the correction scene as unassigned, is closed by the same ruling rather than by assignment. **Worth keeping the lesson attached to the corpse:** this rule survived on three briefs and in five reference documents while the delivered prose had been quietly contradicting it since Ch.2. Nothing caught it because every check was verifying the chapters against the rule instead of the rule against the chapters. Stage 6 runs against delivered text for exactly this reason.
+
+**On the**** ****“****thesis risk****”**** ****line.** PROC names Halvorsen and Osei as the likeliest characters to state the quiet part out loud on Trav’s behalf. Naming the risk before drafting is cheaper than catching it after.
+
+## Stage 4 — GATE
+
+Four walls. Any one of them means stop and fix the brief, not fix the draft.
+
+- **Spoiler.** The word “Qiraki” appears nowhere in prose, dialogue, in-universe document, or fragment. Not as an easter egg, not in a description, not as a word a character stumbles on.
+
+- **Minors.** Nothing romantic or sexual involving any character while a minor, and no narration that discusses adolescent sexuality in the academy books. The fertility-suppression mechanism is never explained during the academy years, its reveal is military era. If a beat seems to invite otherwise, that is the signal to cut the beat.
+
+- **Thesis.** No paragraph or scene ends by explaining what it meant. The Cradle Circle critique, the preserve system, the propaganda device only work if nobody on the page states the point.
+
+- **Unresolved decision.** Nothing in QUEUE marked SEV-1 sits underneath this chapter.
+
+## Stage 5 — DRAFT
+
+The constraints that are cheaper to hold while writing than to fix afterward.
+
+- First person, continuous present, Trav unless the chapter is a locked exception.
+
+- Zero em dashes. Zero semicolons.
+
+- Two tracks running at once. Real curriculum or systems content, and real character interaction. Neither waits for the other to finish.
+
+- Show what a system costs through action. If a fact cannot be shown through action, restructure the scene rather than narrating it.
+
+- Teach through failure. A character getting something wrong for a specific real reason teaches the mechanism without anyone explaining it.
+
+- Adolescent psychology, not adult psychology in smaller bodies. Peer approval outweighs adult approval, public embarrassment lands harder than private failure, risk perception is genuinely immature.
+
+- Every character acts on genuine emotion, including the ones who are wrong.
+
+- Gear reflects character, never the reverse. In-fiction reason first, stat change second.
+
+- Ordinary actions meet ordinary resistance under stress. They do not complete cleanly and they do not fail dramatically.
+
+- No vague-truth placeholders surviving from the brief. “She says something true” is a planning shorthand and an AI tell the moment it reaches prose.
+
+## Stage 6 — LINT
+
+Run against the delivered text. Not against the brief, not against memory. Cross-project Lesson 2: planning documents are intentions, only delivered prose is truth.
+
+**Mechanical, countable, worth actually scripting:**
+
+- em dash count = 0
+
+- semicolon count = 0
+
+- “thing”, “stuff”, “true”, “plain”/“plainly” — count, then justify each survivor. Plain added 2026-08-31, STYLE §3, same minimize treatment.
+
+- banned phrases from EMO — count = 0
+
+- “Qiraki” — count = 0
+
+- “Reaka” — count in narration = 0, dialogue-only (see CAST, Reqa)
+
+- word count against the established recent average (delivered chapters have run closer to 4,000-5,200 than the original ~2,500 figure; check against the actual last few delivered chapters, not this stale number). **Floor, LOCKED 2026-08-29:** if a draft comes in under 4,500 words, do not pad with generic description. Add more socialization among the found-family ensemble specifically (the 8-kid workshop-bay group and similar), spread across existing scenes rather than dumped in one. Author’s framing: the social warmth is “sugar on rot,” meant to tonally offset the story’s grittier material, not filler for its own sake.
+
+- sentence-length distribution, flag if it flattens
+
+- causal-connector density, the diagnostic that turned “feels mechanical” into a countable finding on the last project
+
+- paragraph-final sentences, scan for stated morals
+
+**Structural:**
+
+- Does every named present character do something only they would do?
+
+- Is any emotional beat mechanically identical to a nearby one? Parallel beats need to cost different things, not just be present.
+
+- Do the neighbours still work? Re-read *n*-1’s last page and *n*+1’s first beats.
+
+- Does any number in this chapter need arithmetic checking against the whole span it belongs to? Death tallies, headcounts, days, ages, blood-count numbering.
+
+- Did the propaganda fragment type differ from the previous chapter’s?
+
+- **Clock check, added 2026-09-06.** Place every scene against BIBLE §2a. A weekday morning scene still running past six is wrong unless it is a Thursday. Nobody wakes, sleeps or eats after the first block.
+
+- Mek and mech, never interchanged.
+
+- **No invented specificity, added 2026-09-05.** Any line naming a specific person by a form not in current use, a specific object referenced as already known, or a specific day/date tied to a claim about pattern or frequency, gets grepped against delivered chapters before it survives, not assumed plausible. A name used once, chapters ago, in a tag line or an introduction, is not “established” for dialogue reuse, check how it’s actually been used since, not whether it appears at all. A callback object needs its setup still present in the current draft, not present in an earlier version of it. A “that’s a lot for a [day]” or “since [day]” claim needs an actual pattern on the page, not a plausible-sounding guess, variance already shown on other nights (Ch.21’s three bouts, this chapter’s nine) is not itself a day-of-week rule.
+
+- **Standing check, added 2026-09-01.** Does anything a character does in this chapter assume more standing than item 4 established for them going in, institutional, physical, or social, without the chapter earning that change on the page? A locked structural zero (illiteracy, no rank, no channel to speak on) stays zero until a scene actually spends the time changing it. Flag it rather than writing around it silently.
+
+## Stage 7 — COMMIT
+
+The stage that keeps the reference set from going stale. Each item writes back to exactly one owner.
+
+| If this chapter… | Write to | What |
+| --- | --- | --- |
+| deployed a trope | PLAN | trope, in-book resolution chapter, planted downstream echo |
+| used a study-session subject | PLAN | book, chapter, subject, source doc |
+| coined a term | TERM | term, meaning, first use, constraints |
+| locked a character detail | CAST | the detail, marked LOCKED |
+| opened a thread not yet closed | BIBLE Dropped-Thread Register | thread, opened in, status, why it matters |
+| purchased gear | WEAP | current loadout state at this chapter |
+| invented an item, gesture, or object | CAST or TERM | flag it as a Claude-lane call so it can be swapped if wrong |
+| revealed a new craft rule | STYLE or EMO | the rule, named, with the scene that produced it |
+| surfaced a structural fork | QUEUE | as a DEC, not resolved |
+| changed a chapter title or count | CHIDX | **regenerate, do not patch** |
+| contradicted an existing doc | that doc | the doc is stale, fix it there |
+
+**The write-back is not optional and it is not housekeeping.** Every defect currently in QUEUE exists because a stage 7 did not happen. **Corrected 2026-09-01, this line was stale and said so confidently:** the trope tracker and the Dropped-Thread Register both exist and both have real entries in them, this line previously claimed otherwise and was wrong at the time it was checked. What is true is narrower and still worth saying: both trackers run behind delivered prose, last fed against early chapters while the book kept going, which is the same failure this whole stage exists to prevent. See Qiraki_Book_Expansion_Plan.md and Qiraki_Bible_Skeleton.md’s own changelogs for the current state rather than trusting this sentence again without checking.
+
+## Worked example — CH.B1.08, “The Workshop”
+
+Running the pipeline on a chapter that already has beats, to show what it produces.
+
+**1 ADDRESS.** CH.B1.08, “The Workshop”, act 1, February, year 1, Trav 12, Reqa 14.
+
+**2 LOAD.** B1 says this is a daily-rhythm chapter: breakfast opens on Trav and Reqa, the workshop period is class 2, Doyle, Fenn and Petra’s beats distribute across the remaining class periods and the evening rather than stacking. LOCKS says the workshop is Party-scale, one shared bay per five-pilot team, subdivided into pair stations. LOCKS also assigns the Reqa name correction here. CAST supplies Doyle’s pride in careful numbers, Petra having already clocked Ilyen, Fenn unbothered by Corw from day one.
+
+**3 BRIEF.** Four named bonds open or advance in one chapter, all inside the daily-rhythm shape, plus the joke-ritual opening for real and the name-acknowledgement beat. That is a lot of load for one chapter and the brief is where you find that out, not the draft.
+
+**4 GATE.** Spoiler clear. Minors clear. Thesis risk is low, no sympathetic authority figure present. QUEUE check flags **DEC-02**, the Chapter 1 opening question, which touches drafted material upstream of this chapter but does not block it.
+
+**5 DRAFT.** No spelling obligation, superseded 2026-08-22. This chapter instead carries the replacement beat: Reqa acknowledging that Trav has never once got her name wrong, her answer to what he raised in Ch.3. Placement here is the author’s suggestion, not a hard lock.
+
+**6 LINT.** Additional check specific to this chapter: the four mek and pilot bonds must each cost something different. Four warm beats with the same shape read as one beat repeated.
+
+**7 COMMIT.** CAST gets the correction scene confirmed as delivered. BIBLE’s Dropped-Thread Register gets the socket logged if it is referenced. Every subsequent chapter’s brief now carries “Reqa” on the spelling line.
+
+## Applying this to what is already drafted
+
+**Stale as of 2026-09-01, corrected.** This section named Chapters 1 and 2 as the starting point, written when that was the whole delivered manuscript. Fifteen chapters are delivered now and a stage 7 backfill pass ran against Chapters 3 through 15 the same day this correction was made, closing part of the gap. **The instruction underneath the stale example still holds and is worth restating in its own right:** a backlog like this is cheapest to close in one deliberate pass rather than letting it grow chapter by chapter, and it is worth checking again periodically rather than trusting a past pass to have stayed current, which is the exact mistake this section itself just made.

@@ -91,7 +91,11 @@ export function detectStagePromotion(lastAcknowledged: Stage | undefined, curren
   return currentStage === "green" ? undefined : currentStage;
 }
 
-const PANIC_THRESHOLD = 25; // matches pilot_creator.html's own "panicking" cutoff
+// Exported and renamed 7 Sep 2026, for the same reason STRESS_PANIC_THRESHOLD
+// below was: the Archive's morale band (data/archive.ts's moraleBand) reads
+// this cutoff rather than hard-coding a second 25 that could drift away from
+// the one pickSoloEcho actually panics on.
+export const MORALE_PANIC_THRESHOLD = 25; // matches pilot_creator.html's own "panicking" cutoff
 
 // Exported, 26 Aug 2026 — Phase 3's reactionGate.ts needs the same Stress
 // panic cutoff pickSoloEcho already reads inline below, so it's pulled out
@@ -174,7 +178,7 @@ export function pickSoloEcho(pilot: AmbientPilotState): EchoPick {
   if (pilot.drunk) return { echo: Math.random() < 0.5 ? "love" : "anger", reason: "drunk" };
   if (pilot.stress >= STRESS_PANIC_THRESHOLD) return { echo: "fear", reason: "panicking" };
   if (pilot.topWorry && Math.random() < pilot.topWorry.intensity) return { echo: "fear", reason: pilot.topWorry.source };
-  if (pilot.morale <= PANIC_THRESHOLD) return { echo: "sadness", reason: "low morale" };
+  if (pilot.morale <= MORALE_PANIC_THRESHOLD) return { echo: "sadness", reason: "low morale" };
   const pool: Echo[] = ["love", "fear", "anger", "sadness"];
   return { echo: pool[Math.floor(Math.random() * pool.length)], reason: "idle" };
 }

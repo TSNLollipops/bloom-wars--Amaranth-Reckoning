@@ -338,8 +338,15 @@ export const HOUSE_AMARANTH_MISSION_1: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 8 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
-  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 11, atTurn: 1, spawnAt: "enemy_deploy" }],
+  // REWORK 8 Sep 2026 (mission rework pass) — First Harvest. A quiet morning until the second drift comes in off the east edge at 2 — the way they always do, except from the side nobody was watching — with a third at 4 and a splitfang pack at 5. Crawlmass only. The mat on the north terrace is the bonus: burn it while the drift is still coming.
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 3, atTurn: 2, spawnAt: [{ x: 13, y: 3 }, { x: 13, y: 5 }] },
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 6, spawnAt: [{ x: 13, y: 1 }] },
+  ],
   events: [],
+  bonusObjective: { kind: "clear_bloom_patch", patchTiles: [{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 }], bonusPoints: 30 },
   rewardPoints: 100,
   heirloomCharge: "locked",
 };
@@ -366,9 +373,16 @@ export const HOUSE_AMARANTH_MISSION_2: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 10, holdUntilTurn: 6 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Long Contract. Exactly one door, as promised, and the Bloom is already between the pads and it: a pair in the grain store at 1, sporethrowers behind the pads at 2, a second pack on the doorway's flanks at 3, a pack behind the squad at 4, the seams and more sporethrowers at 5, packs at 7 and 9. (A first cut widened the door and ran the hold zone out through it; reverted to keep the briefing's promise.)
   enemyWaves: [
-    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 3, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 4, y: 3 }, { x: 4, y: 7 }] },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 2, spawnAt: [{ x: 2, y: 1 }, { x: 2, y: 9 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 3, spawnAt: [{ x: 5, y: 2 }, { x: 5, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 4, spawnAt: [{ x: 1, y: 2 }, { x: 1, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 5, spawnAt: [{ x: 4, y: 3 }, { x: 4, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 7, spawnAt: [{ x: 4, y: 2 }, { x: 4, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 9, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 110,
@@ -397,11 +411,17 @@ export const HOUSE_AMARANTH_MISSION_3: CampaignMission = {
   briefing:
     "Survey team's two hours overdue and the last check-in wasn't good. The drift out past the south terrace ran heavier than anyone called it -- Orin's still out there with what she's mapped. Get to her before the field closes behind her.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 14, extractUnitId: "pilot_orin" },
+  objectiveParams: { turnLimit: 10, extractUnitId: "pilot_orin" },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — Second Harvest. The field closing behind Orin is a real gap now: a sump line at x=17 with a two-tile break, the seams behind it, two Gallcyst grown into the break and an Undertow behind them. The squad has to cut it open under acid while a second drift arrives behind them at 3, sporethrowers take both edges at 4, and a pack comes through from the seams at 5. Turn limit 14 -> 10.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_gallcyst", count: 1, atTurn: 1, spawnAt: [{ x: 17, y: 6 }] },
+    { archetypeId: "bloom_undertow", count: 1, atTurn: 1, spawnAt: [{ x: 17, y: 5 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 3, spawnAt: [{ x: 1, y: 2 }, { x: 1, y: 10 }] },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 4, spawnAt: [{ x: 10, y: 1 }, { x: 10, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 5, spawnAt: "enemy_deploy" },
   ],
   events: [],
   rewardPoints: 130,
@@ -427,7 +447,14 @@ export const HOUSE_AMARANTH_MISSION_4: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 10 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
-  enemyWaves: [{ archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: "enemy_deploy" }],
+  // REWORK 8 Sep 2026 (mission rework pass) — Good Neighbors. Same drift, same terrace — and this time a pack comes across the checkpoint road at 2 from the side Warden Company is standing on, sporethrowers set up on the road at 4 with a second drift, and a last pack at 6. Whatever they report back, let it be that it was handled.
+  enemyWaves: [
+    { archetypeId: "bloom_crawlmass", count: 7, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 2, spawnAt: [{ x: 16, y: 2 }, { x: 16, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 4, spawnAt: [{ x: 16, y: 4 }, { x: 16, y: 5 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 6, spawnAt: "enemy_deploy" },
+  ],
   events: [
     {
       id: "ev_good_neighbors_opening",
@@ -469,9 +496,16 @@ export const HOUSE_AMARANTH_MISSION_5: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 9, holdUntilTurn: 5 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Seal Arrives. Hold the dais through the review — with three Undertow under the dais itself, packs and sporethrowers from the south seams at 1, drift in off both edges at 2, and packs at 3, 5 and 7. Nothing about today can look like the program straining.
   enemyWaves: [
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 3, atTurn: 1, spawnAt: [{ x: 9, y: 4 }, { x: 10, y: 5 }, { x: 8, y: 6 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 2, spawnAt: [{ x: 1, y: 5 }, { x: 18, y: 5 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 7, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -542,10 +576,15 @@ export const HOUSE_AMARANTH_MISSION_6: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 10 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — House Colors. What's coming up through the drainage past the gate is more than a drift: packs with it at 1, sporethrowers on the far side of the wall, packs down both flanking roads at 3, Undertow surfacing at the gate itself at 5 with a second drift, and a last pack at 7. Clear the gate first.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 7, atTurn: 1, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 1, spawnAt: [{ x: 15, y: 4 }] },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 15, y: 4 }, { x: 15, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 3, spawnAt: [{ x: 18, y: 1 }, { x: 18, y: 10 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 5, spawnAt: [{ x: 10, y: 4 }, { x: 10, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 7, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -611,12 +650,17 @@ export const HOUSE_AMARANTH_MISSION_7: CampaignMission = {
   briefing:
     "The new tier was supposed to be the easy part -- survey it, seed it, come back down. Orin's team went up three hours ago and the drift readings up there have gone from warm to hot faster than anyone predicted. Get up the ridge, get her out. The terrace can wait for calm weather.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 12, extractUnitId: "pilot_orin" },
+  objectiveParams: { turnLimit: 10, extractUnitId: "pilot_orin" },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — Deeper Terraces. The upper tier's irrigation channel (sump, impassable) has two crossings and both have grown shut — a Gallcyst pair in each — with sporethrowers on the tier above shooting down and Undertow under the flat. Drift on the flat at 1, packs at the top-left seam at 4 waiting for whoever comes through, more drift at 6. Get up the ridge, get her out. Turn limit 12 -> 10.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_gallcyst", count: 4, atTurn: 1, spawnAt: [{ x: 5, y: 3 }, { x: 5, y: 4 }, { x: 14, y: 3 }, { x: 14, y: 4 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: [{ x: 4, y: 5 }, { x: 14, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: [{ x: 14, y: 7 }] },
     { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 2, spawnAt: [{ x: 6, y: 7 }, { x: 12, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 4, spawnAt: [{ x: 3, y: 1 }, { x: 16, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 6, spawnAt: [{ x: 4, y: 5 }, { x: 14, y: 7 }] },
   ],
   events: [
     {
@@ -669,33 +713,17 @@ export const HOUSE_AMARANTH_MISSION_8: CampaignMission = {
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 10 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Quiet Growth. Four drifts, all sides, all at once — and three Undertow under the post itself at 2. Sporethrowers at 3, a pack at 4, more of both at 6 and 8. Ten turns of not staying where it's put.
   enemyWaves: [
-    {
-      archetypeId: "bloom_crawlmass",
-      count: 10,
-      atTurn: 1,
-      spawnAt: [
-        { x: 7, y: 1 },
-        { x: 8, y: 1 },
-        { x: 1, y: 4 },
-        { x: 2, y: 4 },
-        { x: 13, y: 4 },
-        { x: 14, y: 4 },
-        { x: 7, y: 9 },
-        { x: 8, y: 9 },
-      ],
-    },
-    {
-      archetypeId: "bloom_splitfang",
-      count: 4,
-      atTurn: 5,
-      spawnAt: [
-        { x: 7, y: 1 },
-        { x: 1, y: 4 },
-        { x: 14, y: 4 },
-        { x: 8, y: 9 },
-      ],
-    },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 3, atTurn: 2, spawnAt: [{ x: 5, y: 4 }, { x: 9, y: 7 }, { x: 7, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 4, atTurn: 6, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 6, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 8, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 8, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -743,9 +771,16 @@ export const HOUSE_AMARANTH_MISSION_9: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 10, holdUntilTurn: 6 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — Loyalist Eyes. Two gates, one auditor, nothing difficult — except the packs through both gates at 1, 3, 5, 7 and 9, sporethrowers at 2 and 7, and two Undertow under the zone itself at 4. Give her nothing to write home about.
   enemyWaves: [
-    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 2, spawnAt: "enemy_deploy" },
     { archetypeId: "bloom_splitfang", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 4, spawnAt: [{ x: 8, y: 6 }, { x: 7, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 9, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -794,9 +829,13 @@ export const HOUSE_AMARANTH_MISSION_10: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 14 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Choir, Heard From Afar. The handful that didn't take the redirect is eight of them, in three voices: four with a crawlmass screen from the east seams, two over the north mat at 3, two over the south mat at 5, and a pack up the middle at 6 for whoever scattered.
   enemyWaves: [
-    { archetypeId: "bloom_choir", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_crawlmass", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 3, spawnAt: [{ x: 6, y: 1 }, { x: 14, y: 1 }] },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 5, spawnAt: [{ x: 6, y: 11 }, { x: 14, y: 11 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 6, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -849,12 +888,17 @@ export const HOUSE_AMARANTH_MISSION_11: CampaignMission = {
   briefing:
     "Orin's overdue check-in from the new growth zone, and this time it isn't the drift that's the problem — it's that nobody can say where she actually is inside it. The crop's grown in thick enough to lose a mech in, let alone a person. Find her before the count of what this bargain's actually cost stops staying quiet.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 15, extractUnitId: "pilot_orin" },
+  objectiveParams: { turnLimit: 9, extractUnitId: "pilot_orin" },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — What the Terraces Cost. The crop's grown in thick enough to lose a mech in — a sump line at x=16 now, with the only way to the tree line through the three-tile break at rows 5-7, and three Gallcyst grown into it. Drift and packs at 1, Undertow under the crop at 2, sporethrowers at 3, a pack at 4, and the Choir that passed last night at 6. Turn limit 15 -> 10.
   enemyWaves: [
+    { archetypeId: "bloom_gallcyst", count: 4, atTurn: 1, spawnAt: [{ x: 16, y: 5 }, { x: 16, y: 6 }, { x: 16, y: 7 }, { x: 17, y: 6 }] },
     { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_splitfang", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "bloom_sporethrower", count: 1, atTurn: 1, spawnAt: [{ x: 6, y: 9 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 2, spawnAt: [{ x: 9, y: 5 }, { x: 9, y: 7 }, { x: 12, y: 6 }, { x: 17, y: 6 }], burrowed: true },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 3, spawnAt: [{ x: 6, y: 1 }, { x: 14, y: 1 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 4, spawnAt: [{ x: 6, y: 9 }] },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 6, spawnAt: [{ x: 14, y: 1 }] },
   ],
   events: [
     {
@@ -925,27 +969,18 @@ export const HOUSE_AMARANTH_MISSION_12: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 12, holdUntilTurn: 7 },
   playerPilotIds: HOUSE_AMARANTH_ROSTER_IDS,
+  // REWORK 8 Sep 2026 (mission rework pass) — Harvest's End. Whatever's coming through the relay comes through it: drift and packs from the seams at 1 with three Undertow under the relay zone itself, sporethrowers at 3, packs at 4, Sirenmaw over both corners at 5, the drift that has to be in the zone with you at 7 spawned at 6, the Choir at 8, and the last pack at 10. Hold from 7 to 12. However long it actually takes.
   enemyWaves: [
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
-    {
-      archetypeId: "bloom_undertow",
-      count: 2,
-      atTurn: 1,
-      spawnAt: [
-        { x: 6, y: 5 },
-        { x: 13, y: 5 },
-      ],
-      burrowed: true,
-    },
-    {
-      archetypeId: "bloom_sirenmaw",
-      count: 2,
-      atTurn: 5,
-      spawnAt: [
-        { x: 2, y: 1 },
-        { x: 17, y: 1 },
-      ],
-    },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 3, atTurn: 1, spawnAt: [{ x: 8, y: 6 }, { x: 10, y: 7 }, { x: 9, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 3, atTurn: 5, spawnAt: [{ x: 2, y: 1 }, { x: 17, y: 1 }] },
+    { archetypeId: "bloom_crawlmass", count: 5, atTurn: 6, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 6, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 8, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 10, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1077,30 +1112,16 @@ export const HOUSE_AMARANTH_MISSION_13: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — New Terraces, New Faces. The terrace's own point-defence — four Gallcyst in the scaffold block — doesn't know the new pilots from a threat, and the Bloom is already here: drift, packs and sporethrowers at 1, Undertow under the flat at 3, a second drift at 5, the Choir at 7.
   enemyWaves: [
-    {
-      archetypeId: "bloom_gallcyst",
-      count: 4,
-      atTurn: 1,
-      spawnAt: [
-        { x: 8, y: 4 },
-        { x: 11, y: 4 },
-        { x: 8, y: 3 },
-        { x: 11, y: 3 },
-      ],
-    },
-    {
-      archetypeId: "bloom_sporethrower",
-      count: 4,
-      atTurn: 1,
-      spawnAt: [
-        { x: 6, y: 4 },
-        { x: 13, y: 4 },
-        { x: 6, y: 5 },
-        { x: 13, y: 5 },
-      ],
-    },
-    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_gallcyst", count: 4, atTurn: 1, spawnAt: [{ x: 8, y: 3 }, { x: 11, y: 3 }, { x: 8, y: 4 }, { x: 11, y: 4 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 1, spawnAt: [{ x: 6, y: 4 }, { x: 13, y: 4 }, { x: 6, y: 5 }, { x: 13, y: 5 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 3, spawnAt: [{ x: 5, y: 7 }, { x: 14, y: 7 }, { x: 9, y: 7 }, { x: 10, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 7, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1197,23 +1218,18 @@ export const HOUSE_AMARANTH_MISSION_14: CampaignMission = {
   briefing:
     "The liaison's seen the ledgers he wasn't supposed to see, and word travels faster than any convoy. Get him through the checkpoint and out before whoever wants that ledger buried decides he goes with it. Quiet where you can. Fast where you can't.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 14, extractUnitId: "pilot_orin" },
+  objectiveParams: { turnLimit: 8, extractUnitId: "pilot_orin" },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Governor's Patience. Quiet where you can, fast where you can't: three Gallcyst grown across the checkpoint itself, four Undertow under the rubble along the road, drift and packs from the seams at 1, sporethrowers on the north edge at 3, a second drift at 5, and the Choir behind at 6. Turn limit 14 -> 7.
   enemyWaves: [
-    {
-      archetypeId: "bloom_undertow",
-      count: 4,
-      atTurn: 1,
-      spawnAt: [
-        { x: 4, y: 3 },
-        { x: 17, y: 4 },
-        { x: 4, y: 7 },
-        { x: 17, y: 7 },
-      ],
-      burrowed: true,
-    },
+    { archetypeId: "bloom_gallcyst", count: 4, atTurn: 1, spawnAt: [{ x: 19, y: 4 }, { x: 19, y: 5 }, { x: 19, y: 6 }, { x: 20, y: 5 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 1, spawnAt: [{ x: 4, y: 3 }, { x: 17, y: 4 }, { x: 4, y: 7 }, { x: 17, y: 7 }], burrowed: true },
     { archetypeId: "bloom_crawlmass", count: 9, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 3, atTurn: 3, spawnAt: [{ x: 10, y: 1 }, { x: 12, y: 1 }] },
     { archetypeId: "bloom_crawlmass", count: 5, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 6, spawnAt: [{ x: 2, y: 1 }] },
   ],
   events: [
     {
@@ -1301,31 +1317,18 @@ export const HOUSE_AMARANTH_MISSION_15: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 10, holdUntilTurn: 6 },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Rootbound. Rooted in on all four corners — sporethrowers in each — with four Undertow under the zone itself, drift and packs at 1, packs at 3, Sirenmaw off the corners at 4, a second drift at 5, the Choir at 7, and a last pack at 9. Hold from 6 to 10. There isn't a safe direction left.
   enemyWaves: [
-    {
-      archetypeId: "bloom_sporethrower",
-      count: 4,
-      atTurn: 1,
-      spawnAt: [
-        { x: 1, y: 2 },
-        { x: 18, y: 2 },
-        { x: 1, y: 9 },
-        { x: 18, y: 9 },
-      ],
-    },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 1, spawnAt: [{ x: 1, y: 2 }, { x: 18, y: 2 }, { x: 1, y: 9 }, { x: 18, y: 9 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 1, spawnAt: [{ x: 7, y: 5 }, { x: 12, y: 5 }, { x: 7, y: 6 }, { x: 12, y: 6 }], burrowed: true },
     { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
-    {
-      archetypeId: "bloom_undertow",
-      count: 4,
-      atTurn: 1,
-      spawnAt: [
-        { x: 7, y: 6 },
-        { x: 12, y: 6 },
-        { x: 7, y: 5 },
-        { x: 12, y: 5 },
-      ],
-      burrowed: true,
-    },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 3, atTurn: 4, spawnAt: [{ x: 1, y: 2 }, { x: 18, y: 9 }] },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 9, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1411,13 +1414,21 @@ export const HOUSE_AMARANTH_MISSION_16: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 12 },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Long Ledger. No House colours, better gear: eight unmarked D-tier mechs down the depot road at 1, four over the north gaps at 3, six more from the seams at 5, and six C-tier at 7 — whoever sent them sent their best last.
   enemyWaves: [
-    { archetypeId: "hostile_mech_01", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_02", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_03", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_04", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_02", count: 3, atTurn: 5, spawnAt: "enemy_deploy" },
-    { archetypeId: "hostile_mech_04", count: 3, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "hostile_mech_01", count: 2, atTurn: 1, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_02", count: 2, atTurn: 1, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_03", count: 2, atTurn: 1, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_04", count: 2, atTurn: 1, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_02", count: 2, atTurn: 3, spawnAt: [{ x: 5, y: 1 }, { x: 16, y: 1 }], tier: "D" },
+    { archetypeId: "hostile_mech_04", count: 2, atTurn: 3, spawnAt: [{ x: 5, y: 1 }, { x: 16, y: 1 }], tier: "D" },
+    { archetypeId: "hostile_mech_01", count: 2, atTurn: 5, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_03", count: 2, atTurn: 5, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_02", count: 2, atTurn: 5, spawnAt: "enemy_deploy", tier: "D" },
+    { archetypeId: "hostile_mech_01", count: 2, atTurn: 7, spawnAt: "enemy_deploy", tier: "C" },
+    { archetypeId: "hostile_mech_02", count: 1, atTurn: 7, spawnAt: "enemy_deploy", tier: "C" },
+    { archetypeId: "hostile_mech_03", count: 2, atTurn: 7, spawnAt: "enemy_deploy", tier: "C" },
+    { archetypeId: "hostile_mech_04", count: 1, atTurn: 7, spawnAt: "enemy_deploy", tier: "C" },
   ],
   events: [
     {
@@ -1478,21 +1489,18 @@ export const HOUSE_AMARANTH_MISSION_17: CampaignMission = {
   briefing:
     "Orin found the root structure before anyone told her to look for one — too regular to be natural, running deeper than the survey ever charted. She's already logging it. Get her out with the readings before whatever's guarding it decides the interest isn't mutual. Marrow's own read: it's not within tolerance. Command wants it logged that way anyway.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 12, extractUnitId: "pilot_orin" },
+  objectiveParams: { turnLimit: 10, extractUnitId: "pilot_orin" },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — What Grows Beneath. The terrace lane between two irrigation channels, and the lane's east end grown shut — four Gallcyst across x=20 — with Undertow under the lane at 2, packs from the channel crossings at 1, 2 and 4, the drift up the middle, Sirenmaw over the north crossing at 5 and the Choir over the south at 6. Turn limit 12 -> 10.
   enemyWaves: [
-    {
-      archetypeId: "bloom_splitfang",
-      count: 6,
-      atTurn: 1,
-      spawnAt: [
-        { x: 5, y: 2 },
-        { x: 18, y: 2 },
-        { x: 5, y: 7 },
-        { x: 18, y: 7 },
-      ],
-    },
+    { archetypeId: "bloom_gallcyst", count: 6, atTurn: 1, spawnAt: [{ x: 20, y: 3 }, { x: 20, y: 4 }, { x: 20, y: 5 }, { x: 20, y: 6 }, { x: 21, y: 4 }, { x: 21, y: 5 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 4, y: 2 }, { x: 18, y: 2 }, { x: 4, y: 7 }, { x: 18, y: 7 }] },
     { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: [{ x: 11, y: 5 }] },
+    { archetypeId: "bloom_undertow", count: 5, atTurn: 2, spawnAt: [{ x: 8, y: 4 }, { x: 14, y: 6 }, { x: 10, y: 3 }, { x: 16, y: 5 }, { x: 18, y: 4 }], burrowed: true },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 2, spawnAt: [{ x: 4, y: 8 }, { x: 18, y: 8 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 4, spawnAt: [{ x: 4, y: 1 }, { x: 18, y: 1 }] },
+    { archetypeId: "bloom_sirenmaw", count: 3, atTurn: 5, spawnAt: [{ x: 11, y: 1 }] },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 6, spawnAt: [{ x: 11, y: 8 }] },
   ],
   events: [
     {
@@ -1543,37 +1551,16 @@ export const HOUSE_AMARANTH_MISSION_18: CampaignMission = {
   objective: "contested_landing",
   objectiveParams: { turnLimit: 14 },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Cultivator's Gambit. Down and hold — under Sirenmaw already circling the patch, drift and packs on the ground, Undertow under the landing itself at 2, a second drift at 4, the Choir at 6, and Sirenmaw again at 8. Nobody told the Bloom this ground's spoken for.
   enemyWaves: [
-    {
-      archetypeId: "bloom_sirenmaw",
-      count: 10,
-      atTurn: 1,
-      spawnAt: [
-        { x: 8, y: 2 },
-        { x: 9, y: 2 },
-        { x: 3, y: 5 },
-        { x: 4, y: 5 },
-        { x: 16, y: 4 },
-        { x: 17, y: 4 },
-        { x: 11, y: 7 },
-        { x: 12, y: 7 },
-      ],
-    },
-    {
-      archetypeId: "bloom_crawlmass",
-      count: 8,
-      atTurn: 1,
-      spawnAt: [
-        { x: 8, y: 2 },
-        { x: 9, y: 2 },
-        { x: 3, y: 5 },
-        { x: 4, y: 5 },
-        { x: 16, y: 4 },
-        { x: 17, y: 4 },
-        { x: 11, y: 7 },
-        { x: 12, y: 7 },
-      ],
-    },
+    { archetypeId: "bloom_sirenmaw", count: 6, atTurn: 1, spawnAt: [{ x: 8, y: 2 }, { x: 9, y: 2 }, { x: 16, y: 4 }, { x: 17, y: 4 }, { x: 3, y: 5 }, { x: 11, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 1, spawnAt: [{ x: 8, y: 2 }, { x: 16, y: 4 }, { x: 3, y: 5 }, { x: 11, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 3, atTurn: 1, spawnAt: [{ x: 16, y: 4 }, { x: 3, y: 5 }] },
+    { archetypeId: "bloom_undertow", count: 3, atTurn: 2, spawnAt: [{ x: 9, y: 3 }, { x: 11, y: 6 }, { x: 13, y: 3 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 6, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 6, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 8, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1643,28 +1630,17 @@ export const HOUSE_AMARANTH_MISSION_19: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 10, holdUntilTurn: 6 },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Weight of the Seal. No managed lane: three Gallcyst rooted beside the overlook, packs and sporethrowers at 1, Undertow under the position at 2, packs at 3, Sirenmaw at 5, packs and the Choir at 7, a last pack at 9. Hold from 6 to 10 while Halcyon watches.
   enemyWaves: [
-    {
-      archetypeId: "bloom_gallcyst",
-      count: 4,
-      atTurn: 1,
-      spawnAt: [
-        { x: 9, y: 3 },
-        { x: 9, y: 4 },
-        { x: 9, y: 5 },
-      ],
-    },
-    {
-      archetypeId: "bloom_splitfang",
-      count: 6,
-      atTurn: 1,
-      spawnAt: [
-        { x: 10, y: 1 },
-        { x: 11, y: 1 },
-        { x: 10, y: 9 },
-        { x: 11, y: 9 },
-      ],
-    },
+    { archetypeId: "bloom_gallcyst", count: 3, atTurn: 1, spawnAt: [{ x: 9, y: 3 }, { x: 9, y: 5 }, { x: 16, y: 4 }] },
+    { archetypeId: "bloom_splitfang", count: 5, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 2, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 2, spawnAt: [{ x: 12, y: 4 }, { x: 11, y: 5 }], burrowed: true },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 9, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1739,14 +1715,21 @@ export const HOUSE_AMARANTH_MISSION_20: CampaignMission = {
   briefing:
     "Warden Company found the line before command wanted them to. Rourke's already committed — this isn't a probe, it's a push. Marrow doesn't need to win this ground, she needs her people off it intact. Cover the withdrawal. Get her clear.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 13, extractUnitId: "pilot_marrow" },
+  objectiveParams: { turnLimit: 7, extractUnitId: "pilot_marrow" },
   playerPilotIds: HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Marrow's Line. Rourke's push is a real one, and she's standing in the line's own trench gap: the drainage trench at x=18 is sump now with a two-tile break at rows 5-6, Rourke's two elements and two Tanks IN the break, six more C-tier Warden troopers around it at 1, four coming up BEHIND the squad at 2, four more at 3, four at 5. Marrow can't be shot on her way out; the nine mechs covering her withdrawal can, and the Tank at the back gets caught. Turn limit 13 -> 7 — a withdrawal, not a fight; nobody plays hero on her ground today.
   enemyWaves: [
-    { archetypeId: "hostile_mech_rourke", count: 2, atTurn: 1, spawnAt: [{ x: 15, y: 5 }] },
-    { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 2 }] },
-    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 2 }] },
-    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 9 }] },
-    { archetypeId: "hostile_mech_warden_04", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 9 }] },
+    { archetypeId: "hostile_mech_rourke", count: 2, atTurn: 1, spawnAt: [{ x: 17, y: 5 }, { x: 17, y: 6 }] },
+    { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 1, spawnAt: [{ x: 18, y: 5 }, { x: 18, y: 6 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 2 }, { x: 10, y: 9 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 1, spawnAt: [{ x: 13, y: 3 }, { x: 13, y: 8 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_04", count: 2, atTurn: 1, spawnAt: [{ x: 16, y: 4 }, { x: 16, y: 7 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 2, spawnAt: [{ x: 1, y: 1 }, { x: 1, y: 10 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 2, spawnAt: [{ x: 1, y: 1 }, { x: 1, y: 10 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 3, spawnAt: [{ x: 20, y: 2 }, { x: 20, y: 9 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_04", count: 2, atTurn: 3, spawnAt: [{ x: 20, y: 2 }, { x: 20, y: 9 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 5, spawnAt: [{ x: 6, y: 1 }, { x: 6, y: 10 }], tier: "C" },
+    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 5, spawnAt: [{ x: 6, y: 1 }, { x: 6, y: 10 }], tier: "C" },
   ],
   events: [
     {
@@ -1816,29 +1799,18 @@ export const HOUSE_AMARANTH_MISSION_21: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — After the Line. Just the Bloom, same as always — but it's already on the terraces: ten Undertow in the rubble and under the pads' flanks, drift and packs mid-field at 1, sporethrowers over the rubble at 2, the Choir at 3, packs behind the line with Sirenmaw at 5, a second drift at 7, the Choir again at 9. The terraces don't get to slip.
   enemyWaves: [
-    {
-      archetypeId: "bloom_undertow",
-      count: 8,
-      atTurn: 1,
-      spawnAt: [
-        { x: 8, y: 3 },
-        { x: 13, y: 3 },
-        { x: 8, y: 5 },
-        { x: 13, y: 5 },
-      ],
-    },
-    {
-      archetypeId: "bloom_crawlmass",
-      count: 16,
-      atTurn: 1,
-      spawnAt: [
-        { x: 17, y: 2 },
-        { x: 18, y: 2 },
-        { x: 17, y: 8 },
-        { x: 18, y: 8 },
-      ],
-    },
+    { archetypeId: "bloom_undertow", count: 10, atTurn: 1, spawnAt: [{ x: 8, y: 3 }, { x: 13, y: 3 }, { x: 8, y: 5 }, { x: 13, y: 5 }, { x: 10, y: 2 }, { x: 11, y: 6 }, { x: 6, y: 4 }, { x: 15, y: 4 }, { x: 3, y: 1 }, { x: 3, y: 9 }], burrowed: true },
+    { archetypeId: "bloom_crawlmass", count: 16, atTurn: 1, spawnAt: [{ x: 12, y: 2 }, { x: 12, y: 8 }, { x: 13, y: 4 }, { x: 13, y: 6 }] },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 1, spawnAt: [{ x: 12, y: 2 }, { x: 12, y: 8 }, { x: 13, y: 4 }, { x: 13, y: 6 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 2, spawnAt: [{ x: 14, y: 3 }, { x: 14, y: 7 }] },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 10, atTurn: 5, spawnAt: [{ x: 10, y: 1 }, { x: 10, y: 9 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 5, spawnAt: [{ x: 2, y: 0 }, { x: 17, y: 10 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 9, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -1881,35 +1853,28 @@ export const HOUSE_AMARANTH_MISSION_22: CampaignMission = {
   briefing:
     "The governor's own auditor picked today of all days to walk the relay floor in person, clipboard and all, and the Bloom picked today to walk it too. Marrow's read is blunt: whoever gets there first decides what the audit actually finds. Hold the relay. Whatever's left standing is the only report that matters.",
   objective: "protect_asset",
-  objectiveParams: { turnLimit: 14, assetName: "relay" },
+  objectiveParams: { turnLimit: 14, assetName: "relay", assetMaxHp: 360 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Audit Under Fire. Two causeways, one relay floor, and the water is nothing to anything with wings — and the corners behind the pads were never sealed: drift and packs on both causeways at 1 with sporethrowers already at the causeway mouths, Undertow under the causeways at 2, a Sirenmaw at the relay and a pack in the rear corners at 3, sporethrowers with the second drift at 4, Undertow surfacing INSIDE the relay floor at 5, more Sirenmaw at 6, packs at 7, Sirenmaw and a pack in the corners at 8, a Choir at 9, the big push at 10, Undertow in the floor again at 11, Sirenmaw at 12. Relay 300 -> 360.
   enemyWaves: [
-    {
-      archetypeId: "bloom_sporethrower",
-      count: 11,
-      atTurn: 1,
-      spawnAt: [
-        { x: 2, y: 2 },
-        { x: 7, y: 2 },
-        { x: 12, y: 2 },
-        { x: 2, y: 7 },
-        { x: 7, y: 7 },
-        { x: 12, y: 7 },
-      ],
-    },
-    {
-      archetypeId: "bloom_crawlmass",
-      count: 20,
-      atTurn: 1,
-      spawnAt: [
-        { x: 2, y: 2 },
-        { x: 7, y: 2 },
-        { x: 12, y: 2 },
-        { x: 2, y: 7 },
-        { x: 7, y: 7 },
-        { x: 12, y: 7 },
-      ],
-    },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: [{ x: 2, y: 2 }, { x: 2, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 1, spawnAt: [{ x: 7, y: 2 }, { x: 7, y: 7 }] },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 1, spawnAt: [{ x: 12, y: 3 }, { x: 12, y: 8 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 2, spawnAt: [{ x: 9, y: 2 }, { x: 9, y: 7 }, { x: 12, y: 3 }, { x: 12, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_sirenmaw", count: 1, atTurn: 3, spawnAt: [{ x: 6, y: 5 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 3, spawnAt: [{ x: 17, y: 1 }, { x: 17, y: 9 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 4, spawnAt: [{ x: 2, y: 2 }, { x: 2, y: 7 }] },
+    { archetypeId: "bloom_sporethrower", count: 6, atTurn: 4, spawnAt: [{ x: 2, y: 3 }, { x: 2, y: 8 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 5, spawnAt: [{ x: 16, y: 2 }, { x: 16, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_sirenmaw", count: 2, atTurn: 6, spawnAt: [{ x: 6, y: 5 }, { x: 6, y: 6 }] },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 7, spawnAt: [{ x: 2, y: 2 }, { x: 2, y: 7 }] },
+    { archetypeId: "bloom_sirenmaw", count: 2, atTurn: 8, spawnAt: [{ x: 17, y: 1 }, { x: 17, y: 9 }] },
+    { archetypeId: "bloom_splitfang", count: 4, atTurn: 8, spawnAt: [{ x: 17, y: 1 }, { x: 17, y: 9 }] },
+    { archetypeId: "bloom_choir", count: 1, atTurn: 9, spawnAt: [{ x: 6, y: 5 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 10, spawnAt: [{ x: 2, y: 2 }, { x: 2, y: 7 }] },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 10, spawnAt: [{ x: 7, y: 2 }, { x: 7, y: 7 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 11, spawnAt: [{ x: 18, y: 4 }, { x: 18, y: 6 }], burrowed: true },
+    { archetypeId: "bloom_sirenmaw", count: 2, atTurn: 12, spawnAt: [{ x: 6, y: 5 }, { x: 6, y: 6 }] },
   ],
   events: [
     {
@@ -1950,26 +1915,20 @@ export const HOUSE_AMARANTH_MISSION_23: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 12, holdUntilTurn: 8 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Root Answers Back. Hold the ring with the Wellroot's reach across its east half — and it answers with everything: a Choir and drift at 1, Undertow in the ring at 2, the Choir and packs at 4, Sirenmaw and drift at 6, the push that has to be in the ring with you at 8 spawned at 7, packs at 9, the Choir at 11. Hold from 8 to 12. Nobody fires on the root unless it moves first. (First cut: eight Choir at 1 was a wall the squad never punched through by turn 8 — 20/20 zone losses with everyone alive.)
   enemyWaves: [
-    {
-      archetypeId: "bloom_wellroot",
-      count: 1,
-      atTurn: 1,
-      spawnAt: [{ x: 13, y: 4 }],
-    },
-    {
-      archetypeId: "bloom_choir",
-      count: 12,
-      atTurn: 1,
-      spawnAt: [
-        { x: 9, y: 1 },
-        { x: 10, y: 1 },
-        { x: 7, y: 3 },
-        { x: 7, y: 5 },
-        { x: 9, y: 8 },
-        { x: 10, y: 8 },
-      ],
-    },
+    { archetypeId: "bloom_wellroot", count: 1, atTurn: 1, spawnAt: [{ x: 14, y: 4 }] },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 2, spawnAt: [{ x: 9, y: 3 }, { x: 12, y: 5 }, { x: 10, y: 4 }, { x: 11, y: 3 }], burrowed: true },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 4, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 6, spawnAt: [{ x: 1, y: 1 }, { x: 20, y: 9 }] },
+    { archetypeId: "bloom_crawlmass", count: 8, atTurn: 6, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 9, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 11, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -2008,14 +1967,23 @@ export const HOUSE_AMARANTH_MISSION_24: CampaignMission = {
   briefing:
     "Sector command's stopped asking questions and started sending troops — Halcyon's own seal-holder called it a liability review. Marrow calls it what it is. Get her to the far tree line before sector command's own regulars close the gap. This isn't a negotiation anymore.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 14 },
+  objectiveParams: { turnLimit: 9 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   civilianSpawns: [{ at: { x: 2, y: 5 }, displayName: "Halcyon Amaranth" }],
+  // REWORK 8 Sep 2026 (mission rework pass) — Seizure Order. The Governor can be shot, and sector command's regulars are B-tier now: ten from the seams at 1, four A-tier between her and the tree line at 3, four behind the squad at 5, and four A-tier at 7 — the liability review's own escort. Turn limit 14 -> 9.
   enemyWaves: [
-    { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 1 }] },
-    { archetypeId: "hostile_mech_loyalist_02", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 1 }] },
-    { archetypeId: "hostile_mech_loyalist_03", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 8 }] },
-    { archetypeId: "hostile_mech_loyalist_04", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 8 }] },
+    { archetypeId: "hostile_mech_loyalist_01", count: 3, atTurn: 1, spawnAt: "enemy_deploy", tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_02", count: 2, atTurn: 1, spawnAt: "enemy_deploy", tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 3, atTurn: 1, spawnAt: "enemy_deploy", tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_04", count: 2, atTurn: 1, spawnAt: "enemy_deploy", tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 3, spawnAt: [{ x: 20, y: 1 }, { x: 20, y: 9 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 2, atTurn: 3, spawnAt: [{ x: 20, y: 1 }, { x: 20, y: 9 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_02", count: 2, atTurn: 5, spawnAt: [{ x: 1, y: 1 }, { x: 1, y: 9 }], tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_04", count: 2, atTurn: 5, spawnAt: [{ x: 1, y: 1 }, { x: 1, y: 9 }], tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_01", count: 1, atTurn: 7, spawnAt: "enemy_deploy", tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_02", count: 1, atTurn: 7, spawnAt: "enemy_deploy", tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 1, atTurn: 7, spawnAt: "enemy_deploy", tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_04", count: 1, atTurn: 7, spawnAt: "enemy_deploy", tier: "A" },
   ],
   events: [
     {
@@ -2049,36 +2017,23 @@ export const HOUSE_AMARANTH_MISSION_25: CampaignMission = {
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 14 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Going Dark. Nobody's coming, for fourteen turns: drift and packs at 1, six Undertow under the ground around the post at 2, the Choir at 3, packs and sporethrowers at 5, Sirenmaw at 7, the second surge at 8, the Choir and sporethrowers at 10, packs and Sirenmaw at 11, the last of it at 13. (First cut at half again as much never got past turn 9.)
   enemyWaves: [
-    {
-      archetypeId: "bloom_crawlmass",
-      count: 28,
-      atTurn: 1,
-      spawnAt: [
-        { x: 8, y: 1 },
-        { x: 9, y: 1 },
-        { x: 8, y: 9 },
-        { x: 9, y: 9 },
-      ],
-    },
-    {
-      archetypeId: "bloom_splitfang",
-      count: 12,
-      atTurn: 5,
-      spawnAt: [
-        { x: 0, y: 4 },
-        { x: 19, y: 4 },
-      ],
-    },
-    {
-      archetypeId: "bloom_splitfang",
-      count: 12,
-      atTurn: 9,
-      spawnAt: [
-        { x: 0, y: 6 },
-        { x: 19, y: 6 },
-      ],
-    },
+    { archetypeId: "bloom_crawlmass", count: 16, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 1, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_undertow", count: 6, atTurn: 2, spawnAt: [{ x: 6, y: 4 }, { x: 13, y: 4 }, { x: 6, y: 7 }, { x: 13, y: 7 }, { x: 9, y: 2 }, { x: 10, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 3, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 7, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 8, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 8, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 10, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sporethrower", count: 4, atTurn: 10, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 8, atTurn: 11, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 3, atTurn: 11, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_crawlmass", count: 12, atTurn: 13, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_splitfang", count: 6, atTurn: 13, spawnAt: "enemy_deploy" },
   ],
   events: [
     {
@@ -2110,18 +2065,15 @@ export const HOUSE_AMARANTH_MISSION_26: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Bramble. Not drift, and not coming from the seams — it's already at the pads when the mission opens: twenty of them in a ring three tiles out at 1 with four Choir singing them forward, six Undertow under the pads' own flanks at 2, ten more out of the west mats behind the squad at 3, ten from the seams with Sirenmaw over the pads at 5, and ten mid-field at 7. It doesn't get a containment line. (Thirteen from the far seams walked into a fifteen-mech firing line one at a time, and so did fifty from five tiles out: 20/20 both times. A Bramble does about thirty to an A-tier frame and dies to three hits; against this squad it only counts when it arrives all at once from every side with the Choir behind it.)
   enemyWaves: [
-    {
-      archetypeId: "bloom_bramble",
-      count: 13,
-      atTurn: 1,
-      spawnAt: [
-        { x: 15, y: 1 },
-        { x: 16, y: 1 },
-        { x: 15, y: 9 },
-        { x: 16, y: 9 },
-      ],
-    },
+    { archetypeId: "bloom_bramble", count: 20, atTurn: 1, spawnAt: [{ x: 3, y: 1 }, { x: 3, y: 9 }, { x: 4, y: 3 }, { x: 4, y: 7 }, { x: 5, y: 5 }, { x: 2, y: 0 }, { x: 2, y: 10 }, { x: 4, y: 5 }] },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 1, spawnAt: [{ x: 6, y: 2 }, { x: 6, y: 8 }] },
+    { archetypeId: "bloom_undertow", count: 6, atTurn: 2, spawnAt: [{ x: 2, y: 2 }, { x: 2, y: 8 }, { x: 3, y: 4 }, { x: 3, y: 6 }, { x: 1, y: 2 }, { x: 1, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 3, spawnAt: [{ x: 4, y: 1 }, { x: 4, y: 9 }] },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 5, spawnAt: "enemy_deploy" },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 5, spawnAt: [{ x: 2, y: 0 }, { x: 2, y: 10 }] },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 7, spawnAt: [{ x: 10, y: 4 }, { x: 10, y: 6 }] },
   ],
   events: [
     {
@@ -2152,7 +2104,7 @@ export const HOUSE_AMARANTH_MISSION_27: CampaignMission = {
   briefing:
     "The technicians who've kept the ward-crop rigs running all season are still at their stations, because nobody told them to stop, because until an hour ago nobody thought they'd need to. The Bramble's already through the north terrace. Get every one of them to the tree line before it's through this one too.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 16, extractThreshold: 4 },
+  objectiveParams: { turnLimit: 12, extractThreshold: 4 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   civilianSpawns: [
     { at: { x: 2, y: 3 }, displayName: "Ward-Crop Technician — Rigs" },
@@ -2161,27 +2113,14 @@ export const HOUSE_AMARANTH_MISSION_27: CampaignMission = {
     { at: { x: 2, y: 6 }, displayName: "Ward-Crop Technician — Wardens" },
     { at: { x: 3, y: 4 }, displayName: "Ward-Crop Technician — Runner" },
   ],
+  // REWORK 8 Sep 2026 (mission rework pass) — Salvage the Season. Five technicians, eighteen tiles of terrace, and the Bramble already through the north terrace: packs mid-field at 2 and 4, Undertow at the route's edges at 3, Sirenmaw over the deploy side at 5, a pack landing on the tree line itself at 7, and a last one at 9. Four of five have to make it. Turn limit 16 -> 12. (First cut put Undertow ON the route; they surfaced under the technicians and 20/20 runs lost two by turn 6.)
   enemyWaves: [
-    {
-      archetypeId: "bloom_bramble",
-      count: 4,
-      atTurn: 3,
-      spawnAt: [
-        { x: 10, y: 1 },
-        { x: 11, y: 1 },
-        { x: 10, y: 8 },
-        { x: 11, y: 8 },
-      ],
-    },
-    {
-      archetypeId: "bloom_bramble",
-      count: 3,
-      atTurn: 5,
-      spawnAt: [
-        { x: 10, y: 1 },
-        { x: 10, y: 8 },
-      ],
-    },
+    { archetypeId: "bloom_bramble", count: 3, atTurn: 2, spawnAt: [{ x: 10, y: 1 }, { x: 10, y: 8 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 3, spawnAt: [{ x: 8, y: 2 }, { x: 14, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 4, atTurn: 4, spawnAt: [{ x: 10, y: 1 }, { x: 10, y: 8 }] },
+    { archetypeId: "bloom_sirenmaw", count: 2, atTurn: 5, spawnAt: [{ x: 1, y: 1 }, { x: 1, y: 8 }] },
+    { archetypeId: "bloom_bramble", count: 3, atTurn: 7, spawnAt: [{ x: 20, y: 1 }, { x: 20, y: 8 }] },
+    { archetypeId: "bloom_bramble", count: 3, atTurn: 9, spawnAt: [{ x: 10, y: 1 }, { x: 10, y: 8 }] },
   ],
   events: [
     {
@@ -2263,14 +2202,25 @@ export const HOUSE_AMARANTH_MISSION_28: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 15 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Marrow's Choice. Rourke came back with Warden Company's best, A-tier troopers, and she didn't stop at the tree line — she's three tiles off the pads when the mission opens with six, six more a turn behind her, four behind the squad's own line at 3, four from the seams at 5, four from the east at 7. No lane out this time. (Fourteen tiles of approach into a fifteen-mech firing line: 20/20; five tiles: 20/20 again — a fifteen-mech alpha strike with ambush and missiles kills eight A-tier frames a turn, so the only fight is the one that lands first.)
   enemyWaves: [
-    { archetypeId: "hostile_mech_rourke", count: 1, atTurn: 1, spawnAt: [{ x: 11, y: 2 }] },
-    { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 2 }] },
-    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 2 }] },
-    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 9 }] },
-    { archetypeId: "hostile_mech_warden_04", count: 2, atTurn: 1, spawnAt: [{ x: 11, y: 9 }] },
-    { archetypeId: "hostile_mech_warden_01", count: 1, atTurn: 5, spawnAt: [{ x: 24, y: 1 }, { x: 25, y: 1 }] },
-    { archetypeId: "hostile_mech_warden_03", count: 1, atTurn: 5, spawnAt: [{ x: 24, y: 10 }, { x: 25, y: 10 }] },
+    { archetypeId: "hostile_mech_rourke", count: 1, atTurn: 1, spawnAt: [{ x: 5, y: 6 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 1, spawnAt: [{ x: 5, y: 4 }, { x: 5, y: 8 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_02", count: 1, atTurn: 1, spawnAt: [{ x: 4, y: 2 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 1, spawnAt: [{ x: 5, y: 5 }, { x: 5, y: 7 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_04", count: 1, atTurn: 1, spawnAt: [{ x: 4, y: 10 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_01", count: 1, atTurn: 1, spawnAt: [{ x: 9, y: 4 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 1, spawnAt: [{ x: 9, y: 2 }, { x: 9, y: 10 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_03", count: 1, atTurn: 1, spawnAt: [{ x: 9, y: 8 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_04", count: 2, atTurn: 1, spawnAt: [{ x: 10, y: 5 }, { x: 10, y: 7 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_02", count: 2, atTurn: 3, spawnAt: [{ x: 2, y: 1 }, { x: 2, y: 10 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_04", count: 2, atTurn: 3, spawnAt: [{ x: 2, y: 1 }, { x: 2, y: 10 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_01", count: 2, atTurn: 5, spawnAt: "enemy_deploy", tier: "A" },
+    { archetypeId: "hostile_mech_warden_03", count: 2, atTurn: 5, spawnAt: "enemy_deploy", tier: "A" },
+    { archetypeId: "hostile_mech_warden_01", count: 1, atTurn: 7, spawnAt: [{ x: 25, y: 1 }, { x: 25, y: 10 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_02", count: 1, atTurn: 7, spawnAt: [{ x: 25, y: 1 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_03", count: 1, atTurn: 7, spawnAt: [{ x: 25, y: 10 }], tier: "A" },
+    { archetypeId: "hostile_mech_warden_04", count: 1, atTurn: 7, spawnAt: [{ x: 25, y: 1 }], tier: "A" },
   ],
   events: [
     {
@@ -2364,12 +2314,19 @@ export const HOUSE_AMARANTH_MISSION_29: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 16, holdUntilTurn: 12 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Governor's Answer. The seizure force lands on four sides of the relay, a section a turn, B-tier then A-tier — with Undertow under the zone at 2, five-mech sections from 7 on, and the section that has to be in the zone with you at 12 landing two tiles from the ring at 11 with more Undertow, and one more at 12 from the west. Hold from 12 to 16 and make them pay for it.
   enemyWaves: [
-    { archetypeId: "hostile_mech_loyalist_01", count: 4, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 10, y: 1 }] },
-    { archetypeId: "hostile_mech_loyalist_02", count: 4, atTurn: 2, spawnAt: [{ x: 7, y: 3 }] },
-    { archetypeId: "hostile_mech_loyalist_03", count: 4, atTurn: 3, spawnAt: [{ x: 22, y: 3 }, { x: 23, y: 3 }] },
-    { archetypeId: "hostile_mech_loyalist_04", count: 3, atTurn: 4, spawnAt: [{ x: 7, y: 5 }] },
-    { archetypeId: "hostile_mech_loyalist_02", count: 3, atTurn: 5, spawnAt: [{ x: 22, y: 5 }, { x: 23, y: 5 }] },
+    { archetypeId: "hostile_mech_loyalist_01", count: 6, atTurn: 1, spawnAt: [{ x: 9, y: 1 }, { x: 10, y: 1 }], tier: "B" },
+    { archetypeId: "bloom_undertow", count: 3, atTurn: 2, spawnAt: [{ x: 10, y: 4 }, { x: 12, y: 3 }, { x: 11, y: 5 }], burrowed: true },
+    { archetypeId: "hostile_mech_loyalist_02", count: 4, atTurn: 2, spawnAt: [{ x: 6, y: 3 }, { x: 6, y: 5 }], tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 4, atTurn: 3, spawnAt: [{ x: 22, y: 3 }, { x: 23, y: 3 }], tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_04", count: 4, atTurn: 4, spawnAt: [{ x: 9, y: 8 }, { x: 10, y: 8 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_02", count: 4, atTurn: 5, spawnAt: [{ x: 22, y: 5 }, { x: 23, y: 5 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_01", count: 5, atTurn: 7, spawnAt: [{ x: 9, y: 1 }, { x: 10, y: 1 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 5, atTurn: 9, spawnAt: [{ x: 9, y: 8 }, { x: 10, y: 8 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_04", count: 6, atTurn: 11, spawnAt: [{ x: 14, y: 3 }, { x: 14, y: 5 }, { x: 15, y: 4 }], tier: "A" },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 11, spawnAt: [{ x: 9, y: 4 }, { x: 12, y: 4 }], burrowed: true },
+    { archetypeId: "hostile_mech_loyalist_02", count: 6, atTurn: 12, spawnAt: [{ x: 6, y: 3 }, { x: 6, y: 5 }], tier: "A" },
   ],
   events: [
     {
@@ -2428,13 +2385,21 @@ export const HOUSE_AMARANTH_MISSION_30: CampaignMission = {
   objective: "eliminate_all",
   objectiveParams: { turnLimit: 16 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Two Fronts. The Bramble from the west, sector command's regulars from the east, and both keep coming: seven Bramble and five B-tier regulars at 1, Undertow under the middle at 2, Bramble and Sirenmaw at 4, four A-tier regulars at 5, six Bramble and three more regulars at 7, the Choir at 9. Neither side waits for the other. (Eight/six/six/eight put eleven mechs down a run and never won; six/four/four/six won 20/20 at six down; attrition fights cliff, and this sits on the edge on purpose.)
   enemyWaves: [
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 0, y: 2 }, { x: 1, y: 2 }] },
-    { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 1, spawnAt: [{ x: 22, y: 2 }, { x: 23, y: 2 }] },
-    { archetypeId: "hostile_mech_loyalist_03", count: 3, atTurn: 1, spawnAt: [{ x: 22, y: 2 }, { x: 23, y: 2 }] },
-    { archetypeId: "bloom_bramble", count: 3, atTurn: 5, spawnAt: [{ x: 0, y: 8 }, { x: 1, y: 8 }] },
-    { archetypeId: "hostile_mech_loyalist_02", count: 2, atTurn: 5, spawnAt: [{ x: 22, y: 8 }, { x: 23, y: 8 }] },
-    { archetypeId: "hostile_mech_loyalist_04", count: 3, atTurn: 5, spawnAt: [{ x: 22, y: 8 }, { x: 23, y: 8 }] },
+    { archetypeId: "bloom_bramble", count: 7, atTurn: 1, spawnAt: [{ x: 0, y: 2 }, { x: 0, y: 8 }] },
+    { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 1, spawnAt: [{ x: 23, y: 2 }, { x: 23, y: 8 }], tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 2, atTurn: 1, spawnAt: [{ x: 23, y: 2 }, { x: 23, y: 8 }], tier: "B" },
+    { archetypeId: "hostile_mech_loyalist_02", count: 1, atTurn: 1, spawnAt: [{ x: 23, y: 2 }], tier: "B" },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 2, spawnAt: [{ x: 8, y: 4 }, { x: 15, y: 4 }, { x: 8, y: 6 }, { x: 15, y: 6 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 5, atTurn: 4, spawnAt: [{ x: 0, y: 2 }, { x: 0, y: 8 }] },
+    { archetypeId: "bloom_sirenmaw", count: 3, atTurn: 4, spawnAt: [{ x: 0, y: 2 }, { x: 0, y: 8 }] },
+    { archetypeId: "hostile_mech_loyalist_02", count: 2, atTurn: 5, spawnAt: [{ x: 23, y: 2 }, { x: 23, y: 8 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_04", count: 2, atTurn: 5, spawnAt: [{ x: 23, y: 2 }, { x: 23, y: 8 }], tier: "A" },
+    { archetypeId: "bloom_bramble", count: 6, atTurn: 7, spawnAt: [{ x: 0, y: 2 }, { x: 0, y: 8 }] },
+    { archetypeId: "hostile_mech_loyalist_01", count: 2, atTurn: 7, spawnAt: [{ x: 23, y: 2 }, { x: 23, y: 8 }], tier: "A" },
+    { archetypeId: "hostile_mech_loyalist_03", count: 1, atTurn: 7, spawnAt: [{ x: 23, y: 8 }], tier: "A" },
+    { archetypeId: "bloom_choir", count: 3, atTurn: 9, spawnAt: [{ x: 0, y: 2 }, { x: 0, y: 8 }] },
   ],
   events: [
     {
@@ -2493,7 +2458,7 @@ export const HOUSE_AMARANTH_MISSION_31: CampaignMission = {
   briefing:
     "Six technicians still on the terrace when the breach alarm went up, and the Bramble is already inside the evac corridor, not just behind it. Marrow's not going to pretend everyone walks away from this one — get as many to the tree line as the ground allows, and don't let the ones who don't make it be the ones closest to safety when it happens.",
   objective: "extract_unit",
-  objectiveParams: { turnLimit: 18, extractThreshold: 3 },
+  objectiveParams: { turnLimit: 13, extractThreshold: 3 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
   civilianSpawns: [
     { at: { x: 3, y: 2 }, displayName: "Ward-Crop Technician — Rigs" },
@@ -2503,10 +2468,14 @@ export const HOUSE_AMARANTH_MISSION_31: CampaignMission = {
     { at: { x: 3, y: 6 }, displayName: "Ward-Crop Technician — Runner" },
     { at: { x: 3, y: 7 }, displayName: "Ward-Crop Technician — Junior Hand" },
   ],
+  // REWORK 8 Sep 2026 (mission rework pass) — What the Program Costs. Six technicians, the Bramble already in the corridor: a pair mid-field at 1, Undertow at the corridor's edges at 2, three more at 3, three landing on the tree line at 5, Sirenmaw behind at 6, a last three at 8. Three of six have to make it. Turn limit 18 -> 13. (First cut lost four technicians by turn 6 in 18/20 runs; the Bramble reaches a fleeing technician in one move.)
   enemyWaves: [
-    { archetypeId: "bloom_bramble", count: 3, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
-    { archetypeId: "bloom_bramble", count: 3, atTurn: 1, spawnAt: [{ x: 12, y: 8 }, { x: 13, y: 8 }] },
-    { archetypeId: "bloom_bramble", count: 2, atTurn: 3, spawnAt: [{ x: 10, y: 4 }] },
+    { archetypeId: "bloom_bramble", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 12, y: 8 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 2, spawnAt: [{ x: 7, y: 7 }, { x: 17, y: 2 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 3, atTurn: 3, spawnAt: [{ x: 12, y: 1 }, { x: 12, y: 8 }] },
+    { archetypeId: "bloom_bramble", count: 3, atTurn: 5, spawnAt: [{ x: 22, y: 1 }, { x: 22, y: 8 }] },
+    { archetypeId: "bloom_sirenmaw", count: 2, atTurn: 6, spawnAt: [{ x: 1, y: 1 }, { x: 1, y: 8 }] },
+    { archetypeId: "bloom_bramble", count: 3, atTurn: 8, spawnAt: [{ x: 12, y: 1 }, { x: 12, y: 8 }] },
   ],
   events: [
     {
@@ -2563,12 +2532,19 @@ export const HOUSE_AMARANTH_MISSION_32: CampaignMission = {
   briefing:
     "This is the relay everything else was built to protect — lose this one and the whole diversion program stops meaning anything, terraces included. The Bramble knows it too, or acts like it does. Hold the dock. Whatever's left standing after, the Root has to be part of it.",
   objective: "protect_asset",
-  objectiveParams: { turnLimit: 16, assetMaxHp: 400, assetName: "the Root" },
+  objectiveParams: { turnLimit: 16, assetMaxHp: 400, assetName: "Root" },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — Hold the Root. The Bramble knows what the dock is, and the squad now deploys on the dock's own west face instead of nine tiles away: drift from north and south at 1, Undertow under the dock approaches at 2, Bramble north and south at 3, a pack from the east at 4, Sirenmaw at 6, packs at 7, the Choir with the east pack at 10, and the last push at 13. Sixteen turns. (First cut: a turn-1 Bramble pack reached the dock in one move and the Root was dead by turn 5-7, 20/20.)
   enemyWaves: [
-    { archetypeId: "bloom_bramble", count: 6, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
-    { archetypeId: "bloom_bramble", count: 6, atTurn: 1, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
-    { archetypeId: "bloom_bramble", count: 5, atTurn: 5, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_crawlmass", count: 10, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 11, y: 11 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 2, spawnAt: [{ x: 9, y: 4 }, { x: 14, y: 4 }, { x: 9, y: 9 }, { x: 14, y: 9 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 6, atTurn: 3, spawnAt: [{ x: 11, y: 1 }, { x: 11, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 6, atTurn: 4, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 6, spawnAt: [{ x: 11, y: 1 }, { x: 11, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 7, spawnAt: [{ x: 11, y: 1 }, { x: 11, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 6, atTurn: 10, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 10, spawnAt: [{ x: 22, y: 6 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 13, spawnAt: [{ x: 11, y: 1 }, { x: 11, y: 11 }] },
   ],
   events: [
     {
@@ -2620,12 +2596,21 @@ export const HOUSE_AMARANTH_MISSION_33: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 20, holdUntilTurn: 16 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Innermost Terrace. Five approaches, all Bramble: ten from the north at 1 with four Undertow under the perimeter, eight from the south at 3, eight from the east with Sirenmaw at 5, eight north at 7, eight south with the Choir and more Undertow at 9, eight east at 11, six north at 13, and six south with the Choir at 15 — the ones that have to be in the ring with you. Hold from 16 to 20.
   enemyWaves: [
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 3, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 5, spawnAt: [{ x: 17, y: 4 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 7, spawnAt: [{ x: 17, y: 9 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 9, spawnAt: [{ x: 24, y: 6 }, { x: 24, y: 7 }] },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 1, spawnAt: [{ x: 11, y: 5 }, { x: 14, y: 5 }, { x: 11, y: 8 }, { x: 14, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 3, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 5, spawnAt: [{ x: 24, y: 6 }, { x: 24, y: 7 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 5, spawnAt: [{ x: 24, y: 6 }, { x: 24, y: 7 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 7, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 9, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 9, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 9, spawnAt: [{ x: 12, y: 6 }, { x: 13, y: 7 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 11, spawnAt: [{ x: 24, y: 6 }, { x: 24, y: 7 }] },
+    { archetypeId: "bloom_bramble", count: 6, atTurn: 13, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
+    { archetypeId: "bloom_bramble", count: 6, atTurn: 15, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 15, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
   ],
   events: [
     {
@@ -2676,13 +2661,20 @@ export const HOUSE_AMARANTH_MISSION_34: CampaignMission = {
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 16 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — No Word From the Seal. Eight directions, all of them bad: sixteen Bramble from every seam at 1 with six Undertow under the ground around the pads, the Choir at 3, Bramble and Sirenmaw at 5, more Undertow at 7, fourteen Bramble at 8, the Choir at 10, Bramble and Sirenmaw at 11, Bramble at 13, and the Choir at 15. Sixteen turns.
   enemyWaves: [
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 1, y: 6 }, { x: 1, y: 7 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 1, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
-    { archetypeId: "bloom_bramble", count: 7, atTurn: 5, spawnAt: [{ x: 2, y: 2 }, { x: 21, y: 2 }, { x: 2, y: 10 }, { x: 21, y: 10 }] },
-    { archetypeId: "bloom_bramble", count: 7, atTurn: 9, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }, { x: 11, y: 11 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 16, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }, { x: 2, y: 2 }, { x: 21, y: 2 }, { x: 1, y: 6 }, { x: 22, y: 6 }, { x: 2, y: 10 }, { x: 11, y: 11 }] },
+    { archetypeId: "bloom_undertow", count: 6, atTurn: 1, spawnAt: [{ x: 8, y: 5 }, { x: 15, y: 5 }, { x: 8, y: 8 }, { x: 15, y: 8 }, { x: 11, y: 4 }, { x: 12, y: 9 }], burrowed: true },
+    { archetypeId: "bloom_choir", count: 6, atTurn: 3, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 12, atTurn: 5, spawnAt: [{ x: 2, y: 2 }, { x: 21, y: 2 }, { x: 2, y: 10 }, { x: 21, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 5, spawnAt: [{ x: 1, y: 6 }, { x: 22, y: 6 }] },
+    { archetypeId: "bloom_undertow", count: 6, atTurn: 7, spawnAt: [{ x: 8, y: 5 }, { x: 15, y: 5 }, { x: 8, y: 8 }, { x: 15, y: 8 }, { x: 11, y: 4 }, { x: 12, y: 9 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 14, atTurn: 8, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }, { x: 11, y: 11 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_choir", count: 6, atTurn: 10, spawnAt: [{ x: 1, y: 6 }, { x: 22, y: 6 }] },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 11, spawnAt: [{ x: 2, y: 2 }, { x: 21, y: 2 }, { x: 2, y: 10 }, { x: 21, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 11, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 12, atTurn: 13, spawnAt: [{ x: 1, y: 6 }, { x: 22, y: 6 }, { x: 11, y: 1 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 15, spawnAt: [{ x: 2, y: 2 }, { x: 21, y: 10 }] },
   ],
   events: [
     {
@@ -2735,11 +2727,22 @@ export const HOUSE_AMARANTH_MISSION_35: CampaignMission = {
   objective: "hold_zone",
   objectiveParams: { turnLimit: 20, holdUntilTurn: 16 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Root Turns. It's directing, and the Bramble comes where it points: ten from the north at 1 with Undertow in the perimeter, ten from the south at 3, eight east with Sirenmaw at 5, eight north with the Choir at 7, eight south at 9, eight east with more Undertow at 11, six north with the Choir at 13, six south at 15 — those last are the ones in the ring with you. Hold from 16 to 20.
   enemyWaves: [
     { archetypeId: "bloom_wellroot", count: 1, atTurn: 1, spawnAt: [{ x: 15, y: 6 }] },
-    { archetypeId: "bloom_bramble", count: 7, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
-    { archetypeId: "bloom_bramble", count: 7, atTurn: 3, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
-    { archetypeId: "bloom_bramble", count: 6, atTurn: 5, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 1, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 1, spawnAt: [{ x: 10, y: 5 }, { x: 13, y: 5 }, { x: 10, y: 8 }, { x: 13, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 3, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 5, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 5, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 7, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
+    { archetypeId: "bloom_choir", count: 4, atTurn: 7, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 9, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 11, spawnAt: [{ x: 22, y: 6 }, { x: 22, y: 7 }] },
+    { archetypeId: "bloom_undertow", count: 2, atTurn: 11, spawnAt: [{ x: 10, y: 5 }, { x: 13, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 4, atTurn: 13, spawnAt: [{ x: 11, y: 1 }, { x: 12, y: 1 }] },
+    { archetypeId: "bloom_choir", count: 2, atTurn: 13, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 4, atTurn: 15, spawnAt: [{ x: 11, y: 11 }, { x: 12, y: 11 }] },
   ],
   events: [
     {
@@ -2800,14 +2803,25 @@ export const HOUSE_AMARANTH_MISSION_36: CampaignMission = {
   objective: "survive_n_turns",
   objectiveParams: { turnLimit: 18 },
   playerPilotIds: HOUSE_AMARANTH_ACT3_DEFAULT_SQUAD,
+  // REWORK 8 Sep 2026 (mission rework pass) — The Stalling Season Ends. The whole bargain, one more time, with the Wellroot directing from beside the pads: twelve Bramble from every seam at 1 with eight Undertow under the pads, the Choir at 3, Bramble and Sirenmaw at 4, Bramble at 6, the Choir at 7, Bramble and Sirenmaw at 9, Bramble and Undertow at 11, Bramble and the Choir at 13, Bramble and Sirenmaw at 15, and the last of it at 17. Eighteen turns. Hold until the doctrine closes.
   enemyWaves: [
     { archetypeId: "bloom_wellroot", count: 1, atTurn: 1, spawnAt: [{ x: 17, y: 6 }] },
-    { archetypeId: "bloom_bramble", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }] },
-    { archetypeId: "bloom_bramble", count: 2, atTurn: 1, spawnAt: [{ x: 12, y: 11 }, { x: 13, y: 11 }] },
-    { archetypeId: "bloom_bramble", count: 2, atTurn: 1, spawnAt: [{ x: 1, y: 6 }, { x: 1, y: 7 }] },
-    { archetypeId: "bloom_bramble", count: 2, atTurn: 1, spawnAt: [{ x: 24, y: 6 }, { x: 24, y: 7 }] },
-    { archetypeId: "bloom_bramble", count: 4, atTurn: 5, spawnAt: [{ x: 2, y: 2 }, { x: 23, y: 2 }, { x: 2, y: 10 }, { x: 23, y: 10 }] },
-    { archetypeId: "bloom_bramble", count: 3, atTurn: 9, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }, { x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 12, atTurn: 1, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }, { x: 12, y: 11 }, { x: 13, y: 11 }, { x: 2, y: 2 }, { x: 23, y: 2 }, { x: 2, y: 10 }, { x: 23, y: 10 }] },
+    { archetypeId: "bloom_undertow", count: 8, atTurn: 1, spawnAt: [{ x: 9, y: 5 }, { x: 16, y: 5 }, { x: 9, y: 8 }, { x: 16, y: 8 }, { x: 12, y: 4 }, { x: 13, y: 9 }, { x: 8, y: 6 }, { x: 17, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_choir", count: 6, atTurn: 3, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 4, spawnAt: [{ x: 1, y: 6 }, { x: 24, y: 6 }, { x: 2, y: 2 }, { x: 23, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 6, atTurn: 4, spawnAt: [{ x: 1, y: 6 }, { x: 24, y: 6 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 6, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }, { x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_choir", count: 6, atTurn: 7, spawnAt: [{ x: 1, y: 6 }, { x: 24, y: 6 }] },
+    { archetypeId: "bloom_bramble", count: 12, atTurn: 9, spawnAt: [{ x: 2, y: 2 }, { x: 23, y: 2 }, { x: 2, y: 10 }, { x: 23, y: 10 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 9, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 11, spawnAt: [{ x: 1, y: 6 }, { x: 24, y: 6 }] },
+    { archetypeId: "bloom_undertow", count: 4, atTurn: 11, spawnAt: [{ x: 9, y: 5 }, { x: 16, y: 5 }, { x: 9, y: 8 }, { x: 16, y: 8 }], burrowed: true },
+    { archetypeId: "bloom_bramble", count: 10, atTurn: 13, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }, { x: 12, y: 11 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_choir", count: 6, atTurn: 13, spawnAt: [{ x: 2, y: 2 }, { x: 23, y: 10 }] },
+    { archetypeId: "bloom_bramble", count: 12, atTurn: 15, spawnAt: [{ x: 1, y: 6 }, { x: 24, y: 6 }, { x: 2, y: 2 }, { x: 23, y: 2 }] },
+    { archetypeId: "bloom_sirenmaw", count: 4, atTurn: 15, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 11 }] },
+    { archetypeId: "bloom_bramble", count: 8, atTurn: 17, spawnAt: [{ x: 12, y: 1 }, { x: 13, y: 1 }, { x: 12, y: 11 }, { x: 13, y: 11 }] },
   ],
   events: [
     {

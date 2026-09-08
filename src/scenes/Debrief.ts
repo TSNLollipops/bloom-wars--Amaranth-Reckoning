@@ -758,13 +758,24 @@ export class Debrief extends Phaser.Scene {
    * informational rather than amber (Munti) or green (bonus): this isn't
    * an emergency or a reward, just direction. Same panel shape as every
    * other callout on this screen.
+   *
+   * House Amaranth branch added 8 Sep 2026 — the Warden text names the
+   * grotto by room, which the Greathouse doesn't have (Verinis sits in
+   * THE CONTROL ROOM). Rather than write a second room-specific line,
+   * this uses Verinis's own Check-In nudge from Bloom_Wars_Verinis_
+   * Voice_Bank_v1.md §10 ("Report to me before you deploy again,
+   * Colonel."), which sidesteps naming a room at all. Warden's line is
+   * unchanged.
    */
   private drawCoCheckinNudge(top: number): number {
     if (!this.coCheckinNudgeDue) return top;
     const height = 40;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14202a, 1).setStrokeStyle(1, 0x4a7a9a);
+    const nudgeText = this.isHouseAmaranthMission
+      ? "Report to me before you deploy again, Colonel."
+      : "Report to the CO in the grotto before your next deployment.";
     this.add
-      .text(480, top + height / 2, "Report to the CO in the grotto before your next deployment.", {
+      .text(480, top + height / 2, nudgeText, {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#7ec8e3",

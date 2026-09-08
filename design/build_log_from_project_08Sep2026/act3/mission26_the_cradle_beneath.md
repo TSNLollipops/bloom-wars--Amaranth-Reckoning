@@ -1,0 +1,9 @@
+# Mission 26 — The Cradle Beneath
+
+**Objective:** extract_unit (Okafor — the Tank, a deliberate change from the Meeps/Reeps extract targets used elsewhere, for tactical variety in who needs carrying). **Map:** hive chambers, four spawn points. **Enemy:** 2 burrowed Undertow (originally 4).
+
+**A real isolation bug, found at 8-pilot squad size:** first draft (4 Undertow) went 9/15 (60%), every loss identically shaped — Okafor's own extract heuristic pushed her toward the exit ahead of her escort, and a lone Undertow ambush hit (40-70 damage) was enough to down her before the squad caught up. Not an AI fix (per the standing "AI is Maxime's own to build next" instruction for this batch) — the lever pulled was mission design: Undertow count 4→2. Result: 13/15 (~87%), remaining losses honest turn-limit timeouts, not isolation kills.
+
+**At 12-pilot Act III squad size, this mission actually got worse, not better — a genuine surprise.** The full squad jammed outright in the map's 3-tile-tall main corridor (12 units competing for one lane gridlock each other — the "wall of idle allies" limitation from Mission 23, now visible at squad scale). A first instinct to shrink to 9 pilots made it *worse* (0/15) — a different manifestation of the same root cause, this time escorts filling the exit block themselves before Okafor could reach a tile. Abandoned that approach; reverted cleanly to the mission's original, already-proven 8-pilot squad. Result: 12/15 (~80%), close to the original baseline. Honestly flagged: this doesn't remove the underlying risk — a real player who deploys the full 12 here can still hit one of the two jam shapes; the mitigation is "the default squad avoids it," not "the bug is gone."
+
+Full narrative: archive, "batch 5 built — missions 25-28" and "Act III scope confirmed... retuned against the bigger roster," Mission 26's own section in each.

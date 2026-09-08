@@ -1,0 +1,64 @@
+**THE BLOOM WARS**
+
+**Master Index — Game Project**
+
+*Last updated: 21 August 2026 — canon-pass revision*
+
+| **Scope note** This project folder holds two entirely separate things: The Bloom Wars, a browser tactics game, and Qiraki, a book series. They share no canon obligations except two reserved names (see “Naming lock,” below) and a handful of one-way lore borrows. This index covers the game project only — the 8 documents below are the complete set of Bloom Wars files. Everything else in the project (all Qiraki_* files, Rune_Patterning_Primer.md, Cross_Project_Writer_Note.md) is book material and is indexed separately in Qiraki_Master_Index.md. |
+| --- |
+
+# **The 8 documents**
+
+| **Doc** | **What it is** |
+| --- | --- |
+| Bloom_Wars_GDD_v0.2.docx | The Game Design Document. Vision and scope, the class triangle, the chassis layer, the Meks system, the Heirloom (Severance), mission objective types, the 4-mission vertical-slice campaign, art direction, the scenario-editor plan, and a decision log. Read it first. |
+| Bloom_Wars_Data_Pack_v0.1.docx | Companion to GDD §14. Every number: type schema, 12 unit archetypes, the Team One roster and meks, mek track effects, abilities, combat/damage tables, the 7 Bloom archetypes, the 4 hostile mechs, all 4 maps, the 4 campaign missions, the points economy, and the balance simulation output. |
+| Bloom_Wars_Build_Brief_v0.1.docx | The handoff / build instructions. Four non-negotiable rules, a 12-step build order, the test plan, naming/file-layout conventions, and a “what not to build” list. |
+| **Bloom_Wars_Canon_Pass_v1.docx** | NEW. Resolves the open items in the three docs above now that the Qiraki source files are attached — the corrected Team One roster, the Mission 3 wipe answer, real gear-tier names, real Bloom colour families, and an expanded Team Two/bench roster. Read this alongside the three docs above; it cites exactly which section of which doc each item targets. |
+| README.md | Explains the two Python scripts (combat_sim.py, maps.py) used to validate the design numbers and maps before handoff. |
+| maps_generated.ts | Auto-generated TypeScript for all 4 validated maps. Drop-in for src/data/maps.ts. Never hand-edit — edit the ASCII and regenerate. |
+| sim_output.txt | Console output of combat_sim.py — Data Pack §13. |
+| maps_output.txt | Console output of maps.py — the map validation table plus all 4 maps as ASCII. |
+
+*Suggested reading order: GDD → Data Pack → Canon Pass → Build Brief, then README only if you**'**re touching the validation tooling. sim_output.txt, maps_output.txt, and maps_generated.ts are generated artifacts — reference them, don**'**t hand-edit them.*
+
+# **Open items — status after the canon pass**
+
+Full detail, citations and ready-to-paste replacement content are in Bloom_Wars_Canon_Pass_v1.docx. This is the short version:
+
+| **#** | **Item** | **Status** |
+| --- | --- | --- |
+| 1 | Who dies in the Mission 3 wipe | Resolved. Trav is the sole survivor; Thyns, Barasj, Nagori and Tourignie are lost to extraction failure. One follow-on design call remains: whether their spent points carry forward (Canon Pass §C.3). |
+| 2 | Team One species / chassis | Resolved. One fix: Fracrals Thyns is Hiopi/centauroid, not human/bipedal. The other four pilots were already correct. |
+| 3 | Mek display names | Resolved. Canon doesn't name individual mechs at all — the possessive placeholder style (“Thyns' Mek”) is the accurate final form, not a stand-in. |
+| 4 | Points-shop cost bands | Resolved. Real catalogue provided for context (Canon Pass §D.1); recommend keeping the game's own validated cost curve rather than converting it. |
+| 5 | Bloom colour-family hex values | Resolved. The real Bioterror Bank palette system applied to all 7 archetypes (Canon Pass §E) — freely re-rollable, it's a generative system, not a lookup table. |
+| 6 | Gear-tier names per path | Resolved. Full Meeps/Tank/Reeps/Munti × G-A table sourced from the Points Shop Catalog (Canon Pass §D). |
+| 7 | Endurance/Vitality Collapse rule intent | Not source-verifiable outright (no numeric canon spec exists), but strongly supported by the Bioterror Bank's descriptive framework. Recommend confirming as correct (Canon Pass §G) — still your call. |
+| 8 | Mek vs. Mech terminology | New, surfaced by this pass. The game's “mek” = machine usage collides with canon's locked Mek = person / Mech = machine rule. Flagged, not changed — see Canon Pass §B.1. |
+
+# **Locked decisions (for quick reference)**
+
+Web-first (TypeScript + Vite + Phaser 3, Steam port later); Meks are Option B — passive, one per pilot, never on the board; class triangle is Meeps > Reeps > Tank > Meeps; full-HP damage cap of 90 (Severance is the sole exception); Mission 3 ends in a scripted, unavoidable extraction-failure wipe — now with the wipe's actual roster (see above); art is placeholder geometric shapes, not sprites.
+
+# **Naming lock (shared with the book project — the only real coupling)**
+
+One reserved term (defined in the Build Brief, deliberately not written in these docs — enforced by a build-failing lint rule, not a convention) must never appear anywhere in the game's code, comments, filenames, or UI strings. “The Synker Wars” — the book series' military-arc name — is separately reserved and also must not surface as a game-facing string. This is the only naming dependency between the two projects, and this canon pass introduces no new spoiler-locked terms.
+
+# **Cross-project references**
+
+The GDD and Data Pack pull one-way inspiration / verification from a few Qiraki documents. They are not Bloom Wars files and remain indexed under Qiraki_Master_Index.md. As of this canon pass, all five have been read and cross-checked:
+
+- **Qiraki_Military_Era_Outline_v3.md** — source for Team One's (and now Team Two's) roster and the Mission 3 wipe. Checked.
+
+- **Qiraki_Bestiary.md** — the category system the 7 Bloom archetypes translate. Checked — enums already matched exactly, no change needed.
+
+- **Qiraki_Bioterror_Bank_v2.md** — source for the Bloom creatures' real colour families. Checked — it's a generative system, not a table; applied to all 7 archetypes.
+
+- **Qiraki_Points_Shop_Catalog.md** — the narrative cost-band catalogue. Checked — real gear-tier names ported; costs deliberately not converted (different economy scale).
+
+- **Qiraki_Rune_Tech_Reference.md** — the rune-tech reasoning behind Severance vs. Bloom Endurance. Not re-checked this pass; GDD §8's existing citation stands.
+
+# **Repo layout**
+
+Unchanged — see GDD §2.1 / README "Where they go".

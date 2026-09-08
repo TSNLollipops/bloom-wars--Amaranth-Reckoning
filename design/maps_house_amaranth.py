@@ -141,21 +141,27 @@ GRIDS = {
     # same track Warden's Lask/Vashti already carry as extract_unit targets
     # in that campaign's own precedent.
     "mission_house_amaranth_3": {
+        # Mission rework pass (8 Sep 2026):
+        # sump column at x=17 (rows 1-4 and 7-11) with the seams at
+        # (18,3)/(18,9) and the exits shuffled to x=20-21 — the same
+        # corked-gap extraction shape as Warden's Foraging Party
+        # (mission_amaranth_5), bloom-mat flavoured. Mats at (9,3)/(9,9) for
+        # the escort.
         "name": "Second Harvest",
         "const": "SECOND_HARVEST_TILES",
         "ascii": [
             "~~~~~~~~~~~~~~~~~~~~~~",
-            "~~~................~~~",
-            "~....................~",
-            "~.............E......~",
-            "P........~~..........X",
+            "~~~..............w.~~~",
+            "~................w...~",
+            "~........~.......wE..~",
+            "P........~~......w...X",
             "PP.......~~.........XX",
-            "P..........~~...E....X",
-            "PP.........~~.......XX",
-            "P........~~..........X",
-            "~..............E.....~",
-            "~....................~",
-            "~~~................~~~",
+            "P..........~~.......X.",
+            "PP.........~~....w..XX",
+            "P........~~......w...X",
+            "~........~.......wE..~",
+            "~................w...~",
+            "~~~..............w.~~~",
             "~~~~~~~~~~~~~~~~~~~~~~",
         ],
     },
@@ -269,14 +275,18 @@ GRIDS = {
     # a single Fieldwright (Anand) as its extract_unit target more than
     # once too, so this isn't inventing a new convention.
     "mission_house_amaranth_7": {
+        # Mission rework pass (8 Sep 2026):
+        # rows 3-4 are sump except x=4 and x=14: two two-tile gaps between the
+        # pads and the Bloom instead of a passable ridge (ridge is cost 2, not
+        # a wall — traced: the corks were walked around).
         "name": "Deeper Terraces",
         "const": "DEEPER_TERRACES_TILES",
         "ascii": [
             "~~~~~~~~~~~~~~~~~~~~",
             "~..E.....XX.....E..~",
             "~........XX........~",
-            "~^^^.^^^^^^^^^.^^^^~",
-            "~^^^.^^^^^^^^^.^^^^~",
+            "~wwww.wwwwwwww.wwww~",
+            "~wwww.wwwwwwww.wwww~",
             "~...E..............~",
             "~..................~",
             "~.............E....~",
@@ -395,21 +405,25 @@ GRIDS = {
     # and stay hidden, the actual mechanical reading of "the growth zone
     # swallowed her."
     "mission_house_amaranth_11": {
+        # Mission rework pass (8 Sep 2026):
+        # sump column at x=16 (rows 0-4 and 8-11, (16,8) closed after a trace
+        # found it open) so the extraction runs through a three-tile gap at
+        # rows 5-7 the Undertow cork.
         "name": "What the Terraces Cost",
         "const": "WHAT_THE_TERRACES_COST_TILES",
         "ascii": [
-            "~~~~~~~~~~~~~~~~~~~~",
-            "~.....E.......E....~",
-            "~..................~",
-            "~..~~....~~....~~..~",
-            "~..~~....~~....~~..~",
+            "~~~~~~~~~~~~~~~~w~~~",
+            "~.....E.......E.w..~",
+            "~...............w..~",
+            "~..~~....~~....~w..~",
+            "~..~~....~~....~w..~",
             "~..................~",
             "P.................X~",
             "PP...............XX~",
-            "P.................X~",
-            "~..~~.E..~~.E..~~..~",
-            "~..~~....~~....~~..~",
-            "~~~~~~~~~~~~~~~~~~~~",
+            "P...............w.X~",
+            "~..~~.E..~~.E..~w..~",
+            "~..~~....~~....~w..~",
+            "~~~~~~~~~~~~~~~~w~~~",
         ],
     },
     # Mission 12, "Harvest's End" (Act I -- Harvest Ground, act finale).
@@ -501,20 +515,24 @@ GRIDS = {
     # PRIMARY threat rather than a small secondary addition (Mission 12's
     # own 2-unit support role).
     "mission_house_amaranth_14": {
+        # Mission rework pass (8 Sep 2026):
+        # sump column at x=19 (rows 0-3 and 7-10): the governor's walk ends
+        # through a three-tile gap at rows 4-6; the first cut's ridge cork was
+        # bypassed diagonally.
         "name": "The Governor's Patience",
         "const": "THE_GOVERNORS_PATIENCE_TILES",
         "ascii": [
-            "~~~~~~~~~~~~~~~~~~~~~~",
-            "~....................~",
-            "~....................~",
-            "P..%%............%%..X",
+            "~~~~~~~~~~~~~~~~~~~w~~",
+            "~..................w.~",
+            "~..................w.~",
+            "P..%%............%%w.X",
             "PP..%%..........%%..XX",
             "P....................X",
             "PP..%%..........%%..XX",
-            "P..%%............%%..X",
-            "~....................~",
-            "~..E..............E..~",
-            "~~~~~~~~~~~~~~~~~~~~~~",
+            "P..%%............%%w.X",
+            "~..................w.~",
+            "~..E..............Ew.~",
+            "~~~~~~~~~~~~~~~~~~~w~~",
         ],
     },
     # Mission 15, "Rootbound" (Act II -- The Bargain Holds). First real
@@ -603,18 +621,22 @@ GRIDS = {
     # itself -- the thing being surveyed is directly in the squad's own
     # path out, not off to a side.
     "mission_house_amaranth_17": {
+        # Mission rework pass (8 Sep 2026):
+        # rows 1 and 8 are sump except x=4, 11 and 18 (three one-tile gaps
+        # each) and the seam side has a sump stub at (20,2)/(20,7): the
+        # terrace walls are walls now, not ridges.
         "name": "What Grows Beneath",
         "const": "WHAT_GROWS_BENEATH_TILES",
         "ascii": [
             "~~~~~~~~~~~~~~~~~~~~~~~~",
-            "~^^^.^^^^^^.^^^^^^.^^^^~",
-            "~....E............E....~",
+            "~www.wwwwww.wwwwww.wwww~",
+            "~....E............E.w..~",
             "~PP..................XX~",
             "~PP..................XX~",
             "~PP........E.........XX~",
             "~PP..................XX~",
-            "~....E............E....~",
-            "~^^^.^^^^^^.^^^^^^.^^^^~",
+            "~....E............E.w..~",
+            "~www.wwwwww.wwwwww.wwww~",
             "~......................~",
             "~~~~~~~~~~~~~~~~~~~~~~~~",
         ],
@@ -723,20 +745,24 @@ GRIDS = {
     # missions use, channeling the fight into the same lane the exit sits
     # on rather than letting it be skirted.
     "mission_house_amaranth_20": {
+        # Mission rework pass (8 Sep 2026):
+        # sump column at x=18 (rows 0-4 and 7-10, gap at rows 5-6) between the
+        # field and the exit block — the withdrawal goes through a two-tile
+        # gap, and a first cut's three-tile gap was one too many.
         "name": "Marrow's Line",
         "const": "HOUSE_AMARANTH_MARROWS_LINE_TILES",
         "ascii": [
             "~~~~~~~~~~~~~~~~~~~~~~~~",
-            "~,,,,,,%%,,,^^,,,,,,,,,~",
-            "~,,,,,,%%,E,^^,,,,,,,,,~",
-            "~,,,,,,%%,,,^^,,,,,,,,,~",
-            "~,PPP,,,,,,,,,,,,,,XX,,~",
-            "~,PPP,,,,,,,,,,E,,,XX,,~",
-            "~,PPP,,,,,,,,,,,,,,XX,,~",
-            "~,PPP,,,,,,,,,,,,,,XX,,~",
-            "~,,,,,,%%,,,^^,,,,,,,,,~",
-            "~,,,,,,%%,E,^^,,,,,,,,,~",
-            "~,,,,,,%%,,,^^,,,,,,,,,~",
+            "~,,,,,,%%,,,^^,,,,w,,,,~",
+            "~,,,,,,%%,E,^^,,,,w,,,,~",
+            "~,,,,,,%%,,,^^,,,,w,,,,~",
+            "~,PPP,,,,,,,,,,,,,w,XX,~",
+            "~,PPP,,,,,,,,,,E,,w,XX,~",
+            "~,PPP,,,,,,,,,,,,,,,XX,~",
+            "~,PPP,,,,,,,,,,,,,w,XX,~",
+            "~,,,,,,%%,,,^^,,,,w,,,,~",
+            "~,,,,,,%%,E,^^,,,,w,,,,~",
+            "~,,,,,,%%,,,^^,,,,w,,,,~",
             "~~~~~~~~~~~~~~~~~~~~~~~~",
         ],
     },
@@ -1106,6 +1132,12 @@ GRIDS = {
             "..........................",
         ],
     },
+    # Mission rework pass (8 Sep 2026): deploy pads moved from the west edge
+    # (x=0-1, nine tiles from the dock) to the dock's own west face (x=8-9).
+    # Sim-traced: with the squad deploying nine tiles away, a turn-1 Bramble
+    # pack from either seam reached the dock in one move (move 6, four tiles)
+    # and the Root was dead by turn 5-7 in 20/20 runs before the squad could
+    # matter. The mission is "hold the dock," so the squad starts AT the dock.
     # Mission 32, "Hold the Root" (Act III). Plan doc §6: "defending the
     # original diversion relay -- the one the whole program was built
     # around -- through the Bramble's worst push." protect_asset, this
@@ -1131,10 +1163,10 @@ GRIDS = {
             ",,,,,,,,~~,,,,~~,,~~,,,,",
             ",,,,,,,,~~,,,,~~,,~~,,,,",
             ",,,,,,,,,,,,,,,,,,,,,,,,",
-            "PP,,,,,,,,DDDD,,~~,,,,,,",
-            "PP,,,,,,,,DDDD,,~~,,,,E,",
-            "PP,,,,,,,,DDDD,,~~,,,,E,",
-            "PP,,,,,,,,DDDD,,~~,,,,,,",
+            ",,,,,,,,PPDDDD,,~~,,,,,,",
+            ",,,,,,,,PPDDDD,,~~,,,,E,",
+            ",,,,,,,,PPDDDD,,~~,,,,E,",
+            ",,,,,,,,PPDDDD,,~~,,,,,,",
             ",,,,,,,,~~,,,,~~,,~~,,,,",
             ",,,,,,,,~~,,,,~~,,~~,,,,",
             ",,,,,,,,,,,EE,,,,,,,,,,,",

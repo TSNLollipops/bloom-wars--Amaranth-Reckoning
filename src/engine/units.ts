@@ -961,13 +961,22 @@ export function createPlayerUnit(
   };
 }
 
-export function createHostileMechUnit(hostileMechId: string, pos: Coord): BattleUnit {
+export function createHostileMechUnit(hostileMechId: string, pos: Coord, tierOverride?: Tier): BattleUnit {
   const mech = ALL_HOSTILE_MECHS[hostileMechId];
   if (!mech) throw new Error(`Unknown hostile mech id: ${hostileMechId}`);
   // "All four use the standard bipedal archetypes" — Data Pack §9.
   const archetypeId = `arch_${mech.path}_bipedal`;
   const archetype = UNIT_ARCHETYPES[archetypeId];
-  const tier = TIERS[mech.tier];
+  // Mission rework pass (8 Sep 2026): a wave or spawn event may name the
+  // gear tier its mechs arrive at (EnemyWave.tier / the spawn action's
+  // tier — the latter had been declared in data/types.ts since the event
+  // system shipped and never read by anything). Every hostile mech
+  // archetype is authored at G except the two named rivals, and a G-tier
+  // trooper is chaff to an Act III squad no matter how many arrive; this
+  // is the one knob that lets House Amaranth's regulars keep pace with
+  // the player's own tier climb without a second archetype per rung.
+  // Undefined = the archetype's own tier, exactly as before.
+  const tier = TIERS[tierOverride ?? mech.tier];
 
   const effectiveAttack = archetype.baseAttack + (tier.attack - 100);
   const effectiveDefense = archetype.baseDefense + (tier.defense - 100);

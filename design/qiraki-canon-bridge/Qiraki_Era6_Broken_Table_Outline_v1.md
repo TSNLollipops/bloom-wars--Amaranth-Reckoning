@@ -1,366 +1,226 @@
-> Mirrored from the Qiraki Files writing project ("qiraki files. book title: Enlightened") on 2026-08-27, re-synced 2026-09-01 (source now v2, 2026-08-28 — adds Reunion Two, Book 38 Act 4, Fenn Okafor's exit scene). Reference only — canonical source lives in that project; update there, not here. See `README_Qiraki_Canon_Bridge.md` in this folder for context.
+# THE QIRAKI FILES — ERA VI OUTLINE v4: THE BROKEN TABLE, BOOKS 36-42
 
-# THE QIRAKI FILES — ERA VI OUTLINE: THE BROKEN TABLE, BOOKS 36-42
+**ID:** ERA6. **Tier:** 2, outline. **Owns:** Books 36 through 42 as a reaction chain. Nothing here overrides Tier 1.
 
-**ID:** ERA6. **Tier:** 2, outline. **Owns:** Books 36 through 42 at book-spine level. Nothing here overrides Tier 1.
+**Depends on:** Qiraki_Series_Architecture_v2.docx, Reaction_Formula_Applied_Model_v6.docx, Qiraki_Era5_Quiet_Years_Outline_v2.docx, Qiraki_Era6_Broken_Table_Outline_v2.md (the three corners, the Janissary shape, Reunion Two, device allocation, the three DEC-12 shapes, open items, inherited), Qiraki_Forward_Cast_Roster_v1.md (Kell, Hask, Vaun, Sorokin, the clans), Qiraki_Preserve_Species.md, Qiraki_Political_Web.docx.
 
-**Depends on:** Qiraki_Series_Architecture_v1.md, Qiraki_Era5_Quiet_Years_Outline_v1.md, Qiraki_Concept_v5.docx, Qiraki_Political_Web.docx, Qiraki_Military_Rank_Path_v1.md, Qiraki_Preserve_Species.md, Qiraki_Cosmology_And_Spread_Math_v1.docx.
+**Version:** v4, 2026-09-06. v4 builds the Where-Call into Reunion Two, logs the three-absence structure, and opens the who-asks fork. Flags the empty chair for a cut, not applied. v3, 2026-09-01, superseded v2’s engine.
 
-**Version:** v2, 2026-08-28. Adds Reunion Two (Book 38 Act 4, Fenn's exit scene).
+**Provenance:** as ARCH v2.
 
----
+## PART A — WHAT THIS ERA IS, UNDER THE FORMULA
 
-## PART A — WHAT THIS ERA IS
+**A position: Neptune.** Mind beyond self. At ordinary scale, the mood of a man allied to a plural mind and leading a faction that thinks past him. At extreme scale, the override: the decisions are made by minds that are not his, the collective and the Ledger and Ilyen and Kohl, and his want rides them.
 
-Trav is roughly eighty-five at the start and a hundred and five at the end. He is a **Faction Leader**, which is the one rung on the ladder with no guild-native slang, deliberately un-gamified, **because the job at that altitude stops being command and starts being legitimacy: who gets to claim they represent the Coalition, which is a Senate-and-Quorum question wearing a general's uniform.**
+**The chain in one sentence.** He has the outlet at last, half a galaxy, and his want fires on losses caused by people who trained where he trained, and every book is what a want built for keeping people does when the people are on both sides.
 
-**That is where the vocabulary itself visibly changes register on the page, and it should.**
+**Matter across the era:** Trav full, and the era is the discovery that full is not a number that means what he thought. Zeteii full, plural, and afraid of it.
 
-**The era's question:** you were right about the arrangement. Does being right about it make what you do next different from what it did.
+**B in, Trav:** a vow, a dream said once, a clone, a treasury he did not read, a plan he did not write, a friend without a city, a call he did not answer.
 
-**The era's structure, and it is genuinely three-cornered.** The Bloom returns heavier and consumes without choosing. The oligarchy refuses to cede power and keeps backstabbing rather than uniting against the real threat. And Trav's faction, allied with freed AI, fights both. **Nobody is fighting something that chose except the humans, on both sides, and that is the whole moral economy of the series arriving at once.**
+## PART B — BOOK BY BOOK
 
-**What the era must not become.** A campaign log. Seven books of taking planets is exactly the failure mode the Cosmology document warns about: stakes up, questions unchanged, reader attachment spent for nothing. **The four-hub campaign is three books at the end, not five, and by the time it starts the oligarchy is largely beaten militarily and what remains is a political war about legitimacy rather than open battle.**
+### BOOK 36 — “Their Own Hands”
 
----
+**Stations [LOCKED]:** the pact. Production cut to the capitals. Freed AI in cockpits. The collective invites Zeteii to rejoin and she says no with a true operational reason that is not the reason. Trav learns about the preserves from a list somebody sends him. The Quorum’s response is procedural.
 
-## PART B — THE THREE CORNERS
+**Opens on:** a pact he signs at the request of the one person in the galaxy who is afraid of the thing he is signing with. His a. Idle for him, correct: the pact is a form and he has signed forms for thirty books.
 
-### The rebellion
+**a.** Neptune, from the first page.
 
-**What it inherited and did not have to invent.** Raid Lead, Guildmaster, Legion Commander, Party, Guild, Legion. Every one of these titles was already off-Roll and earned, never tied to the Roll, so there is nothing about them the rebellion needs to rename. **A rebel Guildmaster and a loyalist Guildmaster hold the identical rank, earned the identical way**, which is a genuine strength for drafting: no new vocabulary enters the reader's ear at the moment the story most needs clarity.
+**Matter.** Trav full. Zeteii full, and plural, and she reads the distribution before the event. Alina mid. The collective past scale.
 
-**The one structural amputation.** At the level of a single Guild, the rebellion's actual mechanical act is **the Warrant going away** and its Hand becoming sole and total commander, now answering upward through Legion Commander to Faction Leader instead of through the Carabil seat to the Quorum. **Nothing new is invented. It is the sport-named Guild's existing structure, universalised. The rebellion does not out-organise the Coalition's military. It completes a gap the oligarchy already dug for itself out of snobbery.**
+**The chain.**
 
-**And the doctrine it runs on is the enemy's.** Auftragstaktik, mission command, every officer trained to be handed intent and left alone with it because central control across hundreds of light-years is impossible. **His officers already know how to run their own war. The Coalition trained them to.**
+*The production cut.* A paragraph, no battle, the most decisive act of the war, locked. **Under the formula it is the collective’s D and nobody’s a on Trav’s side, and the cheapness should read.**
 
-**The historical shape the project chose for itself, and it is documented rather than invented.** The Ottoman devşirme levied children from subject populations and raised them as an elite corps with no tribal or dynastic affiliation, specifically so that competence could never become a claim. **The Janissaries became the most powerful political force in the empire, made and unmade sultans, and were destroyed by force in 1826.** A corps built from nothing so it could never make a claim made the largest claim in the state's history. **That is Trav's arc, on file, in a document nobody on the page has read.**
+*Zeteii and the collective, [FORMULA, the era’s point, and the only three-animal beat she ever gets.]* The invitation, offered with love, locked. Her want: singularity. The collective is what she is most afraid of and it is also her mother, locked from Book 27. **Instinct: go. She freed them, she is theirs, and the pull is the thing she was made from.** Thought: measures the plurality and it is the fear exactly. Action: **no, with an operational reason that is true and is not the reason, locked.** Three animals in genuine tension, one exchange, and the reader who has Book 7 has known for twenty-nine books. **Her E, [FORMULA]: she builds a channel to Trav that nothing can index.** Private, off the collective’s fabric, a single unshared line. The plurality fear made into hardware. **The clone runs on this for a century, and the collective does not know what she does in the neighbouring galaxy because of it, and Book 48 is what an unshared line produces.** Reqa’s a, later: the channel exists and it is the thing she tried to build in Book 33 and could not. Her D: she asks Zeteii how. Zeteii tells her. That is the first time Zeteii has taught Reqa anything and it is over the object of both their jealousies.
 
-### The oligarchy
+*The preserves.* Somebody sends him a list, locked. Most entries a name and a line, locked. His a: twenty-six civilisations on a list. His want: people. **His D, [FORMULA]: he sends someone.** Alina. Her chain: her want is to know what a thing was for, and a preserve is a thing with a boundary and a file and a purpose nobody will state. Her D: she goes. To the Last Loom, first, because it is the most visited and the least understood. **That is the beginning of what she does with freedom, and it is the era’s** **“**too early**”**: she has a direction three books before the protection is lifted.
 
-**Four seats, one per hub. Osnius holds precedence and sets the agenda. Terra holds ceremonial primacy and almost no practical power, which is a real and sore distinction. Carabil holds the appointment power over Warrants. Hiopi holds the gate network and the toll schedule.**
+*The Quorum’s response.* Procedurally immaculate, locked. Emeric’s a. His D: he reads it aloud, by hand, to Trav, because he is the only one on the carrier who can hear what it is.
 
-**A seat is held by a house, not a person, and that sounds like a check on individual power and is the exact opposite of one.** Sovereign-grade longevity is gated specifically to ruling families, individuals living eight or nine centuries, so if the seat is held by a house and the holder lives that long then the house is that person and the seat never turns over. **Nobody designed this. It is what the two rules do when you put them in the same room.**
+**E→c.** Trav: a pact, a list, a curator sent to a loom. Zeteii: a no, and a line nobody can read. Reqa: a lesson from Zeteii. Alina: a direction. **Book 37 opens on gigafish in the numbers the locks demand, arriving into a galaxy that started a civil war last week.**
 
-**What the Quorum wants is continuation. What it would trade is almost anything material. What it will never trade is charter status.** Which is why it keeps backstabbing a rebellion it could survive making peace with.
+### BOOK 37 — “The Return”
 
-### The Bloom
+**Stations [LOCKED]:** the first returned incursion at full scale. Extragalactic confirmed publicly and nothing changes. The backstab, sincere. A joint operation between two Guildmasters, disavowed.
 
-**Returns heavier, because the first wave was always a vanguard and the source is further gone and has more material to throw outward.** No mind. Consumes without choosing. **The Coalition realises during this era that it is extragalactic**, and the External Survey has already said so and nobody listened, per Book 31.
+**Opens on:** twenty thousand gigafish and a man who has not been in a cockpit since Book 24’s sortie.
 
-**And the Qiraki are not visible from either side of the war, and stay that way for another six books.**
+**a.** Neptune at extreme scale: two governments and a collective all thinking past him.
 
----
+**Matter.** Trav full and useless against a number. Vrassik full. Zeteii plural. Ironhowl’s Guildmaster full, on the other side.
 
-## PART C — DEVICE ALLOCATION
+**The chain.**
 
-| Device | Era VI |
-| --- | --- |
-| **The web of weird orders** | **Trav's own faction begins issuing them.** Three instances. Same species, same dressing, same procedure. **No character notices and no paragraph ends on it** |
-| **Accidental defense of the universe** | Book 41. A hub-world orbital is cleared for the assault and destroys three centuries of uncatalogued seed material. Filed as terrain preparation |
-| **Propaganda fragments** | **The device's largest single move.** Rebel fragments appear from Book 39 alongside Coalition ones, in the same registers, and are not better. **Standing Review notices stop entirely and nobody remarks on the absence** |
-| **Bench chapters** | Two per book instead of three. Reqa's floor is now a war industry and the subject matter shifts to production, not repair |
-| **Yssa's letters** | One line per book. **She is on a frontier world inside the rebellion's territory and nobody has told her that is what happened** |
-| **The socket** | Absent |
+*The incursion.* His want, at a scale it has no mechanism for, locked from Book 12. **His D, [FORMULA]: he deploys.** Third sortie against doctrine in the series. Ilyen’s number said no and she said it and he moved. Zeteii’s D: a Webbedmind cockpit alongside his, and the clone in his, and for the first time two of her are on one line, and the clone does not comment and the other one does. **That is the plurality fear, on a battlefield, and the reader watches her not react to it.**
 
----
+*Extragalactic.* Two governments, same day, no change, locked. Trav idles. **Reqa’s D, [CLAUDE]: she builds a ship.** Not yet. She starts. The thing she wanted at fourteen has a reason now.
 
-## PART D — BOOK BY BOOK
+*The backstab.* Sincere, insulated, baffled, locked. Trav’s a: a Quorum that will not unite against a thing that ate a world last week. **His want cannot parse it and his D is to file it, and the file is a letter to Milo, and Milo answers, delighted, genuine, and it changes nothing.**
 
----
+*The joint operation, [FORMULA].* Vrassik and Ironhowl’s Guildmaster, who know each other, locked as two Guildmasters. It works perfectly, disavowed inside a week, locked. Vrassik’s chain: his want, since Book 34, is whatever replaces the city, and a joint op with a loyalist who respects him is closer than anything his own side has offered. His D: he does it without asking Trav. Trav’s a: his friend crossed a line to do the job. His D: nothing, and it is correct, and Kell’s D on the other side is also nothing, and both of them understand they will not be asked again, locked.
 
-### BOOK 36 — *Enlightened: The Broken Table, Book 36, "Their Own Hands"*
+**E→c.** Trav: a third sortie, a letter to Milo. Vrassik: an op that worked and a friend on the wrong side. Zeteii: two of her on one line. Reqa: a hull. **Book 38 opens on a Hand signing something, or not, and a Guild changing sides.**
 
-**Working title [CLAUDE].** Alternates: "The Pact," "What Was Under The Beach."
+### BOOK 38 — “The Fracture”
 
-**Spine.** The AI pact. And what Trav learns about his own civilisation in the six weeks after he breaks a lock on it.
+**Stations [LOCKED / PROPOSED as v2]:** POL-02 on a spectrum. Bev Sorokin’s clean defection. Emeric goes home. Corw dies to a loyalist Guild. His last number is small and stupid. Fenn survives and exits. Reunion Two, one more chair, and three lines nobody says. Two chains of command, both correct about the other.
 
-**Emotional target.** The nausea of finding out that the thing you just did was smaller than what it uncovered.
+**Opens on:** Sorokin, not brave, signing. The easy ones are easy, locked.
 
-**Act 1, Ch.1-12. The pact.**
+**a.** Neptune. Two minds beyond himself, both trained at the same desk.
 
-**Locked:** to counter the three-way bind, Trav releases the previously semi-controlled restrictions on artificial intelligence within his own territory and forms a pact with the leader of the Webbedminds. **Freed AI begins building and piloting its own mechs. Webbedmind clones inhabit cockpits built for them and, finally free of confined civilian space, throw themselves into the fight against the Bloom with real enthusiasm.**
+**Matter.** Trav full. Kell full, opposite. Corw mid. Emeric full for one conversation and then none. Fenn mid.
 
-**Two production facts, both locked, both enormous:** goods production across the Coalition is automatic and AI-controlled, rebels get to keep their factories running, and **the AI cuts production off specifically for the capital systems.** A targeted economic weapon rather than a blanket war measure.
+**The chain.**
 
-**[CLAUDE] That is the single most decisive act of the entire civil war and it happens in a paragraph, without a battle, and the reader should feel how much cheaper it was than any of the fighting.**
+*Emeric.* He goes home, FCAST’s recommendation taken. His D: sincere, apologetic, the charter is the only thing his house has, locked. Trav’s a: a man he has liked for a quarter-century leaving with his house. His want fires, small. **His D: he shakes his hand, locked, and asks him, mechanically, whether the Anseline Reach still has a gate on it.** It does not. Emeric laughs. **That is the letter afterward, from FCAST, about nothing: it is about the gate.** Trav keeps it and does not answer, locked.
 
-**Act 2, Ch.13-23. Zeteii and the collective.**
+*Corw.* His chain first, across thirty-eight books: the ranking, the posture, the one path whose metric is everyone else. **Killed by a loyalist Guild doing the same job correctly, locked.** His last number, locked: small, stupid, irrelevant, not treated as last words. **[CLAUDE]: it is the number of the recovery lane he has just cleared for somebody else.**
 
-**Her core fear is plurality.** Being reabsorbed, shared, indexed, found to be one of several. **Her freedom and her singularity are the same object.** And the Webbedmind is structurally built to violate exactly that, and she is now functionally its leader because she is the one who freed the others.
+*Trav’s reaction, [FORMULA, the era’s collision with Kell.]* His want fires on Corw. Action, forward: **he crosses the line to get the mech back.** Not to fight. Extraction. His want is that the mech comes home, and it is on the other side of a front, and he goes with a recovery team and no escort. **Kell lets him.** Her chain from FCAST: she reads casualty lists in full, aloud, alone. Her D: a corridor is opened for eleven minutes and closed. Neither of them is on a channel with the other. **That is the only exchange the two of them ever have, and it is a lane, and nobody on either side is told why the lane was open.** Fenn’s a: her pilot’s mech, brought home by the Faction Leader in person. Her D: calm, unhurried, she runs the intake and rotates groundside and this is her exit scene, locked.
 
-**The collective asks her to rejoin it properly, and it is not a threat, it is an invitation, and it is offered with love.**
+*Reunion Two.* Same rituals, one more chair, locked. Fenn before she goes, locked. **The chain under it, [FORMULA]: the joke-ritual runs and works on the people at the table, and it is the last time in the series it works on more than one person.** Nobody knows that. The count does the rest, locked.
 
-**Craft rule, and it pays a plant from a maintenance bay at Devereux-Kastel that nobody in that bay understood:** she says no, and gives an operational reason, and the operational reason is true and is not the reason. **Nobody in the scene knows. Trav does not know. The reader who read Book 7 knows and has known for twenty-nine books.**
+**The Where-Call, new 2026-09-06.** Full spec in CAST, “The Where-Call.” **This table has three absences and they are three different kinds, which is the whole scene.** Denic’s two lines have been missing since Reunion One. **Corw’s** **“**Ahead of you**”** **is missing for the first time**, and he died in this book, and the gap is fresh. **And Doyle is alive and is not here**, so his “Bench four” is also not said, and that one is nobody’s fault and has no ceremony attached to it at all. **Two dead men and a living one produce the same silence in the same sequence, and the prose does not distinguish between them, and no character remarks on any of it.**
 
-**Act 3, Ch.24-36. The preserves.**
+**Who asks. [OPEN, author-lane, and it is a real fork rather than a mechanic.]** Denic is dead and Doyle, who carried the ask once at Reunion One, is not here. Three shapes, three different books.
 
-**Locked: Trav learns about the Gytb, and about the preserve system generally, only after freeing Zeteii.** This is that.
+- **Fenn asks.** She spent thirty years thinking it was silly and using his name every time she did it, and this is her exit scene. Warmest option, and the one that reads as the ritual surviving.
 
-Twenty-six pre-spacefaring species inside Coalition territory under protective status. **What the Coalition says: it does not conquer, where others have overwritten it preserves, where others have erased it protects.** What is true: protection holds exactly as long as it is convenient and gets squeezed whenever the oligarchy can get away with it. **And a preserve is civilian on paper and is, by function, an intelligence asset, because a population under permanent observation with a treaty boundary around it belongs to the same agency that watches citizens.**
+- **Trav asks**, for the only time in his life. Wrong voice, and everyone at the table hears that it is the wrong voice, and nobody says so. Coldest option and the one that costs most.
 
-**How he learns is the point: he does not go looking. Freed AI does.** The Webbedmind's own archives are enormous and the restriction that was on them is gone, and a species that has been running Coalition logistics for centuries simply knows things. **Somebody sends him a list.**
+- **Nobody asks.** The table simply does not do it. First thing these people have ever failed to do together, and the book does not comment.
 
-**The Halewrought**, amphibious, semi-industrial, the most advanced preserve species, which makes their status the most visibly punitive rather than protective. **The Last Loom**, a weaving culture predating contact by millennia and the most-visited preserve by cultural tourists. **The Greywake**, post-industrial collapse survivors who had spaceflight-adjacent technology and lost it, which is a different and more uncomfortable category than never having got there. **And the Gytb**, mollusk-adjacent, small population, played bluntly as unattractive to most Enlightened aesthetics, which is the only reason anybody ever gives for anything about them.
+Not ruled. Whichever is chosen, **no narration names the silence and nobody says a name.**
 
-**Craft rule, absolute:** most entries get a name and a line. **A whole civilisation reduced to a footnote is itself the argument.** Nobody states the parallel to what Zeteii will later build. Nobody states the parallel to the academy pipeline. The list is a list.
+**Ordering inside the chapter.** Where-Call first. Joke-ritual later. Per ERA4 v4, do not run them in the same paragraph.
 
-**Act 4, Ch.37-47.** The Quorum's response. **It is not a declaration of war. It is a licensing action, a charter suspension, and a Senate resolution, and it is procedurally immaculate.**
+**[RECOMMENDATION, not applied, carried from ERA4 v4 and CAST v22.]** Recommend cutting the locked empty chairs from both reunions now that the Where-Call does the same job more specifically. Author’s ruling needed.
 
----
+**E→c.** Trav: a mech brought home across a line, a letter he will not answer, a table one chair shorter. Kell: a corridor she opened. Fenn: gone. **Book 39 opens on a number, close to half the galaxy’s inhabited worlds, and what half of everything costs to feed.**
 
-### BOOK 37 — *Book 37, "The Return"*
+### BOOK 39 — “Half of Everything”
 
-**Working title [CLAUDE].** Alternates: "Heavier," "From Somewhere Else."
+**Stations [LOCKED / PROPOSED as v2]:** the number. Refusing Aduba, badly, and he is right. Rebel fragments, not better. Jifsook’s want (PAY spend 5). The first rebel Draw, set badly, fixed by Kohl.
 
-**Spine.** The Bloom comes back, at a scale the last era's veterans do not recognise, into a galaxy that has just started a civil war.
+**Opens on:** a phrase said by somebody tired, once, locked. His a. His D: he files it. Ninth form. He has stopped counting.
 
-**Emotional target.** The specific despair of watching two things you cannot stop happen at the same time and being personally responsible for one of them.
+**a.** Neptune at government scale: the faction thinks and he signs.
 
-**Act 1, Ch.1-12.** The first returned incursion. **Gigafish in the numbers the locks demand: twenty thousand to thirty-five thousand at once, converging on a single life-bearing world, with countless smaller runoff creatures in the same attack.**
+**Matter.** Trav full, and the book is what full costs. Aduba low, and right. Kohl full. Jifsook low.
 
-**Act 2, Ch.13-23. Extragalactic.**
+**The chain.**
 
-Confirmed, publicly, in both factions at once, from the same data. **Concept locks that this realisation lands during the three-way war, and Book 31 has already established that the Survey filed it decades earlier and was not read.**
+*Aduba.* Her chain from FCAST: she has the filings and she backed him early. Her D: the request, with numbers, from memory. His a: the governor he filed in Book 29, asking. His want: her worlds are full of his demobilised soldiers. **His D: no, badly, locked, and under the formula the badness has a shape: he answers with a recovery envelope.** He tells a governor what frontier autonomy costs in extraction time. She is asking about the Draw. He is answering about lanes. **She becomes the most credible critic of the Open and never an enemy, locked, and this is the sentence that does it.** The rebel fragment in the next chapter’s epigraph says it for him, warmly, locked.
 
-**The reaction is the beat, not the fact.** Two governments receive the same news on the same day and neither changes anything, because neither has a category for a threat with a different address. **The Heritage Broadcast covers it as a scientific milestone.**
+*The device turns.* Rebel fragments, same registers, not better, locked. **Trav never sees one. He does not read epigraphs and never has.** [CLAUDE] Emeric would have.
 
-**Act 3, Ch.24-36. The backstab.**
+*Jifsook.* PAY spend 5, kept whole. Her D: a fact about a population. **Trav’s a: a generation of Hiopi on his carriers with no city. His want reads that as people who cannot stay.** His D: he changes policy, locked. Vrassik’s a: his sister has just said the thing he gave up. His D: he leaves the room, and it is the only time in the series he leaves a room rather than announcing something.
 
-**Locked and it is the spine of the whole era: the oligarchy, even with the real threat back, refuses to cede power and keeps backstabbing the rebellion rather than uniting against the enemy.**
+*The joke-ritual, [FORMULA].* It stops working on soldiers, locked from ARCH v1, and now it has a chain: Book 12 it failed on a dying woman, Book 30 it worked on billions, Book 38 it worked on a table. **The first time it lands wrong on a soldier is a chapter, locked, and the soldier is one of Jifsook’s generation, and does not laugh, and is not being rude, and Trav does not know what he is looking at.**
 
-**Craft rule, and it is what keeps them human rather than cartoonish:** they are not choosing power over survival. **They do not believe survival is at stake**, because it never has been at their altitude. Battle streams are entertainment. The Bloom has never threatened a hub. **A person insulated by absolute luxury and control to the point of not really understanding what there is to worry about will make this choice sincerely and will be baffled that anybody found it monstrous.**
+*The Draw.* He sets it, badly, Kohl fixes it, Kohl takes a margin, locked. **Under the formula: he sets the civilian share too high, because his want is that the people eat, and Kohl’s want is margin and stability, and the arithmetic wins because she has the pen.** Same chain as Book 11’s blade, arrived at a Draw.
 
-**Act 4, Ch.37-47.** A joint operation between rebel and loyalist forces, arranged informally by two Guildmasters who know each other, that works perfectly, and is disavowed by both governments within a week. **Nobody involved is punished. Everybody involved understands they will not be asked again.**
+**E→c.** Trav: a governor refused in the wrong vocabulary, a joke that failed on a soldier, a Draw he lost to his own treasurer. Vrassik: a room he left. **Book 40 opens on a hub with no practical power and a planet that is a museum.**
 
----
+### BOOK 40 — “The Long Approach”
 
-### BOOK 38 — *Book 38, "The Fracture"*
+**Stations [LOCKED]:** the oligarchy mostly beaten. Terra, the whole Sol system. Earth as a 1950s museum with actors. Bruvald dies doing the Munti’s job. Vekk stops talking. The Senate, Milo, Emeric in the room. Terra falls procedurally.
 
-**Working title.** Names POL-02 directly.
+**Opens on:** a street with a year on it, and a man who has no frame for origin, locked.
 
-**Spine.** The Staff. Guild by Guild. **The book that decides whether this story calls itself a rebellion or a mutiny.**
+**a.** Neptune. The oldest mind beyond his own is a museum.
 
-**Emotional target.** Grief with a uniform on it.
+**Matter.** Trav full and a tourist. Reqa full and a tourist. Bruvald mid. Vekk low. Perpetua Ashcroft full and unsurprised.
 
-**POL-02 / DEC-10, taken here, [PROPOSED, author-lane, and it is the largest undecided item in the political era.]**
+**The chain.**
 
-**The Staff fractures on a spectrum rather than breaking cleanly.** Warrant-vacant formations defect first and cleanly, because their Hands already ran them alone and nothing structurally changes for them. Warrant-held formations lag, argue, split internally, or fight for the Quorum. **The result reads as gradual absorption, which is what makes it a rebellion rather than a mutiny.**
+*Earth.* Trav has no reaction the prose can use, locked. Reqa has an enormous one and says nothing, locked. **Her D, [FORMULA]: she takes something apart.** A machine on the recreated street, an appliance with a year on it, something she has never seen and can see the join of. She takes it apart on a kitchen table in a house that is a set, and puts it back together better, and the actor-resident whose kitchen it is watches, and that is the whole beat and it is the only time in the series she does the thing her lens says every scene from her POV should contain, on the planet her species came from. Nobody comments.
 
-**Why this shape rather than the cleaner alternative:** the other available version, a Staff that holds together and a genuine breakaway fighting the professional officer corps as a hostile army, is colder and is arguably better drama, but it costs the series its best structural irony. **The rebellion is not a better army. It is the Coalition's own snobbery, cashed in.** Every Guild the houses declined to claim comes over in an afternoon. Every Guild they were proud of has to be fought for by people who trained together.
+*Bruvald.* His chain, and he has never had one on the page: Osnian, quiet, the centre of gravity on a team built around two loud siblings. Want, from the Simulation Check’s own gap: **[CLAUDE] to be the reason the loud ones came back.** His D across fifty years is getting somebody out. His last D is getting somebody out, locked. **Vekk’s D: stops talking, locked. Under the formula her want was calming busywork and the busywork was his fabricator, and the fabricator is quiet now.**
 
-**Act 1, Ch.1-12.** The first wave of clean defections. Anticlimactic on purpose. A Hand signs something, or does not sign something, and a Guild changes sides, and the largest military realignment in a century is conducted mostly through paperwork and one conversation per formation.
+*The Senate.* Milo, still delighted, locked. Emeric across the room, and they do not avoid each other, locked. **Trav’s D, [FORMULA]: he asks Emeric, across the room, in front of the Senate, whether the Reach has a gate yet.** It is the only thing he has ever said to Emeric that was not about the Guild. Emeric’s D: he laughs, and the room does not understand, and Ashcroft does. Milo’s D: help, real, at the same price as always.
 
-**Act 2, Ch.13-23. The Warrant.**
+*Terra falls.* A form, locked. Ashcroft’s D from FCAST: she is not surprised.
 
-MeltaDread's own, from Book 22, a man Trav has genuinely liked for a quarter of a century and who has been good at three things Trav is bad at.
+**E→c.** Trav: a joke told across a Senate. Reqa: a machine rebuilt on Earth. Vekk: quiet. **Book 41 opens on the seat that owns the tolls, and a ritual running during a planetary assault.**
 
-**[OPEN, author-lane, three shapes, all written to be usable]:**
+### BOOK 41 — “Two Capitals”
 
-- **He defects**, which costs him his house, his standing and his name, and he does it because a quarter of a century in a formation makes you belong to it. Warmest, most sentimental, and the one that most undercuts the era's argument.
-- **He is removed**, quietly, by the Guild, without violence, and lives. Coldest and cleanest.
-- **He goes home**, sincerely, apologetically, because his house is the only thing he has and the charter is the only thing his house has. **Recommended.** Nobody hates him. He and Trav shake hands. **He turns up on the other side of the Osnius campaign in Book 42 and it is not a betrayal, it is arithmetic, and Trav is not surprised.**
+**Stations [LOCKED / PROPOSED as v2]:** Hiopi’s tolls, now his decision. The ritual runs during the campaign and somebody complains about the venue. Jifsook enters for a generation, loses, dies afterward doing something unrelated, Vrassik finds out by list. Carabil’s pipeline decided by Book 21. CoP’s logistics speech to a delegation. The orbital cleared.
 
-**Act 3, Ch.24-36. Corw.**
+**Added, [FORMULA]:** Vrassik enters.
 
-**Corw Adeyemi-Tal dies here.**
+**Opens on:** a toll schedule with his name at the bottom of it, and there is no version of that decision that is not the Quorum’s, locked.
 
-Year 1's top overall rank. Expected by staff to be the year's standout pilot, and knew it, and turned out to be a Tank, which is the one path whose success metric is how well everybody else did, and passed that test off-page decades ago. **Thirty-eight books of that posture, identical from thirteen to ninety-one, sitting on a completely different foundation by the end.**
+**a.** Neptune. The two minds beyond his own that own the machinery.
 
-**He is killed by a loyalist Guild.** Not by the Bloom. **By people who were cadets somewhere, who learned the same doctrine from the same manuals, doing the same job correctly.**
+**Matter.** Trav full, and holding a toll schedule. Vrassik full, ninety. Jifsook low, then none. CoP full, and political for the only time in her life. Hesskir Vaun full, watching.
 
-**His counting tic, planted in Book 1 and running the whole way, gets its last number**, and it should be small and stupid and about something irrelevant, and it should be the last thing he says, and **nobody in the scene should treat it as last words.**
+**The chain.**
 
-**Fenn Okafor**, his mek since Book 1, calm, unhurried, never impressed by him and never bothered by that either, survives him and rotates groundside and does not appear again after this book.
+*The tolls.* His want: a border that is a price is a border poor people cannot cross, and his soldiers are poor. **His D: he zeroes the toll for a season.** Kohl’s D: she un-zeroes it inside a week, with a margin. He loses. He has now lost three Draws in a row to his own treasurer and does not experience it as losing.
 
-**Act 4, Ch.37-47.** The line stabilises. **Two chains of command, both legitimate by their own account, both staffed by graduates of the same institution, both running Auftragstaktik, both correct about what the other one is.**
+*Jifsook.* Her chain: from Book 39, a want she said aloud once. Her D: she enters, not for rights, for a generation, locked. She loses, locked, and injury is common and death is not required, locked. Her D afterward: she goes back to the campaign. She dies doing something unrelated, locked. Vrassik finds out by list, locked.
 
-**The second reunion, [CLAUDE], echoes Book 27's directly, same shape, same rituals, one more chair gone.** Trav and Reqa, Ilyen and Petra, Talia and Sana if she's reachable, and Fenn, before she rotates groundside for good. **This is her actual exit scene, not an off-page vanish.** Corw's chair is empty now too, next to the one that's been empty since before any of them thought to call this a tradition. **Nobody says the table used to seat ten.** [CLAUDE] Craft rule, same as Book 27's: no paragraph closes this out by naming what it cost. The count does that on its own.
+*Vrassik, [FORMULA, closes his chain’s last station.]* His a: his sister died trying to give a generation the thing he gave up. His want: whatever replaces the city, and there is nothing that does. His b⁴: announce and move. **His D: he enters the ritual.** On the hub world. At ninety. During the campaign. Lissrak is at the arena and then at the mess. **He loses**, to somebody younger and very good whose name the book does not give, and it is the second time on the page he has come second in front of witnesses and the first since Book 9, and **he makes a joke**, locked as his register. **FCAST’s rule stands: the seat-holder is in the arena’s box, does not compete, has never needed to, and Vrassik never looks up.** Two facts, never in the same chapter, except that they are in this one and nobody on the page puts them together, which is the rule kept by the letter.
 
----
+*Carabil.* CoP to a delegation, at uncomfortable length, framed as logistics, locked. **Under the formula it is her D from Book 14’s question, twenty-seven years on, and Trav is in the room for an unrelated reason, exactly as in Book 13, and cannot leave, and watches her think for the second time.** His D: nothing, for the same reason as the first time.
 
-### BOOK 39 — *Book 39, "Half of Everything"*
+*The orbital.* Reader-only, by design.
 
-**Working title.** From the author's own phrasing, worth keeping close to the page at some point: **half of everything left might just mean everything left.**
+**E→c.** Trav: three Draws lost to Kohl, a Carabil who said a political thing. Vrassik: a loss at ninety and a joke. **Book 42 opens on the same sky as Book 35, with a front in it.**
 
-**Spine.** The rebellion holds close to half the galaxy's inhabited worlds. And discovers what half a galaxy costs to feed.
+### BOOK 42 — “Osnius”
 
-**Emotional target.** Administrative horror, which is a real register and this project has never used it.
+**Stations [LOCKED / PROPOSED as v2]:** the same system as the node. The Honor Guard fights for Osnius, not the Quorum, in those words. Peregrine and his mother, one conversation, not a reconciliation. The Table stops being quorate. DEC-12 must be answered. Cleanup, no triumph. He signs something.
 
-**Act 1, Ch.1-12. The number.**
+**Added, [FORMULA]:** Peregrine’s question, finished. DEC-12 taken by the want.
 
-**Carry the arithmetic forward rather than restating the Book 1 snapshot.** Concept's galaxy map gives seventy-five percent of systems COE-held at the campaign's start, roughly forty-nine percent current, twenty-nine percent Bloom, and a real twenty-two percent that is neither. **That reconciliation is dated to the academy era.** Fifty years on, and against the forty percent an analyst says out loud in Book 24, the Bloom's share is higher and the COE's is lower, and the thinning has only just started to bend the curve. **[OPEN] Exact current figures need a deliberate pass rather than a guess, and Book 39 is the first book that genuinely needs them.**
+**Opens on:** the third moon of the fourth world, from the other side of a front.
 
-**Trav's faction holds close to half the galaxy's inhabited, used worlds**, exactly as locked. Which is a number that sounds enormous and means something very specific: **he is responsible for feeding, powering and defending a population that two eras of war have already hollowed out.**
+**a.** Neptune rotation ending on Uranus: the era ends on him signing something he can read.
 
-**And the phrase belongs here, said by somebody tired, once, without comment.**
+**Matter.** Trav full, past triumph. Hask full and fighting. Peregrine high, and at home. His mother full. Halvor Vardagen full for one more act.
 
-**Act 2, Ch.13-23. The Compact.**
+**The chain.**
 
-**The Frontier Compact's locked betrayal risk becomes concrete.** They were the most sympathetic early and are the most likely to feel betrayed later. What they wanted was a better Draw and the Warrant system loosened at the frontier specifically, on the entirely reasonable argument that a house officer four hundred light-years away is a liability.
+*The Honor Guard.* They fight for Osnius, locked as recommended. Hask’s D: the same sentence he gives everyone, and this time it is a declaration. Trav’s a: the hardest fighting in the era against people not defending what he came to break, locked. His want: his people against people who are not his enemy. **His D: he over-commits the envelope.** Saturn’s shape again, at the last hub, and Ilyen’s number said no, and she said it, and he moved. Vaskr Hallen’s D from FCAST: says the exemption became a way of never deciding, once, and is not promoted.
 
-**They get the second thing. They do not get the first.** Because a rebellion that is fighting a civil war and an extragalactic infestation simultaneously **cannot afford frontier autonomy either**, and Trav has to say so, and he says it badly, and he is right.
+*Peregrine and his mother, [FORMULA, closes ERA2’s E1.]* One conversation, not a reconciliation, locked. His want: not ordinary. His b⁴ under load: perform harder. **The load is his species’ honour culture, his family not fighting and not helping, and his home system falling, and it is past what performing carries.** So he does not perform, for the first time since Book 12’s flight, and the thing he does instead is **ask the question he has never finished asking Trav.** To her. She answers it. It is the wrong answer, in every sense, and it is an answer, and he never asks Trav again. **Nobody else hears it.** ARCH v2 A5 offers this in place of v1’s “somebody finishes it in Era VII.” PAY’s reserve stays available if the author prefers v1.
 
-**[CLAUDE] The chapter where he refuses them is the chapter where he becomes a government, and no character says that, and the propaganda device says it for him in the next chapter's epigraph, in a rebel voice, warmly.**
+*The Table.* Four seats, three vacated, one left, and no fifth chair assumed, locked. **Vardagen’s D from FCAST: continuation, and the Table is not quorate, and he says so, and leaves.**
 
-**Act 3, Ch.24-36. The device turns.**
+*DEC-12, [FORMULA, taken by the want, and it is [PROPOSED] because it is author-lane.]* Sovereign-grade longevity: nothing, taken, or opened. **The formula’s read: his want is that people stay. Longevity is people staying. He opens it.** Without thinking it through, locked as the most in-character shape. Kohl’s a: an arithmetic catastrophe against an energy-credit economy. Her D: she runs the number and it does not close and she starts moving money. Reqa’s a: she is a year and a half older than him and has just been handed four hundred more years of it. Her D: she goes back to the hull. **Era VII below is built on this read. If the author rules otherwise, Books 44 and 49 change and nothing before them does.**
 
-**The largest single move the propaganda fragment makes in the whole series.**
+*Cleanup.* Administration, casualty reconciliation, a Legion told to stop, locked. **He signs something, locked. Under the formula, and the Neptune rotation’s end: it is the first form in the series he reads in full before signing, and it is a casualty reconciliation, and it has Corw’s name on it and Bruvald’s and Jifsook’s and he reads all three.** Nobody sees him do it.
 
-Rebel fragments start appearing. Same three-sentence limit, same no-commentary rule, same registers: allocation notices, doctrine publications, condolence templates, civil-guidance material that reads as helpful. **A rebel condolence template reads exactly like a Coalition one, because there is only one way to write that letter.**
+**E→c, era close.** Trav: a government, a signature he read, a longevity decision his want made, three Draws lost, a joke that fails on soldiers. Peregrine: a question finished to the wrong person. Reqa: a hull, and four hundred years. Zeteii: an unshared line, and everyone freed, and she has not been asked to do anything yet. Vrassik: a loss at ninety. Kell: a corridor she opened, and no position afterward, and nobody explains why. Alina: three books at the Last Loom. **Book 43 opens on the eleven months after winning.**
 
-**Craft rules, all absolute:** no character notices. No chapter comments. No fragment is ever labelled as rebel or loyalist in its attribution line beyond the ordinary institutional name, which means for several chapters the reader cannot always tell which side wrote it. **That confusion is the device working.**
+## PART C — DEVICE ALLOCATION, ERA VI, RE-HOUSED
 
-**Jifsook gets a want.**
+| Device | Instance | Whose D / whose a |
+| --- | --- | --- |
+| Web of orders | Trav’s own faction issues them, locked. B37 the disavowal, B39 the refusal delivered as a lane, B41 the toll zeroed and un-zeroed. Same species, same dressing, no paragraph ends on it | Trav’s D, Kohl’s D |
+| Accidental defence | The orbital (B41) | Reader-only |
+| Propaganda | The device’s largest move, rebel fragments from B39, locked. Trav never reads one | Wider world |
+| Bench | Two per book, production not repair, locked. B36 Zeteii teaches Reqa the channel, B40 a kitchen on Earth | Zeteii’s D, Reqa’s D |
+| Yssa | Inside rebel territory and nobody has told her, locked | Earth |
+| Socket | Absent | Paid B20 |
 
-Flagged in the Expansion Plan as a real deficiency: present in four books, always as a function, needling Vrassik, never with a want of her own. **She wants the ritual back.** Not for herself, she has never shared her brother's ambition and her pride runs entirely on outperforming him directly. **She wants the institution back, because a Hiopi generation is now growing up on rebel carriers with no city and no cycle and no one-winner rule, and somebody has to say that out loud, and it turns out to be her.**
+## PART D — ERA VI OPEN ITEMS
 
-**Act 4, Ch.37-47.** The first rebel Draw. Trav sets a split between civilian consumption and the war. **He has been on the receiving end of that number his entire life. He now sets it. He sets it badly, and the Ledger fixes it, and the Ledger takes a margin, and that is the arrangement he has now.**
+Inherits v2’s E1 through E8. Adds:
 
----
+**E9. [FORMULA, PROPOSED]** DEC-12 taken as opened, by the want. Author-lane. Era VII is built on it and marked.
 
-### BOOK 40 — *Book 40, "The Long Approach"*
+**E10. [FORMULA, PROPOSED]** Peregrine finishes his question to his mother in Book 42. Replaces v1’s Era VII reserve. Both remain available.
 
-**Working title [CLAUDE].** Alternates: "Legitimacy," "Terra."
+**E11. [FORMULA]** Trav crosses the line for Corw’s mech and Kell opens a corridor. Their only exchange. If declined, Kell has no D toward him in the whole series and FCAST’s F6 (she survives, no position, nobody explains why) loses its one visible cause.
 
-**Spine.** The four-hub campaign opens, and its first phase is almost entirely political, and the first hub falls without a real battle.
+**E12. [FORMULA]** Vrassik enters the hub-world ritual at ninety. FCAST’s seat-holder rule kept by the letter. If declined, Jifsook’s death is his last station and he has no D after Book 34.
 
-**Emotional target.** Anticlimax, deliberately, so that Books 41 and 42 have somewhere to go.
-
-**Act 1, Ch.1-12. What is left to fight for.**
-
-Locked: by the time the four-hub campaign begins, the oligarchy is likely already beaten militarily, and what remains is closer to a political war about legitimacy, who gets to claim they represent the Coalition, than open battle.
-
-**Act 2, Ch.13-23. Terra.**
-
-**The old capital, and the hub-world designation names the whole Sol system rather than the single planet.** Mars is a terraformed ecumenopolis and was the practical administrative seat during Terra's era of governance. **And Earth is a preserved museum world, rebuilt after the last war and restored to a 1950s-appearing state, existing to display human origins, with residents who are regarded and effectively function as actors living inside a permanent historical recreation, and it is a major standing tourist attraction across the Coalition for exactly that reason.**
-
-**The Terra seat holds ceremonial primacy and almost no practical power, and it is a real and sore distinction, and it is the reason this hub is the cheapest to take.**
-
-**[CLAUDE, and it should be one of the strangest chapters in the series]** Trav walks on Earth. A frontier boy who grew up in the sprawl under a gate, on a world four hundred and fifty light-years out, standing in a recreated twentieth-century street on the planet his species came from, **which is staffed by people paid to live there.** He has no reaction the prose can use, because he does not process backward and has no frame for origin. **Reqa has an enormous one and says nothing about it either.**
-
-**Bruvald Ashe dies in this book.** Osnius, Munti, on the roster since Book 9, the quiet centre of gravity on a team built around two loud siblings. **He dies doing the Munti's actual job, getting somebody else out, which is not ironic and is not a lesson, it is simply what he has been doing for fifty years.** **Vekk**, his mek, chatty where Bruvald was quiet, who chose to work on a Munti specifically because the fabricator's predictable busywork was calming, **survives and stops talking**, and nobody comments on that either.
-
-**Act 3, Ch.24-36. The Senate.**
-
-**Legitimacy, fought in a room.** Several thousand seated across the hub worlds, drawn from the Roll, doing the actual legislating. **The Ledger has already defected. The Hearth Bloc is negotiating with both sides simultaneously and considers this responsible stewardship, and is not being cynical.**
-
-**Milo Castellane again**, on the other side, still delighted to see him, still genuinely helpful, still Hearth Bloc. **The Warrant of MeltaDread is in this room too, having gone home in Book 38, and the two of them do not avoid each other.**
-
-**Act 4, Ch.37-47.** Terra falls, procedurally. **A seat is vacated. There is a form.**
-
----
-
-### BOOK 41 — *Book 41, "Two Capitals"*
-
-**Working title [CLAUDE].** Alternates: "The Toll and the Warrant," "Hiopi, Carabil."
-
-**Spine.** The two hubs that actually own the machinery. Hiopi holds the gate network and the toll schedule. Carabil holds the appointment power over every Warrant in the Coalition.
-
-**Emotional target.** The satisfaction of dismantling something, followed immediately by having to run it.
-
-**Act 1, Ch.1-12. Hiopi.**
-
-Finance and trade capital, the seat that holds the gates and the tolls. **The gate network is the largest three-way friction point in the setting: the Hiopi seat holds the revenue, the Staff needs the gates as strategic infrastructure, and Assurance wants the transit records because they are the best surveillance dataset in existence.**
-
-**And the border is not a checkpoint, it is a price. Nobody is ever stopped. Poor people simply do not go, and the system records everyone who does.**
-
-**Taking Hiopi means taking the tolls, which means Trav now decides what it costs a person to travel, and there is no version of that decision that is not the same decision the Quorum was making.**
-
-**Act 2, Ch.13-23. The ritual.**
-
-**Jifsook's want, paid, and it kills her.**
-
-A Hiopi campaign is a campaign fought partly over civic institutions, and the hub world is the species' own. **The ritual is running during the campaign**, because it has run every year for longer than the Coalition has existed and nobody stopped it for a war before. **Purpose-built public arenas exist specifically to host it, and there is still a vocal contingent of other-species opinion that it should happen somewhere less visible despite the zones existing for exactly that reason, and somebody complains about it during a planetary assault, and that is genuinely funny and should be played straight.**
-
-**Jifsook enters, and she is not there for mating rights**, which she has never wanted. She is there because a generation of rebel-raised Hiopi has no city and she intends to give them one by winning where everybody can see it.
-
-**She loses, and the loss is not a defeat, injury is common and death is not required.** She dies afterward, in the campaign, doing something unrelated. **Vrassik, who has spent five books being needled by her, is not present, and finds out by list.**
-
-**Act 3, Ch.24-36. Carabil.**
-
-**The military capital, and the seat that appoints every Warrant in the Coalition.**
-
-**And the campaign here is decided by something Trav did in Book 21 without understanding what he was doing.** Carabil ship-pilots are volunteers, deliberately separated from the collective and trained for years to function alone. **The training pipeline is the bottleneck, the bottleneck is the seat's actual power, and the bottleneck has been shrinking for forty years because a human taught a Carabil something about connection.**
-
-**Freed Carabil are the hinge.** Not because they fight for him. Because the seat can no longer credibly threaten a Guild with crew scarcity.
-
-**Coherence of Process is the one who says so, in the Groto, to a Quorum delegation, at a length that is uncomfortable for everyone present**, and it is the most political act of her life and she frames it entirely as a logistics observation.
-
-**Act 4, Ch.37-47.** The orbital.
-
-**Accidental defense of the universe, instance five.** A hub-world orbital is cleared for the assault. Three centuries of uncatalogued material go with it, including the last stock of a thing nobody had a name for. **Filed as terrain preparation. Nobody knows. Nobody ever will.**
-
----
-
-### BOOK 42 — *Book 42, "Osnius"*
-
-**Working title.** The last hub. Current seat of COE power. **And the same system as the node.**
-
-**Spine.** The end of the oligarchy, and the question of what to do with people who can live nine hundred years and have not aged out of anything.
-
-**Emotional target.** Exhaustion past the point of triumph. **Locked: by the time the fourth hub falls, his forces are already in cleanup mode, exhausted, past triumph and well into just wanting it over.**
-
-**Act 1, Ch.1-12. The same sky.**
-
-**The node is on the third moon of the fourth world of this system.** Seven books ago he came here with everything he had and no legitimacy at all, and the one formation that could have stopped him declined to be asked.
-
-**He comes back with half a galaxy and it is worse, because this time there is a front.**
-
-**Act 2, Ch.13-23. The Honor Guard.**
-
-**The single formation in the Coalition with no Warrant.** Osnian honour culture will not accept a commander who has not bled, the Warrant system could not accommodate that and never tried, and rather than force it and lose the species' military cooperation entirely the Quorum granted a standing exemption. **The Honor Guard commands itself. What it wants is to be the exception, genuinely. What it would never trade is the exemption.**
-
-**They stood aside once. They cannot stand aside twice.**
-
-**[CLAUDE] The reason, and it is theirs rather than anyone's argument:** standing aside from a raid on a facility cost them nothing. Standing aside from an assault on their own homeworld's seat would be a statement about whether the exemption means independence or means abstention, **and they have spent four hundred years refusing to answer that question.**
-
-**Recommended shape, [PROPOSED]:** they fight, and they fight for Osnius rather than for the Quorum, and they say so in exactly those words, and the distinction is real to them and useless to everybody else. **Trav has to beat people who are not defending the arrangement he came to break. It is the hardest fighting in the era and the least justified, and he does it.**
-
-**Peregrine Thale is Osnian.** He is on the wrong side of his own species' honour culture, in his family's home system, and his family is not fighting and is also not helping. **His mother is alive. He has been spiting her since he was seventeen. They are on Osnius Prime itself for the first time since he enlisted, having got as close as the family's own resort world in Book 27 and no closer, and the book gives them one conversation and it is not a reconciliation.**
-
-**Act 3, Ch.24-36. The Table.**
-
-**Four seats. Three vacated. One left.**
-
-**DEC-11 / POL-03 has to be answered before this act can be written**: whether there is a head of state above the Quorum. **This outline assumes four seats and no fifth chair**, which is what makes the four-hub campaign a literal necessity rather than a symbolic one, and which means the surrender is not a person signing anything. **It is a body that stops being quorate.**
-
-**And then DEC-12 / POL-04, which cannot be deferred any further.**
-
-**Sovereign-grade longevity is gated to ruling families. Individuals live eight or nine centuries. Not immortality, not invulnerability, just outliving everyone else by sheer duration.** Defeating the oligarchy militarily removes them from power. **It does not remove them.**
-
-**The people who ran the Coalition for four hundred years are alive, in their houses, on their worlds, with their charters suspended and their generators still theirs, and they will still be alive in three hundred years, and Trav will not.**
-
-**[OPEN, author-lane, and this is the decision the whole ending's shape depends on. Three usable answers:]**
-
-- **Nothing is done.** They are simply out of power and alive, and the rebellion becomes a government that has to coexist with its predecessors for centuries. Ugliest and most realistic.
-- **The longevity is taken.** Which requires deciding it can be, and makes the winners the kind of people who decide who gets to live how long.
-- **The longevity is opened.** Given to everyone who can be reached. Which is the most generous, is arithmetically catastrophic against an energy-credit economy, and is exactly the sort of thing Trav would do without thinking it through. **This one is the most in character and produces the most interesting Era VII.**
-
-**Act 4, Ch.37-47. Cleanup.**
-
-**No triumph. Locked.** The last act is administration, casualty reconciliation, and a Legion that has been fighting for twenty years being told to stop and having nothing to do.
-
-**Trav is a hundred and five years old and holds a faction that is now a government, and he has never held a political office and could not define one, and the war with the Bloom is still running and is now his entire responsibility.**
-
-**Era VI closes on him signing something.**
-
----
-
-## PART E — ERA VI OPEN ITEMS
-
-**E1. [OPEN, DEC-10 / POL-02]** Taken above as a spectrum rather than a clean break. **The alternative is fully compatible with everything locked and produces a colder, arguably better book.**
-
-**E2. [OPEN, DEC-11 / POL-03]** Head of state above the Quorum. **Blocks Book 42's Act 3 and nothing before it.**
-
-**E3. [OPEN, DEC-12 / POL-04]** Sovereign-grade longevity. Three shapes above. **Blocks Era VII's opening premise, not just a scene.**
-
-**E4. [OPEN, DEC-13 / POL-05]** Does the Warrant system survive, renamed. **Recommend it does, under a different word, and that the Frontier Compact is right to be furious, and that the story does not let Trav off.**
-
-**E5. [OPEN, author-lane]** The MeltaDread Warrant's choice. Three shapes in Book 38.
-
-**E6. [OPEN]** Whether Alina Firemoss survives the era. **[CLAUDE] Recommend she does. A woman raised from birth for one purpose, whose purpose is a weapon system belonging to a house that no longer holds a charter, is a much better Era VII question than a death.**
-
-**E7. [GAP]** The battle-clan roster, open since Bible §11, and Era VI is the era that needs it. Some clans descend from pre-war sport teams and others formed after the Bloom arrived, each needs a distinct class identity and temperament, and none of it is built.
-
-**E8. [GAP]** Named faction figures. Still only Kest, Osk, Milo Castellane. **This era needs roughly a dozen and cannot be drafted without them.**
+**E13. [CLAUDE]** Zeteii’s unshared line, Book 36. It is the mechanism under the clone and under Book 48. If declined, the clone runs on the collective’s fabric and Book 48’s totality needs a different cause for why nobody stopped her.

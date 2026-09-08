@@ -7,6 +7,7 @@ import { CampaignSetup } from "./scenes/CampaignSetup";
 import { LoadGame } from "./scenes/LoadGame";
 import { Options } from "./scenes/Options";
 import { Codex } from "./scenes/Codex";
+import { Archive } from "./scenes/Archive";
 import { MapSelect } from "./scenes/MapSelect";
 import { TransporterPad } from "./scenes/TransporterPad";
 import { Battle } from "./scenes/Battle";
@@ -88,7 +89,7 @@ const __bwGame = new Phaser.Game({
   // the "reading order" comment above: Boot always hands off to Preloader
   // now (see Boot.ts), which loads every portrait/splash file once before
   // handing off to wherever Boot was actually headed.
-  scene: [Boot, Preloader, MainMenu, CampaignSetup, LoadGame, Options, Codex, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub, new Hub(HOUSE_AMARANTH_FACILITY)],
+  scene: [Boot, Preloader, MainMenu, CampaignSetup, LoadGame, Options, Codex, Archive, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub, new Hub(HOUSE_AMARANTH_FACILITY)],
   render: { pixelArt: false, antialias: true },
   // Build Plan §9 piece #3, 26 Aug 2026 — first use of Phaser's DOM Element
   // game object in this project, for the Hub's real typed-chat input

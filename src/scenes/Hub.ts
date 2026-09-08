@@ -192,7 +192,7 @@ import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
 // The Workshop's own second layer, 2 Sep 2026 — see data/carrierModules.ts.
 import { CARRIER_MODULES, LOCKED_MODULES, type CarrierModuleId } from "../data/carrierModules";
-import { purchaseCarrierModule } from "../engine/campaignEconomy";
+import { purchaseCarrierModule, bayNeedsGeneratorFirst } from "../engine/campaignEconomy";
 import {
   heirloomHouseVerdicts,
   heirloomsUnlocked,
@@ -1191,6 +1191,12 @@ const WORKSHOP_BENCH_RADIUS = 60;
 // checks HANGAR_SHOP_POINT already did.
 // (3 Sep 2026: position now owned by hubLayout.ts, imported above.)
 const VAULT_PLINTH_RADIUS = 60;
+
+// The Archive console, 7 Sep 2026 (Maxime: "make the table in the cic the
+// place to toggle it"). Same 60 every other walk-up console uses. Its room
+// comes from the facility profile (archiveRoom) rather than a literal here,
+// because Warden's stands in the CIC and the House's in Records.
+const ARCHIVE_TABLE_RADIUS = 60;
 // Rec Room Standings, 3 Sep 2026 — same walk-up radius as the Vault plinth.
 // Verified against the real geometry rather than eyeballed: a body can
 // stand 30-50px off the board on every approach without being resolved
@@ -1982,6 +1988,8 @@ export class Hub extends Phaser.Scene {
   private vaultScrollMinY = 0;
   private standingsBoardOutline?: Phaser.GameObjects.Graphics;
   private standingsBoardLabel?: Phaser.GameObjects.Text;
+  private archiveTableOutline?: Phaser.GameObjects.Graphics;
+  private archiveTableLabel?: Phaser.GameObjects.Text;
   private vaultPlinthOutline?: Phaser.GameObjects.Graphics;
   private vaultPlinthLabel?: Phaser.GameObjects.Text;
   private hangarShopOverlay!: Phaser.GameObjects.Container;
@@ -2356,6 +2364,7 @@ export class Hub extends Phaser.Scene {
     this.drawHangarShopPoint();
     this.drawWorkshopBenchPoint();
     this.drawVaultPlinthPoint();
+    this.drawArchiveTablePoint();
     this.drawStandingsBoardPoint();
     this.buildDoors();
     this.buildZoneDecor();
@@ -2530,6 +2539,9 @@ export class Hub extends Phaser.Scene {
       // The standings board, 3 Sep 2026 — same both-paths rule as the two
       // above; gates on its own currentRoomId, so it can't collide.
       else if (this.isAtStandingsBoard()) this.openStandings();
+      // The Archive, 7 Sep 2026 — same both-paths rule as the three above;
+      // gates on the facility's own archiveRoom, so it can't collide.
+      else if (this.isAtArchiveTable()) this.openArchive();
       else this.speak();
     });
 
@@ -3884,25 +3896,19 @@ export class Hub extends Phaser.Scene {
     // Generator dependency (claude/Bloom_Wars_Beacon_Restock_Economy_v1.md
     // §6, enforced 4 Sep 2026 — Maxime, asked whether to build this for
     // real: "Sadly we need it enforced. Its gotta be something plsyer chose
-    // to spend they company point on."). Beacon Control and Restock Room
-    // are both dead weight mechanically without the Generator built first
-    // — see engine/mission.ts's canPlaceBeacon, which checks generatorBuilt
-    // alongside beaconControlBuilt/restockRoomBuilt. Checked at CONSTRUCTION
-    // time, here, rather than only at point-of-use in a mission: refusing
-    // the build itself (not just quietly letting a player build a bay that
+    // to spend they company point on."). Checked at CONSTRUCTION time,
+    // here, rather than only at point-of-use in a mission: refusing the
+    // build itself (not just quietly letting a player build a bay that
     // does nothing yet) is what makes the Generator a real, felt choice —
     // "something player chose to spend their company points on" — instead
-    // of an easy-to-miss prerequisite buried in a tooltip. Sensor Array
-    // (the Antfarm Hub doc's own third "Generator-dependent" bay,
-    // 23 Aug 2026) is deliberately NOT gated here: that dependency was
-    // never actually enforced for it either (same gap this whole feature
-    // started from), and Maxime's own go-ahead was scoped to "Beacon
-    // Control (and Restock Room)" specifically — retrofitting Sensor
-    // Array/Weapons Bay/Fabricator with a Generator gate now would change
-    // already-shipped, already-playtested behavior nobody asked to change
-    // on this pass. Flagged, not silently left inconsistent.
-    const GENERATOR_DEPENDENT_BAYS: ReservedBayId[] = ["beaconControl", "restockRoom"];
-    if (GENERATOR_DEPENDENT_BAYS.includes(bayId) && !built.includes("generator")) {
+    // of an easy-to-miss prerequisite buried in a tooltip. The list of
+    // which bays draw power moved out of this file on 7 Sep 2026, when
+    // Weapons Bay and Sensor Array joined Beacon Control and Restock Room
+    // behind the gate (Maxime: "better fix those two buildable room") —
+    // engine/campaignEconomy.ts's GENERATOR_DEPENDENT_BAYS is the rule and
+    // its own comment is the record of what's gated and what isn't
+    // (Fabricator, still, deliberately). This scene owns only the CO's line.
+    if (bayNeedsGeneratorFirst(bayId, built)) {
       this.showBubble(co, `${bayName} needs power first, Commander — get the Generator built before that one.`, now);
       this.holdForPlayerTalk(co);
       return;
@@ -4314,6 +4320,25 @@ export class Hub extends Phaser.Scene {
     this.vaultOverlay.setVisible(true);
     this.vaultContentLayer.y = 0; // walking up fresh always starts at the top of the list
     this.renderVault();
+  }
+
+  /**
+   * LAUNCH, not start. Every other screen this Hub opens replaces it and
+   * rebuilds the whole floor on the way back; the Archive pauses the Hub
+   * underneath instead, so the player is standing exactly where they left
+   * off at the table when they close it (decided 7 Sep, Q4). First scene in
+   * the game to return this way — Archive.leave() resumes this one by key.
+   */
+  private openArchive() {
+    this.scene.launch("Archive", { state: this.campaignState, returnScene: this.scene.key });
+    // bringToTop is NOT optional here, and its absence is invisible until you
+    // look at the screen. A PAUSED Phaser scene still RENDERS — pause only
+    // stops update() — and scenes draw in the order main.ts lists them, where
+    // Hub comes after Archive. Without this the Archive is launched, is
+    // active, is receiving input, and is drawn underneath the Hub, which
+    // reads to a player as "the button does nothing."
+    this.scene.bringToTop("Archive");
+    this.scene.pause();
   }
 
   private closeVault() {
@@ -6320,6 +6345,33 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
+  // The Archive console, 7 Sep 2026 — sixth use of the dashed-outline
+  // "walk-up console" shape, copied rather than refactored for the reason
+  // drawWorkshopBenchPoint's own comment gives. Sized to the table it sits
+  // on, which is real furniture in both buildings and was there first: the
+  // CIC's tactical table, and the Records room's reading table.
+  private drawArchiveTablePoint() {
+    const w = 150;
+    const h = 76;
+    const x = this.f.points.archiveTable.x - w / 2;
+    const y = this.f.points.archiveTable.y - h / 2;
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x6b7d8a, 0.7);
+    const dash = 6;
+    for (let dx = 0; dx < w; dx += dash * 2) {
+      g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+      g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+    }
+    for (let dy = 0; dy < h; dy += dash * 2) {
+      g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+      g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+    }
+    this.archiveTableOutline = g;
+    this.archiveTableLabel = this.add
+      .text(this.f.points.archiveTable.x, this.f.points.archiveTable.y, "THE\nARCHIVE", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a", align: "center" })
+      .setOrigin(0.5);
+  }
+
   // The standings board, 3 Sep 2026 — fifth use of the dashed-outline
   // "walk-up console" shape. Copied rather than refactored into a shared
   // helper, same call drawWorkshopBenchPoint's own comment already makes
@@ -7758,6 +7810,9 @@ export class Hub extends Phaser.Scene {
       // The standings board, 3 Sep 2026 — same both-paths rule noted at the
       // click handler above.
       else if (this.isAtStandingsBoard()) this.openStandings();
+      // The Archive, 7 Sep 2026 — same both-paths rule as the three above;
+      // gates on the facility's own archiveRoom, so it can't collide.
+      else if (this.isAtArchiveTable()) this.openArchive();
       else this.speak();
     }
     if (this.mKey && Phaser.Input.Keyboard.JustDown(this.mKey)) {
@@ -9430,6 +9485,7 @@ export class Hub extends Phaser.Scene {
     else if (this.isAtHangarShop()) this.interactPrompt.setText("E — roster & gear");
     else if (this.isAtWorkshopBench()) this.interactPrompt.setText("E — carrier modules");
     else if (this.isAtVaultPlinth()) this.interactPrompt.setText("E — the vault");
+    else if (this.isAtArchiveTable()) this.interactPrompt.setText("E — the archive");
     else this.interactPrompt.setText(anyoneInRange ? "E — talk" : "");
   }
 
@@ -9455,6 +9511,10 @@ export class Hub extends Phaser.Scene {
 
   private isAtVaultPlinth(): boolean {
     return this.currentRoomId === "vault" && Phaser.Math.Distance.Between(this.playerX, this.playerY, this.f.points.vaultPlinth.x, this.f.points.vaultPlinth.y) <= VAULT_PLINTH_RADIUS;
+  }
+
+  private isAtArchiveTable(): boolean {
+    return this.currentRoomId === this.f.profile.archiveRoom && Phaser.Math.Distance.Between(this.playerX, this.playerY, this.f.points.archiveTable.x, this.f.points.archiveTable.y) <= ARCHIVE_TABLE_RADIUS;
   }
 
   private isAtStandingsBoard(): boolean {
@@ -9623,6 +9683,12 @@ export class Hub extends Phaser.Scene {
     // The standings board, 3 Sep 2026 — Rec Room, so the LOWER deck, not
     // the upper one the two markers above share. Same visible-by-deck /
     // usable-by-exact-room split every other marker here uses.
+    // The Archive table, 7 Sep 2026 — asks the profile which room it stands
+    // in rather than naming one, because Warden's is in the CIC (upper deck)
+    // and the House's is in Records (its own floor).
+    const archiveDeckShowing = this.sameDeck(this.f.profile.archiveRoom, this.currentRoomId);
+    this.archiveTableOutline?.setVisible(archiveDeckShowing);
+    this.archiveTableLabel?.setVisible(archiveDeckShowing);
     const boardDeckShowing = this.sameDeck("recroom", this.currentRoomId);
     this.standingsBoardOutline?.setVisible(boardDeckShowing);
     this.standingsBoardLabel?.setVisible(boardDeckShowing);

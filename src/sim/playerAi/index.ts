@@ -363,7 +363,7 @@ export function decidePlayerAiAction(
       const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
       const path = moveToward(map, unit, dest, allUnits);
       const hostilesAlive = livingTargets(allUnits, "hostile");
-      const seen = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn) : new Set(hostilesAlive.map((h) => h.instanceId));
+      const seen = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn, { sensorArray: context.sensorArrayBuilt ?? false }) : new Set(hostilesAlive.map((h) => h.instanceId));
       const visibleNow = hostilesAlive.filter((e) => seen.has(e.instanceId));
       const from = path.length > 1 ? lastStep(path) : unit.pos;
       const canShoot = path.length > 1 ? unit.actionsRemaining >= 2 : unit.actionsRemaining >= 1;
@@ -387,7 +387,7 @@ export function decidePlayerAiAction(
 
   // ---- What this unit knows about the enemy ----
   const allEnemies = livingTargets(allUnits, "hostile");
-  const visibleIds = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn) : new Set(allEnemies.map((e) => e.instanceId));
+  const visibleIds = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn, { sensorArray: context.sensorArrayBuilt ?? false }) : new Set(allEnemies.map((e) => e.instanceId));
   // Hard's last-seen memory: refresh for anything visible, forget the dead.
   if (profile.rememberLastSeen) {
     for (const e of allEnemies) if (visibleIds.has(e.instanceId)) memory.lastSeen.set(e.instanceId, { ...e.pos });
@@ -400,7 +400,19 @@ export function decidePlayerAiAction(
       else if (!visibleIds.has(id) && chebyshevDistance(unit.pos, at) <= unit.vision) memory.lastSeen.delete(id);
     }
   }
-  const enemies = allEnemies.filter((e) => visibleIds.has(e.instanceId));
+  const visibleEnemies = allEnemies.filter((e) => visibleIds.has(e.instanceId));
+  // Mission rework pass (8 Sep 2026): escort discipline. On an extract
+  // mission every unit but the target used to fight whatever it could see
+  // wherever it was — Foraging Party, traced: Anand at the corked gap for
+  // six turns while the whole escort chased Crawlmass around the far side
+  // of the map, and nobody ever shot the Gallcyst in the gap (0/50). The
+  // escort's fight is the fight around the target, the exit, and itself;
+  // everything else is noise it walks past. Test-harness code only.
+  const escortTarget = isExtractMission && !unit.isExtractionTarget ? allUnits.find((u) => !u.downed && u.side === unit.side && u.isExtractionTarget) : undefined;
+  const escortExit = escortTarget && (context.map.exitTiles ?? []).length ? nearestCoord(escortTarget.pos, context.map.exitTiles ?? []) : undefined;
+  const escortRelevant = (e: BattleUnit): boolean =>
+    !escortTarget || chebyshevDistance(e.pos, escortTarget.pos) <= 5 || chebyshevDistance(e.pos, unit.pos) <= 2 || (!!escortExit && chebyshevDistance(e.pos, escortExit) <= 3);
+  const enemies = escortTarget ? visibleEnemies.filter(escortRelevant) : visibleEnemies;
   // "Can something see ME" is computed against every living hostile, not
   // just the ones I can see — a Bloom with longer eyes than mine is exactly
   // the one to retreat from, and this gate is about self-preservation, not
@@ -593,6 +605,56 @@ export function decidePlayerAiAction(
     }
   }
 
+  // Mission rework pass (8 Sep 2026): the hold-zone deadline. The hold_zone
+  // objective move further down only runs for a unit with nothing better
+  // to do, so in any mission that keeps hostiles in sight through the hold
+  // turn the squad fought where it stood, never walked to the ring, and ate
+  // "hostiles hold the zone" at the start of holdUntil (The Root Answers
+  // Back: 20/20 losses on turn 8 with the whole squad alive at the deploy
+  // edge). A human counts backwards from the deadline; so does this now.
+  // Once a unit's own walk to the nearest free zone tile would not get it
+  // there by the end of holdUntil-1, the walk is the action this turn and
+  // the shot (if any) is taken from wherever the walk ends. Test-harness
+  // code only — nothing in the game reads this.
+  if (context.mission.objective === "hold_zone" && (context.map.holdZone ?? []).length && unit.actionsRemaining > 0) {
+    const hold = context.map.holdZone ?? [];
+    const onHold = hold.some((c) => c.x === unit.pos.x && c.y === unit.pos.y);
+    const holdUntil = context.mission.objectiveParams.holdUntilTurn ?? context.mission.objectiveParams.turnLimit ?? 99;
+    // A VIP (commander, last Munti) never takes the walk while anyone else
+    // can: the hostile AI focus-fires the commander by design (engine/ai.ts,
+    // Maxime's own call), so the one unit the mission cannot lose is the
+    // one unit that should not be standing on the tile the whole Bloom is
+    // converging on. Sporewatch Ridge, traced: six attacks a turn on Rourke
+    // inside the ring, commander_down on 8, 30/30. Only one unit needs to
+    // be in the zone.
+    // She does follow once the squad itself is there (half the living
+    // non-VIPs in or beside the zone): Wire and Mud's room is the safe
+    // place, and a commander left outside it alone died 22/30.
+    const others = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId && !needsFrontLineProtection(u));
+    const nearZone = (u: BattleUnit): boolean => hold.some((c) => chebyshevDistance(c, u.pos) <= 1);
+    const squadAtZone = others.length > 0 && others.filter(nearZone).length * 2 >= others.length;
+    if (!onHold && holdUntil < 99 && (!needsFrontLineProtection(unit) || others.length === 0 || squadAtZone)) {
+      const standing = new Set(allUnits.filter((u) => !u.downed && u.instanceId !== unit.instanceId).map((u) => `${u.pos.x},${u.pos.y}`));
+      const free = hold.filter((c) => !standing.has(`${c.x},${c.y}`));
+      const dest = nearestCoord(unit.pos, free.length ? free : hold);
+      // +1: rubble, doorways and the hostiles standing in them make the
+      // straight-line estimate optimistic (The Outer Ring Falls: the squad
+      // started walking on 8 for a turn-10 hold and never got past the door).
+      const turnsNeeded = Math.max(1, Math.ceil(chebyshevDistance(unit.pos, dest) / Math.max(1, unit.moveRange))) + 1;
+      if (turn + turnsNeeded >= holdUntil - 1) {
+        const path = moveToward(map, unit, dest, allUnits);
+        if (path.length > 1) {
+          const at = lastStep(path);
+          const target =
+            findLethalTargetFrom(map, unit, at, enemies, allUnits, strikeMult) ??
+            (profile.focusFire ? focusFireTargetInRange(map, unit, at, enemies, allUnits) : nearestDamageableInRange(map, unit, at, enemies, allUnits));
+          log(entry("hold_zone", { targetId: target?.instanceId, targetName: target?.displayName, destination: at, note: "deadline: into the zone now" }));
+          return { path, attackTargetId: target?.instanceId };
+        }
+      }
+    }
+  }
+
   // No kill, no repair in place — shoot the squad's shared priority target
   // (focus fire), or, for Easy, the nearest thing that can be hurt.
   const inPlace = profile.focusFire
@@ -709,9 +771,44 @@ export function decidePlayerAiAction(
       // Hard picks the zone tile nobody can punish (hard.ts bestHoldTile);
       // everyone else takes the nearest.
       const dest = (profile.threatMap ? bestHoldTile(map, unit, allUnits, threatMapFor(memory, map, allUnits, turn), context, memory) : null) ?? nearestCoord(unit.pos, hold);
-      const path = advance(dest, true);
+      let path = advance(dest, true);
+      // Mission rework pass (8 Sep 2026): a VIP (the commander, the last
+      // Munti) does not walk into the zone ahead of the line. Traced on
+      // Wire and Mud: with the squad pinned at the deploy edge by the
+      // turn-1 sporethrowers, Rourke — moving last, nothing in reach —
+      // took the objective move alone, sat in the zone by herself for two
+      // turns and ate commander_down. threatTrimmedPath didn't catch it
+      // (nothing had line on the doorway yet). Until the turn before the
+      // hold matters, she stops at the last step that still has a living
+      // ally within 2 tiles; from holdUntil-1 on, the zone is worth the
+      // risk. Test-harness code only — nothing in the game reads this.
+      const holdUntil = context.mission.objectiveParams.holdUntilTurn ?? context.mission.objectiveParams.turnLimit ?? 99;
+      // Same rule as the deadline branch above: while any non-VIP is
+      // alive, the VIP stays out of the zone entirely (falls through to
+      // the ordinary fight/regroup branches, which keep her behind the
+      // line) — the zone only needs one unit, and it should never be her.
+      const othersAlive = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId && !needsFrontLineProtection(u));
+      const squadThere = othersAlive.length > 0 && othersAlive.filter((u) => hold.some((c) => chebyshevDistance(c, u.pos) <= 1)).length * 2 >= othersAlive.length;
+      if (needsFrontLineProtection(unit) && othersAlive.length > 0 && !squadThere && !onHoldTile) {
+        // fall through — no zone move for the VIP
+      } else {
+      if (needsFrontLineProtection(unit) && turn < holdUntil - 1 && path.length > 1) {
+        const allies = allUnits.filter((u) => !u.downed && u.side === unit.side && u.instanceId !== unit.instanceId);
+        if (allies.length) {
+          // Never ahead of the most-exposed line unit, and never with fewer
+          // than two allies within 2 tiles of where she ends up.
+          path = commanderSafePathPrefix(path, unit, allUnits, enemies.length ? enemies : allEnemies);
+          let cut = 0;
+          for (let i = 1; i < path.length; i++) {
+            if (allies.filter((a) => chebyshevDistance(a.pos, path[i]) <= 2).length < Math.min(2, allies.length)) break;
+            cut = i;
+          }
+          path = path.slice(0, cut + 1);
+        }
+      }
       log(entry("hold_zone", { destination: path.length > 1 ? lastStep(path) : undefined }));
       return { path };
+      }
     }
   }
   if (hpFraction >= profile.retreatHpFraction && !avoidsRescuePickup && profile.useAbilities.rescue) {
@@ -761,10 +858,12 @@ export function decidePlayerAiAction(
   }
 
   // Escort convergence on extract_unit missions (Mission 11 deadlock fix).
+  // Mission rework pass (8 Sep 2026): toward the target while she is still
+  // walking (and more than two tiles off), the exit otherwise.
   if (isExtractMission) {
     const exits = context.map.exitTiles ?? [];
     if (exits.length) {
-      const dest = nearestCoord(unit.pos, exits);
+      const dest = escortTarget && chebyshevDistance(unit.pos, escortTarget.pos) > 2 ? escortTarget.pos : nearestCoord(unit.pos, exits);
       const path = advance(dest);
       if (path.length > 1) {
         log(entry("escort_to_exit", { destination: lastStep(path) }));

@@ -1,0 +1,146 @@
+
+==========================================================================
+BASE DAMAGE MATRIX  (HP points; G-tier, full HP, 0 terrain stars)
+==========================================================================
+ATK \ DEF        meeps      tank     reeps     munti
+meeps               55        30        75        70
+tank                65        40        50        60
+reeps               45        70        50        55
+munti               30        20        35        30
+
+==========================================================================
+HITS TO KILL vs a 100 HP defender  (lower = stronger matchup)
+==========================================================================
+ATK \ DEF        meeps      tank     reeps     munti
+meeps                2         4         2         2
+tank                 2         3         2         2
+reeps                3         2         2         2
+munti                4         5         3         4
+
+==========================================================================
+TRIANGLE CHECK - intended: meeps > reeps > tank > meeps
+==========================================================================
+   meeps -> reeps    75  |   reeps -> meeps    45  | margin   30  OK
+   reeps -> tank     70  |    tank -> reeps    50  | margin   20  OK
+    tank -> meeps    65  |   meeps -> tank     30  | margin   35  OK
+
+==========================================================================
+MELEE EXCHANGE (attacker initiates, defender counters) - open ground
+==========================================================================
+   meeps attacks meeps  -> def  45 HP, atk  75 HP   (attacker wins trade)
+   meeps attacks tank   -> def  70 HP, atk  54 HP   (defender wins trade)
+   meeps attacks reeps  -> def  25 HP, atk 100 HP   (attacker wins trade)
+   meeps attacks munti  -> def  30 HP, atk  91 HP   (attacker wins trade)
+    tank attacks meeps  -> def  35 HP, atk  89 HP   (attacker wins trade)
+    tank attacks tank   -> def  60 HP, atk  76 HP   (attacker wins trade)
+    tank attacks reeps  -> def  50 HP, atk 100 HP   (attacker wins trade)
+    tank attacks munti  -> def  40 HP, atk  92 HP   (attacker wins trade)
+   munti attacks meeps  -> def  70 HP, atk  51 HP   (defender wins trade)
+   munti attacks tank   -> def  80 HP, atk  52 HP   (defender wins trade)
+   munti attacks reeps  -> def  65 HP, atk 100 HP   (attacker wins trade)
+   munti attacks munti  -> def  70 HP, atk  79 HP   (attacker wins trade)
+
+==========================================================================
+COUNTERATTACK RULE - the three conditions, exhaustively
+==========================================================================
+  defender meeps  attacked from distance 1: COUNTERS    (canCounter=True, counterMaxRange=1)
+  defender meeps  attacked from distance 2: no counter  (canCounter=True, counterMaxRange=1)
+  defender meeps  attacked from distance 3: no counter  (canCounter=True, counterMaxRange=1)
+  defender tank   attacked from distance 1: COUNTERS    (canCounter=True, counterMaxRange=1)
+  defender tank   attacked from distance 2: no counter  (canCounter=True, counterMaxRange=1)
+  defender tank   attacked from distance 3: no counter  (canCounter=True, counterMaxRange=1)
+  defender reeps  attacked from distance 1: no counter  (canCounter=False, counterMaxRange=0)
+  defender reeps  attacked from distance 2: no counter  (canCounter=False, counterMaxRange=0)
+  defender reeps  attacked from distance 3: no counter  (canCounter=False, counterMaxRange=0)
+  defender munti  attacked from distance 1: COUNTERS    (canCounter=True, counterMaxRange=1)
+  defender munti  attacked from distance 2: no counter  (canCounter=True, counterMaxRange=1)
+  defender munti  attacked from distance 3: no counter  (canCounter=True, counterMaxRange=1)
+
+==========================================================================
+REEPS FROM RANGE (no counter possible at range >= 2)
+==========================================================================
+  reeps -> meeps    45 dmg, 0 counter, 3 shots to kill
+  reeps -> tank     70 dmg, 0 counter, 2 shots to kill
+  reeps -> reeps    50 dmg, 0 counter, 2 shots to kill
+  reeps -> munti    55 dmg, 0 counter, 2 shots to kill
+
+==========================================================================
+TIER GAP STRESS TEST (worst case: A-tier attacker vs G-tier defender)
+==========================================================================
+  A-meeps  -> G-meeps  raw   77 -> dealt   77
+  A-meeps  -> G-tank   raw   42 -> dealt   42
+  A-meeps  -> G-reeps  raw  105 -> dealt   90  <- capped
+  A-meeps  -> G-munti  raw   98 -> dealt   90  <- capped
+  A-tank   -> G-meeps  raw   91 -> dealt   90  <- capped
+  A-tank   -> G-tank   raw   56 -> dealt   56
+  A-tank   -> G-reeps  raw   70 -> dealt   70
+  A-tank   -> G-munti  raw   84 -> dealt   84
+  A-reeps  -> G-meeps  raw   63 -> dealt   63
+  A-reeps  -> G-tank   raw   98 -> dealt   90  <- capped
+  A-reeps  -> G-reeps  raw   70 -> dealt   70
+  A-reeps  -> G-munti  raw   77 -> dealt   77
+  A-munti  -> G-meeps  raw   42 -> dealt   42
+  A-munti  -> G-tank   raw   28 -> dealt   28
+  A-munti  -> G-reeps  raw   49 -> dealt   49
+  A-munti  -> G-munti  raw   42 -> dealt   42
+
+==========================================================================
+BLOOM ENDURANCE / VITALITY COLLAPSE RULE
+==========================================================================
+  Gallcyst   tanky-then-fragile  (END 140 / VIT 20), attacker deals 45/hit
+    hit 1: endurance -> 95
+    hit 2: endurance -> 50
+    hit 3: endurance -> 5
+    hit 4: endurance -> 0
+            COLLAPSE state entered
+    hit 5: 45 >= vitality 20 -> KILLED OUTRIGHT
+    total hits to kill: 5
+
+  Sporethrower  fragile-then-grindy  (END 50 / VIT 80), attacker deals 45/hit
+    hit 1: endurance -> 5
+    hit 2: endurance -> 0
+            COLLAPSE state entered
+    hit 3: chipping vitality -> 35
+    hit 4: 45 >= vitality 35 -> KILLED OUTRIGHT
+    total hits to kill: 4
+
+  Crawlmass  chaff  (END 40 / VIT 60), attacker deals 45/hit
+    hit 1: endurance -> 0
+            COLLAPSE state entered
+    hit 2: chipping vitality -> 15
+    hit 3: 45 >= vitality 15 -> KILLED OUTRIGHT
+    total hits to kill: 3
+
+  Heartwood  boss  (END 400 / VIT 60), attacker deals 70/hit
+    hit 1: endurance -> 330
+    hit 2: endurance -> 260
+    hit 3: endurance -> 190
+    hit 4: endurance -> 120
+    hit 5: endurance -> 50
+    hit 6: endurance -> 0
+            COLLAPSE state entered
+    hit 7: 70 >= vitality 60 -> KILLED OUTRIGHT
+    total hits to kill: 7
+
+==========================================================================
+TERRAIN CHECK
+==========================================================================
+  reeps -> tank on open       (0*):  70 dmg, 2 shots
+  reeps -> tank on rubble     (2*):  56 dmg, 2 shots
+  reeps -> tank on structure  (3*):  49 dmg, 3 shots
+  reeps -> tank on ridge      (4*):  42 dmg, 3 shots
+
+==========================================================================
+CENTAUROID CHARGE (>=3 tiles straight line over cost-1 terrain)
+==========================================================================
+  charging meeps -> meeps   55 ->  69
+  charging meeps -> tank    30 ->  38
+  charging meeps -> reeps   75 ->  90
+  charging meeps -> munti   70 ->  88
+
+==========================================================================
+RESULT
+==========================================================================
+  All gates passed. Triangle holds, nothing one-shots a full-HP unit,
+  collapse rule converges, fortified units stay killable.
+==========================================================================

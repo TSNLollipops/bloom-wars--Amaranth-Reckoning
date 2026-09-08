@@ -151,7 +151,7 @@ export class MainMenu extends Phaser.Scene {
     // even from the title screen, not just the in-play pause menu. `state`
     // is null for a brand-new install, which Codex.ts's own hasWardenSave
     // check already handles as "no save" — same object, no new lookup.
-    makeShopButton(this, layer, cx, y, w, h, "CODEX", true, () => {
+    makeShopButton(this, layer, cx, y, w, h, "HOW TO PLAY", true, () => {
       this.scene.start("Codex", { returnScene: "MainMenu", campaignState: state });
     });
 

@@ -316,6 +316,12 @@ export interface EnemyWave {
   // undershot a 10-pilot squad), not a demand for an exact 1:1 headcount
   // match regardless of what that does to the fight.
   mirrorScale?: number;
+  // Mission rework pass (8 Sep 2026): gear tier for a HOSTILE MECH wave
+  // (ignored for Bloom archetypes, which have no tier). See
+  // engine/units.ts's createHostileMechUnit for why this exists; the
+  // spawn-event action below has carried the same optional field since
+  // the event system shipped, unread until this pass wired both.
+  tier?: Tier;
 }
 
 export interface MissionEvent {

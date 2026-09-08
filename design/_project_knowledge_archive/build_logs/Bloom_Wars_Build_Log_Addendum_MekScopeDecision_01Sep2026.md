@@ -1,0 +1,26 @@
+# Bloom Wars — Build Log Addendum: Mek Scope Decision (1 Sep 2026)
+
+Closes the one Week 1 decision left open after the EA Launch Plan's Week 1 hardening pass (`claude/Bloom_Wars_Build_Log_Addendum_EALaunchPlan_Week1Hardening_01Sep2026.md`) — the only one of the plan's three Week 1 decisions (calendar economy, Vault/CIC cut line, Mek scope) with no existing precedent to fall back on, genuinely needing Maxime's own call rather than routine execution.
+
+## The decision
+
+Two-part question, resolved directly with Maxime via clarifying questions before anything was built:
+
+1. **Roster scope for EA.** The full Warden Company Mek roster — all roughly 15–20 pilots, Act I through Act III, not just the 5 Act I Meks already shipped 29 Aug (see the Mek NPC Introduction, first slice section) — gets built out (walkable Hub NPC, a seeded bond to their matched pilot, wired into the existing hot-topics/gossip system) before the 26 Oct launch. Maxime's own pick, over a smaller "just the 5 already done" option and a middle "Act I + Act II only" option.
+2. **Character Editor gating.** A real tension surfaced before this locked in — Maxime's first pass at these two questions picked both "full roster by launch" and "gate Mek work on the Character Editor," which can't both hold: the Character Editor doesn't exist yet and is itself real unbuilt scope (a generation/creation UI, per `claude/Bloom_Wars_Character_Editor_v1.md`), so gating on it would push the roster expansion past 26 Oct. Flagged directly rather than guessed through. Resolved cleanly once named: **the Character Editor stays a separate, later thread — Mek NPCs continue to be hand-authored the same way the first 5 shipped, no dependency on the Editor in either direction.** Any future player-created Meks routing through the Editor is a distinct, un-scoped question for whenever that system actually gets built (post-EA, per the existing plan).
+
+## What this actually commits to
+
+**Correction, 1 Sep 2026 (later the same day).** This section originally claimed "roughly 10–15 more named Mek NPCs need the same treatment the first 5 got — a walkable `HubNpc` slot, a seeded bond to their matched pilot, a hand-picked catalyst, and the retirement-on-permanent-pilot-loss hookup" and that "per-pilot names... still need authoring." Both claims were wrong — caught by actually reading `src/scenes/Hub.ts` and `src/data/campaignAmaranth.ts` directly before building anything, per this project's own standing rule to verify against the current file rather than an existing plan's own framing of the work. What's actually true:
+
+- Every one of the 15 pilots already has a real, named Mek record in `campaignAmaranth.ts` (`WARDEN_MEKS`/`SECOND_LANCE_MEKS`/`THIRD_LANCE_MEKS` — e.g. `mek_okafor: { displayName: "Okafor's Mek", ... }`). The "X's Mek" naming convention is the established pattern across the entire game (Team One's own Meks in `data/meks.ts` use the identical pattern), not a placeholder. No new names needed authoring.
+- `Hub.ts`'s `buildNpcs()` already builds a walkable HubNpc for *every* active pilot's Mek, not just the first 5. A `mekSeeds` loop hand-places the first 5 (fixed position, hand-picked catalyst); a second loop, added in the 30 Aug "Hub population driven by real roster" pass (Tier 3 — see `claude/Bloom_Wars_Consolidated_Build_Plan_Progress.md`), already builds an identical walkable NPC for every other active pilot's Mek — same room, same Matchset bond seeding, same social state, same interactivity. It differs from the hand-authored 5 only in using an auto-placed position (`pickInitialNpcSpot`, collision-safe) instead of a fixed one.
+- `checkMekRetirement()` already scans all 15 pilots, not just the named 5 — this was already correct before this decision was even made.
+
+So the walkable/bonded/wired-into-gossip mechanism this decision called for was already shipped for the full 15-pilot roster, since 30 Aug. The one real gap this decision actually needed to close: only the first 5 Meks had a hand-picked catalyst for voice variety; the other 10 fell through to `catalystForPilot()`'s deterministic hash fallback — correct and safe, but arbitrary rather than curated. That gap has now been closed, via a `MEK_CATALYST_OVERRIDES` lookup added to `Hub.ts`. Full record of that pass, including verification results, is in `claude/Bloom_Wars_Build_Log_Addendum_MekCatalystCuration_01Sep2026.md`.
+
+**Net effect:** this decision's scope was almost entirely already built before the decision was even discussed. The one real follow-through task (curated catalysts for 10 Meks) is now done. Nothing else from the original "10–15 more NPCs, per-pilot names" estimate above was ever real outstanding work.
+
+## Status
+
+Week 1 ("Ground Truth & Scope Lock") is now fully closed — all three of its own decisions (calendar economy, Vault/CIC cut line, Mek scope) are locked, and the Mek scope decision's only real follow-through work is also done (catalyst curation, above). The two other Week 1 tails are unchanged, still Maxime's own to close: MapSelect's missing Hub-return button (his own weekend task), and a real local `npm run lint` on his machine to actually confirm the naming-lock check passes (the cloud sandbox can't run that half of it, since `BW_RESERVED_TERM` lives only in a git-ignored `.env.local`).

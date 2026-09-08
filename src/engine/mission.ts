@@ -1071,7 +1071,7 @@ export class Mission {
         const pos = spots.length ? spots[i % spots.length] : this.map.deployZones.enemy[0] ?? { x: 0, y: 0 };
         const freePos = this.findFreeAdjacent(pos);
         if (wave.archetypeId.startsWith("hostile_mech_")) {
-          this.units.push(createHostileMechUnit(wave.archetypeId, freePos));
+          this.units.push(createHostileMechUnit(wave.archetypeId, freePos, wave.tier));
         } else {
           this.units.push(createBloomUnit(wave.archetypeId, freePos, { burrowed: !!wave.burrowed }));
         }
@@ -1143,7 +1143,7 @@ export class Mission {
       action.archetypeIds.forEach((archId, i) => {
         const pos = this.findFreeAdjacent(action.at[i] ?? action.at[0]);
         if (archId.startsWith("hostile_mech_")) {
-          this.units.push(createHostileMechUnit(archId, pos));
+          this.units.push(createHostileMechUnit(archId, pos, action.tier));
           this.log.push(`Event: ${archId} deploys at (${pos.x},${pos.y})`);
         } else {
           // burrowed (Mission 21 "Cut the Root," 25 Aug 2026) — see
@@ -2766,6 +2766,37 @@ export class Mission {
   }
 
   /**
+   * Long-Range Sensor Array (Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2,
+   * locked 23 Aug 2026; wired 7 Sep 2026 — Maxime: "better fix those two
+   * buildable room"). Public rather than private, unlike the three getters
+   * above, because the sim bot's PlayerAiMissionContext (sim/playerAi/
+   * types.ts) reads it structurally off the live Mission the same way it
+   * reads fireSupportBonusChargeReady — a fog-honest bot on a campaign
+   * that built the array should see what the player sees.
+   */
+  get sensorArrayBuilt(): boolean {
+    return this.builtBays.includes("sensorArray");
+  }
+
+  /**
+   * The one fog-of-war query for the player side — every living hostile
+   * the whole player roster can currently see (engine/ai.ts's
+   * unitsVisibleToSide, the same isVisibleTo the hostile AI uses), PLUS,
+   * once the Sensor Array is built, every standing hostile on the board.
+   * Burrowed and concealed units stay hidden either way; that rule lives
+   * in ai.ts, not here. scenes/Battle.ts's own visibleHostileIds and the
+   * three any-range Heirloom target pools in this file (Ichigeki's two
+   * Deadfall methods, Simulacrum's Ledgerhall Static) all route through
+   * this so the bay applies everywhere at once — before
+   * 7 Sep 2026 each of those four call sites asked ai.ts directly, which is
+   * exactly why a built Sensor Array did nothing: nothing ever told the
+   * fog the bay existed.
+   */
+  playerVisibleHostileIds(): Set<string> {
+    return unitsVisibleToSide("player", this.units, this.turn, { sensorArray: this.sensorArrayBuilt });
+  }
+
+  /**
    * True if a living, non-downed Munti is on the player side right now —
    * the same live check muntiCollapseTurn's own tracking uses elsewhere in
    * this file, factored out here since Beacon Control needs to ask this
@@ -3934,7 +3965,7 @@ export class Mission {
    */
   getDeadfallStrikeTargetsFrom(unitId: string): BattleUnit[] {
     if (!this.canDeadfallStrike(unitId)) return [];
-    const visibleIds = unitsVisibleToSide("player", this.units, this.turn);
+    const visibleIds = this.playerVisibleHostileIds();
     return this.livingUnits().filter((u) => u.side === "hostile" && visibleIds.has(u.instanceId));
   }
 
@@ -3991,7 +4022,7 @@ export class Mission {
     // something other than "player" (canDeadfallStrike already guarantees
     // it is, but this stays correct on its own terms either way).
     if (!defender || defender.downed || defender.side !== "hostile") return null;
-    const visibleIds = unitsVisibleToSide("player", this.units, this.turn);
+    const visibleIds = this.playerVisibleHostileIds();
     if (!visibleIds.has(defender.instanceId)) return null;
 
     const sameSideAsAttacker = this.units.filter((u) => u.side === attacker.side);
@@ -5775,7 +5806,7 @@ export class Mission {
    */
   getLedgerhallStaticTargetsFrom(unitId: string): BattleUnit[] {
     if (!this.canLedgerhallStatic(unitId)) return [];
-    const visibleIds = unitsVisibleToSide("player", this.units, this.turn);
+    const visibleIds = this.playerVisibleHostileIds();
     return this.livingUnits().filter((u) => u.side === "hostile" && u.abilities.length > 0 && visibleIds.has(u.instanceId));
   }
 

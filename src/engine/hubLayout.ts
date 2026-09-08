@@ -431,6 +431,10 @@ export const HANGAR_SHOP_POINT = { x: 850, y: 600 };
 export const CREW_RECORDS_POINT = { x: 1070, y: 600 };
 export const WORKSHOP_BENCH_POINT = { x: 150, y: 600 };
 export const VAULT_PLINTH_POINT = { x: 310, y: 250 };
+// The CIC's tactical table, centre of the 150x76 slab tacticalTable(805, 268)
+// draws. The table is a solid, so the player stands beside it and reads it —
+// the same shape as the Vault plinth, one room over.
+export const CIC_TABLE_POINT = { x: 880, y: 306 };
 // Where the player first stands on a fresh Hub load: the Rec Room's open
 // floor, between the table and the galley, clear of every seat.
 export const PLAYER_SPAWN = { x: 480, y: 760 };

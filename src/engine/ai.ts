@@ -180,14 +180,36 @@ function visibleEnemiesOf(unit: BattleUnit, allUnits: BattleUnit[]): BattleUnit[
  * painted by an unexpired abil_sensor_sweep counts as seen by the whole
  * side — which is what makes a swept, still-burrowed Undertow drawable and
  * clickable in scenes/Battle.ts, and shootable by an overwatcher.
+ *
+ * `options.sensorArray` (7 Sep 2026 — the Long-Range Sensor Array bay,
+ * Bloom_Wars_Antfarm_Carrier_Hub_v1.md §11.2, locked 23 Aug 2026 and
+ * never wired until Maxime's "better fix those two buildable room"): the
+ * carrier's own sensors put every STANDING enemy of `side` on the board
+ * regardless of distance from any observer. Exactly what §11.2 specified
+ * and nothing more — "burrowed (Undertow) and concealed (abil_ambush /
+ * abil_screen) states stay hidden regardless": the array finds what's
+ * standing up; a burrower or a cloaked unit is still only seen the ways
+ * it always was (a sweep's paint, a detectsBurrowedRadius observer, or the
+ * cloak dropping). Omitted or false, byte-identical to before — the sim
+ * harness, every existing test and every caller that never learned about
+ * the bay keep their old fog. Mission.playerVisibleHostileIds is the one
+ * place that reads the bay off the campaign and passes this in; nothing
+ * else should need to construct the option by hand.
  */
-export function unitsVisibleToSide(side: BattleUnit["side"], allUnits: BattleUnit[], currentTurn?: number): Set<string> {
+export function unitsVisibleToSide(
+  side: BattleUnit["side"],
+  allUnits: BattleUnit[],
+  currentTurn?: number,
+  options: { sensorArray?: boolean } = {},
+): Set<string> {
   const observers = livingTargets(allUnits, side);
   const opposingSide: BattleUnit["side"] = side === "player" ? "hostile" : "player";
   const targets = livingTargets(allUnits, opposingSide);
   const visible = new Set<string>();
   for (const target of targets) {
     if (observers.some((observer) => isVisibleTo(observer, target, currentTurn))) {
+      visible.add(target.instanceId);
+    } else if (options.sensorArray && !target.burrowed && !target.concealed) {
       visible.add(target.instanceId);
     }
   }
