@@ -124,7 +124,32 @@ import {
 // file's own established pattern (comment stays, dated, rather than
 // overwriting the 5 Sep rationale above it) since a future session hitting
 // a THIRD retune need should be able to read why both prior ones happened.
-export const KILL_BONUS = 18; // per finishing blow credited; an assist is priced as a fraction of this same value
+// Retuned a THIRD time, 8 Sep 2026 — Maxime's report: "i shouldnt be in
+// rank e after one mission. that just too big a jump." Verified against
+// the real numbers first: at 5+ kills, survived, won, a pilot earned 162
+// points in one mission — enough to buy BOTH the G->F and F->E upgrades
+// (150) in a single go. Real and reproducible, not a fluke.
+//
+// His literal ask was to halve all three constants. Tested that against
+// npm run sim:economy (300 companies, seed 1) before shipping it: it does
+// cap every mission at one tier-up, but it also breaks the "favorite pilot
+// fully maxes out well inside one campaign" goal from the 5/6 Sep retunes
+// above — the anchor archetype never fully maxed out even once across 300
+// simulated companies (final tier averaged ~B, not A).
+//
+// Shipped instead: KILL_BONUS only, 18 -> 9, SURVIVAL_BONUS/OBJECTIVE_BONUS
+// left at 26/46. Same fix on the actual complaint — even a 6-kill mission
+// now tops out at one tier-up (126 points, short of the 150 needed for
+// two) — while the anchor archetype still fully maxes out 97% of the time
+// (was 100%), just later (avg mission 31.8, was 25.8), comfortably inside
+// the 36-mission campaign. Real cost, put to Maxime alongside the numbers
+// rather than hidden: bench pilots' odds of ever reaching tier C (the
+// second mount) drop from 53% to 38% — a known failure mode this harness
+// already flags, made a bit worse, not a new one. Maxime's call, given
+// both options with real numbers: "sadly I think well have to kill the
+// kill bonus." Full account: Bloom_Wars_Sync_Note_08Sep2026_
+// WeaponBranchAndEarnRate.md.
+export const KILL_BONUS = 9; // per finishing blow credited; an assist is priced as a fraction of this same value
 export const SURVIVAL_BONUS = 26; // never downed this mission
 export const OBJECTIVE_BONUS = 46; // deployed on a mission that ended in a win
 
