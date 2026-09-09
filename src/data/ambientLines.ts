@@ -201,10 +201,21 @@ export function pickAmbientLine(pilot: AmbientPilotState): { line: string; pick:
 // NOT include NPCs walking anywhere, a real chat/command UI, or wiring
 // into mission launch — those are the Build Plan doc's own §9 items 2-4,
 // explicitly not started.
+// rumor's outcome field, 9 Sep 2026 — this used to only ever model a
+// rejection (the field was even named rejectorName). Two real gaps that
+// got fixed together, not separately, because they're the same underlying
+// shape: (1) an NPC-NPC Ask Out never rippled through the ship at all,
+// player-triggered was the only real source; (2) an ACCEPTED Ask Out
+// (player or NPC-NPC) only ever became a HotTopic — mentionable if you
+// happen to talk to someone who knows — never a real relay/decay/distort
+// rumor the way a rejection was. "targetName" replaces "rejectorName"
+// since the same field now also names the person who said YES, where
+// "rejector" would be a lie. See scenes/Hub.ts's askOut()/runNpcEncounter()
+// for the two real call sites this outcome now branches from.
 export type HubMessage =
   | { kind: "emotion"; echo: Echo }
   | { kind: "muster" }
-  | { kind: "rumor"; askerName: string; rejectorName: string; exaggerated?: boolean };
+  | { kind: "rumor"; outcome: "rejected" | "accepted"; askerName: string; targetName: string; exaggerated?: boolean };
 
 const MUSTER_LINES = [
   "On my way — meet you at the bay.",
@@ -259,6 +270,25 @@ const RUMOR_LINES_EXAGGERATED = [
   "Word is {rejector} humiliated {asker} in front of half the deck.",
   "Apparently {asker} got shot down so hard {rejector} had to leave the room.",
   "I heard {asker} hasn't shown their face since {rejector} turned them down.",
+];
+
+// Accepted-outcome content, 9 Sep 2026 — the happy mirror of the rejection
+// banks above, same two-tier mild/exaggerated shape and the same "a rumor
+// grows in the retelling" reasoning for why exaggeration is thematic here
+// rather than arbitrary. {target} is the person who said yes — same
+// person the rejected banks above call {rejector}, just not a rejector
+// this time, hence the different template token.
+const RUMOR_LINES_ACCEPTED_MILD = [
+  "Wait — {asker} actually asked {target} out, and they said yes?",
+  "Heard {target} said yes to {asker}. Didn't see that coming.",
+  "{asker} and {target}? Since when?",
+  "So {asker} asked {target} out — and it actually worked.",
+];
+const RUMOR_LINES_ACCEPTED_EXAGGERATED = [
+  "You didn't hear? {asker} and {target} are already picking out names for the kids.",
+  "Word is {asker} and {target} are basically married at this point.",
+  "Apparently {target} said yes before {asker} even finished the sentence.",
+  "I heard {asker} and {target} have been inseparable since the second they got together.",
 ];
 
 // Stage-promotion "graduation" reveal content, 27 Aug 2026 — see
@@ -551,9 +581,23 @@ export function pickLineForMessage(speaker: { catalyst: Catalyst; stage: Stage }
   if (message.kind === "muster") {
     return MUSTER_LINES[Math.floor(Math.random() * MUSTER_LINES.length)];
   }
-  const bank = message.exaggerated ? RUMOR_LINES_EXAGGERATED : RUMOR_LINES_MILD;
+  // 9 Sep 2026 — outcome picks which pair of banks, exaggerated still
+  // picks which tier within it, same two-axis shape as before this had a
+  // second outcome to model.
+  const bank =
+    message.outcome === "accepted"
+      ? message.exaggerated
+        ? RUMOR_LINES_ACCEPTED_EXAGGERATED
+        : RUMOR_LINES_ACCEPTED_MILD
+      : message.exaggerated
+        ? RUMOR_LINES_EXAGGERATED
+        : RUMOR_LINES_MILD;
   const line = bank[Math.floor(Math.random() * bank.length)];
-  return fillTemplate(line, { asker: message.askerName, rejector: message.rejectorName });
+  // Both {rejector} and {target} map to the same targetName — the
+  // rejected banks' templates were written with {rejector}, the accepted
+  // banks' with {target}; supplying both keys lets fillTemplate's own
+  // no-op-on-absent-key behavior handle either bank without branching here.
+  return fillTemplate(line, { asker: message.askerName, rejector: message.targetName, target: message.targetName });
 }
 
 const EMOTION_DISTORT_MAP: Record<Echo, Echo> = { anger: "fear", fear: "anger", love: "sadness", sadness: "love" };

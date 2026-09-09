@@ -144,7 +144,7 @@ const campaign = createWardenCampaignState();
 const crew: StandingsEntrant[] = Object.entries(campaign.pilots).map(([pilotId, entry]) => ({
   pilotId,
   displayName: entry.pilot.displayName.split("—")[0].trim(),
-  catalyst: catalystForPilot(pilotId),
+  catalyst: catalystForPilot(pilotId, entry.pilot.background),
   path: UNIT_ARCHETYPES[entry.pilot.archetypeId]?.path,
 }));
 const state: RecRoomState = { records: {} };

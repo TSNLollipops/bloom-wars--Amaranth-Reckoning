@@ -7,7 +7,8 @@
 import Phaser from "phaser";
 import type { BloomArchetype, Coord, TileType } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
-import { Mission, type DeployRosterEntry } from "../engine/mission";
+import { Mission, type DeployRosterEntry, type HostilePhaseEvent } from "../engine/mission";
+import { playAmbient, stopAmbient, playSfx } from "./audio/AudioManager";
 import type { BattleUnit } from "../engine/units";
 import { coordKey, tileAt } from "../engine/grid";
 import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
@@ -337,6 +338,48 @@ export class Battle extends Phaser.Scene {
   // actual feature Maxime asked for (XCOM's own "board is in flux, you
   // can't act yet" beat), not just a side effect of the animation existing.
   private isAnimatingMove = false;
+  // Enemy-phase playback (feature-gap report A4, 9 Sep 2026 — see
+  // engine/mission.ts's HostilePhaseEvent for the full design). The engine
+  // resolves the whole hostile phase synchronously the instant
+  // confirmEndTurn() calls mission.endPlayerTurn(); this is what plays that
+  // already-decided outcome back on screen afterward, reusing isAnimatingMove
+  // as the SAME input lock a player's own walk uses (see animateWalk's
+  // `manageLock` param) so nothing new has to re-teach handleBoardClick,
+  // doEndTurn, cancelCurrent etc. to also check a second lock.
+  //
+  // isPlayingHostilePhase is a NARROWER flag than isAnimatingMove — it's
+  // true only while THIS specific sequence is running, so keydown-SPACE can
+  // tell "player is mid-own-move, ignore" (isAnimatingMove alone) apart from
+  // "hostile phase is playing back, this press means skip" (this flag too).
+  private isPlayingHostilePhase = false;
+  private skipHostilePhasePlayback = false;
+  // playAttackBeat's own transient flash — which unit, and what to draw at
+  // its tile for the pause's duration. Cleared the instant the beat ends.
+  private hostilePhaseFlashTarget: { unitId: string; result: "hit" | "dodge" | "kill" } | null = null;
+  // Audio (A6, 9 Sep 2026) — the pilot-lost sting's own edge-triggered
+  // latch. mission.permanentLosses only ever grows, never shrinks, so
+  // "did it just grow since the last render() call" is a correct, single
+  // choke point for firing this regardless of WHICH code path produced the
+  // loss (a manual attack, an overwatch reaction, environmentStep — every
+  // one of them already calls render() afterward). Reset in create() for
+  // the same "scene instance is reused across mission launches" reason
+  // flushCalendarTime/playAmbient reset their own per-mission state there.
+  // Known simplification: two permanent losses landing in the SAME
+  // hostile-phase resolution (mission.endPlayerTurn() resolves the whole
+  // phase before playback's first render() call) plays the sting once, not
+  // twice — accepted rather than built out for a case rare enough it's
+  // not worth sequencing the sting to individual playback events for.
+  private permanentLossesSeen = 0;
+  // Audio (A6) — the mission-win sting's own once-only latch, same
+  // edge-triggering reason as permanentLossesSeen above: drawOverlayIfNeeded
+  // fully rebuilds the overlay (including this branch) on every render()
+  // call once the mission has ended, and render() keeps getting called
+  // afterward (mouse movement, etc.) — without this it would replay the
+  // sting on every one of those. No equivalent latch for a loss/
+  // commander_down ending: the report's own A6 scope asks for a
+  // mission-WIN sting and a pilot-lost sting specifically, not a third one
+  // for failure — see engine/mission.ts's permanentLosses for that half.
+  private missionWinStingPlayed = false;
   // Mission real-time clock (25 Aug 2026) — wall-clock ms at BEAM DOWN, set
   // once in init(). See that method's own comment and
   // engine/campaignState.ts's "9. Mission real-time clock" section.
@@ -686,6 +729,14 @@ export class Battle extends Phaser.Scene {
     this.calendarMsAccrued = 0;
     this.lastCalendarTickAt = 0;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.flushCalendarTime());
+    // Audio, "enough for EA" scope (A6, 9 Sep 2026) — battle's own ambient
+    // loop, same registered-per-create()/stopped-on-SHUTDOWN shape as
+    // flushCalendarTime right above (and for the same reason: this scene
+    // instance is reused across mission launches).
+    playAmbient(this, "battle");
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => stopAmbient());
+    this.permanentLossesSeen = this.mission.permanentLosses.length;
+    this.missionWinStingPlayed = false;
 
     const m = this.mission.map;
     this.tileSize = Math.max(16, Math.min(Math.floor(700 / m.width), Math.floor(560 / m.height)));
@@ -756,7 +807,16 @@ export class Battle extends Phaser.Scene {
     const endTurnBtn = this.add
       .rectangle(835, 600, 200, 32, 0x2e5c7a)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", doEndTurn);
+      .on("pointerdown", () => {
+        // Audio (A6) — mouse click gets the UI-click sting the same way
+        // makeShopButton's own click handler does (ShopPanel.ts); this
+        // button and the action-bar's below are hand-rolled rather than
+        // built through that shared helper, so each wires its own. SPACE's
+        // own end-turn binding deliberately does NOT — a keyboard shortcut
+        // isn't a "UI click."
+        playSfx(this, "click");
+        doEndTurn();
+      });
     this.add.text(835, 600, "END TURN  [space]", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     endTurnBtn.setStrokeStyle(1, 0x4a7a9a);
     // [tab] next mech hint, same idea as "[space]" on the button above it —
@@ -786,7 +846,21 @@ export class Battle extends Phaser.Scene {
     // turn also jumps the page.
     this.input.keyboard?.addCapture("SPACE");
     this.input.keyboard?.off("keydown-SPACE");
-    this.input.keyboard?.on("keydown-SPACE", doEndTurn);
+    // Enemy-phase playback (9 Sep 2026): SPACE while the hostile phase is
+    // playing back means "skip to the end," not "end turn" — the turn is
+    // already over the instant confirmEndTurn() called endPlayerTurn(),
+    // this playback is just the board catching the player's eye up to it.
+    // Checked ahead of doEndTurn's own isAnimatingMove guard (which would
+    // otherwise just silently eat the press, same as it does mid a
+    // player's own walk) rather than folded into that guard, since the two
+    // presses mean opposite things.
+    this.input.keyboard?.on("keydown-SPACE", () => {
+      if (this.isPlayingHostilePhase) {
+        this.skipHostilePhasePlayback = true;
+        return;
+      }
+      doEndTurn();
+    });
 
     // Tab-to-cycle (30 Aug 2026, Maxime: "we could prolly instil some kinda
     // way to mvoe easily between mech like in xcom") — same well, same
@@ -1104,7 +1178,15 @@ export class Battle extends Phaser.Scene {
     this.selectedUnitId = null;
     this.clearSelectionHighlights();
     this.mission.endPlayerTurn();
-    this.render();
+    // Enemy-phase playback (feature-gap report A4, 9 Sep 2026): endPlayerTurn()
+    // above already resolved the ENTIRE hostile phase — every move, every
+    // attack, the environment step, the turn counter — before this line
+    // runs; mission.hostilePhaseEvents is that phase's own chronological
+    // record of it. playHostilePhase replays the record on screen and only
+    // THEN calls render() with the final, already-decided state — see that
+    // method's own comment for why the render has to wait rather than
+    // firing immediately the way it used to.
+    this.playHostilePhase(this.mission.hostilePhaseEvents, () => this.render());
   }
 
   private pixelToTile(px: number, py: number): Coord | null {
@@ -1362,7 +1444,13 @@ export class Battle extends Phaser.Scene {
 
     // Attacking an enemy currently highlighted as attackable.
     if (this.selectedUnitId && unitHere && this.attackable.some((a) => a.instanceId === unitHere.instanceId)) {
-      this.mission.attack(this.selectedUnitId, unitHere.instanceId);
+      const outcome = this.mission.attack(this.selectedUnitId, unitHere.instanceId);
+      // Audio (A6, 9 Sep 2026) — the player's own manual attack, resolved
+      // synchronously right above, gets its hit/dodge/kill sting the
+      // instant it lands rather than waiting for playAttackBeat, which is
+      // enemy-phase-playback-only (see that method's own header — a
+      // player's own click has no "board is in flux" replay to wait for).
+      if (outcome) playSfx(this, outcome.defenderDowned ? "kill" : outcome.defenderDodged ? "dodge" : "hit");
       this.tutorialHasAttacked = true;
       this.selectedUnitId = null;
       this.clearSelectionHighlights();
@@ -1493,10 +1581,20 @@ export class Battle extends Phaser.Scene {
    * longer than a short one, which is the "distance should look like
    * distance" behaviour XCOM itself has, rather than every move taking the
    * same total time regardless of how far it went.
+   *
+   * `manageLock` (enemy-phase playback, 9 Sep 2026) — defaults true, the
+   * original behaviour: this call owns isAnimatingMove start-to-finish,
+   * same as a player's own move always has. playHostilePhase() passes
+   * false when it's sequencing several of these back-to-back (a hostile's
+   * move, then maybe an attack beat, then the next hostile's move): the
+   * LOCK should span the whole sequence, not blink off between events, so
+   * the sequencer sets it once itself and this call only manages
+   * animatingUnitId/animatingVisualPos for its own one leg.
    */
-  private animateWalk(unitId: string, path: Coord[], onComplete: () => void) {
+  private animateWalk(unitId: string, path: Coord[], onComplete: () => void, opts?: { manageLock?: boolean }) {
     const STEP_MS = 130;
-    this.isAnimatingMove = true;
+    const manageLock = opts?.manageLock ?? true;
+    if (manageLock) this.isAnimatingMove = true;
     this.animatingUnitId = unitId;
     const visual = { x: path[0].x, y: path[0].y };
     this.animatingVisualPos = visual;
@@ -1504,7 +1602,7 @@ export class Battle extends Phaser.Scene {
     let i = 0;
     const stepToNext = () => {
       if (i >= path.length - 1) {
-        this.isAnimatingMove = false;
+        if (manageLock) this.isAnimatingMove = false;
         this.animatingUnitId = null;
         this.animatingVisualPos = null;
         onComplete();
@@ -1523,6 +1621,91 @@ export class Battle extends Phaser.Scene {
       });
     };
     stepToNext();
+  }
+
+  /**
+   * Enemy-phase playback's own sequencer (feature-gap report A4). Steps
+   * through one hostile phase's worth of HostilePhaseEvent in order, one at
+   * a time — a "move" reuses animateWalk (manageLock: false, since this
+   * method owns the lock for the whole sequence); an "attack" pauses and
+   * flashes the defender via playAttackBeat. Both call `advance` when their
+   * one event is done, which either starts the next or, once every event
+   * has played (or a skip was requested), tears the lock down and hands
+   * control back to `onDone` — confirmEndTurn's own final render(), which
+   * is the first render() since the lock came down and so the first one
+   * that can show a win/loss overlay for this turn.
+   *
+   * A unit not currently visible to the player (fog of war — see
+   * visibleHostileIds()'s own comment) skips its move's tile-by-tile tween
+   * entirely: there is nothing on screen to watch it walk across, so
+   * animating it anyway would just be a dead pause. Its attack, if it has
+   * one, still gets a beat — the flash lands on the defender, which is
+   * always visible (a hostile can only ever be attacking a player unit, or
+   * being reaction-fired at by one, and neither side hides a player unit
+   * from itself).
+   */
+  private playHostilePhase(events: readonly HostilePhaseEvent[], onDone: () => void) {
+    if (events.length === 0) {
+      onDone();
+      return;
+    }
+    this.isAnimatingMove = true;
+    this.isPlayingHostilePhase = true;
+    this.skipHostilePhasePlayback = false;
+
+    let i = 0;
+    const finish = () => {
+      this.isAnimatingMove = false;
+      this.isPlayingHostilePhase = false;
+      this.skipHostilePhasePlayback = false;
+      this.animatingUnitId = null;
+      this.animatingVisualPos = null;
+      this.hostilePhaseFlashTarget = null;
+      onDone();
+    };
+    const advance = () => {
+      if (this.skipHostilePhasePlayback || i >= events.length) {
+        finish();
+        return;
+      }
+      const ev = events[i];
+      i++;
+      if (ev.kind === "move") {
+        const visible = this.visibleHostileIds().has(ev.unitId);
+        if (!visible || ev.path.length < 2) {
+          advance();
+          return;
+        }
+        this.animateWalk(ev.unitId, ev.path, advance, { manageLock: false });
+      } else {
+        this.playAttackBeat(ev, advance);
+      }
+    };
+    advance();
+  }
+
+  /**
+   * One beat of enemy-phase playback: pause on the defender's tile with a
+   * colored flash (hostilePhaseFlashTarget, read by render()'s own overlay
+   * pass) so a hit registers as a moment rather than a number that just
+   * appears in the log. No existing VFX to reuse here — moves already had
+   * animateWalk, attacks had nothing before this. BEAT_MS is deliberately
+   * shorter than a per-tile walk step: a hit is one moment, not a journey.
+   */
+  private playAttackBeat(event: Extract<HostilePhaseEvent, { kind: "attack" }>, onComplete: () => void) {
+    const BEAT_MS = 260;
+    const result: "hit" | "dodge" | "kill" = event.outcome.defenderDowned
+      ? "kill"
+      : event.outcome.defenderDodged
+        ? "dodge"
+        : "hit";
+    this.hostilePhaseFlashTarget = { unitId: event.defenderId, result };
+    playSfx(this, result);
+    this.render();
+    this.time.delayedCall(BEAT_MS, () => {
+      this.hostilePhaseFlashTarget = null;
+      onComplete();
+    });
   }
 
   private clearSelectionHighlights() {
@@ -2056,6 +2239,11 @@ export class Battle extends Phaser.Scene {
     }
     const option = this.slotOptions[index];
     if (!option || !option.usable) return;
+    // Audio (A6) — the action-bar's own click, single choke point for both
+    // the action-bar buttons and the 1-6 digit hotkeys (both routes call
+    // this method) — see makeShopButton's own click wiring in ShopPanel.ts
+    // for the sibling case this doesn't go through.
+    playSfx(this, "click");
     option.run();
     if (option.endsTurn) {
       // The unit has nothing left to do, but stays SELECTED (same call the
@@ -2107,6 +2295,12 @@ export class Battle extends Phaser.Scene {
   }
 
   private render() {
+    // Audio (A6) — see permanentLossesSeen's own field comment.
+    if (this.mission.permanentLosses.length > this.permanentLossesSeen) {
+      this.permanentLossesSeen = this.mission.permanentLosses.length;
+      playSfx(this, "pilot_lost");
+    }
+
     const g = this.gfx;
     g.clear();
     const map = this.mission.map;
@@ -2444,6 +2638,31 @@ export class Battle extends Phaser.Scene {
         g.strokeRect(this.boardX + c.x * ts + 2, this.boardY + c.y * ts + 2, ts - 5, ts - 5);
       }
       this.drawUnit(g, unit, ts);
+    }
+    // Enemy-phase playback (9 Sep 2026) — a unit currently mid-walk that the
+    // engine has ALREADY downed (killed by the very overwatch its own move
+    // triggered — see HostilePhaseEvent's own comment on this gap) is drawn
+    // one more time here, outside the livingUnits() loop above that would
+    // otherwise skip it outright. Kept out of that loop rather than folded
+    // into it so it never picks up an interdiction box meant for the living
+    // — a downed unit has none anyway (interdictedTiles reads live state),
+    // but the two loops having different jobs is the point, not an accident.
+    if (this.animatingUnitId && !this.mission.livingUnits().some((u) => u.instanceId === this.animatingUnitId)) {
+      const dyingUnit = this.mission.unitById(this.animatingUnitId);
+      if (dyingUnit) this.drawUnit(g, dyingUnit, ts);
+    }
+    // playAttackBeat's flash — a ring around the defender's tile, colored by
+    // what the hit actually did, held for the beat's short pause. Reads
+    // unit.pos directly (never animatingVisualPos): the defender in an
+    // enemy-phase attack event is never also the one currently walking.
+    if (this.hostilePhaseFlashTarget) {
+      const target = this.mission.unitById(this.hostilePhaseFlashTarget.unitId);
+      if (target) {
+        const flashColor =
+          this.hostilePhaseFlashTarget.result === "kill" ? 0xef4444 : this.hostilePhaseFlashTarget.result === "dodge" ? 0x8a97a6 : 0xfacc15;
+        g.lineStyle(3, flashColor, 0.95);
+        g.strokeRect(this.boardX + target.pos.x * ts + 1, this.boardY + target.pos.y * ts + 1, ts - 3, ts - 3);
+      }
     }
 
     this.drawForecastLabels(ts);
@@ -3618,6 +3837,18 @@ export class Battle extends Phaser.Scene {
   }
 
   private drawOverlayIfNeeded() {
+    // Enemy-phase playback (9 Sep 2026): endPlayerTurn() resolves the whole
+    // hostile phase — including any win/loss — before playback even starts,
+    // so mission.outcome can already be non-"ongoing" while the board is
+    // still mid-replay. Reusing isAnimatingMove here (the same lock a
+    // player's own walk already sets) rather than adding a second gate:
+    // the result screen has to wait for the SAME "board is in flux" window
+    // that blocks every other input, or a mission-complete screen would pop
+    // over units still visibly fighting.
+    if (this.isAnimatingMove) {
+      this.overlay.setVisible(false);
+      return;
+    }
     this.overlay.removeAll(true);
     if (this.mission.outcome === "ongoing") {
       this.overlay.setVisible(false);
@@ -3642,6 +3873,10 @@ export class Battle extends Phaser.Scene {
     // actually being dimmed.
     const bg = this.add.rectangle(this.cameras.main.centerX, this.cameras.main.centerY, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.72);
     const win = this.mission.outcome === "win";
+    if (win && !this.missionWinStingPlayed) {
+      this.missionWinStingPlayed = true;
+      playSfx(this, "mission_win");
+    }
     const title = this.add
       .text(480, 280, win ? "MISSION COMPLETE" : "MISSION FAILED", {
         fontFamily: "monospace",

@@ -56,6 +56,7 @@ import {
   lanceCount,
   activeLanceIds,
   MAX_LANCES,
+  RECRUITABLE_LANCES,
   lanceDisplayName,
   integrateHouseAmaranthSecondLance,
   integrateHouseAmaranthThirdLance,
@@ -68,6 +69,9 @@ import {
   areTutorialHintsEnabled,
   setTutorialHintsEnabled,
 } from "../campaignState";
+import { catalystForPilot } from "../../data/npcSeed";
+import { deriveCatalyst, ZONE_BY_SECTOR, SECTOR_PLANETS } from "../../data/background";
+import { MEK_GIVEN_NAMES } from "../../data/names";
 import { testUnit } from "./testHelpers";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS } from "../../data/campaignAmaranth";
 import { HOUSE_AMARANTH_SECOND_LANCE_PILOTS, HOUSE_AMARANTH_THIRD_LANCE_PILOTS } from "../../data/campaignHouseAmaranth";
@@ -262,7 +266,15 @@ describe("checkMuntiGuarantee — rule 6, the unconditional emergency replacemen
     const result = checkMuntiGuarantee(state);
     expect(result.recruited).toBe(true);
     expect(result.pilot).toBeDefined();
-    expect(result.pilot!.archetypeId).toBe("arch_munti_bipedal");
+    // Chassis is randomized as of 9 Sep 2026 (Character Creator pass,
+    // Maxime: "make sure player truly get randomized npc... when they
+    // receive brand new munties from various source") — this used to
+    // assert the exact id "arch_munti_bipedal", which was only ever true
+    // because nothing varied chassis yet, not because Munti recruits are
+    // meant to always be human. "Always valid" is the actual invariant
+    // this test's own title claims, so assert that instead: still a
+    // Munti, on one of the three real chassis suffixes.
+    expect(result.pilot!.archetypeId).toMatch(/^arch_munti_(bipedal|centauroid|vibrissal)$/);
     expect(result.pilot!.tier).toBe("G"); // fresh, no carried-over tier investment
     expect(state.points).toBe(pointsBefore); // unconditional — costs nothing
 
@@ -288,6 +300,23 @@ describe("checkMuntiGuarantee — rule 6, the unconditional emergency replacemen
     expect(second.recruited).toBe(false);
     expect(first.pilot!.id).not.toBe(second.pilot?.id);
   });
+
+  it("chassis actually varies across repeated Munti guarantees, 9 Sep 2026 — a real regression guard for the randomization itself, not just permissiveness for it", () => {
+    const state = createCampaignState([], {}, 0);
+    const seenChassis = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      state.pilots = {}; // reset to zero active Muntis so every call actually fires
+      const result = checkMuntiGuarantee(state);
+      const archetype = UNIT_ARCHETYPES[result.pilot!.archetypeId];
+      expect(archetype?.path).toBe("munti");
+      seenChassis.add(archetype!.chassis);
+    }
+    // Three real chassis values exist (bipedal/centauroid/bipedal_vibrissal
+    // — data/units.ts's own Chassis strings); 40 equal-odds draws landing
+    // on only one would be a ~1-in-10^19 fluke, so seeing at least two is
+    // the honest bar for "this is actually randomized," not "always human."
+    expect(seenChassis.size).toBeGreaterThan(1);
+  });
 });
 
 describe("recruitDiscretionary — rule 6, the paid, fallible recruit track", () => {
@@ -295,7 +324,11 @@ describe("recruitDiscretionary — rule 6, the paid, fallible recruit track", ()
     const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST);
     const result = recruitDiscretionary(state, "tank");
     expect(result.ok).toBe(true);
-    expect(result.pilot!.archetypeId).toBe("arch_tank_bipedal");
+    // Chassis randomized as of 9 Sep 2026 — see checkMuntiGuarantee's own
+    // tests above for the full reasoning; this only ever asserted the
+    // exact "arch_tank_bipedal" id because nothing varied chassis yet,
+    // not because a discretionary recruit is meant to always be human.
+    expect(result.pilot!.archetypeId).toMatch(/^arch_tank_(bipedal|centauroid|vibrissal)$/);
     expect(result.pilot!.tier).toBe("G");
     expect(state.points).toBe(0);
     expect(state.pilots[result.pilot!.id].status).toBe("active");
@@ -316,10 +349,16 @@ describe("recruitDiscretionary — rule 6, the paid, fallible recruit track", ()
     const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST);
     const result = recruitDiscretionary(state, "munti");
     expect(result.ok).toBe(true);
-    expect(result.pilot!.archetypeId).toBe("arch_munti_bipedal");
+    // Chassis randomized as of 9 Sep 2026 — checkMuntiGuarantee's own
+    // tests above have the full reasoning. Checking by PATH rather than
+    // the old exact "arch_munti_bipedal" id (the class, "munti", is still
+    // exactly what was asked for and never randomized; the chassis half
+    // now can be anything) — same pattern the discharge tests further
+    // down this file already use for counting active Muntis.
+    expect(UNIT_ARCHETYPES[result.pilot!.archetypeId]?.path).toBe("munti");
     // The original Munti (Lask) is still there too — two now.
     const muntiCount = Object.values(state.pilots).filter(
-      (e) => e.status === "active" && e.pilot.archetypeId === "arch_munti_bipedal"
+      (e) => e.status === "active" && UNIT_ARCHETYPES[e.pilot.archetypeId]?.path === "munti"
     ).length;
     expect(muntiCount).toBe(2);
   });
@@ -333,6 +372,67 @@ describe("recruitDiscretionary — rule 6, the paid, fallible recruit track", ()
     const names = [a.displayName, b.displayName, c.displayName];
     expect(new Set(ids).size).toBe(3);
     expect(new Set(names).size).toBe(3);
+  });
+});
+
+describe("generatePilot — the Catalyst Gauntlet recruit generator, 9 Sep 2026 (Catalyst_Gauntlet_v2_ThirdLance_Verinis_Recruits.md §5, reviving its own 7 Sep 'go')", () => {
+  it("gives every generated pilot AND their Mek a real, structurally valid background", () => {
+    const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST);
+    const pilot = recruitDiscretionary(state, "tank").pilot!;
+    expect(pilot.background).toBeDefined();
+    const bg = pilot.background!;
+    expect(SECTOR_PLANETS[bg.sector]).toContain(bg.planet);
+    expect(ZONE_BY_SECTOR[bg.sector]).toBeDefined();
+
+    const mek = state.meks[pilot.mekId];
+    expect(mek.background).toBeDefined();
+    const mekBg = mek.background!;
+    expect(SECTOR_PLANETS[mekBg.sector]).toContain(mekBg.planet);
+  });
+
+  it("gives a generated recruit's Mek a given name of their own, never \"<Surname>'s Mek\" — Mek NPC plan §10, 9 Sep 2026", () => {
+    const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST * 10);
+    const seen = new Set<string>();
+    for (let i = 0; i < 10; i++) {
+      const pilot = recruitDiscretionary(state, "meeps").pilot!;
+      const mek = state.meks[pilot.mekId];
+      expect(MEK_GIVEN_NAMES).toContain(mek.displayName);
+      expect(mek.displayName).not.toContain("'s Mek");
+      expect(mek.displayName).not.toContain(" ");
+      seen.add(mek.displayName);
+    }
+    // Ten recruits, ten different Meks — the generator skips names already aboard.
+    expect(seen.size).toBe(10);
+    // And none of them is a name a hand-authored Mek could already be standing under.
+    for (const authored of Object.values(WARDEN_MEKS)) expect(seen.has(authored.displayName)).toBe(false);
+  });
+
+  it("rolls the Mek a background from a DIFFERENT sector than its own pilot — 'a second, contrasting one,' §5 item 3", () => {
+    const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST * 10);
+    for (let i = 0; i < 10; i++) {
+      const pilot = recruitDiscretionary(state, "reeps").pilot!;
+      const mek = state.meks[pilot.mekId];
+      expect(mek.background!.sector).not.toBe(pilot.background!.sector);
+    }
+  });
+
+  it("checkMuntiGuarantee's own generated pilot also gets a background (generatePilot is shared by both recruit tracks)", () => {
+    const state = createWardenCampaignState();
+    state.pilots["pilot_lask"].status = "permanently_lost"; // the only Munti in the Warden roster
+    const result = checkMuntiGuarantee(state);
+    expect(result.pilot!.background).toBeDefined();
+    expect(state.meks[result.pilot!.mekId].background).toBeDefined();
+  });
+
+  it("catalystForPilot derives the SAME catalyst from a generated pilot's background as deriveCatalyst does directly — dossier and live ambient dialogue can never disagree", () => {
+    const state = createWardenCampaignState(DISCRETIONARY_RECRUIT_COST);
+    const pilot = recruitDiscretionary(state, "munti").pilot!;
+    const expected = deriveCatalyst(pilot.background!);
+    expect(catalystForPilot(pilot.id, pilot.background)).toBe(expected);
+    // And calling it with NO background still falls through to the old
+    // hash fallback rather than throwing — the optional param is truly
+    // optional, so every pre-existing single-arg call site is unaffected.
+    expect(() => catalystForPilot(pilot.id)).not.toThrow();
   });
 });
 
@@ -393,7 +493,10 @@ describe("dischargePilot — Pilot Discharge & Roster Pressure, 5 Sep 2026", () 
     // A fresh Munti was minted in the same call — the roster never actually
     // touches zero active Muntis at any point a save could be read back in.
     expect(result.muntiReplacement).toBeDefined();
-    expect(result.muntiReplacement!.archetypeId).toBe("arch_munti_bipedal");
+    // Chassis randomized as of 9 Sep 2026 (this replacement mints through
+    // the same generatePilot/checkMuntiGuarantee path as the tests
+    // above) — checked by path, not the old exact "arch_munti_bipedal" id.
+    expect(UNIT_ARCHETYPES[result.muntiReplacement!.archetypeId]?.path).toBe("munti");
     const activeMuntis = Object.values(state.pilots).filter(
       (e) => e.status === "active" && UNIT_ARCHETYPES[e.pilot.archetypeId]?.path === "munti"
     );
@@ -1174,7 +1277,14 @@ function staffedCampaign(lances = 3): CampaignState {
   const state = createWardenCampaignState();
   if (lances >= 2) integrateSecondLance(state);
   if (lances >= 3) integrateThirdLance(state);
-  for (const id of activeLanceIds(state).slice(1)) {
+  // Recruit Cap Rework (9 Sep 2026): activeLanceIds is now always
+  // RECRUITABLE_LANCES (4) regardless of the story beat above, so this
+  // helper's own `lances` argument has to bound the fill explicitly —
+  // otherwise every existing staffedCampaign(2)-style fixture would
+  // silently grow a 4th lance nobody asked it to. See the dedicated
+  // "Recruit Cap Rework" describe block below for tests that deliberately
+  // exercise recruiting past this bound, ahead of the story beat.
+  for (const id of activeLanceIds(state).slice(1, lances)) {
     while (lanceRoster(state, id).length < MAX_LANCE_SIZE) {
       const r = recruitIntoLance(state, id);
       if (!r.ok) throw new Error(r.reason);
@@ -1270,7 +1380,7 @@ describe("B2 — assignable lances", () => {
 
   it("an empty lance reports as unfieldable rather than throwing", () => {
     const state = createWardenCampaignState();
-    const empty = lanceFieldability(state, "c"); // never granted in Act I, so empty
+    const empty = lanceFieldability(state, "c"); // open to recruit into since Mission 1, but nobody has yet
     expect(empty.fieldable).toBe(false);
     expect(empty.warning).toContain("empty");
   });
@@ -1345,7 +1455,12 @@ function memoryStorageForLances(): CampaignStorage {
 // cap no assignPilotToLance call can ever succeed again in either direction.
 describe("B2 — swapping lances (the full-roster deadlock)", () => {
   function fullRoster(): CampaignState {
-    return staffedCampaign();
+    // Recruit Cap Rework (9 Sep 2026): activeLanceIds is now 4 lances
+    // (a/b/c/d) regardless of the story beat, so "full roster" has to mean
+    // all 4 full, not staffedCampaign()'s old 3-lance default — otherwise
+    // lance "d" sits empty and the "every active lance is full" premise
+    // these deadlock tests rely on is false before they even start.
+    return staffedCampaign(RECRUITABLE_LANCES);
   }
 
   it("demonstrates the deadlock a plain move hits at full roster", () => {
@@ -1425,28 +1540,27 @@ describe("B2 — how many lances a carrier has", () => {
     expect(LANCE_IDS).toEqual(["a", "b", "c", "d", "e"]);
   });
 
-  it("but a Warden carrier grows one lance per act, stopping at three", () => {
+  it("the story beat (lanceCount) still grows one lance per act, stopping at three", () => {
+    // This is the narrative fact — Rourke's rank, the Debrief callout —
+    // and it's unchanged by the Recruit Cap Rework. See the dedicated
+    // "Recruit Cap Rework" describe block below for what DID change:
+    // activeLanceIds no longer mirrors this progression.
     const state = createWardenCampaignState();
     expect(lanceCount(state)).toBe(1);
-    expect(activeLanceIds(state)).toEqual(["a"]);
 
     integrateSecondLance(state);
     expect(lanceCount(state)).toBe(2);
-    expect(activeLanceIds(state)).toEqual(["a", "b"]);
 
     integrateThirdLance(state);
     expect(lanceCount(state)).toBe(3);
-    expect(activeLanceIds(state)).toEqual(["a", "b", "c"]);
   });
 
-  it("refuses to assign into a lance the carrier doesn't have yet", () => {
-    const state = createWardenCampaignState(); // Act I: one lance only
+  it("refuses to assign into the 5th lance — Gladiator-only, untouched by this campaign", () => {
+    const state = createWardenCampaignState(); // Act I: story beat never fired
     const pilotId = lanceRoster(state, "a")[0].pilot.id;
-    for (const missing of ["b", "c", "d", "e"] as LanceId[]) {
-      const result = assignPilotToLance(state, pilotId, missing);
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toContain("doesn't exist yet");
-    }
+    const result = assignPilotToLance(state, pilotId, "e");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain("isn't part of this campaign");
     expect(lanceOfPilotIn(state, pilotId)).toBe("a");
   });
 
@@ -1469,26 +1583,91 @@ describe("B2 — how many lances a carrier has", () => {
     expect(lanceCount(state)).toBe(2); // the slot survives the casualties
   });
 
-  it("House Amaranth also grows one lance per act, stopping at three (6 Sep 2026 — used to stop at two)", () => {
+  it("House Amaranth's own story beat also grows one lance per act, stopping at three (6 Sep 2026 — used to stop at two)", () => {
     // Used to top out at two, "having no third" — that was true from 1 Sep
     // through 6 Sep, when House Amaranth got its own Third Lance and this
     // test's own title stopped being accurate. Mirrors the Warden test
     // above line for line, now that both campaigns share the same shape.
     const state = createHouseAmaranthCampaignState();
     expect(lanceCount(state)).toBe(1);
-    expect(activeLanceIds(state)).toEqual(["a"]);
 
     integrateHouseAmaranthSecondLance(state);
     expect(lanceCount(state)).toBe(2);
-    expect(activeLanceIds(state)).toEqual(["a", "b"]);
 
     integrateHouseAmaranthThirdLance(state);
     expect(lanceCount(state)).toBe(3);
-    expect(activeLanceIds(state)).toEqual(["a", "b", "c"]);
   });
 
-  it("names all five, including the two this campaign never reaches", () => {
+  it("names all five, including the one this campaign's roster never reaches", () => {
     expect(LANCE_IDS.map(lanceDisplayName)).toEqual(["1st Lance", "2nd Lance", "3rd Lance", "4th Lance", "5th Lance"]);
+  });
+});
+
+// Recruit Cap Rework (9 Sep 2026, Bloom_Wars_Recruit_Cap_Rework_Plan_v1.md).
+// Maxime: "you can have up to 20 pair recruited but only able to fill the
+// rooster of 5 in act 1 10 in act 2 and 15 in act 3. its to have synker on
+// bench are replacement if one too stressed or something." The two
+// mechanically-decided questions (deploy caps stay Act-gated at 5/10/15;
+// 4 lances x 5 = 20) live here; Rourke's rank staying on the Mission 12/24
+// beat rather than tracking roster size (the plan's own recommended
+// default, still open as flavor-only) gets its own assertion below too.
+describe("Recruit Cap Rework — recruiting ahead of the story beat", () => {
+  it("opens all four recruitable lances from Mission 1, before any story beat has fired", () => {
+    expect(RECRUITABLE_LANCES).toBe(4); // 4 x MAX_LANCE_SIZE (5) = 20, Maxime's own confirmed math
+    const state = createWardenCampaignState();
+    expect(lanceCount(state)).toBe(1); // the narrative beat hasn't moved
+    expect(activeLanceIds(state)).toEqual(["a", "b", "c", "d"]); // the roster's own ceiling already has
+  });
+
+  it("activeLanceIds no longer tracks the story beat at all", () => {
+    const state = createWardenCampaignState();
+    expect(activeLanceIds(state)).toEqual(["a", "b", "c", "d"]);
+    integrateSecondLance(state);
+    integrateThirdLance(state);
+    expect(activeLanceIds(state)).toEqual(["a", "b", "c", "d"]); // unchanged either way
+  });
+
+  it("recruits into the 2nd, 3rd, and 4th lance before Mission 12 or 24 has ever been won", () => {
+    const state = createWardenCampaignState();
+    for (const lance of ["b", "c", "d"] as LanceId[]) {
+      const result = recruitIntoLance(state, lance);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(lanceOfPilotIn(state, result.pilot.id)).toBe(lance);
+    }
+    expect(lanceCount(state)).toBe(1); // cost-gated only — the story beat never fired
+  });
+
+  it("assignPilotToLance is free of the story beat too — a pilot can move into 'd' from Act I", () => {
+    const state = createWardenCampaignState();
+    const pilotId = lanceRoster(state, "a")[0].pilot.id;
+    expect(assignPilotToLance(state, pilotId, "d")).toEqual({ ok: true });
+    expect(lanceOfPilotIn(state, pilotId)).toBe("d");
+  });
+
+  it("can fill all four lances to a real 20-pilot roster without ever winning Mission 12 or 24", () => {
+    const state = createWardenCampaignState();
+    for (const lance of ["a", "b", "c", "d"] as LanceId[]) {
+      while (lanceRoster(state, lance).length < MAX_LANCE_SIZE) {
+        const r = recruitIntoLance(state, lance);
+        if (!r.ok) throw new Error(r.reason);
+      }
+    }
+    const total = (["a", "b", "c", "d"] as LanceId[]).reduce((n, l) => n + lanceRoster(state, l).length, 0);
+    expect(total).toBe(20);
+    expect(lanceCount(state)).toBe(1); // Rourke's rank/the story beat never moved
+  });
+
+  it("Rourke's rank keeps tracking the Mission 12/24 beat, not roster size — the plan's own recommended default", () => {
+    const state = createWardenCampaignState();
+    for (const lance of ["a", "b", "c", "d"] as LanceId[]) {
+      while (lanceRoster(state, lance).length < MAX_LANCE_SIZE) {
+        const r = recruitIntoLance(state, lance);
+        if (!r.ok) throw new Error(r.reason);
+      }
+    }
+    expect(deriveRourkeRank(state)).toBe("2nd_lt"); // a full 20-pilot company, still a 2nd Lt
+    integrateSecondLance(state);
+    expect(deriveRourkeRank(state)).toBe("capt");
   });
 });
 
@@ -1537,14 +1716,15 @@ describe("B2 — recruiting into a lance", () => {
     expect(lanceRoster(state, "b")).toHaveLength(1);
   });
 
-  it("refuses to recruit into a lance that doesn't exist yet, or one that's full", () => {
-    const state = createWardenCampaignState(); // Act I, one lance
-    expect(recruitIntoLance(state, "b").ok).toBe(false);
-    integrateSecondLance(state);
+  it("recruits into 'b' straight from Act I (Recruit Cap Rework), but still refuses once full or off-campaign", () => {
+    const state = createWardenCampaignState(); // Act I, story beat never fired
     for (let i = 0; i < MAX_LANCE_SIZE; i++) expect(recruitIntoLance(state, "b").ok).toBe(true);
     const overfull = recruitIntoLance(state, "b");
     expect(overfull.ok).toBe(false);
     if (!overfull.ok) expect(overfull.reason).toContain("full");
+    const offCampaign = recruitIntoLance(state, "e");
+    expect(offCampaign.ok).toBe(false);
+    if (!offCampaign.ok) expect(offCampaign.reason).toContain("isn't part of this campaign");
   });
 
   it("generates a real rank-and-name pilot once the authored pool runs dry", () => {

@@ -185,6 +185,7 @@ import { pairKey, findClosestBond, findWorstRival, pointNear, pointAwayFrom, CLI
 import { isNpcEngaged } from "../data/npcEngagement";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
+import { playAmbient, stopAmbient } from "./audio/AudioManager";
 // Cursor-following hover tip, 2 Sep 2026 — shared with Battle.ts. See
 // scenes/ui/HoverTip.ts (drawing) and engine/hoverTipLayout.ts (placement,
 // unit-tested).
@@ -253,7 +254,7 @@ import { RosterPanel } from "./ui/RosterPanel"; // B2, the Hangar Deck crew reco
 // lives there rather than on CampaignState directly, and
 // ui/MissionBriefingPanel.ts's own header for the panel itself.
 import { MissionBriefingPanel } from "./ui/MissionBriefingPanel";
-import type { CampaignMission } from "../data/types";
+import type { CampaignMission, Species } from "../data/types";
 // Calendar economy, 2 Sep 2026 — the Hub is one of the two scenes whose real
 // elapsed time feeds the campaign calendar (Battle.ts is the other). Maxime:
 // "time spent in the hub and time spent on mission run on the same ckock."
@@ -341,7 +342,7 @@ import { findPath } from "../engine/hubNav";
 //     mekSeeds / mekCatalysts
 //   sameDeck / nextHopDoor / pickDoorLanding / pickDoorApproach /
 //   pickExploreTarget / berthRoomFor / workshopRoomFor -> methods on this class
-import { type FacilityProfile, type FacilityTables, type DoorDef, type ReservedBayDef, buildFacilityTables } from "../engine/facility";
+import { type FacilityProfile, type FacilityTables, type DoorDef, type ReservedBayDef, buildFacilityTables, mekCatalystFor } from "../engine/facility";
 import { WARDEN_FACILITY } from "../engine/facilityWarden";
 
 // The 700x444 box every overlay (poker, darts, peg board, workshop, vault,
@@ -1627,6 +1628,15 @@ type HubNpc = {
   // own exemptFromPermadeath field, so this can't silently drift from
   // canon again the way it just did.
   romanceable: boolean;
+  // Added 9 Sep 2026 for the new pairwise Hiopi-exclusivity rule
+  // (speciesCompatibleForRomance, data/romance.ts) — engine/socialSim.ts's
+  // SocialSimPilot needs a real species per pilot now, and this is the one
+  // place every one of buildNpcs()'s four push sites (the main pilot loop,
+  // the CO, and both Mek loops) already independently derives a species to
+  // feed isRomanceableSpecies(); this just keeps that same value around on
+  // the HubNpc itself instead of throwing it away, same as romanceable's
+  // own derivation one line up.
+  species: Species;
   inRelationship?: boolean;
   // Phase 3 piece three, 26 Aug 2026 — autonomous roaming's own decision
   // clock (npcBonds.ts). Undefined until buildNpcs seeds a first,
@@ -2183,6 +2193,16 @@ export class Hub extends Phaser.Scene {
     this.npcSocial = ensureNpcSocialState(this.campaignState, this.f.profile.bondSeed);
 
     this.cameras.main.setBackgroundColor("#0c0f12");
+
+    // Audio, "enough for EA" scope (A6, 9 Sep 2026) — the Hub's own ambient
+    // loop. Stopped on this scene's own SHUTDOWN, same event Battle.ts's
+    // flushCalendarTime() hooks below already uses elsewhere in this file's
+    // sibling scene, so leaving the Hub for any other scene silences it;
+    // coming back re-runs create() and restarts the loop from 0 — see
+    // AudioManager.ts's own header for why that's an accepted placeholder-
+    // era simplification rather than a bug.
+    playAmbient(this, "hub");
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => stopAmbient());
 
     // OVERHEARD/chat UI-camera dock, Carrier Scale-Up Plan v1 Phase 2, 3
     // Sep 2026 — see DOCK_SPLIT_X's own header (this file, above) for the
@@ -3800,6 +3820,21 @@ export class Hub extends Phaser.Scene {
         at: Date.now(),
         mentionedBy: [],
       });
+      // Real rumor, not just a HotTopic, 9 Sep 2026 — an accepted Ask Out
+      // used to only ever be mentionable if you happened to talk to
+      // someone who already knew. Now it ripples the same way a rejection
+      // always has (same propagate() pipeline, same "a different NPC
+      // starts it" shape, now shared with runNpcEncounter's own NPC-NPC
+      // version via startNpcAskOutRumor), just with happy content instead
+      // of sting. Passing npc.pilotId as both exclusions since there's
+      // only one real NPC in a player-Ask-Out pair — the asker is the
+      // player, never a candidate to exclude twice for.
+      {
+        const mcRecord = this.campaignState.pilots[this.f.profile.mc.pilotId]?.pilot;
+        const askerName = mcRecord ? mcRecord.displayName.split("—")[0].trim() : "The Commander";
+        const targetName = npc.displayName.split("—")[0].trim();
+        this.startNpcAskOutRumor(askerName, targetName, "accepted", npc.pilotId, npc.pilotId);
+      }
       return;
     }
 
@@ -3822,18 +3857,13 @@ export class Hub extends Phaser.Scene {
     // debug version (a different NPC starts the gossip, not the rejector
     // herself, since her own in-voice reaction just happened above), but
     // with the real asker/rejector names instead of a fabricated pair.
-    const others = this.npcs.filter((n) => n.pilotId !== npc.pilotId);
-    if (others.length === 0) return; // nobody else around to start the gossip — the direct reaction above still stands on its own
-    const gossipSource = others[Math.floor(Math.random() * others.length)];
+    // Shares startNpcAskOutRumor with the accepted branch above and with
+    // runNpcEncounter's own NPC-NPC version, 9 Sep 2026 — same reasoning
+    // as that branch's own comment for passing npc.pilotId twice.
     const mcRecord = this.campaignState.pilots[this.f.profile.mc.pilotId]?.pilot;
     const askerName = mcRecord ? mcRecord.displayName.split("—")[0].trim() : "The Commander";
-    const rejectorName = npc.displayName.split("—")[0].trim();
-    const message: HubMessage = { kind: "rumor", askerName, rejectorName };
-    const gossipLine = pickLineForMessage(gossipSource.ambient, message);
-    this.time.delayedCall(PROPAGATION_HOP_DELAY_MS, () => {
-      this.showBubble(gossipSource, gossipLine, this.time.now);
-      this.propagate(gossipSource, message, new Set([gossipSource.pilotId]), 1);
-    });
+    const targetName = npc.displayName.split("—")[0].trim();
+    this.startNpcAskOutRumor(askerName, targetName, "rejected", npc.pilotId, npc.pilotId);
   }
 
   // --- Antfarm build economy, first slice, 27 Aug 2026 -------------------
@@ -6620,6 +6650,9 @@ export class Hub extends Phaser.Scene {
       // to true (open) rather than throwing if that ever happens.
       const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
       const romanceable = archetype ? isRomanceableSpecies(archetype.species) : true;
+      // Same fallback reasoning as romanceable just above — "human" only
+      // if archetypeId somehow doesn't resolve, which shouldn't happen.
+      const species: Species = archetype ? archetype.species : "human";
 
       // 26 Aug 2026 — Favorability/Stress/Morale/socialLog/inRelationship
       // now come from CampaignState, not straight off the seed. First time
@@ -6726,7 +6759,12 @@ export class Hub extends Phaser.Scene {
         // hand-authored pilots and a stable, deterministic pick for
         // everyone else, so this is behavior-identical to the old
         // `catalyst: seed.catalyst` for Bosk/Anand/Iyari specifically.
-        ambient: { catalyst: catalystForPilot(pilotId), stage, stress: social.stress, morale: social.morale, drunk: stillDrunk, worried: isMissionWorrySignal(this.campaignState) },
+        // `pilot.background` (9 Sep 2026, the Catalyst Gauntlet recruit
+        // generator) is undefined for every named pilot — only a
+        // generated recruit carries one — so this changes nothing for
+        // Bosk/Anand/Iyari/etc. and gives a shop recruit their real,
+        // background-derived catalyst instead of the old hash pick.
+        ambient: { catalyst: catalystForPilot(pilotId, pilot.background), stage, stress: social.stress, morale: social.morale, drunk: stillDrunk, worried: isMissionWorrySignal(this.campaignState) },
         favorability: social.favorability,
         circle,
         root,
@@ -6734,6 +6772,7 @@ export class Hub extends Phaser.Scene {
         bubbleContainer,
         bubbleUntil: 0,
         romanceable,
+        species,
         inRelationship: social.inRelationship,
         drunkUntil: stillDrunk ? social.drunkUntil : undefined,
         // The exact array ensureHubSocialState handed back, not a copy —
@@ -6858,6 +6897,7 @@ export class Hub extends Phaser.Scene {
       bubbleContainer: coBubbleContainer,
       bubbleUntil: 0,
       romanceable: isRomanceableSpecies(co.species),
+      species: co.species,
       inRelationship: coSocial.inRelationship,
       socialLog: coSocial.socialLog,
       // Deliberately no nextRoamAt/nextEncounterAt — updateNpcRoaming and
@@ -6924,16 +6964,26 @@ export class Hub extends Phaser.Scene {
     // established crew who've been through Act I's fighting, without
     // claiming a leadership register that isn't theirs.
     //
-    // romanceable: false below is a deliberate override, not
-    // isRomanceableSpecies() — a Mek's species would normally read as
-    // romanceable (they usually share their own pilot's species), but the
-    // entire premise of a Mek is a 1:1 Matchset bond already committed to
-    // their own pilot (plan doc §2/§4), so player romance doesn't make
-    // sense regardless of species. Left false rather than modeled via
-    // alreadyInRelationship: romance.ts's ALREADY_TOGETHER_LINES read as
-    // "already together WITH THE PLAYER" ("You already have me"), which
-    // would misstate who they're actually committed to — the more neutral
-    // CLOSE_FRIEND_ONLY_LINES don't make that same false claim.
+    // romanceable — REVERSED 9 Sep 2026, Maxime's own call, prompted by a
+    // real playtest hit: a flirt attempt on a Mek got the generic chat-
+    // fallback shrug, which never reaches this flag at all (the typed
+    // phrase didn't match any recognized verb) — that's what actually
+    // surfaced the question of whether a Mek could even say yes. Used to
+    // be a hardcoded false on the premise that a Mek's Matchset bond to
+    // their own pilot precluded outside romance regardless of species.
+    // Corrected: Matchset pairs default OPEN in this fiction — Maxime's own
+    // words, "open couple like happen in environment with lots of
+    // adrenaline and dangers, most of the pair family are cool with
+    // exploring other option" — so a Mek is romanceable on the exact same
+    // rule as everyone else, isRomanceableSpecies() off their own pilot's
+    // species (mekRomanceable below), Hiopi/Carabil still capping at
+    // close-friend same as always. inRelationship stays false regardless
+    // (below, unchanged) — the Matchset pairing itself still lives in
+    // npcSocial.relationships, not this field, so the game still never
+    // claims a Mek is "already together" with the player just because
+    // they're bonded to their own pilot; romance.ts's ALREADY_TOGETHER_LINES
+    // ("You already have me") would misstate who that bond is actually
+    // with, which is why alreadyInRelationship isn't the mechanism here.
     //
     // Catalyst picks are placeholders, same "not a locked content
     // decision" caveat npcSeed.ts's own NPC_SEED/NPC_BOND_SEED already
@@ -6960,7 +7010,10 @@ export class Hub extends Phaser.Scene {
     // PAIRS re-check that swapped mek_solheim from "shark" to "dog"). Anyone
     // not listed (a future lance, a generated recruit) keeps the safe hash
     // fallback.
-    const MEK_CATALYST_OVERRIDES = this.f.profile.mekCatalysts;
+    // 9 Sep 2026 — the precedence rule itself (seed catalyst, then the
+    // profile's overrides, then catalystForPilot) now lives in
+    // engine/facility.ts's mekCatalystFor, shared with the Archive's Mek
+    // dossier so the floor and the file can never disagree.
 
     for (const seed of mekSeeds) {
       const pilotEntry = this.campaignState.pilots[seed.pilotId];
@@ -6971,6 +7024,15 @@ export class Hub extends Phaser.Scene {
       // status flip itself and why nothing on the Mek record needs to
       // mirror it separately.
       if (!pilotEntry || pilotEntry.status !== "active") continue;
+
+      // Species-driven, same pattern the ordinary pilot loop already uses
+      // (see isRomanceableSpecies() above) — a Mek shares their own
+      // pilot's species per the plan doc's own assumption, so deriving off
+      // pilotEntry.pilot.archetypeId rather than hand-setting is the same
+      // anti-drift guarantee that check already gives everyone else.
+      const mekArchetype = UNIT_ARCHETYPES[pilotEntry.pilot.archetypeId];
+      const mekRomanceable = mekArchetype ? isRomanceableSpecies(mekArchetype.species) : true;
+      const mekSpecies: Species = mekArchetype ? mekArchetype.species : "human";
 
       const mek = this.campaignState.meks[seed.mekId];
       const displayName = mek?.displayName ?? `${pilotEntry.pilot.displayName.split("—")[0].trim()}'s Mek`;
@@ -7042,7 +7104,8 @@ export class Hub extends Phaser.Scene {
         favLabel,
         bubbleContainer,
         bubbleUntil: 0,
-        romanceable: false,
+        romanceable: mekRomanceable,
+        species: mekSpecies,
         // "With the player" axis — see this block's own header comment on
         // why the Matchset pairing itself lives in npcSocial.relationships
         // instead, not here.
@@ -7084,6 +7147,14 @@ export class Hub extends Phaser.Scene {
     for (const pilotId of mekPilotIds) {
       if (namedMekPilotIds.has(pilotId)) continue; // already placed above, with its own hand-picked catalyst/spot
       const pilotEntry = this.campaignState.pilots[pilotId];
+      // romanceable — same 9 Sep 2026 reversal and reasoning as the
+      // mekSeeds loop above (see its own header comment for the full
+      // account): a Mek's Matchset bond no longer precludes outside
+      // romance in this fiction, so this derives off their own paired
+      // pilot's species exactly the way that loop does.
+      const mekArchetype = UNIT_ARCHETYPES[pilotEntry.pilot.archetypeId];
+      const mekRomanceable = mekArchetype ? isRomanceableSpecies(mekArchetype.species) : true;
+      const mekSpecies: Species = mekArchetype ? mekArchetype.species : "human";
       const mekId = pilotEntry.pilot.mekId;
       const mek = this.campaignState.meks[mekId];
       const displayName = mek?.displayName ?? `${pilotEntry.pilot.displayName.split("—")[0].trim()}'s Mek`;
@@ -7155,15 +7226,19 @@ export class Hub extends Phaser.Scene {
         // catalystForPilot works off any string id via its deterministic
         // hash fallback (see npcSeed.ts's own header) — feeding it mekId
         // rather than pilotId gives this Mek its own independent-but-
-        // stable catalyst, not a copy of their pilot's.
-        ambient: { catalyst: MEK_CATALYST_OVERRIDES[mekId] ?? catalystForPilot(mekId), stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
+        // stable catalyst, not a copy of their pilot's. `mek?.background`
+        // (9 Sep 2026, the Catalyst Gauntlet recruit generator) is only
+        // ever set on a generated recruit's Mek — the profile's own
+        // overrides still win for every named Mek that has one, unaffected.
+        ambient: { catalyst: mekCatalystFor(this.f.profile, mekId, mek?.background), stage: "blooded", stress: mekSocial.stress, morale: mekSocial.morale, drunk: false, worried: isMissionWorrySignal(this.campaignState) },
         favorability: mekSocial.favorability,
         circle,
         root,
         favLabel,
         bubbleContainer,
         bubbleUntil: 0,
-        romanceable: false,
+        romanceable: mekRomanceable,
+        species: mekSpecies,
         inRelationship: false,
         socialLog: mekSocial.socialLog,
         nextRoamAt: Math.random() * 4000,
@@ -7934,8 +8009,17 @@ export class Hub extends Phaser.Scene {
    * once, as the YOU row.
    */
   private standingsEntrants(): StandingsEntrant[] {
+    // this.f.profile.mc.pilotId's own background (9 Sep 2026 recruit
+    // generator) is undefined in practice — Rourke/Marrow are both
+    // explicitly excluded from the gauntlet (Catalyst_Gauntlet_v2 §6) —
+    // read here anyway so this stays correct if that ever changes.
     const out: StandingsEntrant[] = [
-      { pilotId: PLAYER_RECORD_ID, displayName: this.f.profile.mc.shortName, catalyst: catalystForPilot(this.f.profile.mc.pilotId), isPlayer: true },
+      {
+        pilotId: PLAYER_RECORD_ID,
+        displayName: this.f.profile.mc.shortName,
+        catalyst: catalystForPilot(this.f.profile.mc.pilotId, this.campaignState.pilots[this.f.profile.mc.pilotId]?.pilot.background),
+        isPlayer: true,
+      },
     ];
     for (const [pilotId, entry] of Object.entries(this.campaignState.pilots)) {
       if (pilotId === this.f.profile.mc.pilotId) continue;
@@ -7947,7 +8031,7 @@ export class Hub extends Phaser.Scene {
         // like a bug. Same split every other roster-facing readout in this
         // file already uses (see runNpcEncounter's SocialSimPilot build).
         displayName: entry.pilot.displayName.split("—")[0].trim(),
-        catalyst: catalystForPilot(pilotId),
+        catalyst: catalystForPilot(pilotId, entry.pilot.background),
         path: UNIT_ARCHETYPES[entry.pilot.archetypeId]?.path,
         lost: entry.status === "permanently_lost",
         lostOnDay: entry.lostContext?.lostOnDay,
@@ -9000,8 +9084,8 @@ export class Hub extends Phaser.Scene {
   private runBoredomSpar(npcA: HubNpc, npcB: HubNpc, now: number) {
     const key = pairKey(npcA.pilotId, npcB.pilotId);
     const bond = this.npcSocial.bonds[key] ?? 0;
-    const pilotA: SocialSimPilot = { pilotId: npcA.pilotId, displayName: npcA.displayName.split("—")[0].trim(), catalyst: npcA.ambient.catalyst, stage: npcA.ambient.stage };
-    const pilotB: SocialSimPilot = { pilotId: npcB.pilotId, displayName: npcB.displayName.split("—")[0].trim(), catalyst: npcB.ambient.catalyst, stage: npcB.ambient.stage };
+    const pilotA: SocialSimPilot = { pilotId: npcA.pilotId, displayName: npcA.displayName.split("—")[0].trim(), catalyst: npcA.ambient.catalyst, stage: npcA.ambient.stage, species: npcA.species };
+    const pilotB: SocialSimPilot = { pilotId: npcB.pilotId, displayName: npcB.displayName.split("—")[0].trim(), catalyst: npcB.ambient.catalyst, stage: npcB.ambient.stage, species: npcB.species };
     const result = resolveSparEncounter({ pilotA, pilotB, bond, aCommitted: false, bCommitted: false, rng: Math.random });
     this.npcSocial.bonds[key] = bond + result.bondDelta;
     saveCampaignState(this.campaignState);
@@ -9066,8 +9150,8 @@ export class Hub extends Phaser.Scene {
     const aCommitted = isCommitted(npcA.pilotId, this.npcSocial, playerCommitted);
     const bCommitted = isCommitted(npcB.pilotId, this.npcSocial, playerCommitted);
 
-    const pilotA: SocialSimPilot = { pilotId: npcA.pilotId, displayName: npcA.displayName.split("—")[0].trim(), catalyst: npcA.ambient.catalyst, stage: npcA.ambient.stage };
-    const pilotB: SocialSimPilot = { pilotId: npcB.pilotId, displayName: npcB.displayName.split("—")[0].trim(), catalyst: npcB.ambient.catalyst, stage: npcB.ambient.stage };
+    const pilotA: SocialSimPilot = { pilotId: npcA.pilotId, displayName: npcA.displayName.split("—")[0].trim(), catalyst: npcA.ambient.catalyst, stage: npcA.ambient.stage, species: npcA.species };
+    const pilotB: SocialSimPilot = { pilotId: npcB.pilotId, displayName: npcB.displayName.split("—")[0].trim(), catalyst: npcB.ambient.catalyst, stage: npcB.ambient.stage, species: npcB.species };
     // minigamesEligible, 2 Sep 2026 — real bug, not hypothetical: this
     // caller is only ever reached for a same-DECK pair (updateNpcEncounters'
     // own sameDeck check), and recroom/hangarDeck/berths all share the
@@ -9131,6 +9215,19 @@ export class Hub extends Phaser.Scene {
         at: Date.now(),
         mentionedBy: [],
       });
+      this.startNpcAskOutRumor(pilotA.displayName, pilotB.displayName, "accepted", npcA.pilotId, npcB.pilotId);
+    } else if (result.kind === "askOut") {
+      // Rumor parity, 9 Sep 2026 — an NPC-NPC Ask Out rejection used to
+      // only ever produce the narrated summary bubble below, on npcA
+      // alone. That's the exact same event the player's own askOut()
+      // rejection branch already turns into a REAL rumor (relayed
+      // hop-to-hop through propagate(), decaying with distance,
+      // occasionally exaggerated in transit), not just a one-off line.
+      // Two NPCs turning each other down with nobody else on the ship
+      // ever hearing about it was the actual gap "NPC-to-NPC rumors, not
+      // just player-triggered" named — word travels the same way
+      // regardless of who got turned down.
+      this.startNpcAskOutRumor(pilotA.displayName, pilotB.displayName, "rejected", npcA.pilotId, npcB.pilotId);
     }
     saveCampaignState(this.campaignState);
 
@@ -9173,6 +9270,28 @@ export class Hub extends Phaser.Scene {
     const nextB = now + ENCOUNTER_COOLDOWN_MIN_MS + Math.random() * (ENCOUNTER_COOLDOWN_MAX_MS - ENCOUNTER_COOLDOWN_MIN_MS);
     npcA.nextEncounterAt = nextA;
     npcB.nextEncounterAt = nextB;
+  }
+
+  // Extracted 9 Sep 2026 so runNpcEncounter's two askOut outcomes (accepted
+  // via becameCouple, rejected via the kind==="askOut" else-branch) share
+  // one "find a third party to start the gossip" implementation instead of
+  // duplicating it. Excludes BOTH pilotAId and pilotBId — the player path
+  // (askOut() above) only ever had one real NPC to exclude, since the
+  // asker there is the player, never an NPC; here both halves of the pair
+  // are NPCs, and neither should be the one who starts spreading word
+  // about their own Ask Out. Silently no-ops with nobody else around to
+  // start it, same "the direct reaction still stands on its own" call
+  // askOut()'s own rejection branch already makes.
+  private startNpcAskOutRumor(askerName: string, targetName: string, outcome: "accepted" | "rejected", pilotAId: string, pilotBId: string) {
+    const others = this.npcs.filter((n) => n.pilotId !== pilotAId && n.pilotId !== pilotBId);
+    if (others.length === 0) return;
+    const gossipSource = others[Math.floor(Math.random() * others.length)];
+    const message: HubMessage = { kind: "rumor", outcome, askerName, targetName };
+    const gossipLine = pickLineForMessage(gossipSource.ambient, message);
+    this.time.delayedCall(PROPAGATION_HOP_DELAY_MS, () => {
+      this.showBubble(gossipSource, gossipLine, this.time.now);
+      this.propagate(gossipSource, message, new Set([gossipSource.pilotId]), 1);
+    });
   }
 
   // Piece #2's only trigger, on purpose — an emotion or a rumor reaching an
@@ -9958,14 +10077,18 @@ export class Hub extends Phaser.Scene {
     const askerName = mcRecord ? mcRecord.displayName.split("—")[0].trim() : "The Commander";
 
     const sourceIdx = Math.floor(Math.random() * this.npcs.length);
-    let rejectorIdx = Math.floor(Math.random() * this.npcs.length);
-    while (rejectorIdx === sourceIdx) rejectorIdx = Math.floor(Math.random() * this.npcs.length);
+    let targetIdx = Math.floor(Math.random() * this.npcs.length);
+    while (targetIdx === sourceIdx) targetIdx = Math.floor(Math.random() * this.npcs.length);
 
     const source = this.npcs[sourceIdx];
-    const rejector = this.npcs[rejectorIdx];
-    const rejectorName = rejector.displayName.split("—")[0].trim();
+    const target = this.npcs[targetIdx];
+    const targetName = target.displayName.split("—")[0].trim();
 
-    const message: HubMessage = { kind: "rumor", askerName, rejectorName };
+    // 9 Sep 2026 — coin-flipped rather than always "rejected," now that a
+    // real accepted-outcome rumor exists too. Exercises both banks from
+    // the same debug key instead of only ever proving the rejection half.
+    const outcome: "rejected" | "accepted" = Math.random() < 0.5 ? "accepted" : "rejected";
+    const message: HubMessage = { kind: "rumor", outcome, askerName, targetName };
     const line = pickLineForMessage(source.ambient, message);
     this.showBubble(source, line, this.time.now);
     this.time.delayedCall(PROPAGATION_HOP_DELAY_MS, () => {
@@ -10021,10 +10144,15 @@ export class Hub extends Phaser.Scene {
       // driven emotion, not the gossip line about her — and that reaction
       // is what keeps traveling outward from her, the same way any other
       // emotion echo would. So the rumor effectively converts into a
-      // forced-anger emotion the moment it reaches its own subject, then
-      // rides the ordinary emotion relay/distort machinery from there.
+      // forced emotion the moment it reaches its own subject, then rides
+      // the ordinary emotion relay/distort machinery from there.
+      // Branch added 9 Sep 2026: back when a rumor could only ever mean a
+      // rejection, forced-anger was the only sensible reaction to
+      // overhearing it about yourself. Now that an ACCEPTED Ask Out rumor
+      // exists too, forcing anger on someone hearing their own happy news
+      // would be backwards — that case forces love instead.
       const message = isRumorSubject(npc, incoming)
-        ? ({ kind: "emotion", echo: "anger" } as HubMessage)
+        ? ({ kind: "emotion", echo: incoming.kind === "rumor" && incoming.outcome === "accepted" ? "love" : "anger" } as HubMessage)
         : Math.random() < PROPAGATION_DISTORT_CHANCE
           ? distortMessage(incoming)
           : incoming;
@@ -10134,7 +10262,7 @@ export class Hub extends Phaser.Scene {
 
 function isRumorSubject(npc: HubNpc, message: HubMessage): boolean {
   if (message.kind !== "rumor") return false;
-  return npc.displayName.split("—")[0].trim() === message.rejectorName;
+  return npc.displayName.split("—")[0].trim() === message.targetName;
 }
 
 // Visible Stage cue, 27 Aug 2026 (later pass) — Social Sim Roadmap #5: "a

@@ -21,6 +21,8 @@
 import { pairKey } from "./npcBonds";
 import type { Catalyst } from "./ambientLines";
 import { HOUSE_AMARANTH_NPC_SEED } from "./npcSeedHouseAmaranth";
+import { deriveCatalyst } from "./background";
+import type { PilotBackground } from "./types";
 
 // Placeholder catalyst/state picks for the three seeded Rec Room NPCs —
 // not a locked content decision, just enough to prove the state-driven
@@ -187,9 +189,28 @@ export const BACKGROUND_CATALYST_ASSIGNMENTS: Record<string, Catalyst> = {
   mek_onwuka: "crow",
   mek_delgado: "fox",
   mek_yeun: "rabbit",
+
+  // --- House Amaranth Third Lance, Catalyst_Gauntlet_v2 §4.1/§4.2 (10) ---
+  // Added 9 Sep 2026. The Gauntlet doc (7 Sep) derived these ten from
+  // real backgrounds and data/__tests__/background.test.ts has re-derived
+  // them ever since — but the ids were never added HERE, so on a live save
+  // all ten fell through to the hash below (mek_thorne read "cat" on the
+  // Workshop floor while his pilot's Archive file says Wolf). Caught by
+  // the Mek dossier's own consistency test the day Meks got a file of
+  // their own; the values are the doc's, not new picks.
+  pilot_thorne: "crow",
+  pilot_amsel: "crow",
+  pilot_kastan: "shark",
+  pilot_osei: "fox",
+  pilot_dunmore: "shark",
+  mek_thorne: "wolf",
+  mek_amsel: "rabbit",
+  mek_kastan: "raven",
+  mek_osei: "shark",
+  mek_dunmore: "crow",
 };
 
-export function catalystForPilot(pilotId: string): Catalyst {
+export function catalystForPilot(pilotId: string, background?: PilotBackground): Catalyst {
   const seeded = NPC_SEED.find((s) => s.pilotId === pilotId);
   if (seeded) return seeded.catalyst;
   // House Amaranth's own hand-picked cast (data/npcSeedHouseAmaranth.ts) —
@@ -207,12 +228,24 @@ export function catalystForPilot(pilotId: string): Catalyst {
   // instead of an arbitrary stable pick.
   const backgroundAssigned = BACKGROUND_CATALYST_ASSIGNMENTS[pilotId];
   if (backgroundAssigned) return backgroundAssigned;
+  // Recruit generator, 9 Sep 2026 (Catalyst_Gauntlet_v2_ThirdLance_
+  // Verinis_Recruits.md §5 item 4: "catalystForPilot gains one step
+  // between BACKGROUND_CATALYST_ASSIGNMENTS and the hash: if the record
+  // carries a background, derive"). `background` is optional and comes
+  // from the caller's own PilotRecord/MekArchetype — every call site with
+  // one in scope now passes it (engine/campaignState.ts's generatePilot is
+  // the only thing that sets one today), so a generated recruit's live
+  // ambient dialogue, grief lines, standings row, and Codex dossier all
+  // derive and show the exact same catalyst instead of silently
+  // disagreeing with each other.
+  if (background) return deriveCatalyst(background);
   // Simple deterministic string hash (djb2-ish) — not cryptographic, just
   // stable and spread out enough that adjacent recruit ids (pilot_recruit_1,
   // pilot_recruit_2, ...) don't all land on the same catalyst. Still the
-  // fallback for anyone not in any of the three lists above — a future
-  // lance, a generated recruit, or a Mek id nobody's assigned a background
-  // to yet.
+  // fallback for anyone not in any of the three lists above AND with no
+  // background passed in — a future lance, or a generated pilot/Mek whose
+  // caller didn't have a background handy to pass (an old save predating
+  // 9 Sep 2026, say).
   let hash = 5381;
   for (let i = 0; i < pilotId.length; i++) {
     hash = (hash * 33 + pilotId.charCodeAt(i)) | 0;

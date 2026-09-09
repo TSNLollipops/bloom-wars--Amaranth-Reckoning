@@ -40,6 +40,7 @@
 import Phaser from "phaser";
 import type { MekTrack, Path } from "../../data/types";
 import { UNIT_ARCHETYPES } from "../../data/units";
+import { showCharacterCreatorOverlay } from "./CharacterCreatorOverlay";
 import {
   purchaseTierUpgrade,
   purchaseMekSecondary,
@@ -80,6 +81,7 @@ import {
 import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../../data/weaponBranches";
 import { equippedWeaponBranchesOf, mountsFor, drawCapacityFor, frameDrawUsed } from "../../engine/frameSystems";
 import { showFrameOverlay } from "./FramePanel";
+import { playSfx } from "../audio/AudioManager";
 
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
@@ -183,7 +185,18 @@ export function makeShopButton(
   bg.setScrollFactor(layer.scrollFactorX, layer.scrollFactorY);
   bg.on("pointerover", () => bg.setFillStyle(0x3a6f92, 1));
   bg.on("pointerout", () => bg.setFillStyle(0x2e5c7a, 1));
-  bg.on("pointerdown", onClick);
+  // Audio, "enough for EA" scope (A6, 9 Sep 2026) — the UI-click sting.
+  // Wired here rather than at each of this function's many call sites
+  // across the whole game (Options, every shop screen, every Hub overlay,
+  // Debrief, MainMenu...) since makeShopButton is already the one shared
+  // button primitive all of them go through — one line here covers all of
+  // them for free. Battle.ts's own hand-rolled board buttons (END TURN,
+  // the action bar) don't run through this function and are wired
+  // separately, at their own call sites.
+  bg.on("pointerdown", () => {
+    playSfx(scene, "click");
+    onClick();
+  });
 }
 
 /**
@@ -1077,6 +1090,15 @@ export class ShopPanel {
 
     // The generic hire, for when you want a class rather than a name — and
     // the only route once the authored candidates are all signed.
+    //
+    // Character Creator overlay, 9 Sep 2026 (Maxime: "a true character
+    // creator that act as the toggle for all the new npc player receive") —
+    // recruitDiscretionary already rolls this recruit's species now (see
+    // that function's own header), so this is the moment the player
+    // actually sees the roll and can rename/re-roll or pick a different
+    // species before walking away. The success message itself waits for
+    // the overlay to close (the overlay's onDone) so it reports the
+    // FINAL name if the player renamed them, not the one that was rolled.
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 110, top + 150, 180, 26, `HIRE ${capitalize(this.recruitClass).toUpperCase()} (${DISCRETIONARY_RECRUIT_COST})`, canAfford, () => {
       const result = recruitDiscretionary(this.state, this.recruitClass);
       if (result.ok && result.pilot) {
@@ -1085,15 +1107,22 @@ export class ShopPanel {
         // one rather than letting them default into 1st Lance's slot.
         const entry = this.state.pilots[result.pilot.id];
         if (entry) entry.lance = lance;
-        this.recruitMessage = `${result.pilot.displayName} signs on with ${lanceDisplayName(lance)}.`;
-        this.recruitMessageColor = "#4ade80";
         this.keepRecruitVisible = true;
         this.onRender?.();
+        this.render();
+        const pilotId = result.pilot.id;
+        showCharacterCreatorOverlay(this.scene, this.state, pilotId, () => {
+          const finalName = this.state.pilots[pilotId]?.pilot.displayName ?? "";
+          this.recruitMessage = `${finalName} signs on with ${lanceDisplayName(lance)}.`;
+          this.recruitMessageColor = "#4ade80";
+          this.onRender?.();
+          this.render();
+        });
       } else {
         this.recruitMessage = result.reason ?? "recruit failed";
         this.recruitMessageColor = "#ef4444";
+        this.render();
       }
-      this.render();
     });
 
     if (this.recruitMessage) {

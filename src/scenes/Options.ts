@@ -27,6 +27,8 @@ import { currentGameVersion } from "../engine/telemetry";
 import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getStoredDisplayScaleId, setStoredDisplayScaleId } from "../engine/displayScale";
 import { makeShopButton } from "./shop/ShopPanel";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
+import { getMusicVolume, setMusicVolume, getSfxVolume, setSfxVolume } from "../engine/audioSettings";
+import { playAmbient, stopAmbient, applyMusicVolumeLive, playSfx } from "./audio/AudioManager";
 
 export class Options extends Phaser.Scene {
   private returnScene = "MainMenu";
@@ -42,6 +44,15 @@ export class Options extends Phaser.Scene {
   // Tutorial hints ON/OFF toggle, 8 Sep 2026 — same rebuild-on-click shape
   // as displayScaleLayer above, same bracket-the-active-option idiom.
   private tutorialToggleLayer: Phaser.GameObjects.Container | null = null;
+  // Audio, "enough for EA" scope (A6, 9 Sep 2026) — same rebuild-on-click,
+  // bracket-the-active-value shape as displayScaleLayer above. Discrete
+  // 0/25/50/75/100 steps rather than a free-drag handle: this screen has no
+  // existing drag-slider control to build on, and every other Options row
+  // is this exact same "row of buttons, active one bracketed" idiom
+  // (DISPLAY SIZE, TUTORIAL HINTS) — matching it was simpler and more
+  // consistent than introducing a new interaction pattern for two rows.
+  private musicVolumeLayer: Phaser.GameObjects.Container | null = null;
+  private sfxVolumeLayer: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super("Options");
@@ -56,37 +67,51 @@ export class Options extends Phaser.Scene {
     this.exportPanel = null;
     this.displayScaleLayer = null;
     this.tutorialToggleLayer = null;
+    this.musicVolumeLayer = null;
+    this.sfxVolumeLayer = null;
     this.add.text(480, 50, "OPTIONS", { fontFamily: "monospace", fontSize: "26px", color: "#e8e2d4" }).setOrigin(0.5);
 
+    // Audio (A6, 9 Sep 2026) — this screen's own preview loop, so the MUSIC
+    // slider has something live to demo against regardless of which scene
+    // Options was opened from (Hub/Battle each stop their own ambient on
+    // the way here — see AudioManager.ts's own header for why). Stopped on
+    // this scene's SHUTDOWN like every other per-scene ambient owner.
+    playAmbient(this, "hub");
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => stopAmbient());
+
+    // Vertical rhythm below is deliberately tight (compacted 9 Sep 2026 to
+    // fit the two new AUDIO rows into the same 640px-tall screen without a
+    // scrolling container) — every row shrank a little rather than one row
+    // getting pushed off the bottom.
     this.add
-      .text(480, 150, "TUTORIAL HINTS", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .text(480, 110, "TUTORIAL HINTS", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
     this.statusText = this.add
-      .text(480, 174, "", { fontFamily: "monospace", fontSize: "11px", color: "#6b7a8a" })
+      .text(480, 130, "", { fontFamily: "monospace", fontSize: "11px", color: "#6b7a8a" })
       .setOrigin(0.5);
     this.refreshStatus();
     this.refreshTutorialToggleRow();
 
     const layer = this.add.container(0, 0);
-    makeShopButton(this, layer, 480, 252, 320, 36, "RESET TUTORIAL HINTS", true, () => {
+    makeShopButton(this, layer, 480, 192, 320, 32, "RESET TUTORIAL HINTS", true, () => {
       resetTutorialSeen();
       this.refreshStatus();
     });
 
     this.add
-      .text(480, 300, "STATISTICS & BUG REPORTS", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .text(480, 232, "STATISTICS & BUG REPORTS", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
     this.statsText = this.add
-      .text(480, 324, "", { fontFamily: "monospace", fontSize: "11px", color: "#6b7a8a", align: "center", wordWrap: { width: 720 } })
+      .text(480, 252, "", { fontFamily: "monospace", fontSize: "11px", color: "#6b7a8a", align: "center", wordWrap: { width: 720 } })
       .setOrigin(0.5);
     this.refreshStats();
-    makeShopButton(this, layer, 480, 372, 420, 36, "COPY STATS + BUG REPORT TO CLIPBOARD", true, () => this.openExportPanel());
-    makeShopButton(this, layer, 480, 416, 320, 32, "DELETE MY STATISTICS", true, () => {
+    makeShopButton(this, layer, 480, 284, 420, 30, "COPY STATS + BUG REPORT TO CLIPBOARD", true, () => this.openExportPanel());
+    makeShopButton(this, layer, 480, 318, 320, 28, "DELETE MY STATISTICS", true, () => {
       clearStats();
       this.refreshStats();
     });
     this.add
-      .text(480, 448, "Everything stays on this computer. Nothing is sent anywhere unless you paste it somewhere yourself.", {
+      .text(480, 344, "Everything stays on this computer. Nothing is sent anywhere unless you paste it somewhere yourself.", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#4a5563",
@@ -94,11 +119,17 @@ export class Options extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(480, 478, "DISPLAY SIZE", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .text(480, 374, "AUDIO", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .setOrigin(0.5);
+    this.refreshMusicVolumeRow();
+    this.refreshSfxVolumeRow();
+
+    this.add
+      .text(480, 462, "DISPLAY SIZE", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
     this.refreshDisplayScaleRow();
 
-    makeShopButton(this, this.add.container(0, 0), 480, 590, 260, 34, "BACK", true, () => {
+    makeShopButton(this, this.add.container(0, 0), 480, 566, 260, 32, "BACK", true, () => {
       this.scene.start(this.returnScene);
     });
   }
@@ -117,7 +148,7 @@ export class Options extends Phaser.Scene {
 
     const current = getDisplayScaleOption(getStoredDisplayScaleId());
     const status = this.add
-      .text(480, 500, `Caps how big Scale.FIT can stretch the game on a bigger monitor — current: ${current.shortLabel}`, {
+      .text(480, 484, `Caps how big Scale.FIT can stretch the game on a bigger monitor — current: ${current.shortLabel}`, {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#6b7a8a",
@@ -128,7 +159,7 @@ export class Options extends Phaser.Scene {
     DISPLAY_SCALE_OPTIONS.forEach((option, i) => {
       const cx = 480 + (i - 2) * 104;
       const label = option.id === current.id ? `[${option.shortLabel}]` : option.shortLabel;
-      makeShopButton(this, row, cx, 534, 96, 26, label, true, () => {
+      makeShopButton(this, row, cx, 514, 96, 24, label, true, () => {
         setStoredDisplayScaleId(option.id);
         applyDisplayScale(option.id);
         // Changing #app's own CSS max-width/max-height doesn't fire a
@@ -153,6 +184,58 @@ export class Options extends Phaser.Scene {
   }
 
   /**
+   * Shared builder for the two volume rows below — same "label left,
+   * five bracket-buttons right, all on one line" layout for both, so
+   * MUSIC and SFX read as a matched pair rather than two differently
+   * shaped controls. `onPreview` fires AFTER the value is saved, so a
+   * caller can give the player something to hear the new level with —
+   * MUSIC updates the always-on preview loop live, SFX fires one short
+   * sample sound.
+   */
+  private buildVolumeRow(row: Phaser.GameObjects.Container, y: number, label: string, current: number, onSet: (percent: number) => void, onPreview: () => void) {
+    const labelText = this.add
+      .text(300, y, `${label} ${current}%`, { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" })
+      .setOrigin(0, 0.5);
+    row.add(labelText); // folded into the row so it's destroyed/rebuilt on every refresh, not left orphaned
+    const steps = [0, 25, 50, 75, 100];
+    steps.forEach((pct, i) => {
+      const cx = 560 + i * 62;
+      const on = pct === current;
+      makeShopButton(this, row, cx, y, 54, 24, on ? `[${pct}]` : `${pct}`, true, () => {
+        onSet(pct);
+        onPreview();
+      });
+    });
+  }
+
+  /** MUSIC volume — the Hub/battle ambient loop. See buildVolumeRow's own comment for the shared shape. */
+  private refreshMusicVolumeRow() {
+    this.musicVolumeLayer?.destroy(true);
+    const row = this.add.container(0, 0);
+    this.musicVolumeLayer = row;
+    this.buildVolumeRow(row, 400, "MUSIC", getMusicVolume(), setMusicVolume, () => {
+      // Live-updates the preview loop this screen's own create() started
+      // (playAmbient(this, "hub") above) — no need to restart it, just
+      // re-read the slider AudioManager's own applyMusicVolumeLive() does.
+      applyMusicVolumeLive(this);
+      this.refreshMusicVolumeRow();
+    });
+  }
+
+  /** SFX volume — every one-shot sting. See buildVolumeRow's own comment for the shared shape. */
+  private refreshSfxVolumeRow() {
+    this.sfxVolumeLayer?.destroy(true);
+    const row = this.add.container(0, 0);
+    this.sfxVolumeLayer = row;
+    this.buildVolumeRow(row, 428, "SFX", getSfxVolume(), setSfxVolume, () => {
+      // A one-shot sample at the NEW level — playSfx reads the just-saved
+      // volume itself, so this plays at whatever the player just picked.
+      playSfx(this, "click");
+      this.refreshSfxVolumeRow();
+    });
+  }
+
+  /**
    * ON/OFF row for whether Mission 1 shows tutorial hints at all, 8 Sep
    * 2026 — Maxime's own call, a simple Options toggle rather than a bigger
    * separate tutorial-mission system. Same rebuild-on-click shape as
@@ -166,12 +249,12 @@ export class Options extends Phaser.Scene {
     const row = this.add.container(0, 0);
     this.tutorialToggleLayer = row;
     const enabled = areTutorialHintsEnabled();
-    makeShopButton(this, row, 440, 206, 80, 26, enabled ? "[ON]" : "ON", true, () => {
+    makeShopButton(this, row, 440, 158, 80, 26, enabled ? "[ON]" : "ON", true, () => {
       setTutorialHintsEnabled(true);
       this.refreshTutorialToggleRow();
       this.refreshStatus();
     });
-    makeShopButton(this, row, 524, 206, 80, 26, enabled ? "OFF" : "[OFF]", true, () => {
+    makeShopButton(this, row, 524, 158, 80, 26, enabled ? "OFF" : "[OFF]", true, () => {
       setTutorialHintsEnabled(false);
       this.refreshTutorialToggleRow();
       this.refreshStatus();

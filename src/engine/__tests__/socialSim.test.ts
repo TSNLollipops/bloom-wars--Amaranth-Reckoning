@@ -22,7 +22,7 @@ import {
   resolveFletchersEncounter,
   NPC_POKER_HANDS,
 } from "../socialSim";
-import { ROMANCE_ACCEPT_FAVORABILITY_DELTA, ROMANCE_REJECT_FAVORABILITY_DELTA, ROMANCE_MIN_FAVORABILITY } from "../../data/romance";
+import { ROMANCE_ACCEPT_FAVORABILITY_DELTA, ROMANCE_REJECT_FAVORABILITY_DELTA, ROMANCE_MIN_FAVORABILITY, speciesCompatibleForRomance } from "../../data/romance";
 import { GATE0_BASE_CHANCE } from "../../data/reactionGate";
 import { LINE_BANK } from "../../data/ambientLines";
 
@@ -31,9 +31,27 @@ afterEach(() => vi.restoreAllMocks());
 // stage: "blooded" for all three — see ambientLines.test.ts's own pilot()
 // helper for why "blooded" is the right stand-in default pre-existing tests
 // were implicitly exercising before the Stage axis existed.
-const BOSK: SocialSimPilot = { pilotId: "pilot_bosk", displayName: "Bosk", catalyst: "raven", stage: "blooded" };
-const ANAND: SocialSimPilot = { pilotId: "pilot_anand", displayName: "Anand", catalyst: "wolf", stage: "blooded" };
-const IYARI: SocialSimPilot = { pilotId: "pilot_iyari", displayName: "Iyari", catalyst: "crow", stage: "blooded" };
+//
+// species, added 9 Sep 2026 alongside SocialSimPilot's new required field
+// (speciesCompatibleForRomance, data/romance.ts). Real, confirmed species
+// for these three, not placeholders: Bosk human (never called out as
+// anything else anywhere this project's docs discuss him), Anand osnius
+// and Iyari hiopi both per romance.ts's own header (the "Iyari miss" note,
+// data/romance.ts lines ~21-23 — she's arch_meeps_centauroid, species
+// "hiopi").
+const BOSK: SocialSimPilot = { pilotId: "pilot_bosk", displayName: "Bosk", catalyst: "raven", stage: "blooded", species: "human" };
+const ANAND: SocialSimPilot = { pilotId: "pilot_anand", displayName: "Anand", catalyst: "wolf", stage: "blooded", species: "osnius" };
+const IYARI: SocialSimPilot = { pilotId: "pilot_iyari", displayName: "Iyari", catalyst: "crow", stage: "blooded", species: "hiopi" };
+// Local-only fixture, not a real seeded NPC — added 9 Sep 2026 purely to
+// exercise the OTHER half of speciesCompatibleForRomance's own boundary:
+// Carabil (Arangement of Content, the Carrier CO in the live Hub) is
+// capped player-side by the pre-existing single-species
+// ROMANCE_CAPPED_SPECIES check, but is deliberately NOT part of the new
+// pairwise Hiopi-exclusivity rule — see that function's own header
+// (data/romance.ts) for why. Worth a real test, not just a comment
+// claiming it, since this is exactly the kind of boundary that regresses
+// silently if nobody ever actually calls it.
+const CARABIL_NPC: SocialSimPilot = { pilotId: "pilot_test_carabil", displayName: "Test Carabil", catalyst: "shark", stage: "blooded", species: "carabil" };
 
 describe("pickPair", () => {
   it("with a forced low rng, picks two distinct, in-bounds roster entries", () => {
@@ -379,14 +397,46 @@ describe("resolveAskOutEncounter", () => {
     expect(result.summary).toContain("turned down");
   });
 
-  it("never applies the Hiopi/Carabil species cap — romanceable is always true for NPC-to-NPC, per romance.ts's own header and Build Plan §18", () => {
-    // Iyari is the one seeded NPC that's actually capped player-side
-    // (isRomanceableSpecies would say false for her archetype's species).
-    // resolveAskOutEncounter must still resolve a real accept/reject, never
-    // "closeFriendOnly" — that branch only exists in the pure resolveAskOut
-    // for the player-facing case this file deliberately doesn't invoke.
-    const result = resolveAskOutEncounter({ pilotA: ANAND, pilotB: IYARI, bond: ROMANCE_MIN_FAVORABILITY, aCommitted: false, bCommitted: false, rng: () => 0.5 });
+  // CORRECTED 9 Sep 2026 — this used to be one test claiming the single
+  // species cap (ROMANCE_CAPPED_SPECIES/isRomanceableSpecies) never applies
+  // NPC-to-NPC, full stop, using Anand+Iyari as the proof. That half is
+  // still true and still worth its own test (below). But it's no longer
+  // the whole story: Maxime's later, separate ask — a real PAIRWISE
+  // Hiopi-exclusivity rule (speciesCompatibleForRomance) — DOES apply
+  // NPC-to-NPC, and Anand+Iyari is exactly the pair it's supposed to catch.
+  // Split into two tests rather than patching the old assertion in place,
+  // same "intentional behaviour change, don't massage the old test" call
+  // this file already made once for the Rec Room standings rewrite above.
+  it("the single-species cap (isRomanceableSpecies) still never applies NPC-to-NPC — a Carabil NPC still gets a real accept/reject, never closeFriendOnly", () => {
+    // CARABIL_NPC is capped player-side by ROMANCE_CAPPED_SPECIES the exact
+    // same way Iyari's hiopi is — this proves that single-species cap is
+    // still not what's gating this pair; only the NEW pairwise rule (which
+    // Carabil is deliberately not part of) could do that, and Carabil+Bosk
+    // are pairwise-compatible under it.
+    const result = resolveAskOutEncounter({ pilotA: BOSK, pilotB: CARABIL_NPC, bond: ROMANCE_MIN_FAVORABILITY, aCommitted: false, bCommitted: false, rng: () => 0.5 });
     expect(result.becameCouple).toBe(true);
+  });
+
+  it("the new pairwise Hiopi-exclusivity rule DOES apply NPC-to-NPC — Anand (osnius) and Iyari (hiopi) never become a couple, regardless of bond", () => {
+    const result = resolveAskOutEncounter({ pilotA: ANAND, pilotB: IYARI, bond: ROMANCE_MIN_FAVORABILITY, aCommitted: false, bCommitted: false, rng: () => 0.5 });
+    expect(result.becameCouple).toBe(false);
+    expect(result.bondDelta).toBe(0);
+    expect(speciesCompatibleForRomance(ANAND.species, IYARI.species)).toBe(false);
+  });
+
+  it("a Hiopi paired with another Hiopi is still a real, resolvable Ask Out — the rule excludes non-Hiopi, not Hiopi itself", () => {
+    const secondHiopi: SocialSimPilot = { ...IYARI, pilotId: "pilot_test_hiopi_2", displayName: "Test Hiopi" };
+    const result = resolveAskOutEncounter({ pilotA: IYARI, pilotB: secondHiopi, bond: ROMANCE_MIN_FAVORABILITY, aCommitted: false, bCommitted: false, rng: () => 0.5 });
+    expect(result.becameCouple).toBe(true);
+  });
+});
+
+describe("simulateEncounter — species-incompatible pairs never roll askOut", () => {
+  it("across many real-random draws, an Anand/Iyari pair never resolves to askOut — same exclusion treatment as a committed pair", () => {
+    for (let i = 0; i < 200; i++) {
+      const result = simulateEncounter({ pilotA: ANAND, pilotB: IYARI, bond: ROMANCE_MIN_FAVORABILITY, aCommitted: false, bCommitted: false, rng: Math.random });
+      expect(result.kind).not.toBe("askOut");
+    }
   });
 });
 
@@ -439,9 +489,18 @@ describe("simulateDay", () => {
   });
 
   it("seeds an absent pair's bond at 0 before applying the encounter's delta", () => {
-    const roster = [BOSK, IYARI];
-    const state: SocialSimState = { bonds: {}, relationships: [] }; // no pilot_bosk::pilot_iyari key yet
+    // Was [BOSK, IYARI] — swapped to [BOSK, ANAND] 9 Sep 2026: Bosk/Iyari
+    // (human/hiopi) are now pairwise-incompatible under
+    // speciesCompatibleForRomance, so simulateEncounter no longer offers
+    // them Ask Out at all regardless of the rng forced here, which would
+    // silently break what this test actually means to check (the bond-map
+    // default-to-0 behavior, nothing about species). Bosk/Anand
+    // (human/osnius) are both non-Hiopi, so they stay askOut-eligible and
+    // this test keeps testing the one thing it's actually about; species
+    // compatibility itself has its own dedicated coverage above.
+    const roster = [BOSK, ANAND];
+    const state: SocialSimState = { bonds: {}, relationships: [] }; // no pilot_anand::pilot_bosk key yet
     simulateDay(roster, state, new Set(), 1, () => 0.01); // askOut path: 0 is below ROMANCE_MIN_FAVORABILITY -> rejected
-    expect(state.bonds["pilot_bosk::pilot_iyari"]).toBe(ROMANCE_REJECT_FAVORABILITY_DELTA);
+    expect(state.bonds["pilot_anand::pilot_bosk"]).toBe(ROMANCE_REJECT_FAVORABILITY_DELTA);
   });
 });

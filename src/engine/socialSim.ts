@@ -37,7 +37,8 @@ import type { RecGameId } from "../data/recRoomAptitude";
 import { gate0Reacts } from "../data/reactionGate";
 import { pickAmbientLine, type AmbientPilotState, type Catalyst, type Stage } from "../data/ambientLines";
 import { pickCatalystReaction } from "../data/catalystProfile";
-import { resolveAskOut } from "../data/romance";
+import { resolveAskOut, speciesCompatibleForRomance } from "../data/romance";
+import type { Species } from "../data/types";
 import { createPegGame, applyMove as applyPegMove, pickMove as pickPegMove, pegSkillFor } from "./pegBoard";
 // Rec Room Standings & NPC Learning, slice 5 (3 Sep 2026) — the two
 // engines that used to be unreachable for an NPC-vs-NPC session, now
@@ -63,6 +64,13 @@ export interface SocialSimPilot {
   // same value through so the background/live-Hub talk encounter draws
   // from the pilot's own rank-appropriate pool instead of a fixed one.
   stage: Stage;
+  // Added 9 Sep 2026 for speciesCompatibleForRomance (data/romance.ts) —
+  // see resolveAskOutEncounter's own header, just below, for why this file
+  // now needs a real species per pilot instead of getting away with none.
+  // Every real caller (Hub.ts's buildNpcs()/HubNpc.species, runSocialSim.ts's
+  // roster) derives this the same data-driven way romanceable already was:
+  // off the real UNIT_ARCHETYPES entry, never hand-set.
+  species: Species;
 }
 
 // "spar" added 30 Aug 2026 (Maxime: "boredom should trigger spar") —
@@ -480,14 +488,20 @@ export function resolveFletchersEncounter(input: EncounterInput): EncounterResul
 }
 
 // Ask Out — reuses romance.ts's resolveAskOut() directly, with the pair's
-// persisted bond standing in for "favorability" and romanceable always
-// true. That second part is a deliberate, locked call, not an oversight:
-// romance.ts's own header (fixed 26 Aug 2026, same day this was caught for
-// the live Hub) makes the species cap (ROMANCE_CAPPED_SPECIES, Hiopi
-// today) explicitly player-facing only — "species only gates whether
-// Rourke specifically can romance a pilot, never whether two NPCs can
-// romance each other." Applying isRomanceableSpecies() here would be
-// re-introducing the exact bug that got fixed there.
+// persisted bond standing in for "favorability."
+//
+// CORRECTED 9 Sep 2026: this comment used to say `romanceable` was always
+// hardcoded true here, "a deliberate, locked call, not an oversight,"
+// reasoning from romance.ts's single-species ROMANCE_CAPPED_SPECIES cap
+// being player-facing only. That reasoning is still correct as far as it
+// goes — isRomanceableSpecies() (the single-species cap) genuinely never
+// belongs here, and still isn't called in this file. But it was never the
+// whole story: Maxime's later, separate ask ("hiopi can only truly pair
+// with other hiopi") is a real PAIRWISE rule, not a reapplication of the
+// single-species one, and it DOES apply NPC-to-NPC — see
+// speciesCompatibleForRomance's own header (data/romance.ts) for why.
+// `romanceable` below is now that pairwise check, not a hardcoded true.
+
 // Spar — boredom-driven, everyday, NOT a crisis (see EncounterKind's own
 // comment for how this differs from Breakdown's own "spar" flavor). Same
 // abstracted "no real move-by-move session" shape as
@@ -511,15 +525,28 @@ export function resolveSparEncounter(input: EncounterInput): EncounterResult {
 }
 
 export function resolveAskOutEncounter(input: EncounterInput): EncounterResult {
-  const outcome = resolveAskOut({ favorability: input.bond, romanceable: true, alreadyInRelationship: false });
+  const compatible = speciesCompatibleForRomance(input.pilotA.species, input.pilotB.species);
+  const outcome = resolveAskOut({ favorability: input.bond, romanceable: compatible, alreadyInRelationship: false });
   // alreadyInRelationship is always false here by construction — this
   // branch is only ever reached when pickEncounterKind's eligibleForAskOut
   // was true, which already means neither pilot is committed (see
   // simulateEncounter below).
+  //
+  // "closeFriendOnly" is a real, reachable outcome now, not just the
+  // player-facing branch it used to be exclusively: a species-incompatible
+  // pair (an Osnian and a Hiopi, say) always lands here regardless of
+  // bond. Own inline summary line below, same as the accept/reject
+  // branches already write their own rather than pulling from romance.ts's
+  // ALREADY_TOGETHER_LINES/CLOSE_FRIEND_ONLY_LINES banks (those are Hub.ts's
+  // own player-facing askOut() content, never imported here) — consistent
+  // with how this function already handles its other two outcomes.
   const becameCouple = outcome.result === "accepted";
-  const summary = becameCouple
-    ? `${input.pilotA.displayName} asked ${input.pilotB.displayName} out — accepted! They're together now.`
-    : `${input.pilotA.displayName} asked ${input.pilotB.displayName} out — turned down.`;
+  const summary =
+    outcome.result === "closeFriendOnly"
+      ? `${input.pilotA.displayName} asked ${input.pilotB.displayName} out — it's just not that kind of match between them.`
+      : becameCouple
+        ? `${input.pilotA.displayName} asked ${input.pilotB.displayName} out — accepted! They're together now.`
+        : `${input.pilotA.displayName} asked ${input.pilotB.displayName} out — turned down.`;
   return {
     kind: "askOut",
     bondDelta: outcome.favorabilityDelta,
@@ -529,7 +556,14 @@ export function resolveAskOutEncounter(input: EncounterInput): EncounterResult {
 }
 
 export function simulateEncounter(input: EncounterInput): EncounterResult {
-  const eligibleForAskOut = !input.aCommitted && !input.bCommitted;
+  // Species-incompatible pairs (9 Sep 2026) are excluded from the Ask Out
+  // branch the same way a committed pair already is, just above — not
+  // resolved-and-rebuffed on every single roll. They still Talk/play
+  // minigames together like any other pair; resolveAskOutEncounter's own
+  // closeFriendOnly branch above stays correct as a second, defensive
+  // layer for any caller (a test, or a future direct call) that reaches it
+  // without going through this gate.
+  const eligibleForAskOut = !input.aCommitted && !input.bCommitted && speciesCompatibleForRomance(input.pilotA.species, input.pilotB.species);
   const kind = pickEncounterKind({ eligibleForAskOut, minigamesEligible: input.minigamesEligible, rng: input.rng });
   switch (kind) {
     case "talk":

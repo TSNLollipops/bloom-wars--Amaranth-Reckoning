@@ -38,7 +38,10 @@ import {
   recordFoughtOnHitEffectKinds,
   recordHostileKills,
   companyNameOf,
+  lanceRoster,
+  MAX_LANCE_SIZE,
   type CampaignState,
+  type LanceId,
 } from "../engine/campaignState";
 import {
   computeMissionEarnings,
@@ -65,6 +68,7 @@ import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatal
 import { recordHumanMissionSummary, activeRosterSize, currentGameVersion } from "../engine/telemetry";
 import { summaryMvp, type MissionSummary } from "../engine/missionSummary";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
+import { showCharacterCreatorOverlay } from "./shop/CharacterCreatorOverlay";
 import { addMenuOverlayButton } from "./MenuOverlay";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
 // B4 (portrait wiring), 5 Sep 2026 — see drawEarningsPanel's own comment on
@@ -485,6 +489,24 @@ export class Debrief extends Phaser.Scene {
     // this scene needing to know anything about the panel's internals.
     this.shop = new ShopPanel(this, this.state, this.viewportTop, this.viewportBottom, () => this.renderFooter());
     this.shop.render();
+
+    // Character Creator overlay, 9 Sep 2026 — same "toggle for every new
+    // NPC" ask as ShopPanel.ts's own generic-hire button (see that file's
+    // own comment on its HIRE button). checkMuntiGuarantee and
+    // generateRandomRescuedPilot above both now roll a random chassis/
+    // species (engine/campaignState.ts's own 9 Sep 2026 header has the
+    // "why" — it used to silently always be human), and this is where the
+    // player actually sees that roll and can rename/reroll or pick a
+    // different species before leaving Debrief. Queued rather than shown
+    // at once — a Munti guarantee AND a rescue success can both fire on
+    // the same debrief, and stacking two modals would be unreadable.
+    const pendingRecruits = [this.muntiPilot, this.rescuedPilot].filter((p): p is PilotRecord => !!p);
+    const showNextPendingRecruit = () => {
+      const pilot = pendingRecruits.shift();
+      if (!pilot) return;
+      showCharacterCreatorOverlay(this, this.state, pilot.id, showNextPendingRecruit);
+    };
+    showNextPendingRecruit();
   }
 
   // ---- Footer: live company balance + Return to Base ---------------------
@@ -908,6 +930,23 @@ export class Debrief extends Phaser.Scene {
     return this.mission.mission.id.startsWith("mission_house_amaranth_");
   }
 
+  /**
+   * The berths line for a Second/Third Lance callout. Used to be able to
+   * just say "empty" unconditionally — this beat only ever GRANTED an
+   * empty lance, it never touched membership. Recruit Cap Rework (9 Sep
+   * 2026) makes that assumption false: the same lance is now open to
+   * recruiting from Mission 1, cost-gated only, so by the time this story
+   * beat actually fires the lance can already be partly or fully staffed.
+   * Reads state.pilots live, right now, rather than trusting the old
+   * always-empty wording.
+   */
+  private berthsLine(lance: LanceId, screenName: string): string {
+    const count = lanceRoster(this.state, lance).length;
+    if (count === 0) return `five berths, empty. ${screenName} has candidates.`;
+    if (count >= MAX_LANCE_SIZE) return "already fully staffed — you got ahead of the order on this one.";
+    return `${count}/${MAX_LANCE_SIZE} already aboard. ${screenName} has room for the rest.`;
+  }
+
   private drawSecondLanceCallout(top: number): number {
     if (!this.secondLancePilots) return top;
     const height = 56;
@@ -940,7 +979,7 @@ export class Debrief extends Phaser.Scene {
         })
         .setOrigin(0.5);
       this.add
-        .text(480, top + 36, "five berths, empty. The Campaign Shop below has candidates.", {
+        .text(480, top + 36, this.berthsLine("b", "The Campaign Shop below"), {
           fontFamily: "monospace",
           fontSize: "10px",
           color: "#8a97a6",
@@ -960,7 +999,7 @@ export class Debrief extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.add
-      .text(480, top + 36, "five berths, empty. ROSTER & GEAR has candidates.", {
+      .text(480, top + 36, this.berthsLine("b", "ROSTER & GEAR"), {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#8a97a6",
@@ -992,7 +1031,7 @@ export class Debrief extends Phaser.Scene {
         })
         .setOrigin(0.5);
       this.add
-        .text(480, top + 36, "five berths, empty. The Campaign Shop below has candidates.", {
+        .text(480, top + 36, this.berthsLine("c", "The Campaign Shop below"), {
           fontFamily: "monospace",
           fontSize: "10px",
           color: "#8a97a6",
@@ -1008,7 +1047,7 @@ export class Debrief extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.add
-      .text(480, top + 36, "five berths, empty. ROSTER & GEAR has candidates.", {
+      .text(480, top + 36, this.berthsLine("c", "ROSTER & GEAR"), {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#8a97a6",

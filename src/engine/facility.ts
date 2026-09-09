@@ -36,7 +36,8 @@ import type { DeckId, RoomId, Rect } from "./hubLayoutKit";
 import { DECK_LAYOUTS } from "./hubLayout";
 import type { CampaignState, LanceId, ReservedBayId } from "./campaignState";
 import type { Catalyst, Stage } from "../data/ambientLines";
-import type { CampaignMission, Species } from "../data/types";
+import type { CampaignMission, PilotBackground, Species } from "../data/types";
+import { catalystForPilot } from "../data/npcSeed";
 
 export interface Point {
   x: number;
@@ -199,6 +200,25 @@ export interface FacilityTables {
   mekSpots(room: RoomId): Point[];
   berthRoomFor(lance: LanceId): RoomId;
   workshopRoomFor(lance: LanceId): RoomId;
+}
+
+/**
+ * A Mek's catalyst, by the one rule both buildings use — 9 Sep 2026, moved
+ * here from scenes/Hub.ts's buildNpcs() so the Archive's Mek dossier
+ * (engine/archiveDossier.ts) and the Workshop floor read the same answer
+ * from the same place, and can never disagree about who a Mek is.
+ *
+ * Precedence, exactly as Hub.ts had it inline: a hand-placed seed's own
+ * catalyst (profile.mekSeeds — Warden's five Act I Meks), then the
+ * profile's hand-picked overrides (profile.mekCatalysts — Warden's ten
+ * bench Meks, 1 Sep 2026), then catalystForPilot, which reads the
+ * BACKGROUND_CATALYST_ASSIGNMENTS map (every other named Mek on either
+ * campaign) and finally a generated recruit's own rolled background.
+ */
+export function mekCatalystFor(profile: FacilityProfile, mekId: string, background?: PilotBackground): Catalyst {
+  const seed = profile.mekSeeds.find((s) => s.mekId === mekId);
+  if (seed) return seed.catalyst;
+  return profile.mekCatalysts[mekId] ?? catalystForPilot(mekId, background);
 }
 
 export function buildFacilityTables(profile: FacilityProfile): FacilityTables {

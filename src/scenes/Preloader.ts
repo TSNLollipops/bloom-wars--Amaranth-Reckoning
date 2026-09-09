@@ -2,9 +2,16 @@
 // B4 (portrait wiring), 5 Sep 2026 — the game's first-ever image-loading
 // step. Every other scene in this game draws with Phaser Graphics/Text
 // primitives (Boot.ts's own header used to say so outright); this is the
-// one place that calls this.load.image(), so it's also the one place a
-// missing or renamed file under public/portraits or public/splash would
-// ever throw a load error.
+// one place that calls this.load.image() (or, since A6 below, this.load.
+// audio()), so it's also the one place a missing or renamed file under
+// public/portraits, public/splash, or public/audio would ever throw a
+// load error.
+//
+// Audio, "enough for EA" scope (A6, 9 Sep 2026) — added the eight files
+// under public/audio/ to this same up-front load via
+// scenes/audio/AudioManager.ts's own preloadAudio(). See that file's
+// header for the full manager and engine/audioSettings.ts for the two
+// volume sliders' own persistence.
 //
 // Sits between Boot and wherever Boot was already going (MainMenu on a
 // fresh/ordinary load, or baseSceneKeyFor(state) off the recall notice's
@@ -20,6 +27,7 @@
 // simpler and not meaningfully worse than trying to stagger it.
 import Phaser from "phaser";
 import { allPortraitAssets, SPLASH_ASSETS } from "../engine/portraits";
+import { preloadAudio } from "./audio/AudioManager";
 
 export interface PreloaderData {
   /** Scene key to start once loading finishes. Defaults to "MainMenu". */
@@ -64,6 +72,11 @@ export class Preloader extends Phaser.Scene {
     for (const asset of SPLASH_ASSETS) {
       this.load.image(asset.key, `/${asset.path}`);
     }
+    // Audio, "enough for EA" scope (A6, 9 Sep 2026) — the eight files under
+    // public/audio/, same up-front-load idiom as the portraits/splash art
+    // right above rather than lazy per-scene loading. All eight together
+    // are well under 150KB, nowhere near enough to justify staggering.
+    preloadAudio(this);
   }
 
   create() {

@@ -1,5 +1,5 @@
 {
-  "_comment": "Qiraki named-character roster, for the Bloom Wars cast-collision lint (tools/lint-cast-collision.mjs). Sourced from Qiraki_Character_Sheets_v5.md and Qiraki_Military_Era_Outline_v3.md. This is a DIFFERENT protection from the Build Brief's spoiler-lock term (tools/lint-spoiler.mjs) - that one guards a single hidden reveal word and stays untouched. This one guards against a brand-new Bloom Wars name accidentally colliding with an existing Qiraki character, so the two properties never read as conflicting if held side by side (Master Index's own 'not conflicting' condition). Full crossover (2 Sep 2026) makes species/setting/structural borrowing fair game - it does not make character-name collisions fine, which is a continuity problem, not a spoiler one.",
+  "_comment": "Qiraki named-character roster, for the Bloom Wars cast-collision lint (tools/lint-cast-collision.mjs). Sourced from Qiraki_Character_Sheets (originally v5; refreshed 9 Sep 2026 against Maxime's uploaded current sheets, header-dated v34) and Qiraki_Military_Era_Outline_v3.md. This is a DIFFERENT protection from the Build Brief's spoiler-lock term (tools/lint-spoiler.mjs) - that one guards a single hidden reveal word and stays untouched. This one guards against a brand-new Bloom Wars name accidentally colliding with an existing Qiraki character, so the two properties never read as conflicting if held side by side (Master Index's own 'not conflicting' condition). Full crossover (2 Sep 2026) makes species/setting/structural borrowing fair game - it does not make character-name collisions fine, which is a continuity problem, not a spoiler one.",
   "approvedCrossover": [
     {
       "name": "Fracrals Thyns",
@@ -31,6 +31,7 @@
     { "name": "Jifsook", "match": "single" },
     { "name": "Bruvald Ashe", "match": "full" },
     { "name": "Krethis", "match": "single" },
+    { "name": "Nossik", "match": "single", "note": "Added 9 Sep 2026, v34 sheets — Hiopi cadet, promoted to full entry B1.CH24-25." },
     { "name": "Peregrine Thale", "match": "full" },
     { "name": "Alina Firemoss", "match": "full" },
     { "name": "Toma Ruiz", "match": "full" },
@@ -43,12 +44,14 @@
     { "name": "Doyle Marsh", "match": "full" },
     { "name": "Sana Voight", "match": "full" },
     { "name": "Soren Adair", "match": "full" },
+    { "name": "Chidi Ekwueme", "match": "full", "note": "Added 9 Sep 2026, v34 sheets — promoted from the background register B1.CH06-25. His surname alone is already an accepted RECRUIT_SURNAMES entry (src/data/names.ts), same 'full' precedent as Okafor/Reyes/Osei below — flagged for Maxime's own read in the name-check doc, not auto-changed." },
     { "name": "Mikka Reyes", "match": "full" },
     { "name": "Perrin Cato", "match": "full" },
     { "name": "Faela Bren", "match": "full" },
     { "name": "Reya Solt", "match": "full" },
     { "name": "Denna Ashworth", "match": "full" },
     { "name": "Vekk", "match": "single" },
-    { "name": "Milo Castellane", "match": "full" }
+    { "name": "Milo Castellane", "match": "full" },
+    { "name": "Corran", "match": "single", "note": "Added 9 Sep 2026, v34 sheets — background cohort register, B1.CH06, thin/swappable entry per that register's own rule but on the page and named, so reserved the same as anything else here." }
   ]
 }

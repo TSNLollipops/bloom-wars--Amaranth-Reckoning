@@ -1,0 +1,77 @@
+The Bloom Wars — public/audio/ credits
+========================================
+Replaces the procedurally-synthesized placeholder audio (9 Sep 2026, night)
+with real CC0 (public domain) recordings, fetched live via the Chrome
+extension on 9 Sep 2026. All sources are Creative Commons Zero — no
+attribution is legally required, but it's listed here so the source is
+never lost and so any file can be swapped again later.
+
+hub_ambient.ogg
+    Source: "Scifi City - Ambient Loop" (busy_cyberworld.ogg) by TinyWorlds
+    https://opengameart.org/content/scifi-city-ambient-loop
+    License: CC0
+    Note: the source page itself says it "loops (kinda) seamlessly" — a
+    short fade-in/out was applied at the seam here, not a true crossfade
+    loop. Worth a listen before assuming it's glitch-free on repeat.
+
+battle_ambient.ogg
+    Source: "Sci-Fi Background noise" by Spring Spring / Spring Enterprises
+    https://opengameart.org/content/sci-fi-background-noise
+    License: CC0
+    Note: same fade in/out treatment as hub_ambient, same caveat.
+
+sfx_hit.ogg
+    Source: Kenney "Sci-fi Sounds" pack, Audio/impactMetal_002.ogg
+    https://kenney.nl/assets/sci-fi-sounds
+    License: CC0
+
+sfx_dodge.ogg
+    Source: Kenney "Sci-fi Sounds" pack, Audio/forceField_001.ogg
+    https://kenney.nl/assets/sci-fi-sounds
+    License: CC0
+    Note: trimmed to 0.4s with a fade-out (the original is a ~1s held
+    shield hum) to read as a quick deflect rather than a sustained tone.
+
+sfx_kill.ogg
+    Source: Kenney "Sci-fi Sounds" pack, Audio/explosionCrunch_003.ogg
+    https://kenney.nl/assets/sci-fi-sounds
+    License: CC0
+    Note: trimmed to 0.7s with a fade-out (original ~1.55s) to keep the
+    punchy onset without a long tail.
+
+sfx_click.ogg
+    Source: Kenney "Interface Sounds" pack, Audio/click_001.ogg
+    https://kenney.nl/assets/interface-sounds
+    License: CC0
+
+sfx_mission_win.ogg
+    Source: Kenney "Music Jingles" pack, Audio/Steel jingles/jingles_STEEL01.ogg
+    https://kenney.nl/assets/music-jingles
+    License: CC0
+
+sfx_pilot_lost.ogg
+    Source: Kenney "Sci-fi Sounds" pack, Audio/lowFrequency_explosion_001.ogg
+    https://kenney.nl/assets/sci-fi-sounds
+    License: CC0
+    Note: small fade-out applied for a clean tail.
+
+All files resampled/converted to 44100Hz stereo Ogg Vorbis to match the
+project's existing pipeline — same filenames as before, so no code
+changed, only the binaries under this folder.
+
+tools/synth_placeholder_audio.py (the earlier procedural-synthesis script)
+is left in the repo as-is — it's how these files were generated before
+tonight, and it's still there if any of these real assets need a quick
+synthetic stand-in again for some reason.
+
+Update, 9 Sep 2026 (later that night): the raw source packs for every file
+above are now archived locally under assets/audio_sources/ — see that
+folder's own README.md. Verified byte-for-byte against what's actually
+shipped here: durations match exactly (hub_ambient/busy_cyberworld both
+29.304354s; battle_ambient/scifi_background_noise 72.053583s vs.
+72.053563s in the source, a sub-millisecond encode-rounding difference;
+sfx_hit/impactMetal_002 both 0.471111s, untrimmed; sfx_click/click_001 and
+sfx_mission_win/jingles_STEEL01 both untrimmed matches; sfx_dodge and
+sfx_kill match their documented trims; sfx_pilot_lost/lowFrequency_explosion_001
+both 1.000045s). Every source pack behind this file is now archived
+locally — nothing left only URL-referenced.

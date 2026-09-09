@@ -44,6 +44,40 @@ export function isRomanceableSpecies(species: Species): boolean {
   return !ROMANCE_CAPPED_SPECIES.includes(species);
 }
 
+// Pairwise species compatibility, added 9 Sep 2026 — a genuinely different
+// rule from ROMANCE_CAPPED_SPECIES/isRomanceableSpecies above, not an
+// extension of it. Maxime, after confirming the existing single-species
+// cap: "species compatibility system. hiopi can only truly pair with other
+// hiopi." That single-species cap is PLAYER-FACING ONLY and has no pairwise
+// concept at all — it answers "can Rourke romance this NPC," never "can
+// these two NPCs romance each other" (see socialSim.ts's own header, now
+// corrected, on why NPC-to-NPC deliberately never called
+// isRomanceableSpecies at all). This function is the first real pairwise
+// rule and it DOES apply NPC-to-NPC, on purpose — Maxime's own framing was
+// "hiopi just cant romance unless there another hiopi on the ship," which
+// only means anything if it constrains who else is aboard, not just
+// whether the player specifically is eligible.
+//
+// Carabil is deliberately NOT part of this function. Maxime's own words
+// the same session, "carabil dont reproduce sexually," are a biology/
+// worldbuilding fact, not a request to also code a Carabil pairwise
+// exclusion — nothing said asks for one, and isRomanceableSpecies() above
+// already covers what Carabil actually needs today (capped at close-friend
+// for the PLAYER; unrestricted NPC-to-NPC, unchanged by this addition).
+// If Carabil ever needs a real pairwise rule of its own (e.g. modeling
+// however they actually DO reproduce), that's a separate, undecided
+// design question — flagging it here rather than quietly deciding it by
+// omission.
+//
+// Symmetric by construction (a === b check reads the same either order) —
+// not explicitly confirmed by Maxime this round, but there's no coherent
+// reading of "Hiopi can only pair with Hiopi" that isn't symmetric, so this
+// is a safe default rather than a real judgment call.
+export function speciesCompatibleForRomance(a: Species, b: Species): boolean {
+  if (a === "hiopi" || b === "hiopi") return a === "hiopi" && b === "hiopi";
+  return true;
+}
+
 // ROMANCE_MIN_FAVORABILITY and the two deltas below are placeholder
 // numbers, same "not a locked number" caveat as every other Favorability
 // touch in this scene (Hub.ts's own file header, darts/pegBoard/poker's

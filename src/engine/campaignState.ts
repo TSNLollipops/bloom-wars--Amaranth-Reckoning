@@ -53,6 +53,8 @@
 import type { MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
 import type { Stage } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
+import { rollBackground } from "../data/background";
+import { generateCallsign, generateMekName, generateRecruitName, randomFrom } from "../data/names";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "../data/campaignAmaranth";
 // House Amaranth — Mission Select + roster-seeding pass, 1 Sep 2026.
 import {
@@ -620,6 +622,19 @@ export function createCampaignState(pilots: PilotRecord[], meks: Record<string, 
     calendarDay: 1,
     beaconCrates: BEACON_STARTING_CRATES,
     beaconCharges: BEACON_STARTING_CHARGES,
+    // Recruit Cap Rework (9 Sep 2026) bugfix: a fresh campaign must start
+    // with an explicit lancesGranted=1, not undefined. Before this rework,
+    // leaving it undefined was harmless — derivedLanceCount's roster-
+    // membership fallback couldn't be fooled, because recruiting into
+    // lances "b"/"c" was itself gated on the story beat. Now that
+    // activeLanceIds opens "b"/"c"/"d" from Mission 1 regardless of the
+    // beat, that same fallback would infer a higher lanceCount (and
+    // therefore a higher deriveRourkeRank) purely from which authored
+    // candidates got recruited — exactly the roster-size coupling Q1's
+    // recommended default says NOT to have. Setting it explicitly here
+    // keeps derivedLanceCount reserved for genuinely legacy saves (pre
+    // 5 Sep 2026) loaded through backfillLancesGranted, never a fresh one.
+    lancesGranted: 1,
   };
   for (const p of pilots) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(meks)) state.meks[id] = { ...m };
@@ -1283,52 +1298,16 @@ export function canLaunchMission(deployedPilotIds: string[], state: CampaignStat
 // beat. The discretionary track is an ordinary points-shop purchase and is
 // allowed to fail.
 
-const RECRUIT_CALLSIGNS = ["Sprocket", "Halfmoon", "Thistle", "Coldsnap", "Marrow", "Windup", "Juniper", "Rattler", "Fenwick", "Hollow"];
-
-/** Cycles the small callsign pool, appending a generation number once it wraps ("Sprocket", ... "Hollow", "Sprocket 2", ...) so every earned callsign stays unique without needing an ever-growing name list. */
-function generateCallsign(n: number): string {
-  const base = RECRUIT_CALLSIGNS[(n - 1) % RECRUIT_CALLSIGNS.length];
-  const cycle = Math.floor((n - 1) / RECRUIT_CALLSIGNS.length);
-  return cycle === 0 ? base : `${base} ${cycle + 1}`;
-}
-
-// Recruit name pools (5 Sep 2026, Maxime: "Can you randomise name in the
-// pool"). A recruit used to be "Recruit \"Sprocket\"" — no name, no rank,
-// which reads as a body rather than a person and works against every system
-// this game has for making you care about them (permadeath, the memorial
-// roll, the social sim). Now they get a real rank and a real name.
-//
-// Deliberately NOT a callsign at recruit time: Maxime's own call is that a
-// callsign is EARNED ("Allow recruit to gain callsign via actions"), so a
-// recruit joins as "Cpl. Vera Okonkwo" and becomes "Cpl. Vera Okonkwo —
-// \"Tinder\"" once the crew has a reason to name them. See awardCallsign.
-//
-// Ultimately this belongs to the character creator/editor (Maxime: "Itl be
-// ultimately part of the creator editor") — these pools are the interim, and
-// are deliberately plain lists so that editor can replace them without
-// touching any logic.
-const RECRUIT_FIRST_NAMES = [
-  "Vera", "Idris", "Noor", "Cassian", "Mira", "Tobias", "Saoirse", "Emeka",
-  "Runa", "Alaric", "Zaine", "Petra", "Kwame", "Ilse", "Renzo", "Ayla",
-  "Dmitri", "Neve", "Osman", "Thea", "Bastien", "Junia", "Marek", "Sena",
-];
-const RECRUIT_SURNAMES = [
-  "Okonkwo", "Valdis", "Brennan", "Nakamura", "Oyelaran", "Ferrow", "Halden", "Sarkis",
-  "Mbeki", "Cortez", "Ashgrove", "Vantry", "Delacroix", "Osei", "Lindqvist", "Rahal",
-  "Petrov", "Quilliam", "Adeyemi", "Sandoval", "Novak", "Fairweather", "Duarte", "Kessler",
-];
-
-/** The rank a fresh recruit carries. Deliberately junior — they are new, and the authored cast's ranks are earned. */
-const RECRUIT_RANKS = ["Pvt.", "Spec.", "Cpl."];
-
-function randomFrom<T>(list: readonly T[]): T {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-/** A recruit's plain rank-and-name identity, with no callsign — that gets earned. */
-function generateRecruitName(): string {
-  return `${randomFrom(RECRUIT_RANKS)} ${randomFrom(RECRUIT_FIRST_NAMES)} ${randomFrom(RECRUIT_SURNAMES)}`;
-}
+// Recruit name pools and the callsign cycle moved to data/names.ts on
+// 9 Sep 2026 (Maxime: "we should also make a name generator for the
+// character generator") — the 5 Sep pools' own comment said they belonged
+// to the character creator/editor, and one file both this generator and
+// that editor import from is how that stops being a comment. What is
+// still true here: a recruit joins as "Cpl. Vera Okonkwo" — a real rank
+// and a real name, never a callsign, because a callsign is EARNED
+// (awardCallsign below). The Mek side is new: a generated recruit's Mek
+// now gets a single given name of their own (generateMekName) instead of
+// "<Surname>'s Mek", per Bloom_Wars_Mek_NPC_Introduction_Plan_v1.md §10.
 
 /**
  * The crew gives a pilot a callsign (5 Sep 2026). Recruits join nameless in
@@ -1372,39 +1351,77 @@ export const CLASS_DEFAULT_MEK_TRACK: Record<Path, MekTrack> = {
 // data/units.ts archetype ids are arch_<class>_<suffix>, where suffix is
 // "bipedal"/"centauroid"/"vibrissal" — NOT the Chassis type's own value
 // ("bipedal_vibrissal"), which is why this is its own small type rather
-// than importing Chassis from data/types. Kept local to this file since
-// nothing else needs it.
+// than importing Chassis from data/types.
 // (engine/heirlooms.ts carries its own copy of these three values as
-// HeirloomChassis, since this one is deliberately file-local. If a third
-// consumer ever appears, that is the moment to move the union into
-// data/types.ts rather than write it a third time.)
-type ArchetypeChassisSuffix = "bipedal" | "centauroid" | "vibrissal";
+// HeirloomChassis, since this one is deliberately file-local to
+// campaignState.ts's own id-building. Exported, 9 Sep 2026 (Character
+// Creator pass) — the "third consumer" this comment used to say would be
+// the trigger to move the union into data/types.ts turned out to be
+// scenes/shop/CharacterCreatorOverlay.ts, and importing this existing
+// declaration is exactly the "don't write it a third time" outcome the
+// old note wanted, so it stays put rather than relocating.)
+export type ArchetypeChassisSuffix = "bipedal" | "centauroid" | "vibrissal";
 
-/** Shared by both recruit paths below: mints a brand-new baseline G-tier pilot (and a fresh, unassigned-track-default mek) of the given class and adds both to the campaign state. Never reuses a lost pilot's identity, tier, or mek — a genuinely new record, so there is nothing to carry over by construction (rule 6's own point). `chassisSuffix` defaults to "bipedal" — every existing call site (checkMuntiGuarantee, recruitDiscretionary) is unaffected; only generateRandomRescuedPilot below passes a rolled value. */
+/**
+ * Shared by every recruit path below: mints a brand-new baseline G-tier
+ * pilot (and a fresh, unassigned-track-default mek) of the given class and
+ * adds both to the campaign state. Never reuses a lost pilot's identity,
+ * tier, or mek — a genuinely new record, so there is nothing to carry over
+ * by construction (rule 6's own point).
+ *
+ * `chassisSuffix` defaults to "bipedal" purely as a safety net for any
+ * future caller that forgets to pass one — every real call site as of 9
+ * Sep 2026 (checkMuntiGuarantee, recruitDiscretionary, recruitIntoLance's
+ * generated-fallback branch, generateRandomRescuedPilot) now passes an
+ * explicit value, almost always randomChassisSuffix() below. Before this
+ * pass only generateRandomRescuedPilot ever varied it — the other three
+ * silently minted human/bipedal recruits every time, not by any design
+ * decision on record, just because nobody had wired the roll in yet.
+ * Maxime, 9 Sep 2026: "we should make sure player truly get randomized
+ * npc if they recruit a soldier in the hangar bay. and when they receive
+ * brand new munties from various source." This is that fix.
+ */
 function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: ArchetypeChassisSuffix = "bipedal"): PilotRecord {
   const n = state.nextGeneratedId;
   state.nextGeneratedId += 1;
-  // A real rank and name, not a callsign — see RECRUIT_FIRST_NAMES' own note
+  // A real rank and name, not a callsign — see data/names.ts's own header
   // and awardCallsign for why a recruit starts unnamed in that sense.
   const recruitName = generateRecruitName();
   const pilotId = `pilot_recruit_${n}`;
   const mekId = `mek_recruit_${n}`;
 
+  // The Catalyst Gauntlet, 9 Sep 2026 (Catalyst_Gauntlet_v2_ThirdLance_
+  // Verinis_Recruits.md §5 item 3, "go" 7 Sep 2026): every generated pilot
+  // and their Mek now roll a real background, not just a class/chassis.
+  // The Mek's is deliberately excluded from the pilot's own sector — "a
+  // second, contrasting one for the Mek (a different sector, at least)" —
+  // so a recruit and their Mek never read as having grown up in the same
+  // place by pure chance.
+  const pilotBackground = rollBackground();
+  const mekBackground = rollBackground(Math.random, { excludeSector: pilotBackground.sector });
+
   const mek: MekArchetype = {
     id: mekId,
-    displayName: `${recruitName.split(" ").slice(-1)[0]}'s Mek`,
+    // A given name of their own, not "<Surname>'s Mek" — Bloom_Wars_Mek_NPC_
+    // Introduction_Plan_v1.md §10 (8 Sep 2026): once a Mek has a name, the
+    // possessive label retires everywhere the player reads it, and the
+    // pairing lives on the Mek's own Archive dossier as "Attached synker"
+    // instead. Skips every name already on this save so no two Meks
+    // aboard share one.
+    displayName: generateMekName(Object.values(state.meks).map((m) => m.displayName)),
     primary: CLASS_DEFAULT_MEK_TRACK[targetClass],
     secondary: null,
     spareParts: 0,
+    background: mekBackground,
   };
   state.meks[mekId] = mek;
 
   // arch_${class}_bipedal is every class's "standard" archetype — the same
   // convention data/units.ts's own HOSTILE_MECHS comment describes ("All
-  // four use the standard bipedal archetypes," Data Pack §9). Every OTHER
-  // caller of this function still gets exactly that (chassisSuffix defaults
-  // to "bipedal"); only a rescue-generated recruit's chassis is ever
-  // anything else.
+  // four use the standard bipedal archetypes," Data Pack §9). Not the only
+  // chassis a generated recruit gets anymore as of 9 Sep 2026 — see this
+  // function's own header — but still the parameter's fallback value, so
+  // this stays the right shape to reference for that convention.
   const pilot: PilotRecord = {
     id: pilotId,
     displayName: recruitName,
@@ -1418,22 +1435,85 @@ function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: A
     // Tank recruit, and widening it to every class would quietly make this
     // the strongest module in the game.
     tier: targetClass === "munti" && (state.builtModules ?? []).includes("combatMedic") ? "F" : "G",
+    background: pilotBackground,
   };
   state.pilots[pilotId] = { pilot, status: "active", personalPoints: 0 };
   return pilot;
 }
 
 const ALL_RECRUITABLE_PATHS: Path[] = ["meeps", "tank", "reeps", "munti"];
-const ALL_CHASSIS_SUFFIXES: ArchetypeChassisSuffix[] = ["bipedal", "centauroid", "vibrissal"];
+
+/** Every chassis suffix generatePilot understands. Exported (9 Sep 2026) for randomChassisSuffix below and for scenes/shop/CharacterCreatorOverlay.ts's species picker — one list, so the two never drift apart. */
+export const ALL_CHASSIS_SUFFIXES: ArchetypeChassisSuffix[] = ["bipedal", "centauroid", "vibrissal"];
+
+/**
+ * One equal-odds pick among the three chassis suffixes — human, Hiopi,
+ * Osnian (`ArchetypeChassisSuffix`'s own header has the id-suffix-to-
+ * species mapping). Added 9 Sep 2026 pulling the roll generateRandomRescuedPilot
+ * already did for chassis out into its own function, so checkMuntiGuarantee
+ * and recruitDiscretionary can share the exact same roll instead of each
+ * silently defaulting to human. `rng` is injectable so a test can be
+ * deterministic, same idiom as data/names.ts's randomFrom.
+ */
+export function randomChassisSuffix(rng: () => number = Math.random): ArchetypeChassisSuffix {
+  return ALL_CHASSIS_SUFFIXES[Math.floor(rng() * ALL_CHASSIS_SUFFIXES.length)];
+}
+
+export type RechassisResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * The Character Creator overlay's species/chassis change, for a pilot
+ * that generatePilot minted (a real, generated recruit — never one of the
+ * hand-authored named-cast entries, which don't carry a class/chassis
+ * split this cleanly and aren't meant to be re-chassised by a player;
+ * callers are responsible for only ever pointing this at a
+ * generatePilot-made id, same discretion recruitDiscretionary/
+ * checkMuntiGuarantee/generateRandomRescuedPilot's callers already need).
+ * Rebuilds `archetypeId` as `arch_<same class>_<new chassis>` — the class
+ * half never changes here, only the chassis suffix — and validates the
+ * result actually exists in UNIT_ARCHETYPES before committing (every
+ * class x chassis combination does exist today, per data/units.ts, but
+ * this stays a real check rather than a blind string rebuild in case that
+ * ever stops being true). Everything downstream that cares about species
+ * — isRomanceableSpecies, Hub.ts's buildNpcs — already reads it live off
+ * archetypeId every time rather than caching it anywhere, so there is
+ * nothing else to update once this returns ok.
+ */
+export function rechassisPilot(state: CampaignState, pilotId: string, chassisSuffix: ArchetypeChassisSuffix): RechassisResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: "no such pilot" };
+  const currentArchetype = UNIT_ARCHETYPES[entry.pilot.archetypeId];
+  if (!currentArchetype) return { ok: false, reason: "pilot's current archetype is unknown" };
+  const nextArchetypeId = `arch_${currentArchetype.path}_${chassisSuffix}`;
+  if (!UNIT_ARCHETYPES[nextArchetypeId]) return { ok: false, reason: `no archetype for ${currentArchetype.path}/${chassisSuffix}` };
+  entry.pilot = { ...entry.pilot, archetypeId: nextArchetypeId };
+  return { ok: true };
+}
+
+/**
+ * The Character Creator overlay's name field/"reroll name" button. Plain
+ * trim-or-keep, same idiom as CampaignSetup.ts's resolveCompanyName — an
+ * accidental blank submit keeps whatever name the pilot already had
+ * rather than saving an empty displayName.
+ */
+export function renamePilot(state: CampaignState, pilotId: string, displayName: string): RechassisResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: "no such pilot" };
+  const trimmed = displayName.trim();
+  if (trimmed.length === 0) return { ok: true }; // no-op, not an error — see header
+  entry.pilot = { ...entry.pilot, displayName: trimmed };
+  return { ok: true };
+}
 
 /**
  * Mission 5's rescue-and-recruit bonus objective (Maxime, 23 Aug 2026 —
  * asked whether a rescue should hand back a fixed class or a real wildcard:
- * "Chassis and class, both random." — a genuinely different guarantee from
- * both existing recruit paths above: checkMuntiGuarantee always wants a
- * Munti, recruitDiscretionary lets the PLAYER choose the class; this is the
- * only one where NEITHER axis is chosen by anything except an equal-odds
- * roll). Call this once, only when a Mission's rescueOutcome reads
+ * "Chassis and class, both random." — this used to be the only recruit
+ * path where chassis was ever anything but human; as of 9 Sep 2026 it no
+ * longer is, but it stays the only one where NEITHER class nor chassis is
+ * chosen by anything except an equal-odds roll — checkMuntiGuarantee still
+ * always wants a Munti, recruitDiscretionary still lets the PLAYER choose
+ * the class). Call this once, only when a Mission's rescueOutcome reads
  * "succeeded" (engine/mission.ts) — scenes/Debrief.ts is the one real call
  * site, mirroring checkMuntiGuarantee's own "run once on entry" shape.
  *
@@ -1447,8 +1527,7 @@ const ALL_CHASSIS_SUFFIXES: ArchetypeChassisSuffix[] = ["bipedal", "centauroid",
  */
 export function generateRandomRescuedPilot(state: CampaignState): PilotRecord {
   const targetClass = ALL_RECRUITABLE_PATHS[Math.floor(Math.random() * ALL_RECRUITABLE_PATHS.length)];
-  const chassisSuffix = ALL_CHASSIS_SUFFIXES[Math.floor(Math.random() * ALL_CHASSIS_SUFFIXES.length)];
-  return generatePilot(state, targetClass, chassisSuffix);
+  return generatePilot(state, targetClass, randomChassisSuffix());
 }
 
 function countActiveMuntis(state: CampaignState): number {
@@ -1470,10 +1549,16 @@ export interface MuntiGuaranteeResult {
  * particular squad have one." Unconditional: no points cost, cannot fail,
  * by design — this is the mechanism that guarantees the deploy gate
  * (canLaunchMission above) can never permanently brick a save.
+ *
+ * Chassis randomized (9 Sep 2026 — see generatePilot's own header) rather
+ * than silently always human: "brand new munties from various source"
+ * should actually vary, same as any other generated recruit now does.
+ * checkMuntiGuarantee itself still ONLY ever varies chassis, never class —
+ * guaranteeing a Munti specifically is the entire point of this function.
  */
 export function checkMuntiGuarantee(state: CampaignState): MuntiGuaranteeResult {
   if (countActiveMuntis(state) > 0) return { recruited: false };
-  const pilot = generatePilot(state, "munti");
+  const pilot = generatePilot(state, "munti", randomChassisSuffix());
   return { recruited: true, pilot };
 }
 
@@ -1503,6 +1588,14 @@ export const DISCRETIONARY_RECRUIT_COST = 80;
  * a second Munti bought proactively before the roster ever hits zero,
  * which the campaign doc calls out as a real tactical purchase once Act
  * II's composition choice opens deploy slots up to 8-of-10.
+ *
+ * Chassis randomized (9 Sep 2026 — see generatePilot's own header) rather
+ * than silently always human: the player still only chooses class here
+ * (targetClass, via the Hangar/shop's own class selector), same as always
+ * — species is the roll, same as every other generated recruit now gets,
+ * and the Character Creator overlay this ships alongside
+ * (scenes/shop/CharacterCreatorOverlay.ts) is where the player actually
+ * sees and can reroll that result before it's final.
  */
 export function recruitDiscretionary(state: CampaignState, targetClass: Path): RecruitResult {
   if (state.points < DISCRETIONARY_RECRUIT_COST) {
@@ -1512,7 +1605,7 @@ export function recruitDiscretionary(state: CampaignState, targetClass: Path): R
     };
   }
   state.points -= DISCRETIONARY_RECRUIT_COST;
-  const pilot = generatePilot(state, targetClass);
+  const pilot = generatePilot(state, targetClass, randomChassisSuffix());
   return { ok: true, pilot };
 }
 
@@ -1855,10 +1948,16 @@ export function deriveRourkeRank(state: CampaignState): Rank {
 // space is sized for that now rather than being widened later against live
 // saves.
 //
-// The CURRENT campaign never reaches d or e. A carrier gains one lance per
-// act — A from the start, B at Mission 12, C at Mission 24 — so this game
-// tops out at three. lanceCount()/activeLanceIds() below are what any UI
-// should ask; LANCE_IDS is the id space, not "the lances you have".
+// The CURRENT campaign never reaches e. Recruit Cap Rework (9 Sep 2026,
+// Bloom_Wars_Recruit_Cap_Rework_Plan_v1.md) opened a/b/c/d to recruiting
+// from Mission 1, cost-gated only — see RECRUITABLE_LANCES and
+// activeLanceIds below. That's deliberately a SEPARATE fact from
+// lanceCount()/state.lancesGranted, which still only advances on the
+// Mission 12/24 story beat (A from the start, B at Mission 12, C at
+// Mission 24) — that beat still drives Rourke's rank and the Debrief
+// "you've been given a lance" callout, it just no longer gates the
+// roster. LANCE_IDS is the id space, not "the lances you have";
+// activeLanceIds is what any recruiting/assignment UI should ask.
 export type LanceId = "a" | "b" | "c" | "d" | "e";
 
 export function lanceOfPilot(pilotId: string): LanceId {
@@ -1900,9 +1999,28 @@ export const LANCE_IDS: readonly LanceId[] = ["a", "b", "c", "d", "e"];
 export const MAX_LANCES = 5;
 
 /**
- * How many lances THIS carrier actually has, derived from campaign progress
- * rather than stored: one per act, granted by the integrate*Lance functions
- * seeding their batch into the roster.
+ * Recruit Cap Rework (9 Sep 2026, Bloom_Wars_Recruit_Cap_Rework_Plan_v1.md).
+ * How many lances the ROSTER can actually be recruited and assigned into,
+ * starting Mission 1 — gated on cost alone (DISCRETIONARY_RECRUIT_COST, at
+ * ROSTER & GEAR / the Campaign Shop), not on the Mission 12/24 story beat
+ * lanceCount/state.lancesGranted still tracks below. 4 * MAX_LANCE_SIZE
+ * (5) = 20, Maxime's own confirmed math ("you can have up to 20 pair
+ * recruited but only able to fill the rooster of 5 in act 1 10 in act 2
+ * and 15 in act 3" — deploy caps are untouched by this, see
+ * TransporterPad.ts's ACT1/2/3_DEPLOY_CAP, this is the bench behind them).
+ * Deliberately less than MAX_LANCES (5) — the 5th lance id stays
+ * Gladiator-only, exactly as before this rework.
+ */
+export const RECRUITABLE_LANCES = 4;
+
+/**
+ * How many lances THIS carrier has been GRANTED, as its own story beat —
+ * unchanged by the Recruit Cap Rework: one per act, advanced only by the
+ * integrate*Lance functions below, on Mission 12/24's win. What
+ * deriveRourkeRank and the Debrief "you've been given a lance" callout
+ * read. It is NOT the roster's recruiting ceiling any more — see
+ * RECRUITABLE_LANCES/activeLanceIds for that, and don't reach for this to
+ * answer "which lances can I recruit into right now."
  *
  * Deliberately checks membership in the static arrival batches rather than
  * current assignment, so it stays correct after the player reshuffles
@@ -1924,9 +2042,21 @@ function derivedLanceCount(state: CampaignState): number {
   return n;
 }
 
-/** The lances this carrier actually has, in order. What every roster/deploy UI should iterate. */
-export function activeLanceIds(state: CampaignState): LanceId[] {
-  return LANCE_IDS.slice(0, lanceCount(state));
+/**
+ * The lances open for recruiting and assignment RIGHT NOW — every
+ * roster/deploy UI's own "which lances exist" question. Recruit Cap
+ * Rework, 9 Sep 2026: this is now a fixed shape, RECRUITABLE_LANCES from
+ * Mission 1, deliberately decoupled from lanceCount/state.lancesGranted —
+ * that's a separate, narrower fact about the Mission 12/24 story beat
+ * (Rourke's rank, the Debrief callout), not the roster's own ceiling.
+ * `state` stays a parameter for every existing call site (and in case a
+ * future carrier type ever needs to vary this) even though the current
+ * body doesn't read it. A lance being "active" here has never meant
+ * "staffed" — see lanceRoster for who's actually in it, which can be
+ * anywhere from empty to full independent of this.
+ */
+export function activeLanceIds(_state: CampaignState): LanceId[] {
+  return LANCE_IDS.slice(0, RECRUITABLE_LANCES);
 }
 
 /** Display name for a lance, in the game's own voice. */
@@ -2005,7 +2135,7 @@ export function grantLance(state: CampaignState): boolean {
  * CampaignState — reused here rather than inventing a second detector.
  *
  * Once the pool is exhausted, recruiting generates pilots with names from
- * RECRUIT_FIRST_NAMES/RECRUIT_SURNAMES instead, so the well never runs dry.
+ * data/names.ts's RECRUIT_FIRST_NAMES/RECRUIT_SURNAMES instead, so the well never runs dry.
  */
 export function recruitCandidates(state: CampaignState): PilotRecord[] {
   const authored =
@@ -2070,7 +2200,7 @@ export type RecruitIntoLanceResult = { ok: true; pilot: PilotRecord } | { ok: fa
  */
 export function recruitIntoLance(state: CampaignState, lance: LanceId, candidateId?: string): RecruitIntoLanceResult {
   if (!activeLanceIds(state).includes(lance)) {
-    return { ok: false, reason: `${lanceDisplayName(lance)} doesn't exist yet — a carrier gains one lance per act` };
+    return { ok: false, reason: `${lanceDisplayName(lance)} isn't part of this campaign — up to ${RECRUITABLE_LANCES} lances can be recruited` };
   }
   if (lanceRoster(state, lance).length >= MAX_LANCE_SIZE) {
     return { ok: false, reason: `${lanceDisplayName(lance)} is full (${MAX_LANCE_SIZE} is the most that can deploy together)` };
@@ -2094,7 +2224,11 @@ export function recruitIntoLance(state: CampaignState, lance: LanceId, candidate
     const mek = { ...SECOND_LANCE_MEKS, ...THIRD_LANCE_MEKS, ...HOUSE_AMARANTH_SECOND_LANCE_MEKS, ...HOUSE_AMARANTH_THIRD_LANCE_MEKS }[pilot.mekId];
     if (mek) state.meks[pilot.mekId] = { ...mek };
   } else {
-    pilot = generatePilot(state, randomFrom(ALL_RECRUITABLE_PATHS));
+    // Chassis randomized (9 Sep 2026 — see generatePilot's own header),
+    // same fix as the other two generated-recruit paths: a story-granted
+    // or fully-blind recruit through this branch used to always be human,
+    // silently, same unwired-not-decided gap as the other two.
+    pilot = generatePilot(state, randomFrom(ALL_RECRUITABLE_PATHS), randomChassisSuffix());
     state.pilots[pilot.id] = { pilot, status: "active", personalPoints: 0, lance };
   }
   return { ok: true, pilot };
@@ -2105,7 +2239,7 @@ export function assignPilotToLance(state: CampaignState, pilotId: string, lance:
   if (!entry) return { ok: false, reason: "no such pilot" };
   if (entry.status !== "active") return { ok: false, reason: "that pilot is no longer on the active roster" };
   if (!activeLanceIds(state).includes(lance)) {
-    return { ok: false, reason: `${lanceDisplayName(lance)} doesn't exist yet — a carrier gains one lance per act` };
+    return { ok: false, reason: `${lanceDisplayName(lance)} isn't part of this campaign — up to ${RECRUITABLE_LANCES} lances can be recruited` };
   }
   if (lanceOfPilotIn(state, pilotId) === lance) return { ok: true }; // already there, nothing to do
   if (lanceRoster(state, lance).length >= MAX_LANCE_SIZE) {

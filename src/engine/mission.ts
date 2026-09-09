@@ -276,6 +276,41 @@ export interface AttackOutcome {
 }
 
 /**
+ * Enemy-phase playback (feature-gap report A4, 9 Sep 2026) — a structured,
+ * chronological log of what actually happened during one hostile phase, so
+ * Battle.ts can animate it after the fact instead of the board just
+ * snapping to the resolved state. The engine stays fully synchronous and
+ * authoritative: runHostileTurn() resolves everything the instant it's
+ * called, exactly as before, and this array is a SIDE CHANNEL recording
+ * what it did, not a queue anything reads to decide what happens next.
+ *
+ * Two kinds, deliberately not more: a "move" is a hostile's own repositioning
+ * (moveHostile — the single choke point every hostile move already goes
+ * through); an "attack" is resolveAttack()'s single tail return point,
+ * which both attack() (a hostile's own attack, decided in runHostileTurn's
+ * loop) and triggerOverwatch() (a player unit's reaction shot firing mid
+ * hostile-move) funnel through — so this one push site, gated on
+ * `this.phase === "hostile"`, catches a hostile's own hit AND the player's
+ * own overwatch shot back at it, without the two coming apart.
+ * triggerInterdiction (the other hostile-move reaction) is deliberately
+ * NOT logged here — it only zeroes actionsRemaining, no position or HP
+ * changes, so there is nothing for playback to animate; its existing log
+ * line already says what happened.
+ *
+ * v1 fidelity gap, accepted rather than hidden: because the engine has
+ * already fully resolved the phase before playback starts, a unit downed
+ * by an early event is already gone from livingUnits() even while later
+ * events are still animating — Battle.ts's playback only ever hides the
+ * unit that's actively being animated, not every unit whose death hasn't
+ * "played" yet. A full fix needs an incremental visual-state snapshot per
+ * event, which is a bigger build than this pass — left for later if the
+ * gap turns out to bother anyone in practice.
+ */
+export type HostilePhaseEvent =
+  | { kind: "move"; unitId: string; path: Coord[] }
+  | { kind: "attack"; attackerId: string; defenderId: string; outcome: AttackOutcome };
+
+/**
  * What forecastAttack() reports before a shot is committed — see that
  * method. Damage numbers are the no-dodge case; the dodge odds are
  * reported alongside so the UI can say "34 dmg (40% dodge)" rather than
@@ -673,6 +708,13 @@ export class Mission {
   // it. See ASSIST_MIN_FRACTION's comment above for why this exists.
   private victimContributions: Record<string, Record<string, number>> = {};
   log: string[] = [];
+  /**
+   * Enemy-phase playback's side channel — see HostilePhaseEvent's own
+   * comment for the full shape and reasoning. Reset at the top of every
+   * runHostileTurn() call, so it always holds exactly one hostile phase's
+   * worth of events by the time that call returns and Battle.ts reads it.
+   */
+  hostilePhaseEvents: HostilePhaseEvent[] = [];
   // Stalled-eliminate_all nudge (27 Aug 2026, Campaign Playtest Review —
   // "I ran one mission passively for 26 turns with nothing happening...
   // eliminate_all apparently has no proactive 'hunt the player' behavior
@@ -1966,6 +2008,18 @@ export class Mission {
 
     if (outcome.defenderDowned) this.handleDowned(defender);
     if (outcome.attackerDowned) this.handleDowned(attacker);
+
+    // Enemy-phase playback — see HostilePhaseEvent's own comment for why
+    // this single tail, not attack() or triggerOverwatch() individually, is
+    // the right push site: every attack that happens DURING the hostile
+    // phase funnels through here, whether it's a hostile's own attack() or
+    // a player unit's overwatch reaction shot fired mid hostile-move. Gated
+    // on phase rather than on `attacker.side` so a player's overwatch shot —
+    // attacker.side === "player" — still gets logged; it's part of the same
+    // phase's playback even though a player unit threw it.
+    if (this.phase === "hostile") {
+      this.hostilePhaseEvents.push({ kind: "attack", attackerId, defenderId, outcome });
+    }
 
     return outcome;
   }
@@ -4364,6 +4418,12 @@ export class Mission {
       const fired = evaluateZoneEntered(this.mission.events, step, this.turn, this.eventState);
       for (const ev of fired) this.applyEventAction(ev.action);
     }
+    // Logged BEFORE the reaction-fire calls below, so playback's event
+    // order matches board order: the mover finishes its walk first, then
+    // whatever it walked into range of fires back — see HostilePhaseEvent's
+    // own comment. `path` includes the start tile, same as every other
+    // consumer of reconstructPath's output in this file.
+    this.hostilePhaseEvents.push({ kind: "move", unitId: unit.instanceId, path });
     // Reaction fire resolves as part of the move, before control returns to
     // the caller — see runHostileTurn's ordering comment. Interdiction
     // (abil_interdict) hangs off this same choke point and resolves second,
@@ -4647,6 +4707,11 @@ export class Mission {
 
   /** Runs the full AI turn for every hostile unit, then the environment step, then advances to the next player turn. */
   runHostileTurn(): void {
+    // Fresh for this phase — see HostilePhaseEvent's own comment. Reset
+    // here rather than in endPlayerTurn() so a direct test call to
+    // runHostileTurn() (npm run sim, unit tests) gets the same guarantee
+    // without going through the scene's normal end-turn path.
+    this.hostilePhaseEvents = [];
     for (const unit of this.units) {
       if (unit.downed || unit.side !== "hostile") continue;
       unit.actionsRemaining = MAX_ACTIONS_PER_TURN;

@@ -33,6 +33,7 @@ import { simulateDay, type SocialSimPilot } from "../engine/socialSim";
 import { NPC_SEED, NPC_BOND_SEED } from "../data/npcSeed";
 import { findPilot } from "../data/pilotRegistry";
 import { stageFromTier } from "../data/ambientLines";
+import { UNIT_ARCHETYPES } from "../data/units";
 
 // In-memory Storage stand-in — same shape/reasoning as
 // campaignState.ts's own CampaignStorage interface comment: real
@@ -64,7 +65,16 @@ const roster: SocialSimPilot[] = NPC_SEED.map((seed) => {
   // stays fixed at the campaign's starting value for the whole run, same
   // as every other static seed value here.
   const stage = pilot ? stageFromTier(pilot.tier) : "green";
-  return { pilotId: seed.pilotId, displayName: pilot?.displayName ?? seed.pilotId, catalyst: seed.catalyst, stage };
+  // Species, added 9 Sep 2026 alongside SocialSimPilot's new required
+  // field (see socialSim.ts's own header on speciesCompatibleForRomance).
+  // Same derivation Hub.ts's buildNpcs() uses for the live floor — off the
+  // real archetype's species, "human" only if archetypeId somehow doesn't
+  // resolve (shouldn't happen for these three named WARDEN_PILOTS: Bosk
+  // human, Anand osnius, Iyari hiopi — see romance.ts's own header for the
+  // Iyari confirmation).
+  const archetype = pilot ? UNIT_ARCHETYPES[pilot.archetypeId] : undefined;
+  const species = archetype ? archetype.species : "human";
+  return { pilotId: seed.pilotId, displayName: pilot?.displayName ?? seed.pilotId, catalyst: seed.catalyst, stage, species };
 });
 const socialState = ensureNpcSocialState(state, NPC_BOND_SEED);
 

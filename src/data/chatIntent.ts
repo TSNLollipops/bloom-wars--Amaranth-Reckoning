@@ -170,7 +170,31 @@ const VERB_REQUEST_KEYWORDS: Partial<Record<VerbId, string[]>> = {
   pegBoard: ["peg", "pegs"],
   poker: ["poker"],
   fletchers: ["fletcher", "fletchers", "dart", "darts"],
-  askOut: ["ask out", "ask her out", "ask him out", "ask them out", "date me", "go on a date", "date you"],
+  // Widened 9 Sep 2026 — real playtest gap, not a design review: Maxime
+  // tried to flirt with his own Mek ("you're cute") and with Anand, and
+  // neither phrase matched anything above, so both hit the generic
+  // CHAT_FALLBACK_LINES shrug instead of ever reaching resolveAskOut at
+  // all. The original list was literal-request phrasing only ("ask her
+  // out," "date me") — nothing here covered an actual flirt line, which is
+  // the more natural way a player would try this. These are still
+  // whole-phrase keywords, same "not exhaustive by design, grows from
+  // playtesting" philosophy as the original list — not a rewrite of the
+  // approach, just more of the same kind of entry. Deliberate, flagged
+  // consequence: a bare compliment like "you're cute" now rolls a REAL
+  // Ask Out attempt (full accept/reject against Favorability), the exact
+  // same mechanical weight as "ask her out" — there's no separate, softer
+  // "flirt" tier today, so recognizing the phrase at all means it costs
+  // the same as the direct version. "i love you" is included on the same
+  // logic even though "love" is also an EMOTION_KEYWORDS word — Hub.ts's
+  // submitChat checks detectVerbRequest before interpretPlayerChat (see
+  // this file's own header), so the targeted Ask Out reading always wins,
+  // same precedence the Praise/Insult/Apology graduation already relies on.
+  askOut: [
+    "ask out", "ask her out", "ask him out", "ask them out", "date me", "go on a date", "date you",
+    "flirt with you", "i like you", "i have feelings for you", "you're cute", "youre cute",
+    "you're pretty", "you're gorgeous", "you're hot", "be my girlfriend", "be my boyfriend",
+    "be mine", "i'm into you", "im into you", "go out with me", "will you go out with me", "i love you",
+  ],
   gift: ["gift", "give a gift", "brought you something", "got you something", "here's a gift"],
   praise: ["well done", "great job", "good work", "proud of you", "you did great", "you're doing great", "nice job"],
   insult: ["stupid", "idiot", "useless", "worthless", "pathetic", "screw you", "shut up"],

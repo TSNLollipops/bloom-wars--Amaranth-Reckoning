@@ -31,11 +31,17 @@ import {
 } from "../data/archive";
 import { highestMissionIndexReached } from "../data/missionBriefing";
 import {
+  type ArchiveCoDossier,
   type ArchiveDossier,
+  type ArchiveLiveLine,
+  type ArchiveMekDossier,
   archiveDisplayName,
   archiveRosterGroups,
   buildArchiveDossier,
+  buildCoDossier,
+  buildMekDossier,
   facilityOf,
+  resolveMekIds,
 } from "../engine/archiveDossier";
 import { type CampaignPilotEntry, type CampaignState } from "../engine/campaignState";
 import { pilotServiceRecords, type PilotServiceRecord } from "../engine/statsStore";
@@ -74,11 +80,27 @@ interface ArchiveLaunchData {
   returnScene?: string;
 }
 
-/** A row in the middle pane: either a written entry or a live pilot. */
+/**
+ * A row in the middle pane: a written entry, a live pilot, or — 9 Sep 2026
+ * — a live Mek, filed directly under the pilot they are attached to.
+ */
 type ListItem =
   | { kind: "entry"; entry: ArchiveEntry }
   | { kind: "group"; label: string; note: string }
-  | { kind: "pilot"; pilot: CampaignPilotEntry; struck: boolean };
+  | { kind: "co" }
+  | { kind: "pilot"; pilot: CampaignPilotEntry; struck: boolean }
+  | { kind: "mek"; mekId: string; pilot: CampaignPilotEntry; struck: boolean };
+
+/** The id a row selects by — a pilot's, a Mek's, the CO's (always "co", one per save), or an entry's. Group headers select nothing. */
+function itemId(item: ListItem): string {
+  switch (item.kind) {
+    case "pilot": return item.pilot.pilot.id;
+    case "mek": return item.mekId;
+    case "co": return "co";
+    case "entry": return item.entry.id;
+    default: return "";
+  }
+}
 
 export class Archive extends Phaser.Scene {
   private state: CampaignState | null = null;
@@ -213,7 +235,7 @@ export class Archive extends Phaser.Scene {
         // Warden roster read "6" beside five pilots.
         const rows = this.itemsFor(sec.id);
         const unlocked = rows.filter(
-          (r) => r.kind === "pilot" || (r.kind === "entry" && isEntryUnlocked(r.entry, this.fac, this.resolved)),
+          (r) => r.kind === "pilot" || r.kind === "mek" || r.kind === "co" || (r.kind === "entry" && isEntryUnlocked(r.entry, this.fac, this.resolved)),
         ).length;
         const bg = this.add
           .rectangle(RAIL.x + RAIL.w / 2, y + 9, RAIL.w - 12, 18, on ? PAL.blueHex : PAL.card, 1)
@@ -253,13 +275,32 @@ export class Archive extends Phaser.Scene {
    * lists everyone actually on it, recruits included, grouped by lance with
    * the people who left in one struck group at the bottom. Every other
    * section is its written entries.
+   *
+   * Each pilot's Mek is filed directly under them (9 Sep 2026, Codex
+   * Rework Plan §9b) — the shelf itself shows the pairing, so the Mek's
+   * own name can stand alone on the row without a possessive label. A
+   * struck pilot's Mek is listed under them in the struck group too: they
+   * left together, and the archive keeps the file either way.
    */
   private itemsFor(section: ArchiveSectionId): ListItem[] {
     if (section === "personnel" && this.state) {
       const out: ListItem[] = [];
+      // The CO — 9 Sep 2026, Codex Rework Plan §9a. Filed first, above the
+      // lances, in his own one-row "COMMAND" group: he outranks every
+      // lance on the roster and was never part of archiveRosterGroups to
+      // begin with (he is not a CampaignPilotEntry — never deploys, never
+      // in state.pilots). Shelf placement is Claude's own call, same as
+      // the Mek shelf-position call in §9b/9c — easy to move if it reads
+      // wrong once you've actually seen it.
+      out.push({ kind: "group", label: "Command", note: "1" });
+      out.push({ kind: "co" });
       for (const g of archiveRosterGroups(this.state)) {
         out.push({ kind: "group", label: g.label, note: `${g.entries.length}` });
-        for (const e of g.entries) out.push({ kind: "pilot", pilot: e, struck: g.id === "struck" });
+        for (const e of g.entries) {
+          const struck = g.id === "struck";
+          out.push({ kind: "pilot", pilot: e, struck });
+          if (this.state.meks[e.pilot.mekId]) out.push({ kind: "mek", mekId: e.pilot.mekId, pilot: e, struck });
+        }
       }
       return out;
     }
@@ -273,8 +314,8 @@ export class Archive extends Phaser.Scene {
 
     const items = this.itemsFor(this.sectionId);
     if (!this.selectedId) {
-      const first = items.find((i) => i.kind === "pilot" || (i.kind === "entry" && isEntryUnlocked(i.entry, this.fac, this.resolved)));
-      if (first) this.selectedId = first.kind === "pilot" ? first.pilot.pilot.id : first.kind === "entry" ? first.entry.id : "";
+      const first = items.find((i) => i.kind === "pilot" || i.kind === "mek" || i.kind === "co" || (i.kind === "entry" && isEntryUnlocked(i.entry, this.fac, this.resolved)));
+      if (first) this.selectedId = itemId(first);
     }
 
     let y = LIST.y + 6 - this.listScroll;
@@ -288,8 +329,8 @@ export class Archive extends Phaser.Scene {
         continue;
       }
 
-      const id = item.kind === "pilot" ? item.pilot.pilot.id : item.entry.id;
-      const unlocked = item.kind === "pilot" || isEntryUnlocked(item.entry, this.fac, this.resolved);
+      const id = itemId(item);
+      const unlocked = item.kind !== "entry" || isEntryUnlocked(item.entry, this.fac, this.resolved);
       const on = id === this.selectedId;
       // archiveDisplayName, not pilot.displayName: Rourke's rank is baked
       // into her written name as a string and the save is what actually
@@ -300,9 +341,18 @@ export class Archive extends Phaser.Scene {
           ? this.state
             ? archiveDisplayName(this.state, item.pilot)
             : item.pilot.pilot.displayName
-          : unlocked
-            ? item.entry.title
-            : "— sealed —";
+          : item.kind === "mek"
+            ? this.state?.meks[item.mekId]?.displayName ?? item.mekId
+            : item.kind === "co"
+              ? this.state
+                ? buildCoDossier(this.state, this.resolved).displayName
+                : "the CO"
+              : unlocked
+                ? item.entry.title
+                : "— sealed —";
+      // A Mek's row sits indented under their pilot's, with a MEK tag at
+      // the right edge where a written entry's revision count goes.
+      const indent = item.kind === "mek" ? 14 : 0;
 
       const row = this.add
         .rectangle(LIST.x + LIST.w / 2, y + 13, LIST.w - 4, 26, on ? PAL.cardOn : PAL.panel, on ? 1 : 0.001)
@@ -318,10 +368,15 @@ export class Archive extends Phaser.Scene {
       this.listLayer.add(row);
       if (on) this.listLayer.add(this.add.rectangle(LIST.x + 2, y + 13, 3, 26, this.fac === "warden" ? PAL.brassHex : PAL.roseHex));
 
-      const color = !unlocked ? PAL.faint : item.kind === "pilot" && item.struck ? PAL.faint : PAL.text;
+      const color = !unlocked ? PAL.faint : (item.kind === "pilot" || item.kind === "mek") && item.struck ? PAL.faint : PAL.text;
       this.listLayer.add(
-        this.add.text(LIST.x + 12, y + 3, label, { fontFamily: MONO, fontSize: "10px", color, wordWrap: { width: LIST.w - 48 } }),
+        this.add.text(LIST.x + 12 + indent, y + 3, label, { fontFamily: MONO, fontSize: "10px", color, wordWrap: { width: LIST.w - 48 - indent } }),
       );
+      if (item.kind === "mek") {
+        this.listLayer.add(
+          this.add.text(LIST.x + LIST.w - 10, y + 4, "MEK", { fontFamily: MONO, fontSize: "8px", color: PAL.faint }).setOrigin(1, 0),
+        );
+      }
 
       if (item.kind === "entry" && unlocked) {
         const rev = revisionCount(item.entry, this.fac, this.resolved);
@@ -369,7 +424,7 @@ export class Archive extends Phaser.Scene {
     this.readLayer.setMask(this.readMask);
 
     const items = this.itemsFor(this.sectionId);
-    const sel = items.find((i) => (i.kind === "pilot" ? i.pilot.pilot.id : i.kind === "entry" ? i.entry.id : "") === this.selectedId);
+    const sel = items.find((i) => i.kind !== "group" && itemId(i) === this.selectedId);
     let y = READ.y + 14 - this.readScroll;
     const x = READ.x + 22;
     const w = READ.w - 44;
@@ -388,6 +443,8 @@ export class Archive extends Phaser.Scene {
     }
 
     if (sel.kind === "pilot") y = this.renderDossier(sel.pilot, x, y, w);
+    else if (sel.kind === "mek") y = this.renderMekDossier(sel.mekId, x, y, w);
+    else if (sel.kind === "co") y = this.renderCoDossier(x, y, w);
     else if (sel.kind === "entry") y = this.renderEntry(sel.entry, x, y, w);
 
     this.readHeight = y + this.readScroll - READ.y;
@@ -450,16 +507,11 @@ export class Archive extends Phaser.Scene {
     return y;
   }
 
-  private renderDossier(pilot: CampaignPilotEntry, x: number, y: number, w: number): number {
-    if (!this.state) return y;
-    const d: ArchiveDossier = buildArchiveDossier(this.state, pilot, this.records);
-
-    y = this.line(x, y, "DOSSIER", "8px", this.tint()) + 2;
-    y = this.line(x, y, d.displayName, "15px", PAL.text, w) + 8;
-
+  /** The boxed live block every dossier opens with — one drawing for pilots and Meks alike. */
+  private drawLiveBlock(lines: ArchiveLiveLine[], x: number, y: number, w: number): number {
     const boxTop = y;
     let ry = y + 6;
-    for (const l of d.lines) {
+    for (const l of lines) {
       this.readLayer.add(this.add.text(x + 8, ry, l.label.toUpperCase(), { fontFamily: MONO, fontSize: "8px", color: PAL.faint }));
       const color = l.tone === "warn" ? PAL.danger : l.tone === "ok" ? PAL.go : l.tone === "muted" ? PAL.muted : PAL.text;
       const t = this.add.text(x + 112, ry - 1, l.value, { fontFamily: MONO, fontSize: "10px", color, wordWrap: { width: w - 130 } });
@@ -470,7 +522,74 @@ export class Archive extends Phaser.Scene {
     this.readLayer.add(box);
     this.readLayer.sendToBack(box);
     this.readLayer.add(this.add.rectangle(x + 1, (boxTop + ry) / 2, 2, ry - boxTop + 4, this.fac === "warden" ? PAL.brassHex : PAL.roseHex));
-    y = ry + 14;
+    return ry + 14;
+  }
+
+  private renderDossier(pilot: CampaignPilotEntry, x: number, y: number, w: number): number {
+    if (!this.state) return y;
+    const d: ArchiveDossier = buildArchiveDossier(this.state, pilot, this.records);
+
+    y = this.line(x, y, "DOSSIER", "8px", this.tint()) + 2;
+    y = this.line(x, y, d.displayName, "15px", PAL.text, w) + 8;
+    y = this.drawLiveBlock(d.lines, x, y, w);
+
+    if (d.entry) {
+      for (const para of bodyFor(d.entry, this.fac, this.resolved)) {
+        y = this.line(x, y, para, "11px", PAL.text, w) + 10;
+      }
+      if (d.entry.tail) {
+        y += 2;
+        // The authored MEK tails name the Mek by id ("MEK — mek_rourke,
+        // catalyst Raven"); resolveMekIds swaps in the live name.
+        y = this.line(x, y, resolveMekIds(this.state, d.entry.tail.heading), "8px", this.tint()) + 3;
+        y = this.line(x, y, d.entry.tail.body, "10px", PAL.muted, w) + 8;
+      }
+    } else if (d.intake) {
+      y = this.line(x, y, d.intake, "11px", PAL.muted, w) + 10;
+    }
+
+    y = this.line(x, y, "STATUS", "8px", this.tint()) + 3;
+    y = this.line(x, y, d.status, "10px", PAL.muted, w) + 8;
+    return y;
+  }
+
+  /**
+   * A Mek's own file (9 Sep 2026, Codex Rework Plan §9b). Same shape as a
+   * pilot's: kind, name, the live block, the written paragraph or an
+   * intake line, the status line. The one difference is the label above
+   * the name, so a reader flipping between files knows which kind of
+   * person they are looking at.
+   */
+  private renderMekDossier(mekId: string, x: number, y: number, w: number): number {
+    if (!this.state) return y;
+    const d: ArchiveMekDossier | null = buildMekDossier(this.state, mekId);
+    if (!d) return this.line(x, y, "No file for this Mek on this console.", "11px", PAL.faint, w);
+
+    y = this.line(x, y, "DOSSIER — MEK", "8px", this.tint()) + 2;
+    y = this.line(x, y, d.displayName, "15px", PAL.text, w) + 8;
+    y = this.drawLiveBlock(d.lines, x, y, w);
+
+    if (d.bio) y = this.line(x, y, d.bio, "11px", PAL.text, w) + 10;
+    else if (d.intake) y = this.line(x, y, d.intake, "11px", PAL.muted, w) + 10;
+
+    y = this.line(x, y, "STATUS", "8px", this.tint()) + 3;
+    y = this.line(x, y, d.status, "10px", PAL.muted, w) + 8;
+    return y;
+  }
+
+  /**
+   * The CO's own file (9 Sep 2026, Codex Rework Plan §9a). Same shape as a
+   * pilot's dossier — kind label, name, live block, authored body, status
+   * — with no intake fallback, since both COs are always hand-authored
+   * (there is no "generated CO" the way there's a generated recruit).
+   */
+  private renderCoDossier(x: number, y: number, w: number): number {
+    if (!this.state) return y;
+    const d: ArchiveCoDossier = buildCoDossier(this.state, this.resolved);
+
+    y = this.line(x, y, "DOSSIER", "8px", this.tint()) + 2;
+    y = this.line(x, y, d.displayName, "15px", PAL.text, w) + 8;
+    y = this.drawLiveBlock(d.lines, x, y, w);
 
     if (d.entry) {
       for (const para of bodyFor(d.entry, this.fac, this.resolved)) {
@@ -481,8 +600,6 @@ export class Archive extends Phaser.Scene {
         y = this.line(x, y, d.entry.tail.heading, "8px", this.tint()) + 3;
         y = this.line(x, y, d.entry.tail.body, "10px", PAL.muted, w) + 8;
       }
-    } else if (d.intake) {
-      y = this.line(x, y, d.intake, "11px", PAL.muted, w) + 10;
     }
 
     y = this.line(x, y, "STATUS", "8px", this.tint()) + 3;

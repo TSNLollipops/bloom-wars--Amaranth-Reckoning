@@ -192,8 +192,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "rourke",
     body: [
-      "Meeps. Human. Green when this started, and it showed — quick, aggressive, not yet a commander. Still leading from the front. The unit under her now carries the opposite of her own callsign.",
-      "By Mission 12 she's carrying Capt.'s bars, and Maj.'s by Mission 24 — Company Commander over the whole force, both times. Neither promotion pulls her out of Lance A. She's still its Lead in person, still the same lance she's run since Mission 1, just with more of Warden Company answering to her on top of it.",
+      "Meeps. Human. Green when this started, and it showed: quick, aggressive, not yet a commander. Still leading from the front. The unit under her now carries the opposite of her own callsign.",
+      "By Mission 12 she's carrying Capt.'s bars, and Maj.'s by Mission 24. Company Commander over the whole force, both times. Neither promotion pulls her out of Lance A. She's still its Lead in person, still the same lance she's run since Mission 1, just with more of Warden Company answering to her on top of it.",
     ],
     tail: { heading: "MEK — mek_rourke, catalyst Raven", body: "Grew up on a working dock on Glasswater itself, close enough to the sector capital's real labor to know exactly what keeps a comfortable world running underneath it. That's the same instinct that makes a good Mek: quietly making sure Rourke's own rig is right before she ever has to ask." },
   },
@@ -206,9 +206,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Tank. Human. Came up through House Amaranth's own regulars before Warden Company folded him in. Raised in a garrison quarter on Glasswater itself — comfortable enough by any Reach standard, but a garrison childhood shows you exactly what that comfort actually costs to keep, and Bosk came out the other side of it not cynical, just exact. He explains a thing once, correctly, and expects you to have heard him. That's the instinct every newer pilot in the company leans on without being told to.",
+      "Tank. Human. Came up through House Amaranth's own regulars before Warden Company folded him in. Raised in a garrison quarter on Glasswater itself, comfortable enough by any Reach standard, but a garrison childhood shows you exactly what that comfort actually costs to keep, and Bosk came out the other side of it not cynical, just exact. He explains a thing once, correctly, and expects you to have heard him. That's the instinct every newer pilot in the company leans on without being told to.",
     ],
-    tail: { heading: "MEK — mek_bosk, catalyst Bear", body: "A different upbringing entirely from his own pilot's — Tallowmere's smoky industrial anchor world, hit hard and early, learned to keep its own counsel and just work. The steady, self-contained presence at Bosk's back that never needs him to check on it." },
+    tail: { heading: "MEK — mek_bosk, catalyst Bear", body: "A different upbringing entirely from his own pilot's: Tallowmere's smoky industrial anchor world, hit hard and early, learned to keep its own counsel and just work. The steady, self-contained presence at Bosk's back that never needs him to check on it." },
   },
   {
     id: "pilot_iyari",
@@ -219,9 +219,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Meeps. Hiopi — centauroid frame. Grew up on Emberfall, a refinery world the Bloom had already reached, close enough to an unmarked preserve boundary nobody in her family ever fully explained. Real frontier hardship the whole way through, and she met it by finding something to laugh about anyway, every time — not a habit she picked up later, the same thing that makes her the one already cracking a joke before anyone else has finished processing what just happened.",
+      "Meeps. Hiopi, centauroid frame. Grew up on Emberfall, a refinery world the Bloom had already reached, close enough to an unmarked preserve boundary nobody in her family ever fully explained. Real frontier hardship the whole way through, and she met it by finding something to laugh about anyway, every time. Not a habit she picked up later, the same thing that makes her the one already cracking a joke before anyone else has finished processing what just happened.",
     ],
-    tail: { heading: "MEK — mek_iyari, catalyst Fox", body: "Raised on money that never quite matched the plateau world around it, tested into a prestige Core academy despite frontier roots — still finding its own footing, quick and adaptable because nothing's forced it to be anything else yet. A fast, improvising presence that suits a Meeps pilot who moves the same way." },
+    tail: { heading: "MEK — mek_iyari, catalyst Fox", body: "Raised on money that never quite matched the plateau world around it, tested into a prestige Core academy despite frontier roots. Still finding its own footing, quick and adaptable because nothing's forced it to be anything else yet. A fast, improvising presence that suits a Meeps pilot who moves the same way." },
   },
   {
     id: "pilot_anand",
@@ -232,9 +232,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Reeps. Osnian — the first of her kind Warden Company's ever fielded. Raised in Skeinreach's weave-mill housing, one remove from anything that could honestly be called danger, trained locally alongside people she'd go on to actually serve beside. Nothing about her read is a standout, and that's the point — steady, exactly where the formation needs her, holding a Reeps line rather than chasing a kill count.",
+      "Reeps. Osnian, the first of her kind Warden Company's ever fielded. Raised in Skeinreach's weave-mill housing, one remove from anything that could honestly be called danger, trained locally alongside people she'd go on to actually serve beside. Nothing about her read is a standout, and that's the point: steady, exactly where the formation needs her, holding a Reeps line rather than chasing a kill count. The old shipboard superstition that a female Osnian aboard is bad luck has never once been said to her directly, and has never once come true, either.",
     ],
-    tail: { heading: "MEK — mek_anand, catalyst Dog", body: "A comfortable, home-centered upbringing on Glasswater itself — the kind of loyalty that never had to be tested to become real. Distinct from Anand's own busier read: the Mek's job is simple devotion, not vigilance." },
+    tail: { heading: "MEK — mek_anand, catalyst Dog", body: "A comfortable, home-centered upbringing on Glasswater itself, the kind of loyalty that never had to be tested to become real. Distinct from Anand's own busier read: the Mek's job is simple devotion, not vigilance." },
   },
   {
     id: "pilot_lask",
@@ -245,9 +245,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Munti. Human. Grew up on a fiber farm in Skeinreach, where a blight or a scrape isn't an emergency, it's Tuesday — quiet, unglamorous upkeep that just has to happen, every day, so everything else keeps working. That's the job now too, just with a squad instead of a field. He's not who anyone talks about after a mission goes well. He's the reason there's a squad left to talk about it.",
+      "Munti. Human. Grew up on a fiber farm in Skeinreach, where a blight or a scrape isn't an emergency, it's Tuesday. Quiet, unglamorous upkeep that just has to happen, every day, so everything else keeps working. That's the job now too, just with a squad instead of a field. He's not who anyone talks about after a mission goes well. He's the reason there's a squad left to talk about it.",
     ],
-    tail: { heading: "MEK — mek_lask, catalyst Rabbit", body: "Raised transient, ferried between Glasswater Reach's own barge routes rather than settled anywhere solid, and lost something real despite all that institutional shelter. Came out of it protective, specifically — the exact temperament for a Mek partnered with the one person in the company whose entire job is protecting everyone else." },
+    tail: { heading: "MEK — mek_lask, catalyst Rabbit", body: "Raised transient, ferried between Glasswater Reach's own barge routes rather than settled anywhere solid, and lost something real despite all that institutional shelter. Came out of it protective, specifically. The exact temperament for a Mek partnered with the one person in the company whose entire job is protecting everyone else." },
   },
   {
     id: "co",
@@ -258,10 +258,10 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "co",
     body: [
-      "Carabil. He is not aboard Providence. He is Providence — grown into the hull the way his kind are grown into every ship they take, and the hull is one of the last ever built for the arena, laid down for a touring company and put into service the year the sport ended and the war did not. Academy-grown all the same: years of training to stand apart from the rest of his kind before a sprout is allowed a ship at all, and the institution's habits never left him.",
-      "He has been alive, and in command, since the war began. That makes him one of the most experienced commanding officers in the fleet, and the only one Warden Company has ever had. Steady, duty-bound, unremarkable in exactly the way that eventually puts someone in charge of an entire complement's worth of people — not despite it.",
+      "Carabil. He is not aboard Providence. He is Providence. Grown into the hull the way his kind are grown into every ship they take, and the hull is one of the last ever built for the arena, laid down for a touring company and put into service the year the sport ended and the war did not. Academy-grown all the same: years of training to stand apart from the rest of his kind before a sprout is allowed a ship at all, and the institution's habits never left him.",
+      "He has been alive, and in command, since the war began. That makes him one of the most experienced commanding officers in the fleet, and the only one Warden Company has ever had. Steady, duty-bound, unremarkable in exactly the way that eventually puts someone in charge of an entire complement's worth of people. Not despite it.",
     ],
-    tail: { heading: "CATALYST", body: "Wolf — team-first, formation-minded, the same read that makes him command staff rather than a line officer." },
+    tail: { heading: "CATALYST", body: "Wolf: team-first, formation-minded, the same read that makes him command staff rather than a line officer." },
   },
   {
     id: "company_ship",
@@ -274,7 +274,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: null,
         body: [
-          "Warden Company's carrier, and its rear support since before anyone currently serving came aboard. The hull is older than the war: one of the last built for the arena, laid down for a touring company that needed a home between venues, and put into service the year the sport ended. Its commander has been part of it since it was launched. The berths, the workshop, the hangar deck, the grotto — the company has cut most of that into a hull that was never meant to hold a war.",
+          "Warden Company's carrier, and its rear support since before anyone currently serving came aboard. The hull is older than the war: one of the last built for the arena, laid down for a touring company that needed a home between venues, and put into service the year the sport ended. Its commander has been part of it since it was launched. The berths, the workshop, the hangar deck, the grotto: the company has cut most of that into a hull that was never meant to hold a war.",
           "It does not fight. It sits behind the Line and keeps the lances fed, and it has done that for long enough that the crew think of the ship less as a place they live than as the thing that is still there when they come back.",
         ],
       },
@@ -287,7 +287,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 22,
         body: [
-          "It took real damage on the water. Not the kind a yard patches over a week — the kind the company has been living inside since, with a corridor closed and a deck that lists a degree when the ship comes about. Providence is still Warden Company's rear, still the thing that is there when the lances come back. It is just no longer the thing that nothing has ever reached.",
+          "It took real damage on the water. Not the kind a yard patches over a week. The kind the company has been living inside since, with a corridor closed and a deck that lists a degree when the ship comes about. Providence is still Warden Company's rear, still the thing that is there when the lances come back. It is just no longer the thing that nothing has ever reached.",
         ],
       },
     ],
@@ -306,7 +306,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Official. It's all true, and it's three years old.",
     },
     body: [
-      "WARDEN COMPANY. Formation type: chartered private, sport lineage. Owner of record: Warden Holdings — seat lost to Bloom overgrowth; no successor entity registered. Charter: lapsed with the owner. Warrant: vacant since the loss; no reassignment on file. Hand: field-appointed, unregistered. Station: Amaranth Reach, the Fallow Line. Carrier: PROVIDENCE, arena-class hull, commissioned. Status: ACTIVE. Never struck.",
+      "WARDEN COMPANY. Formation type: chartered private, sport lineage. Owner of record: Warden Holdings, seat lost to Bloom overgrowth. No successor entity registered. Charter: lapsed with the owner. Warrant: vacant since the loss. No reassignment on file. Hand: field-appointed, unregistered. Station: Amaranth Reach, the Fallow Line. Carrier: PROVIDENCE, arena-class hull, commissioned. Status: ACTIVE. Never struck.",
       "Clerk's note, appended on retrieval: by the letter of the charter this formation dissolved the day its owner's seat was overrun, and has been fighting under a dead name since. It has filed no return in three years and no return was requested. The manifest shows it active because nobody entered anything else. Recommend the Warrant be reassigned or the formation struck, at the Fleet's convenience.",
     ],
   },
@@ -321,8 +321,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Personal Rank",
     gate: null,
     body: [
-      "Every synker climbs the same ladder, earned through gear rather than time served — showing up and training isn't separately rewarded here, only real capability is. Pvt. at the bottom, then Pfc., Cpl., Sgt., Staff Sgt., M.Sgt., and at the very top of what an enlisted synker can reach without a command posting, Sgt. Maj.",
-      "Munti synkers often carry a different title at the same rungs — Spec. in place of Cpl. or Sgt. — the same old habit real militaries have of marking support and technical roles apart from the line, not a separate ladder, just a different name painted on the same climb.",
+      "Every synker climbs the same ladder, earned through gear rather than time served. Showing up and training isn't separately rewarded here, only real capability is. Pvt. at the bottom, then Pfc., Cpl., Sgt., Staff Sgt., M.Sgt., and at the very top of what an enlisted synker can reach without a command posting, Sgt. Maj.",
+      "Munti synkers often carry a different title at the same rungs, Spec. in place of Cpl. or Sgt., the same old habit real militaries have of marking support and technical roles apart from the line, not a separate ladder, just a different name painted on the same climb.",
     ],
   },
   {
@@ -332,8 +332,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Command Position",
     gate: null,
     body: [
-      "A role, not a rung — layered on top of personal rank rather than replacing it. Lance Lead runs one five-synker lance day to day, carrying the title 2nd Lt. Company Commander sits above that, running the whole force, carrying Capt. and later Maj. as the company grows.",
-      "The two aren't a hand-off. When a Lance Lead gets promoted to Company Commander, they don't step back from the lance they were already running — they keep leading it in person, on top of everything else now answering to them. Rourke's own record is the clearest example: still Lance A's Lead, the exact same lance she's led since her very first mission, and Company Commander over the whole of Warden Company besides.",
+      "A role, not a rung, layered on top of personal rank rather than replacing it. Lance Lead runs one five-synker lance day to day, carrying the title 2nd Lt. Company Commander sits above that, running the whole force, carrying Capt. and later Maj. as the company grows.",
+      "The two aren't a hand-off. When a Lance Lead gets promoted to Company Commander, they don't step back from the lance they were already running. They keep leading it in person, on top of everything else now answering to them. Rourke's own record is the clearest example: still Lance A's Lead, the exact same lance she's led since her very first mission, and Company Commander over the whole of Warden Company besides.",
     ],
   },
 
@@ -352,7 +352,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "The first thing most soldiers ever see of the Bloom, and the least dangerous — alone. A Crawlmass folds almost the instant it's hit. The danger was never any single one of them; it's that they never show up alone, and every one you're fighting is a turn you're not spending on something worse.",
+      "The first thing most soldiers ever see of the Bloom, and the least dangerous. Alone. A Crawlmass folds almost the instant it's hit. The danger was never any single one of them. It's that they never show up alone, and every one you're fighting is a turn you're not spending on something worse.",
     ],
   },
   {
@@ -368,7 +368,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "A Crawlmass drift with something coordinating it. Nothing changes about how any one of them looks or moves — until one spots you, and the rest turn like they heard it happen. They don't share a mind. They share a target, the instant one of them finds it, and three or four of them converging on the same mech in the same turn is the fastest way anyone's squad has folded on open ground. Kill the one that saw you first, if you can tell which it was. Otherwise, kill fast, and don't be standing wherever they all decided to look.",
+      "A Crawlmass drift with something coordinating it. Nothing changes about how any one of them looks or moves, until one spots you, and the rest turn like they heard it happen. They don't share a mind. They share a target, the instant one of them finds it, and three or four of them converging on the same mech in the same turn is the fastest way anyone's squad has folded on open ground. Kill the one that saw you first, if you can tell which it was. Otherwise, kill fast, and don't be standing wherever they all decided to look.",
     ],
   },
   {
@@ -384,7 +384,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "You will not see this thing until it wants you to, or until something with a sharper sensor does. It waits under the ground, motionless, right up until it surfaces to strike — and the strike lands harder for the wait. After that, it's just a target like anything else. The wait is the entire fight.",
+      "You will not see this thing until it wants you to, or until something with a sharper sensor does. It waits under the ground, motionless, right up until it surfaces to strike, and the strike lands harder for the wait. After that, it's just a target like anything else. The wait is the entire fight.",
     ],
   },
   {
@@ -400,7 +400,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "Slow, low to the ground, and it never has to be anywhere near you to hurt you. It plants itself at range and spits, and nothing you do at melee reach touches it back — no counter, no retaliation, just the shot landing and the next one already loading. It's not fast and it's not smart. It doesn't have to be either, from that far away. Close the distance or go around it. Standing where it can already see you is the one thing that doesn't work.",
+      "Slow, low to the ground, and it never has to be anywhere near you to hurt you. It plants itself at range and spits, and nothing you do at melee reach touches it back: no counter, no retaliation, just the shot landing and the next one already loading. It's not fast and it's not smart. It doesn't have to be either, from that far away. Close the distance or go around it. Standing where it can already see you is the one thing that doesn't work.",
     ],
   },
   {
@@ -416,7 +416,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "Whatever the flying ones usually are, this isn't one of them alone — it's several, and they don't hunt like several. They call and answer, mid-fight, in real time, closing from different angles on the same signal like it was planned before the fight started. Maybe it was. Nobody's found anything that looks like a leader among them, which is its own kind of unsettling — coordination this clean, and apparently nobody in charge of it. Whatever's screaming, it's screaming together.",
+      "Whatever the flying ones usually are, this isn't one of them alone. It's several, and they don't hunt like several. They call and answer, mid-fight, in real time, closing from different angles on the same signal like it was planned before the fight started. Maybe it was. Nobody's found anything that looks like a leader among them, which is its own kind of unsettling: coordination this clean, and apparently nobody in charge of it. Whatever's screaming, it's screaming together.",
     ],
   },
   {
@@ -432,7 +432,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "It doesn't move, doesn't need to — plant it somewhere with a line of sight and it holds that ground better than almost anything else the Bloom fields. Whatever's actually alive inside that shell is small. Getting through to it is the entire fight, and for most of that fight it does not look like it's working. Then it does, all at once, and whatever's left underneath goes just as fast as it looked slow a moment ago. The acid it spits in the meantime doesn't wash off clean, and neither does the ground it lands on.",
+      "It doesn't move, doesn't need to. Plant it somewhere with a line of sight and it holds that ground better than almost anything else the Bloom fields. Whatever's actually alive inside that shell is small. Getting through to it is the entire fight, and for most of that fight it does not look like it's working. Then it does, all at once, and whatever's left underneath goes just as fast as it looked slow a moment ago. The acid it spits in the meantime doesn't wash off clean, and neither does the ground it lands on.",
     ],
   },
   {
@@ -448,7 +448,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "The first thing that flies. Ground, rubble, open water — none of it slows this thing down or gets in its way, and nothing on the field can wall it out. It doesn't hit hardest of anything you'll fight. What it does is scream, close enough and loud enough that everyone near the mech it's screaming at fights a little worse for a while — not just the one it caught. Take it down first if you can reach it, or plan the fight assuming your own aim is a little off for as long as it's still in the air.",
+      "The first thing that flies. Ground, rubble, open water: none of it slows this thing down or gets in its way, and nothing on the field can wall it out. It doesn't hit hardest of anything you'll fight. What it does is scream, close enough and loud enough that everyone near the mech it's screaming at fights a little worse for a while. Not just the one it caught. Take it down first if you can reach it, or plan the fight assuming your own aim is a little off for as long as it's still in the air.",
     ],
   },
   {
@@ -465,7 +465,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "Solheim found the root structure two weeks before anyone found what's actually growing out of it — \"too regular to be natural,\" she called it, and she wasn't wrong. It doesn't move, doesn't have to: it's already dug in past anywhere you'd want to reach it, and it calls up burrowers of its own the longer the fight runs. The wound it leaves isn't the kind that closes clean. Whatever's feeding it, it isn't hungry — it's patient.",
+      "Solheim found the root structure two weeks before anyone found what's actually growing out of it. She called it \"too regular to be natural,\" and she wasn't wrong. It doesn't move, doesn't have to: it's already dug in past anywhere you'd want to reach it, and it calls up burrowers of its own the longer the fight runs. The wound it leaves isn't the kind that closes clean. Whatever's feeding it, it isn't hungry. It's patient.",
     ],
   },
   {
@@ -482,7 +482,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it.",
     },
     body: [
-      "Nobody who's fought this thing has ever called it anything else, and nobody's tried very hard to fix that. It's not that no name fits — it's that naming it feels like agreeing it's one thing, singular, when everything about how it fights says otherwise. It doesn't move because it's already everywhere it needs to be. It doesn't panic when the shell finally gives, because nothing about what's underneath was ever waiting to be found — it was already there the whole time, under everything you thought you were fighting instead. Whatever it is you actually beat, if you beat it, you won't get a name for that either. You'll get to still be standing, and Meridian still standing under you. Some fights, that's the whole prize.",
+      "Nobody who's fought this thing has ever called it anything else, and nobody's tried very hard to fix that. It's not that no name fits. It's that naming it feels like agreeing it's one thing, singular, when everything about how it fights says otherwise. It doesn't move because it's already everywhere it needs to be. It doesn't panic when the shell finally gives, because nothing about what's underneath was ever waiting to be found. It was already there the whole time, under everything you thought you were fighting instead. Whatever it is you actually beat, if you beat it, you won't get a name for that either. You'll get to still be standing, and Meridian still standing under you. Some fights, that's the whole prize.",
     ],
   },
 
@@ -501,9 +501,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Matches what the line has seen. Read it.",
     },
     body: [
-      "Every spreading form recovered to date carries two distinct load paths: an outer casing that absorbs and dissipates impact, and an inner mass the casing exists to protect. The casing does not transmit overflow. A round that exceeds the casing's remaining capacity spends the excess on nothing — the casing fails, and the inner mass is untouched until the next round. Field crews have been drawing the wrong lesson from this for years. It is not that heavy ordnance is wasted against the Bloom. It is that the first heavy round is.",
+      "Every spreading form recovered to date carries two distinct load paths: an outer casing that absorbs and dissipates impact, and an inner mass the casing exists to protect. The casing does not transmit overflow. A round that exceeds the casing's remaining capacity spends the excess on nothing: the casing fails, and the inner mass is untouched until the next round. Field crews have been drawing the wrong lesson from this for years. It is not that heavy ordnance is wasted against the Bloom. It is that the first heavy round is.",
       "Once the casing has failed the form enters what crews call Collapse, and the relationship inverts: the inner mass is small, and any round at least as heavy as what remains of it is fatal.",
-      "Two findings the Board would like circulated to every line unit. First, a form in Collapse does not weaken. Its own strikes land at full force until it is dead; the casing was never what it fought with. Second, a form with a heavy casing and a light interior — the sessile types especially — should be planned as two engagements, not one, and the second is shorter than it looks.",
+      "Two findings the Board would like circulated to every line unit. First, a form in Collapse does not weaken. Its own strikes land at full force until it is dead. The casing was never what it fought with. Second, a form with a heavy casing and a light interior, the sessile types especially, should be planned as two engagements, not one, and the second is shorter than it looks.",
     ],
   },
   {
@@ -519,9 +519,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "The Office knows the terraces. It does not know why its own maps are wrong.",
     },
     body: [
-      "The mat does not spread the way a blight spreads. A blight follows the crop; the mat follows the water. Every outbreak the Office has walked on the lower terraces since the spring surveys sits on a drainage line — a cut channel, a failed retaining wall, a field that was letting run-off pool where it shouldn't. The mat comes up through saturated ground overnight and it does not come up through dry ground at all, which is the one reliable thing the Office can say about it.",
+      "The mat does not spread the way a blight spreads. A blight follows the crop. The mat follows the water. Every outbreak the Office has walked on the lower terraces since the spring surveys sits on a drainage line: a cut channel, a failed retaining wall, a field that was letting run-off pool where it shouldn't. The mat comes up through saturated ground overnight and it does not come up through dry ground at all, which is the one reliable thing the Office can say about it.",
       "What it cannot say is why the pattern is so clean. Terraces that should have taken it first, by every drainage map the Office holds, are untouched. Terraces that should have been safe are not. The working assumption is that our maps are wrong.",
-      "Recommendation: any unit holding ground on the terraces should treat standing water as the enemy's road, not its own obstacle, and should not end a night on a field the mat has already reached. It burns through a boot, and it burns through a mech's foot the same way — a little at a time.",
+      "Recommendation: any unit holding ground on the terraces should treat standing water as the enemy's road, not its own obstacle, and should not end a night on a field the mat has already reached. It burns through a boot, and it burns through a mech's foot the same way, a little at a time.",
     ],
   },
   {
@@ -538,7 +538,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "Nobody who has fought the Bloom for long believes it wants anything, and this paper's argument is that this is not a failure of imagination but the plain reading of the evidence. It does not take ground and hold it. It does not concentrate where we are weak. It does not retreat. It arrives where it arrives, in the numbers it arrives in, and it consumes whatever is there with a thoroughness that has no relationship to what was there.",
-      "The author's word for it is runoff: the overflow of something happening somewhere else, at a scale we are not seeing, that reaches us the way flood water reaches a low field — not aimed, just downhill.",
+      "The author's word for it is runoff: the overflow of something happening somewhere else, at a scale we are not seeing, that reaches us the way flood water reaches a low field. Not aimed, just downhill.",
       "The paper's weakness is the one every reader has named. The forms that scream and answer each other across a battlefield are coordinating, and runoff does not coordinate. The author's reply is that a flood has currents too.",
     ],
   },
@@ -555,8 +555,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Short because the detachment that wrote it lost two mechs learning it.",
     },
     body: [
-      "A burrower does not hide. Hiding implies it is somewhere and would rather you didn't know; a burrower is under the ground the way a stone is under the ground, motionless, giving off nothing, and it will stay that way until something walks over it or until it decides the moment has come. There is no difference to you between those two cases. The strike, when it comes, is worse than the same form's strike on open ground — every crew that has measured it agrees, and none of them agree on why.",
-      "Two things find them. The first is a sensor built for close contact rather than sight — the whisker arrays an Osnian pilot carries at the faceplate read the ground the way a hand does, and a burrower under a whisker array is a burrower that has already lost its one advantage. The second is a Mek who has taught a pilot's rig to look for the wrong kind of stillness.",
+      "A burrower does not hide. Hiding implies it is somewhere and would rather you didn't know. A burrower is under the ground the way a stone is under the ground, motionless, giving off nothing, and it will stay that way until something walks over it or until it decides the moment has come. There is no difference to you between those two cases. The strike, when it comes, is worse than the same form's strike on open ground. Every crew that has measured it agrees, and none of them agree on why.",
+      "Two things find them. The first is a sensor built for close contact rather than sight. The whisker arrays an Osnian pilot carries at the faceplate read the ground the way a hand does, and a burrower under a whisker array is a burrower that has already lost its one advantage. The second is a Mek who has taught a pilot's rig to look for the wrong kind of stillness.",
       "The detachment's recommendation is not clever. Lead with the pilot who can see them. Fire at range at anything that looks like disturbed ground. Never walk a mech into a field you have not been told is clear by someone equipped to say so.",
     ],
   },
@@ -574,8 +574,28 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "The flying forms scream, and synkers near the mech they scream at fight worse for a while afterward. That much every after-action report agrees on and this paper takes as given. What the faculty set out to measure was the scream itself, on plating recovered from mechs that had been close to one, and the finding is narrow and strange: the plating rings. Struck afterward with a calibrated hammer, a panel that has been screamed at carries a resonance at a frequency the Yards did not put there and cannot reproduce, and the resonance fades over days.",
-      "The faculty's reading is that the scream is not, or not only, a sound. It is something a mech's frame takes on and holds — the way a struck bell holds a note — and a synker wired into that frame feels it as a shake in the aim, a half-beat of hesitation that is not theirs.",
+      "The faculty's reading is that the scream is not, or not only, a sound. It is something a mech's frame takes on and holds, the way a struck bell holds a note, and a synker wired into that frame feels it as a shake in the aim, a half-beat of hesitation that is not theirs.",
       "The forms that scream in chorus present a second question the faculty declines to answer: a scream is one thing, but call-and-answer across a battlefield is a conversation, and the Yards do not study conversation.",
+    ],
+  },
+  {
+    id: "paper_plate_fatigue",
+    section: "research",
+    kind: "Paper",
+    title: "The Screaming: a Study in Plate Fatigue",
+    gate: null,
+    fac: "warden",
+    prov: {
+      source: "Warden Company Fitting Bay",
+      filedAs: "Research fragment, annotated",
+      reliability: 2,
+      note: "Careful data. An appendix that would rather you stopped reading.",
+    },
+    body: [
+      "Warden salvage crews have logged the phenomenon for two decades: standard-issue hull plating, past a certain service life, begins to emit a low, structured resonance under stress. Crews call it the Screaming, the same word the acoustics faculty uses for what a Bloom scream leaves in a panel, and a different, unrelated fault. This paper's plating has never been near one of the flying forms. It is the first to treat the fault as data rather than superstition, and the first to admit, three pages in, that the data does not fully cooperate.",
+      "The official thesis holds: plating carries a structural harmonic baked in from the forming process, and prolonged service slowly detunes it. Ordinary metal fatigue, wearing an ugly nickname. What the paper cannot quite explain, and spends its longest appendix trying to bury in footnotes, is that the detuned frequency is not random. Forty-one samples, six alloys, three manufacturers, four decades of production runs. Every one of them, given enough service life, drifts toward the same number. Not a nearby number. The same number, past a precision the paper's own instruments have no business holding twice in a row.",
+      "Nobody on record asked what that number means. The appendix simply ends there.",
+      "Field techs who have stood next to a badly detuned plate describe something the paper will not, off the record: it does not read like a machine failing. It reads like something arriving at a frequency it was always going to reach, on its own schedule, with the plate along for the ride. The paper recommends replacement before full detuning. It does not explain why every recovered sample on file, replaced or not, was later logged as missing from storage.",
     ],
   },
   {
@@ -591,8 +611,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Nobody has seen what it predicts.",
     },
     body: [
-      "The paper's claim is that a spreading form is not one animal. Every recovered body the Institute has sectioned shows tissue types that do not grade into one another — feeding structures, propulsive structures, the casing, the inner mass — joined along boundaries that are cleaner than any boundary inside a single organism has a right to be. The drift-colonies of the Glasswater tide-flats show the same thing at a smaller scale: many specialised bodies fused into one that moves, eats, and defends as a unit, none of them able to survive alone.",
-      "If that is what a spreading form is, then the boundaries are the weak points — fusion seams, structurally real, where separately-grown components were joined rather than grown continuous. The paper predicts they exist on every form. It does not claim to have found one. A moving form conceals its own structure in motion and in scale, and nobody has yet stood close enough to a rooted one, for long enough, with instruments, to look.",
+      "The paper's claim is that a spreading form is not one animal. Every recovered body the Institute has sectioned shows tissue types that do not grade into one another. Feeding structures, propulsive structures, the casing, the inner mass, joined along boundaries that are cleaner than any boundary inside a single organism has a right to be. The drift-colonies of the Glasswater tide-flats show the same thing at a smaller scale: many specialised bodies fused into one that moves, eats, and defends as a unit, none of them able to survive alone.",
+      "If that is what a spreading form is, then the boundaries are the weak points: fusion seams, structurally real, where separately-grown components were joined rather than grown continuous. The paper predicts they exist on every form. It does not claim to have found one. A moving form conceals its own structure in motion and in scale, and nobody has yet stood close enough to a rooted one, for long enough, with instruments, to look.",
       "The Institute circulates this as a hypothesis with one practical consequence, if it holds: the thing to study is not the form that is coming at you. It is the one that has stopped.",
     ],
   },
@@ -612,10 +632,11 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Good on the shape. Loose on the dates.",
     },
     body: [
-      "Before the Bloom, the mech was a sport. Not a metaphor for one — a sport, with arenas built for it, seasons, standings, and squads of five who fought for glory and for whoever was paying that year's purse. Command was a courtesy the squad extended to its own lead and to nobody else. An owner in a box above the sand could not direct a match in progress, and the culture treated any attempt as an insult to the synkers on the floor.",
+      "Before the Bloom, the mech was a sport. Not a metaphor for one: a sport, with arenas built for it, seasons, standings, and squads of five who fought for glory and for whoever was paying that year's purse. Command was a courtesy the squad extended to its own lead and to nobody else. An owner in a box above the sand could not direct a match in progress, and the culture treated any attempt as an insult to the synkers on the floor.",
       "When the war came, those squads were the only people alive who knew how to fight in a mech, and the Coalition took them whole: the five-synker lance, the lead who runs it, and the rule that once a lance is on the ground, no rank that is not standing on that ground with it gets to say how it fights. That last one is charter law now. Every officer who has ever tried to override it from a distance has learned exactly how old it is.",
-      "The rest of the sport's grammar is still in the language. A full group of lances is a Company, because the arena groups were companies, owned outright by whoever's name was on the gate, and a company travelled — a carrier was its home between venues, and the last of those hulls were put into service the year the sport ended. Some of the companies still carry those names. So do some of the hulls.",
-      "One piece of the language runs the other way. Synkers were synkers long before anyone built an arena to put them in, and the frames are older than the arenas by a margin this book is not going to pretend it can date. The sport did not invent the mech. It inherited one, dressed it, and sold tickets — and it gave the language the other word for the job, because a gate needs a name people already own and nobody was ever going to sell seats to watch synchronisation.",
+      "The rest of the sport's grammar is still in the language. A full group of lances is a Company, because the arena groups were companies, owned outright by whoever's name was on the gate, and a company travelled. A carrier was its home between venues, and the last of those hulls were put into service the year the sport ended. Some of the companies still carry those names. So do some of the hulls.",
+      "One piece of the language runs the other way. Synkers were synkers long before anyone built an arena to put them in, and the frames are older than the arenas by a margin this book is not going to pretend it can date. The sport did not invent the mech. It inherited one, dressed it, and sold tickets, and it gave the language the other word for the job, because a gate needs a name people already own and nobody was ever going to sell seats to watch synchronisation.",
+      "Popular history likes a cleaner first cause than the record actually supports, and the Institute's own account is no exception: a persistent minority reading traces the whole arena format back to Hiopi city-fight custom, a ring, a bracket, a match built to produce exactly one finisher, on the theory that a design invented once travels faster than one invented twice. The Institute's own footnote admits it cannot show which one borrowed from the other, or that either came first. Worth reading for the shape of the guess, and no further than that.",
     ],
   },
   {
@@ -631,8 +652,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Official. Which is not the same as complete.",
     },
     body: [
-      "The Coalition of Enlightened is the association of worlds and species that holds the settled galaxy against the Bloom. It is administered in three rings: the Core, where the founding worlds and the oldest infrastructure sit; the Mid-Rim, where most of the population lives and most of the academies are; and the Frontier, where the war is fought.",
-      "Five standing blocs argue over how the war is paid for — the Hearth Bloc, the Ledger, the Frontier Compact, the Standing Service, and the Cradle Circle — and the argument is older than the war.",
+      "The Coalition of Enlightened is the association of worlds and species that holds the settled galaxy against the Bloom. It is administered in three rings. The Core, where the founding worlds and the oldest infrastructure sit. The Mid-Rim, where most of the population lives and most of the academies are. The Frontier, where the war is fought.",
+      "Five standing blocs argue over how the war is paid for. The Hearth Bloc, the Ledger, the Frontier Compact, the Standing Service, and the Cradle Circle. The argument is older than the war.",
       "Military formations are held under a Warrant, which is political ownership, and run by a Hand, which is whoever is actually in command of them day to day. The two are not the same office and are not expected to be the same person. A Warrant that is not exercised remains a Warrant.",
     ],
   },
@@ -650,8 +671,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "The Bureau's count begins from the first report anyone bothered to file, not the first thing anyone saw, and the Bureau would like that understood. By its count: thirty-one years.",
-      "The first entries are survey notes. A drift of something on an outer Frontier world, logged as a curiosity because from orbit it looked like one — a spread of colour across a valley floor that had not been there the season before, which is where the name came from and why it stuck. For most of a decade it stayed a curiosity. Quarantine lines were drawn and redrawn. A survey office was funded, then two. Nobody called it a war because nothing about it looked like one: it did not take ground and hold it, it did not come for anyone in particular, and the worlds it reached were worlds the Core had never had much reason to think about.",
-      "The first world lost is the entry where the register changes. The Coalition called it a war in the ninth year, once it had reached a sector with a name the Core recognised, and it has been the Frontier's war since — fought outward from the Mid-Rim by people who had mostly never seen the Core, on worlds that had mostly never seen the Coalition. The Emberfall Drift was hit early enough that its own memory of before is thin. The Cordage Belt's yards have laid carrier keels for the whole of it. The Amaranth Reach's terraces, this chronology notes without further comment, were among the first places anyone got a close, sustained look at what the Bloom does to living tissue.",
+      "The first entries are survey notes. A drift of something on an outer Frontier world, logged as a curiosity because from orbit it looked like one: a spread of colour across a valley floor that had not been there the season before, which is where the name came from and why it stuck. For most of a decade it stayed a curiosity. Quarantine lines were drawn and redrawn. A survey office was funded, then two. Nobody called it a war because nothing about it looked like one: it did not take ground and hold it, it did not come for anyone in particular, and the worlds it reached were worlds the Core had never had much reason to think about.",
+      "The first world lost is the entry where the register changes. The Coalition called it a war in the ninth year, once it had reached a sector with a name the Core recognised, and it has been the Frontier's war since, fought outward from the Mid-Rim by people who had mostly never seen the Core, on worlds that had mostly never seen the Coalition. The Emberfall Drift was hit early enough that its own memory of before is thin. The Cordage Belt's yards have laid carrier keels for the whole of it. The Amaranth Reach's terraces, this chronology notes without further comment, were among the first places anyone got a close, sustained look at what the Bloom does to living tissue.",
     ],
   },
 
@@ -708,7 +729,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "The Coalition is not governed by a party. It is argued over by five standing blocs, each older than the war, and the argument is about the same thing it has always been about: who pays.",
-      "The Hearth Bloc is the old worlds — the money that was there before the Coalition was, the families whose standing and whose shoreline are the same fact. It believes in stewardship and mostly practices it. The Ledger is margin and stability: a war is a line in an account, and the Ledger's whole position is that the account has to balance. The Frontier Compact is the worlds that fight the war, filing for a better deal for longer than anyone currently serving has been alive, and getting one slowly. The Standing Service is the administration — the registries, the fleet manifests, the primers — competent, respectable, and capped, and correct more often than anyone above it likes.",
+      "The Hearth Bloc is the old worlds: the money that was there before the Coalition was, the families whose standing and whose shoreline are the same fact. It believes in stewardship and mostly practices it. The Ledger is margin and stability: a war is a line in an account, and the Ledger's whole position is that the account has to balance. The Frontier Compact is the worlds that fight the war, filing for a better deal for longer than anyone currently serving has been alive, and getting one slowly. The Standing Service is the administration: the registries, the fleet manifests, the primers. Competent, respectable, and capped, and correct more often than anyone above it likes.",
       "The Cradle Circle runs the academies and the pipeline that feeds them. It makes soldiers out of whoever the war has left with nothing better to do, and it has been doing so since long before the Bloom gave it a reason.",
     ],
   },
@@ -746,7 +767,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "Humanoid, heavy-set, closer to a bear than to anything else in a human's frame of reference, and the closest species to human in the Coalition by temperament as well as shape. Osnians are born in litters of three to five and raised by the household rather than by a pair of parents, and the duty-first, community-first character every other species remarks on comes out of that. An Osnian grows up owed to a lot of people.",
-      "Males are overrepresented in the Coalition's front-line service by a wide margin, and a female Osnian serving with a fleet is treated — informally, never officially — as a bad omen. The kind of thing sailors say, that nobody can show is true and nobody stops saying.",
+      "Males are overrepresented in the Coalition's front-line service by a wide margin, and a female Osnian serving with a fleet is treated as a bad omen, informally, never officially. The kind of thing sailors say, that nobody can show is true and nobody stops saying.",
       "Osnian pilots fly the standard bipedal frame with one modification that is theirs alone: whisker arrays at the faceplate, sensing contact and near-contact where a camera sees nothing. A thing brushing the mech's face registers before it is seen. Against anything that lives under the ground, that is not decoration.",
     ],
   },
@@ -764,8 +785,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "Quadrupedal, centaur-built, a frog's skin and a lizard's patience. The Hiopi reproduce fast and they reproduce by contest: once a year, every Hiopi city holds a fight, and one male leaves it with that year's mating rights for the whole city. It is not a ceremony. Purpose-built arenas exist so the rest of the Coalition does not have to see it, and a standing minority of other-species opinion still writes in each year asking that it happen somewhere further away, which the Hiopi find funny in the way a solved problem is funny.",
-      "It used to be one fight per world. Those never ended — some ran the length of a year with no winner — so the contest was scaled down to the city, which is the size of a fight that finishes. A Hiopi carrier, by the same rule, counts as a city.",
-      "In a mech the Hiopi pilot a centauroid frame rather than the standard bipedal one. Four legs hold a charge line the way two cannot, and the lance — the running straight-line strike — survives as live doctrine among Hiopi pilots for that reason and no sentimental one. They are slower through rubble and worse in a tight structure. They know it, and they route around it.",
+      "It used to be one fight per world. Those never ended, some ran the length of a year with no winner, so the contest was scaled down to the city, which is the size of a fight that finishes. A Hiopi carrier, by the same rule, counts as a city.",
+      "In a mech the Hiopi pilot a centauroid frame rather than the standard bipedal one. Four legs hold a charge line the way two cannot, and the lance, the running straight-line strike, survives as live doctrine among Hiopi pilots for that reason and no sentimental one. They are slower through rubble and worse in a tight structure. They know it, and they route around it.",
     ],
   },
   {
@@ -781,9 +802,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Dry, and accurate as far as it goes.",
     },
     body: [
-      "Lithoid — a mineral physiology, semi-transparent, lit from inside by a slow movement of internal glitter that is the closest thing a Carabil has to a face. No two look alike. Colour is a personal choice and it changes over decades, the way a person redecorates. There is no expression to read; tone lives in how fast the glitter moves, and in a voice that arrives as if from slightly inside a large empty room, even outdoors.",
-      "A Carabil is not a pilot who boards a ship. A Carabil is grown into a ship from the start, and feels the hull the way you feel your own hand — not pain when it is damaged, but a diminishment, a being-less. When a carrier launches its full mech complement its commander feels an emptiness first, then their own senses reaching out along every deployed mech's sensors at once.",
-      "Their word for their own cognition is Longsight, and it is collective. Taking a ship means learning, over years, to stand a little apart from the rest of their kind — a bounded solitude most often chosen by the young, whom they call sprouts. They do not take personal names. They take a phrase that names what they do.",
+      "Lithoid, a mineral physiology, semi-transparent, lit from inside by a slow movement of internal glitter that is the closest thing a Carabil has to a face. No two look alike. Colour is a personal choice and it changes over decades, the way a person redecorates. There is no expression to read. Tone lives in how fast the glitter moves, and in a voice that arrives as if from slightly inside a large empty room, even outdoors.",
+      "A Carabil is not a pilot who boards a ship. A Carabil is grown into a ship from the start, and feels the hull the way you feel your own hand. Not pain when it is damaged, but a diminishment, a being-less. When a carrier launches its full mech complement its commander feels an emptiness first, then their own senses reaching out along every deployed mech's sensors at once.",
+      "Their word for their own cognition is Longsight, and it is collective. Taking a ship means learning, over years, to stand a little apart from the rest of their kind, a bounded solitude most often chosen by the young, whom they call sprouts. They do not take personal names. They take a phrase that names what they do.",
     ],
   },
 
@@ -803,7 +824,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "The Frontier fights the war. The Core watches it. That is the Compact's whole argument and it does not need a second sentence, but here are some anyway.",
-      "Every recruiting office on the Long Marches and the Emberfall Drift meets its quota. Every one on Glasswater fills its posts with volunteers who chose it. The supply lines run outward, and they run thin by the time they reach anyone standing in front of the Bloom. The feeds run inward, and they never run thin at all — there is not a terrace estate in the Core that cannot watch a Frontier company hold a line, in real time, in comfort, and there are households that make an evening of it.",
+      "Every recruiting office on the Long Marches and the Emberfall Drift meets its quota. Every one on Glasswater fills its posts with volunteers who chose it. The supply lines run outward, and they run thin by the time they reach anyone standing in front of the Bloom. The feeds run inward, and they never run thin at all. There is not a terrace estate in the Core that cannot watch a Frontier company hold a line, in real time, in comfort, and there are households that make an evening of it.",
       "The Compact does not say the Core does not care. The Compact says the Core has never had to. Ask your quartermaster what the last resupply cost. Then ask when it came.",
     ],
   },
@@ -821,8 +842,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "Most of the Coalition lives in one of a small number of ways, and the way tells you more about a person than the world does.",
-      "Docksides: a working port, ships and tonnage as the ordinary rhythm of a childhood — the Cordage Belt is mostly this. Terrace farmsteads: generational land, a family that measures time in growing seasons, the Amaranth Reach's own shape and Glasswater's. Arcology stacks: city built on city, where whose window sees daylight is not a small fact — the Understrand's Cistgate is the Coalition's model of it. Garrison quarters: a soldier's kid before they were ever a soldier, on or against a base, the Emberfall Drift's Greywatch above all. Drift colonies: void-born or near enough, a long-haul convoy or a mobile habitat rather than a fixed world.",
-      "Three more the survey counts separately because they are less about where than about whose. Company housing: a charter-house labour family, the money at one remove, never the seat. Academy wards: faculty and staff children, half-raised by an institution. And the preserve-adjacent — those who grew up near a boundary the Coalition maintains around a population it observes and does not develop, close enough to have questions the family never answered.",
+      "Docksides: a working port, ships and tonnage as the ordinary rhythm of a childhood. The Cordage Belt is mostly this. Terrace farmsteads: generational land, a family that measures time in growing seasons, the Amaranth Reach's own shape and Glasswater's. Arcology stacks: city built on city, where whose window sees daylight is not a small fact. The Understrand's Cistgate is the Coalition's model of it. Garrison quarters: a soldier's kid before they were ever a soldier, on or against a base, the Emberfall Drift's Greywatch above all. Drift colonies: void-born or near enough, a long-haul convoy or a mobile habitat rather than a fixed world.",
+      "Three more the survey counts separately because they are less about where than about whose. Company housing: a charter-house labour family, the money at one remove, never the seat. Academy wards: faculty and staff children, half-raised by an institution. And the preserve-adjacent, those who grew up near a boundary the Coalition maintains around a population it observes and does not develop, close enough to have questions the family never answered.",
     ],
   },
   {
@@ -838,7 +859,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "The official account. Read the settlement survey beside it.",
     },
     body: [
-      "The Coalition does not conquer. When a survey finds a people who have not yet reached their own sky, the Coalition draws a line around their world and holds it — no contact, no development, no trade, and no war. Inside the line, a people go on becoming whatever they were becoming. Outside it, the Coalition keeps the Bloom off them, which is more than anyone kept off us.",
+      "The Coalition does not conquer. When a survey finds a people who have not yet reached their own sky, the Coalition draws a line around their world and holds it: no contact, no development, no trade, and no war. Inside the line, a people go on becoming whatever they were becoming. Outside it, the Coalition keeps the Bloom off them, which is more than anyone kept off us.",
       "That is a preserve. There are more of them than most citizens could name, and the Circle maintains every boundary, staffs every observation post, and funds every survey office at the line. A preserve is not a colony. It is not a protectorate. It has no seat, no bloc, and no Warrant. It is, in the Coalition's own phrase, a people kept.",
       "The settlements at a boundary are ordinary Frontier towns with a treaty line at the edge of them. They supply the posts, they raise their children within sight of a world they will never visit, and they are asked, in every survey, whether the line is respected. The Circle's records show that it is.",
     ],
@@ -857,7 +878,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "Five academies feed the Frontier, and a sixth path that is not an academy at all.",
-      "The Tallowmere Fitting Yards began as a trade school and still runs like one: apprenticeship pace, real engineering, no ceremony, and a graduate who can keep a hull and a chassis alive at once. The Cutbank Muster School was a militia drill-ground until the war widened and made it a feeder — minimal ceremony, maximal survival, and a preference for the close, fast fight. The Glasswater Conservatory of Arms is the Coalition's nearest thing to a finishing school with live-fire electives; it teaches range, control, patience, and how to lose gracefully to someone with more money. The Cistgate Ledgerworks is a Standing Service training ground first and an academy second, and produces cadets who read a battlefield the way a clerk reads a form. The Greywatch Muster is garrison-attached and honour-bound in the Osnian manner: it holds a line because holding is the whole point.",
+      "The Tallowmere Fitting Yards began as a trade school and still runs like one: apprenticeship pace, real engineering, no ceremony, and a graduate who can keep a hull and a chassis alive at once. The Cutbank Muster School was a militia drill-ground until the war widened and made it a feeder: minimal ceremony, maximal survival, and a preference for the close, fast fight. The Glasswater Conservatory of Arms is the Coalition's nearest thing to a finishing school with live-fire electives. It teaches range, control, patience, and how to lose gracefully to someone with more money. The Cistgate Ledgerworks is a Standing Service training ground first and an academy second, and produces cadets who read a battlefield the way a clerk reads a form. The Greywatch Muster is garrison-attached and honour-bound in the Osnian manner: it holds a line because holding is the whole point.",
       "And there is line-trained. Never went through any of it. Learned everything in the field, under people who had learned it the same way. The Board lists it here because a prospectus that pretended those synkers did not exist would be lying to the sectors that supply most of them.",
     ],
   },
@@ -877,9 +898,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Right about the ladder. Has opinions about the top of it.",
     },
     body: [
-      "Everything a line synker will ever hold was bought with points, and points are earned. That is the earned ladder — seven grades from a Stocklance to a Stormblade — and the Ledger's position, stated plainly, is that it works. A synker who is good gets better gear, and the Coalition gets a better synker for its money.",
+      "Everything a line synker will ever hold was bought with points, and points are earned. That is the earned ladder, seven grades from a Stocklance to a Stormblade, and the Ledger's position, stated plainly, is that it works. A synker who is good gets better gear, and the Coalition gets a better synker for its money.",
       "Above the earned ladder sits gear that is not for sale. Heirloom-grade equipment is held by families, not units. It comes down a bloodline or it does not come at all, and no amount of points moves it.",
-      "Above that sits Sovereign-grade, which belongs to the ruling houses and does not appear on a battlefield, because its flagship use is not a weapon. It is time — a life extended far past the baseline. A charter house rich enough to field Heirloom-grade arms is rich enough to have a patriarch who remembers the war starting.",
+      "Above that sits Sovereign-grade, which belongs to the ruling houses and does not appear on a battlefield, because its flagship use is not a weapon. It is time: a life extended far past the baseline. A charter house rich enough to field Heirloom-grade arms is rich enough to have a patriarch who remembers the war starting.",
       "The Ledger notes, without further comment, that the top rung of the earned ladder is called A, and that the rung above it has a letter too.",
     ],
   },
@@ -897,8 +918,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "A ship goes where a gate is. That is the whole of the Coalition's reach in one sentence: the gate network is the map, and a world without a gate is a world the war arrives at slowly, if at all. Between gates a ship is on its own, and doctrine is written for that.",
-      "The carrier is the unit of the war. A hull that carries lances — five at full complement, each five mechs and their Meks — with the yards, the berths, the workshop, and the fabricator to keep them fighting for a season without seeing a port. It travels with escorts, and it travels with a commander who is not so much aboard the ship as part of it. The mech is the unit of the fight: a frame, a synker wired into it, and a Mek in the cradle who knows the frame better than the synker does. The word is the job — a synker is synchronised to the frame, and a first-year who says pilot will be corrected exactly once. Everything the Yards build ends up on one of those two things.",
-      "And on every wrist, the Holoband — comm, ledger, and identity in one band, issued at enlistment and rarely removed. A synker's Holoband is the last thing a crew looks for on a field and the first thing a Mek checks in the morning.",
+      "The carrier is the unit of the war. A hull that carries lances, five at full complement, each five mechs and their Meks, with the yards, the berths, the workshop, and the fabricator to keep them fighting for a season without seeing a port. It travels with escorts, and it travels with a commander who is not so much aboard the ship as part of it. The mech is the unit of the fight: a frame, a synker wired into it, and a Mek in the cradle who knows the frame better than the synker does. The word is the job: a synker is synchronised to the frame, and a first-year who says pilot will be corrected exactly once. Everything the Yards build ends up on one of those two things.",
+      "And on every wrist, the Holoband: comm, ledger, and identity in one band, issued at enlistment and rarely removed. A synker's Holoband is the last thing a crew looks for on a field and the first thing a Mek checks in the morning.",
     ],
   },
   {
@@ -914,8 +935,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "How the shelf works. Read it before you need it.",
     },
     body: [
-      "A beacon is a place on the field where a downed synker can be pulled back into the fight that is still going on around them. Not the next mission — this one. Whoever holds the beacon places it inside their own sight and reach, and it does one thing: it spends what is on the shelf to put a synker back on their feet.",
-      "The shelf is two things, bought ahead of time and drawn down one revive at a time. A crate is the physical part of it — parts, fluid, the plate that took the hit. A charge is the permission: pre-paid, counted, and gone the moment it is used. A Fabricator Mek keeps a crate of their own synker's spares in the cradle, so that synker never draws down the company's shelf; everyone else does.",
+      "A beacon is a place on the field where a downed synker can be pulled back into the fight that is still going on around them. Not the next mission. This one. Whoever holds the beacon places it inside their own sight and reach, and it does one thing: it spends what is on the shelf to put a synker back on their feet.",
+      "The shelf is two things, bought ahead of time and drawn down one revive at a time. A crate is the physical part of it: parts, fluid, the plate that took the hit. A charge is the permission: pre-paid, counted, and gone the moment it is used. A Fabricator Mek keeps a crate of their own synker's spares in the cradle, so that synker never draws down the company's shelf. Everyone else does.",
       "One rule above the rest. A living Munti on the field at the moment the beacon is used waives the charge entirely. The beacon works without one. It just costs the company more, every time, in the only currency the Restock Room keeps.",
     ],
   },
@@ -933,22 +954,22 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: null,
         body: [
-          "The Amaranth Reach is one frontier sector among more than Warden Company will ever see the edge of. Out past it, the war against the Bloom is fought by an alliance of worlds and species stretching further than any one unit's own maps show — the Reach answers, on paper, up a chain of command most of the company has never met and mostly doesn't think about.",
+          "The Amaranth Reach is one frontier sector among more than Warden Company will ever see the edge of. Out past it, the war against the Bloom is fought by an alliance of worlds and species stretching further than any one unit's own maps show. The Reach answers, on paper, up a chain of command most of the company has never met and mostly doesn't think about.",
           "Doctrine, wherever it actually comes from, is simple: you're given the objective, and you're trusted to reach it. Nobody's radioed Rourke a change of orders in longer than anyone currently serving can remember. A company this far out, still carrying a corporate name nobody ever bothered to change, doesn't get many occasions to ask whether that's how the chain of command is supposed to work, or just how it's worked out here.",
         ],
       },
       {
         after: 20,
         body: [
-          "Colonel Marrow said it plainly, once the duel was over and there was nothing left on the field to prove by pretending otherwise: nobody's actually held Warden Company's own paperwork in years. Said it like an insult, and meant it like one — a House officer's easy contempt for a unit that answers to no one because no one's bothered to ask in longer than anyone still serving can remember.",
-          "She didn't explain further, and nobody chased her for it. Whether she was right, or just cruel, or both, is the kind of question the war doesn't leave much room to sit with — not until somebody official says so out loud, on the record, instead of an enemy throwing it out as one last word before disengaging.",
+          "Colonel Marrow said it plainly, once the duel was over and there was nothing left on the field to prove by pretending otherwise: nobody's actually held Warden Company's own paperwork in years. Said it like an insult, and meant it like one, a House officer's easy contempt for a unit that answers to no one because no one's bothered to ask in longer than anyone still serving can remember.",
+          "She didn't explain further, and nobody chased her for it. Whether she was right, or just cruel, or both, is the kind of question the war doesn't leave much room to sit with, not until somebody official says so out loud, on the record, instead of an enemy throwing it out as one last word before disengaging.",
         ],
       },
       {
         after: 36,
         body: [
-          "The relief fleet that reached the Reach was the first time anyone in Warden Company heard their own chain of command's full name spoken out loud, formally, the way an institution states itself on first contact: the Coalition of Enlightened. Nobody in the company has said it that way since. It's \"the Coalition,\" same as it always was — the short form was never a mystery, just never confirmed.",
-          "What the fleet's own officers made clear, without quite saying it plainly: out past the Reach, the war runs on a real shape — worlds and species administered in overlapping rings the Coalition itself calls Core, Mid-Rim, and Frontier, and threaded through with old political houses (the Hearth Bloc, the Ledger, the Frontier Compact, Standing Service, the Cradle Circle) that have been arguing over the war's cost longer than Warden Company has existed. A unit like Warden's is nominally held under something the Coalition calls a Warrant — political ownership, separate from whoever's actually running a unit day to day, the Hand in their own terms. Whichever officer holds Warden's Warrant, nobody currently serving has ever met them — and the fleet's own records, checked without much ceremony, turned up exactly what a House Amaranth colonel had already said for free, sixteen missions and a war ago: there's nobody left to check.",
+          "The relief fleet that reached the Reach was the first time anyone in Warden Company heard their own chain of command's full name spoken out loud, formally, the way an institution states itself on first contact: the Coalition of Enlightened. Nobody in the company has said it that way since. It's \"the Coalition,\" same as it always was. The short form was never a mystery, just never confirmed.",
+          "What the fleet's own officers made clear, without quite saying it plainly: out past the Reach, the war runs on a real shape: worlds and species administered in overlapping rings the Coalition itself calls Core, Mid-Rim, and Frontier, and threaded through with old political houses (the Hearth Bloc, the Ledger, the Frontier Compact, Standing Service, the Cradle Circle) that have been arguing over the war's cost longer than Warden Company has existed. A unit like Warden's is nominally held under something the Coalition calls a Warrant, political ownership, separate from whoever's actually running a unit day to day, the Hand in their own terms. Whichever officer holds Warden's Warrant, nobody currently serving has ever met them, and the fleet's own records, checked without much ceremony, turned up exactly what a House Amaranth colonel had already said for free, sixteen missions and a war ago: there's nobody left to check.",
         ],
       },
     ],
@@ -967,7 +988,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: null,
         body: [
-          "A frontier cluster on the edge of core-administered space, held nominally by a sector governor-general who's never once had to actually worry about it. Its wealth and its name both come from the same source — House Amaranth, the founding charter dynasty, generations deep in the sector's richest agricultural terraces. Warden Company holds a stretch of border line here, the Fallow Line, alongside House Amaranth's own chartered battlegroup. Meridian, the Reach's capital, gets its own entry.",
+          "A frontier cluster on the edge of core-administered space, held nominally by a sector governor-general who's never once had to actually worry about it. Its wealth and its name both come from the same source: House Amaranth, the founding charter dynasty, generations deep in the sector's richest agricultural terraces. Warden Company holds a stretch of border line here, the Fallow Line, alongside House Amaranth's own chartered battlegroup. Meridian, the Reach's capital, gets its own entry.",
         ],
       },
       {
@@ -989,13 +1010,13 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 6,
         body: [
-          "A charter house, generations old, holding the Reach's richest terraces. Fields its own chartered battlegroup alongside the Reach's loyalist regulars — Colonel Ysolde Marrow runs it day to day. Officially allied with Warden Company. That alliance has been tense since a checkpoint dispute neither side has fully let go of.",
+          "A charter house, generations old, holding the Reach's richest terraces. Fields its own chartered battlegroup alongside the Reach's loyalist regulars. Colonel Ysolde Marrow runs it day to day. Officially allied with Warden Company. That alliance has been tense since a checkpoint dispute neither side has fully let go of.",
         ],
       },
       {
         after: 10,
         body: [
-          "Whatever's actually kept this alliance strained, it broke outright once. House Amaranth pulled off a position everyone was supposed to be holding together — no warning given, no explanation offered since.",
+          "Whatever's actually kept this alliance strained, it broke outright once. House Amaranth pulled off a position everyone was supposed to be holding together. No warning given, no explanation offered since.",
         ],
       },
       {
@@ -1007,13 +1028,13 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 23,
         body: [
-          "It was deliberate the whole time. House Amaranth's own research — decades of it, reaching back to the war's earliest years — got turned into a bargain: divert the Bloom's growth away from House lands, and call the redirected mess stewardship instead of what it actually is. It worked long enough to look like wisdom. Nobody who signed off on it thought it would still be paying out this way.",
+          "It was deliberate the whole time. House Amaranth's own research, decades of it, reaching back to the war's earliest years, got turned into a bargain: divert the Bloom's growth away from House lands, and call the redirected mess stewardship instead of what it actually is. It worked long enough to look like wisdom. Nobody who signed off on it thought it would still be paying out this way.",
         ],
       },
       {
         after: 28,
         body: [
-          "Whatever debt put Colonel Marrow in that seat, she's stopped paying it. She turned on Halcyon Amaranth herself, mid-battle, at real cost — the kind of choice that doesn't undo anything already done, and isn't made to undo anything either. Warden Company doesn't know yet whether it changes the war they're actually fighting. It's not clear it does.",
+          "Whatever debt put Colonel Marrow in that seat, she's stopped paying it. She turned on Halcyon Amaranth herself, mid-battle, at real cost, the kind of choice that doesn't undo anything already done, and isn't made to undo anything either. Warden Company doesn't know yet whether it changes the war they're actually fighting. It's not clear it does.",
         ],
       },
     ],
@@ -1029,14 +1050,14 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: null,
         body: [
-          "The border Warden Company holds. Not a wall — a line of positions, trenches and listening posts and ground that has been fought over enough times to have names, strung along the edge of the terraces where the Reach's fields stop and the Bloom's don't. It is called fallow because that is what the Reach did with it: pulled the crops back a season's width and left the ground bare, on the theory that the mat has less to cross where there is nothing growing to cross on.",
+          "The border Warden Company holds. Not a wall: a line of positions, trenches and listening posts and ground that has been fought over enough times to have names, strung along the edge of the terraces where the Reach's fields stop and the Bloom's don't. It is called fallow because that is what the Reach did with it: pulled the crops back a season's width and left the ground bare, on the theory that the mat has less to cross where there is nothing growing to cross on.",
           "It works about as well as anyone expected. The Line holds because people hold it, one post at a time, and the company has been on it long enough that nobody remembers it being anywhere else.",
         ],
       },
       {
         after: 12,
         body: [
-          "The company came off the Line at the end of the season. What it held for, it held — long enough for what was behind it to get out — and then it withdrew, in order, under fire, the way a withdrawal is supposed to go and mostly doesn't. The Line is behind Warden Company now. Nobody has said the word abandoned, and nobody has said the word lost, and the Reach's maps still draw it where it was.",
+          "The company came off the Line at the end of the season. What it held for, it held, long enough for what was behind it to get out, and then it withdrew, in order, under fire, the way a withdrawal is supposed to go and mostly doesn't. The Line is behind Warden Company now. Nobody has said the word abandoned, and nobody has said the word lost, and the Reach's maps still draw it where it was.",
         ],
       },
     ],
@@ -1058,19 +1079,19 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 25,
         body: [
-          "Whatever's been quietly accelerating out on the terraces has found a new gear entirely, and it's coming this way faster than anyone accounted for. Meridian's own orbital defense grid — Meridian's Oath — just went from a name on a briefing slide to something Warden Company is actually calling in mid-fight.",
+          "Whatever's been quietly accelerating out on the terraces has found a new gear entirely, and it's coming this way faster than anyone accounted for. Meridian's own orbital defense grid, Meridian's Oath, just went from a name on a briefing slide to something Warden Company is actually calling in mid-fight.",
         ],
       },
       {
         after: 29,
         body: [
-          "Falling back ring by ring around a capital that isn't supposed to fall changes what a fight even means. The outer ring went by design, not by failure — buying time, not holding ground. What's left gets smaller every time Warden Company checks, and closer to the people the whole war was supposed to be keeping safe.",
+          "Falling back ring by ring around a capital that isn't supposed to fall changes what a fight even means. The outer ring went by design, not by failure: buying time, not holding ground. What's left gets smaller every time Warden Company checks, and closer to the people the whole war was supposed to be keeping safe.",
         ],
       },
       {
         after: 36,
         body: [
-          "It held. Changed for good — the name that used to belong to the whole reach around it doesn't get said much anymore, and Meridian itself remembers exactly how close that margin actually was, even if the official histories round it up to a clean victory.",
+          "It held. Changed for good. The name that used to belong to the whole reach around it doesn't get said much anymore, and Meridian itself remembers exactly how close that margin actually was, even if the official histories round it up to a clean victory.",
         ],
       },
     ],
@@ -1088,7 +1109,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Tank. Human. An arcology-stack garrison quarter on Cistgate, in the Understrand, and something hit him there early — bigger than he was ready for, the kind of thing the Ledgerworks' procedural training arrived too late to shield him from and so taught him to account for instead. He holds a line the way Bosk does, reached from a harder direction: not because someone told him to, because he has already seen what happens when nobody does.",
+      "Tank. Human. An arcology-stack garrison quarter on Cistgate, in the Understrand, and something hit him there early, bigger than he was ready for, the kind of thing the Ledgerworks' procedural training arrived too late to shield him from and so taught him to account for instead. He holds a line the way Bosk does, reached from a harder direction: not because someone told him to, because he has already seen what happens when nobody does.",
     ],
     tail: { heading: "MEK — mek_okafor, catalyst Bear", body: "Same arcology, a different street: a childhood in the shadow of a preserve boundary nobody explained, then hit hard, then watchful. Two self-contained people in one cradle, and it works because neither of them needs the other to talk." },
   },
@@ -1101,9 +1122,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Reeps. Human. Dockside on Loomvale, the Understrand's registry world — one remove from real security, close enough to watch it. The Ledgerworks sharpened that into the thing the callsign already says: she reads a target the way a clerk reads a form, and she does not miss the line that matters. Competitive about it. Keeps count.",
+      "Reeps. Human. Dockside on Loomvale, the Understrand's registry world, one remove from real security, close enough to watch it. The Ledgerworks sharpened that into the thing the callsign already says: she reads a target the way a clerk reads a form, and she does not miss the line that matters. Competitive about it. Keeps count.",
     ],
-    tail: { heading: "MEK — mek_solheim, catalyst Dog", body: "Company housing on Pale Cistern, comfortable, structured by a procedural academy rather than the Conservatory — plain devotion, arrived at by a different institutional road than Anand's Mek's. The rig is never the reason she missed." },
+    tail: { heading: "MEK — mek_solheim, catalyst Dog", body: "Company housing on Pale Cistern, comfortable, structured by a procedural academy rather than the Conservatory: plain devotion, arrived at by a different institutional road than Anand's Mek's. The rig is never the reason she missed." },
   },
   {
     id: "pilot_tarrant",
@@ -1114,9 +1135,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Meeps. Hiopi — centauroid frame. Half-raised on the Cutbank Muster School's own grounds on Harrow's Table before he was ever a cadet there, which is why he moves like someone who has been in a mech since he could climb into one and fights like someone who has never actually been hit. Fast, adaptable, still forming. The uniform suggests more than the record does yet.",
+      "Meeps. Hiopi, centauroid frame. Half-raised on the Cutbank Muster School's own grounds on Harrow's Table before he was ever a cadet there, which is why he moves like someone who has been in a mech since he could climb into one and fights like someone who has never actually been hit. Fast, adaptable, still forming. The uniform suggests more than the record does yet.",
     ],
-    tail: { heading: "MEK — mek_tarrant, catalyst Crow", body: "A salvage-adjacent farming family on Cutbank's Bloom-scarred canyons — real, ordinary hardship, met with a deliberate lightness that keeps a green pilot's cradle from becoming a nervous place." },
+    tail: { heading: "MEK — mek_tarrant, catalyst Crow", body: "A salvage-adjacent farming family on Cutbank's Bloom-scarred canyons: real, ordinary hardship, met with a deliberate lightness that keeps a green pilot's cradle from becoming a nervous place." },
   },
   {
     id: "pilot_vashti",
@@ -1127,9 +1148,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Munti. Osnian — vibrissal frame. Raised aboard convoy habitats drifting between the Emberfall Drift's garrison routes, never rooted anywhere long enough to call it home, and the Greywatch Muster took her in the way it takes everyone: by making her hold something. She keeps a squad alive the way she kept herself steady on a convoy — by finding, deliberately, the thing worth staying for wherever she has washed up next. The callsign was not her idea. She has stopped arguing with it.",
+      "Munti. Osnian, vibrissal frame. Raised aboard convoy habitats drifting between the Emberfall Drift's garrison routes, never rooted anywhere long enough to call it home, and the Greywatch Muster took her in the way it takes everyone: by making her hold something. She keeps a squad alive the way she kept herself steady on a convoy: by finding, deliberately, the thing worth staying for wherever she has washed up next. The callsign was not her idea. She has stopped arguing with it.",
     ],
-    tail: { heading: "MEK — mek_vashti, catalyst Rabbit", body: "One of the Reach's smaller cultivated plots on Pale Cistern, and the Ledgerworks training her in procedure rather than soil — real comfort, and a real early loss it could not prevent. Fiercely protective since, which is the right temperament for the person behind the second Munti." },
+    tail: { heading: "MEK — mek_vashti, catalyst Rabbit", body: "One of the Reach's smaller cultivated plots on Pale Cistern, and the Ledgerworks training her in procedure rather than soil: real comfort, and a real early loss it could not prevent. Fiercely protective since, which is the right temperament for the person behind the second Munti." },
   },
   {
     id: "pilot_reyes",
@@ -1140,7 +1161,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Reeps. Hiopi — centauroid frame. Grew up scavenging the canyon edges of Cutbank after the Bloom had already scarred them, with no pipeline at all — no academy, no muster, line-trained by people who had learned it the same way. He reads a downed transport as a resource before he asks whose it was, and the company has learned to let him. There is an interior there that nobody, possibly including Reyes, has fully mapped.",
+      "Reeps. Hiopi, centauroid frame. Grew up scavenging the canyon edges of Cutbank after the Bloom had already scarred them, with no pipeline at all: no academy, no muster, line-trained by people who had learned it the same way. He reads a downed transport as a resource before he asks whose it was, and the company has learned to let him. There is an interior there that nobody, possibly including Reyes, has fully mapped.",
     ],
     tail: { heading: "MEK — mek_reyes, catalyst Cat", body: "A garrison-adjacent childhood on Emberfall, refinery world, no institution anywhere in it. The most self-contained pairing on the roster: two people who trust the rig more than they trust anyone, and keep it running for that reason." },
   },
@@ -1153,9 +1174,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Tank. Osnian — vibrissal frame. An orderly registry-world childhood on Loomvale with an unexplained preserve boundary at the edge of it, and then, during her Ledgerworks training, something bigger than she was ready for. She did not talk about it. She became a wall instead, and the callsign is the whole of that sentence. Holds ground. Does not move. Does not ask you to come back for her.",
+      "Tank. Osnian, vibrissal frame. An orderly registry-world childhood on Loomvale with an unexplained preserve boundary at the edge of it, and then, during her Ledgerworks training, something bigger than she was ready for. She did not talk about it. She became a wall instead, and the callsign is the whole of that sentence. Holds ground. Does not move. Does not ask you to come back for her.",
     ],
-    tail: { heading: "MEK — mek_kova, catalyst Wolf", body: "An academy ward's upbringing on Skeinreach's fiber farms, steady and dutiful and team-first — the one person in the cradle who will say what Kova won't, which is that a wall is part of a formation and not a substitute for one." },
+    tail: { heading: "MEK — mek_kova, catalyst Wolf", body: "An academy ward's upbringing on Skeinreach's fiber farms, steady and dutiful and team-first, the one person in the cradle who will say what Kova won't, which is that a wall is part of a formation and not a substitute for one." },
   },
   {
     id: "pilot_ness",
@@ -1166,9 +1187,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Tank. Hiopi — centauroid frame. Company housing on Tallowmere, a dock-adjacent labour family comfortable enough by the Belt's standards, trained at the Fitting Yards alongside people he would later hold a line for. That is the whole read: he holds the line because the people behind him are the point, and a Hiopi frame on a Tank chassis holds it wider than most. Kova's opposite, and they know it.",
+      "Tank. Hiopi, centauroid frame. Company housing on Tallowmere, a dock-adjacent labour family comfortable enough by the Belt's standards, trained at the Fitting Yards alongside people he would later hold a line for. That is the whole read: he holds the line because the people behind him are the point, and a Hiopi frame on a Tank chassis holds it wider than most. Kova's opposite, and they know it.",
     ],
-    tail: { heading: "MEK — mek_ness, catalyst Bear", body: "A preserve boundary on Loomvale and no institution at all — line-trained, hit hard, and the most withdrawn of the company's Meks. Ness talks enough for both of them, which is how the pairing was made and why it holds." },
+    tail: { heading: "MEK — mek_ness, catalyst Bear", body: "A preserve boundary on Loomvale and no institution at all: line-trained, hit hard, and the most withdrawn of the company's Meks. Ness talks enough for both of them, which is how the pairing was made and why it holds." },
   },
   {
     id: "pilot_onwuka",
@@ -1179,9 +1200,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Meeps. Osnian — vibrissal frame. A preserve-boundary childhood on Tallowmere, the Belt's industrial anchor — the ordinary, specific unease of growing up next to a line nobody would explain, and the Fitting Yards' hands-on training turning that into a Meeps' drive to advance through every fight at arm's length. Fast, aggressive, and the whiskers at the faceplate mean the thing under the ground is her problem before it is anyone else's.",
+      "Meeps. Osnian, vibrissal frame. A preserve-boundary childhood on Tallowmere, the Belt's industrial anchor, the ordinary, specific unease of growing up next to a line nobody would explain, and the Fitting Yards' hands-on training turning that into a Meeps' drive to advance through every fight at arm's length. Fast, aggressive, and the whiskers at the faceplate mean the thing under the ground is her problem before it is anyone else's.",
     ],
-    tail: { heading: "MEK — mek_onwuka, catalyst Crow", body: "A farming pocket on Greywatch, garrison world, honour culture — real hardship met with a chosen, restless lightness. Keeps a hard-charging pilot's cradle from being a grim one." },
+    tail: { heading: "MEK — mek_onwuka, catalyst Crow", body: "A farming pocket on Greywatch, garrison world, honour culture: real hardship met with a chosen, restless lightness. Keeps a hard-charging pilot's cradle from being a grim one." },
   },
   {
     id: "pilot_delgado",
@@ -1192,9 +1213,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Reeps. Human. Dockside on Pale Cistern — close enough to Glasswater's money to see the gap between the estate world's comfort and what a deployment actually costs, and she turned that gap into structure. The first pilot in the company to run a Quartermaster's track, which is not an accident: she is the one who always knows what is left on the shelf, and she does not wait to be asked.",
+      "Reeps. Human. Dockside on Pale Cistern, close enough to Glasswater's money to see the gap between the estate world's comfort and what a deployment actually costs, and she turned that gap into structure. The first pilot in the company to run a Quartermaster's track, which is not an accident: she is the one who always knows what is left on the shelf, and she does not wait to be asked.",
     ],
-    tail: { heading: "MEK — mek_delgado, catalyst Fox", body: "Raised on the Greywatch Muster's own grounds, a rare sheltered case on a hard frontier — quick, adaptable, not yet tested. The improvising half of a pairing whose other half counts everything twice." },
+    tail: { heading: "MEK — mek_delgado, catalyst Fox", body: "Raised on the Greywatch Muster's own grounds, a rare sheltered case on a hard frontier: quick, adaptable, not yet tested. The improvising half of a pairing whose other half counts everything twice." },
   },
   {
     id: "pilot_yeun",
@@ -1205,7 +1226,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "warden",
     statusMode: "roster",
     body: [
-      "Munti. Hiopi — centauroid frame. An academy ward inside the Conservatory's own grounds on Glasswater, every comfort available, until a real early loss the institution could not shield him from. He came out of it fiercely protective of everyone within reach, which is the whole reason a squad with Yeun in it stays a squad. The callsign was given, not chosen, and it fits.",
+      "Munti. Hiopi, centauroid frame. An academy ward inside the Conservatory's own grounds on Glasswater, every comfort available, until a real early loss the institution could not shield him from. He came out of it fiercely protective of everyone within reach, which is the whole reason a squad with Yeun in it stays a squad. The callsign was given, not chosen, and it fits.",
     ],
     tail: { heading: "MEK — mek_yeun, catalyst Rabbit", body: "A cultivated pocket among Glasswater's tide-terraces, real institutional comfort, and the same shape of early loss reached by a different road. Two people who protect for the same reason, in one cradle." },
   },
@@ -1218,7 +1239,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "mc",
     body: [
-      "Tank. Human. Common-born, career, and brilliant, in an army where the first two are supposed to cancel the third. She came up through the House's regulars on merit and got the Sword the way a professional gets it — because a Seal was needed elsewhere and someone had to actually run the battlegroup. She holds ground. That is her path and it is also her whole method: she proves herself by not moving, and by still being there when the people who doubted her have stopped looking.",
+      "Tank. Human. Common-born, career, and brilliant, in an army where the first two are supposed to cancel the third. She came up through the House's regulars on merit and got the Sword the way a professional gets it, because a Seal was needed elsewhere and someone had to actually run the battlegroup. She holds ground. That is her path and it is also her whole method: she proves herself by not moving, and by still being there when the people who doubted her have stopped looking.",
       "Confirmed in permanent command of the lances at the end of the first season, Seal-holder's blessing or not. Since then, Lance A's lead in person on every field, on top of everything else that answers to her.",
     ],
     tail: { heading: "MEK — mek_marrow, catalyst Shark", body: "Dockside on Tallowmere, one remove from real security in the Belt's yards, and it came out as pure advancement-hunger: the rig is kept sharp because falling behind was never acceptable. The opposite of her own loyalty read, and the reason her frame is never the thing that was not ready." },
@@ -1235,7 +1256,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       "Human. Blood of the House, and he lets you know it. Brigadier is a House rank, conferred by the House on itself, and in the field it entitles him to exactly what the charter says it does: the battlegroup's disposition, its levies, its supply, its readiness, and not one word to a lance once that lance is on the ground. He knows the line. He resents it in the particular way of a man who has never once been on the wrong side of it.",
       "He is not the Seal. The Seal is on Osnius, where the House's politics are done, and Verinis is what is left of the House at the front: the field commander, the one who signs for the terraces' defence, the one Marrow answers to in every matter but how she fights. He is, in the plain description of everyone who has served under him, an asshole. He is also the reason the estate still has power, walls, and a roster.",
     ],
-    tail: { heading: "CATALYST", body: "Cat — self-preservation as the only stance left standing; the interior nobody has mapped, possibly including him. Approves what gets built and what does not. Available in the Control Room. Will hear you out, in the sense that he will let you finish." },
+    tail: { heading: "CATALYST", body: "Cat: self-preservation as the only stance left standing. The interior nobody has mapped, possibly including him. Approves what gets built and what does not. Available in the Control Room. Will hear you out, in the sense that he will let you finish." },
   },
   {
     id: "pilot_vondra",
@@ -1246,9 +1267,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Meeps. Hiopi — centauroid frame. Raised mostly aboard the pleasure-barges that keep Pale Cistern's economy running rather than on any fixed ground, close enough to real barge-crew risk to see the gap between Glasswater's comfort and the labour underneath it, and the Conservatory structured that into what she is now: the sergeant who runs the room. She explains once. She expects it heard. Meir is hers to bring up and everyone in the Longhouse knows it, including Meir.",
+      "Meeps. Hiopi, centauroid frame. Raised mostly aboard the pleasure-barges that keep Pale Cistern's economy running rather than on any fixed ground, close enough to real barge-crew risk to see the gap between Glasswater's comfort and the labour underneath it, and the Conservatory structured that into what she is now: the sergeant who runs the room. She explains once. She expects it heard. Meir is hers to bring up and everyone in the Longhouse knows it, including Meir.",
     ],
-    tail: { heading: "MEK — mek_vondra, catalyst Fox", body: "A comfortable ranch-family upbringing on Harrow's Table, trained on the Muster School's grounds without ever really being tested by them — quick, improvising, the foil to Vondra's own careful structure. She says he is the only person allowed to surprise her." },
+    tail: { heading: "MEK — mek_vondra, catalyst Fox", body: "A comfortable ranch-family upbringing on Harrow's Table, trained on the Muster School's grounds without ever really being tested by them: quick, improvising, the foil to Vondra's own careful structure. She says he is the only person allowed to surprise her." },
   },
   {
     id: "pilot_meir",
@@ -1259,7 +1280,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Meeps. Hiopi — centauroid frame. An academy ward on Cistgate, the Understrand's dense arcology world — institutional, orderly, dutiful, nothing dramatic in it. He is young, and he is aggressive by conviction rather than by temperament: he has decided what a Meeps is for and he intends to be it. The carrying stress is real and it is the stress of someone being brought up in public by a sergeant who is right. Bray gets on his nerves. The feeling is mutual and neither of them has said why.",
+      "Meeps. Hiopi, centauroid frame. An academy ward on Cistgate, the Understrand's dense arcology world: institutional, orderly, dutiful, nothing dramatic in it. He is young, and he is aggressive by conviction rather than by temperament: he has decided what a Meeps is for and he intends to be it. The carrying stress is real and it is the stress of someone being brought up in public by a sergeant who is right. Bray gets on his nerves. The feeling is mutual and neither of them has said why.",
     ],
     tail: { heading: "MEK — mek_meir, catalyst Crow", body: "Real garrison-world hardship on Greywatch, met with a restless lightness his own pilot never allows himself. The one person who can make Meir laugh in the cradle, and he does it on purpose." },
   },
@@ -1272,9 +1293,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Reeps. Human. A convoy-transient childhood running cargo between Tallowmere's orbital yards, and a yard accident early enough that he saw what a body looks like after one before the Fitting Yards ever took him in. Watchful since. Self-reliant since. The marksman of the House's first lance and the least talkative person in it — he does not hold a grudge against Meir so much as a position, and he will hold it until someone moves him.",
+      "Reeps. Human. A convoy-transient childhood running cargo between Tallowmere's orbital yards, and a yard accident early enough that he saw what a body looks like after one before the Fitting Yards ever took him in. Watchful since. Self-reliant since. The marksman of the House's first lance and the least talkative person in it. He does not hold a grudge against Meir so much as a position, and he will hold it until someone moves him.",
     ],
-    tail: { heading: "MEK — mek_bray, catalyst Dog", body: "Company housing on Glasswater, comfortable, structured by the Ledgerworks — plain devotion. The steady constant that keeps a withdrawn sharpshooter's rig reliable, and the only person on the estate Bray will actually let stand behind him." },
+    tail: { heading: "MEK — mek_bray, catalyst Dog", body: "Company housing on Glasswater, comfortable, structured by the Ledgerworks. Plain devotion. The steady constant that keeps a withdrawn sharpshooter's rig reliable, and the only person on the estate Bray will actually let stand behind him." },
   },
   {
     id: "pilot_orin",
@@ -1285,9 +1306,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Munti. Osnian — vibrissal frame. Comfortable in theory, on Glasswater itself, close enough to the Reach's own quiet preserve boundary to have grown up with questions nobody would answer — and then a real early loss the Conservatory's polish could not prevent. Fiercely protective ever since, in the way of someone who decided very young that it would not happen again on her watch. The youngest of the five. Cannot sit still. Roams the Longhouse while the others sit.",
+      "Munti. Osnian, vibrissal frame. Comfortable in theory, on Glasswater itself, close enough to the Reach's own quiet preserve boundary to have grown up with questions nobody would answer, and then a real early loss the Conservatory's polish could not prevent. Fiercely protective ever since, in the way of someone who decided very young that it would not happen again on her watch. The youngest of the five. Cannot sit still. Roams the Longhouse while the others sit.",
     ],
-    tail: { heading: "MEK — mek_orin, catalyst Wolf", body: "An ordinary, comfortable arcology upbringing on Cistgate, nothing like Orin's own loss — keeps the formation's gear running on plain, dutiful teamwork, and is the one person in the Longhouse who can make her sit down." },
+    tail: { heading: "MEK — mek_orin, catalyst Wolf", body: "An ordinary, comfortable arcology upbringing on Cistgate, nothing like Orin's own loss. Keeps the formation's gear running on plain, dutiful teamwork, and is the one person in the Longhouse who can make her sit down." },
   },
   {
     id: "pilot_kessler",
@@ -1300,7 +1321,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     body: [
       "Tank. Human. An agrarian pocket on Tallowmere, steady growing-season rhythm inside the Belt's yard noise, and the local Fitting Yards alongside people who became crewmates. The same duty-bound read Marrow's own track carries, reached from a gentler direction: he holds because that is what the season asks, and he has never needed a harder reason.",
     ],
-    tail: { heading: "MEK — mek_kessler, catalyst Fox", body: "Raised around the Cutbank Muster School's grounds despite the salvage economy outside them — a rare sheltered case, quick and improvising beside Kessler's steady work." },
+    tail: { heading: "MEK — mek_kessler, catalyst Fox", body: "Raised around the Cutbank Muster School's grounds despite the salvage economy outside them: a rare sheltered case, quick and improvising beside Kessler's steady work." },
   },
   {
     id: "pilot_vantana",
@@ -1311,7 +1332,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Meeps. Osnian — vibrissal frame. Dockside on Glasswater, the Reach's own capital, close enough to working risk to see the gap between the estate world's comfort and what it costs — and she metabolised that into the clear, teachable structure a Runemaster's track needs. The lance's vision. Tells you what she sees in the order you need to hear it.",
+      "Meeps. Osnian, vibrissal frame. Dockside on Glasswater, the Reach's own capital, close enough to working risk to see the gap between the estate world's comfort and what it costs, and she metabolised that into the clear, teachable structure a Runemaster's track needs. The lance's vision. Tells you what she sees in the order you need to hear it.",
     ],
     tail: { heading: "MEK — mek_vantana, catalyst Bear", body: "Hit early by something bigger than a Skeinreach mill childhood prepares anyone for, and turned inward. A quiet, watchful presence in the cradle beside a pilot who does the talking." },
   },
@@ -1324,9 +1345,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Reeps. Hiopi — centauroid frame. A refinery world the Bloom reached early, a treaty line close enough to carry questions, and no pipeline at all — line-trained. Reads a downed transport as a resource before he asks whose it was, same as Warden's own scavenger, and trusts the rig more than the roster. The House took him because he was good. He has not yet decided whether that was mutual.",
+      "Reeps. Hiopi, centauroid frame. A refinery world the Bloom reached early, a treaty line close enough to carry questions, and no pipeline at all. Line-trained. Reads a downed transport as a resource before he asks whose it was, same as Warden's own scavenger, and trusts the rig more than the roster. The House took him because he was good. He has not yet decided whether that was mutual.",
     ],
-    tail: { heading: "MEK — mek_reyken, catalyst Rabbit", body: "Real early loss despite genuine shelter on Pale Cistern — and where Reyken learned to trust no one, his Mek came out of the same shape of blow protective of everyone. The pairing works because it is a disagreement neither of them has to win." },
+    tail: { heading: "MEK — mek_reyken, catalyst Rabbit", body: "Real early loss despite genuine shelter on Pale Cistern, and where Reyken learned to trust no one, his Mek came out of the same shape of blow protective of everyone. The pairing works because it is a disagreement neither of them has to win." },
   },
   {
     id: "pilot_solano",
@@ -1337,9 +1358,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Reeps. Human. Skeinreach's weave-mill fields with a military family layered on top, and something early and bigger than a fibre-farm childhood prepares anyone for. The same watchful precision Bray carries, reached by a different road; the lance's second marksman, and the one who talks to the first.",
+      "Reeps. Human. Skeinreach's weave-mill fields with a military family layered on top, and something early and bigger than a fibre-farm childhood prepares anyone for. The same watchful precision Bray carries, reached by a different road. The lance's second marksman, and the one who talks to the first.",
     ],
-    tail: { heading: "MEK — mek_solano, catalyst Cat", body: "The hardest-hit case on the estate, no institutional buffer at all — pure guarded self-containment keeping a precise rig precise." },
+    tail: { heading: "MEK — mek_solano, catalyst Cat", body: "The hardest-hit case on the estate, no institutional buffer at all: pure guarded self-containment keeping a precise rig precise." },
   },
   {
     id: "pilot_marrin",
@@ -1350,9 +1371,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Munti. Hiopi — centauroid frame. A ranching family on Harrow's Table, a knife's-edge growing season, real frontier hardship — and she kept finding reasons to tend to things anyway, which is the whole of what a Munti is. Brightness on purpose. The second healer the House ever fielded, and the one who names the plants.",
+      "Munti. Hiopi, centauroid frame. A ranching family on Harrow's Table, a knife's-edge growing season, real frontier hardship, and she kept finding reasons to tend to things anyway, which is the whole of what a Munti is. Brightness on purpose. The second healer the House ever fielded, and the one who names the plants.",
     ],
-    tail: { heading: "MEK — mek_marrin, catalyst Dog", body: "A comfortable, home-centred upbringing on Pale Cistern, nothing like Marrin's own toughness — the plain, loyal constant under a restless Fieldwright." },
+    tail: { heading: "MEK — mek_marrin, catalyst Dog", body: "A comfortable, home-centred upbringing on Pale Cistern, nothing like Marrin's own toughness, the plain, loyal constant under a restless Fieldwright." },
   },
   {
     id: "pilot_thorne",
@@ -1365,7 +1386,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     body: [
       "Tank. Human. Born on the terraces of Aerius, a farmstead family that measured time in growing seasons with the drift at the edge of every one of them, and he ran a harvest line as foreman for years before anyone put him in a uniform. Never trained. Line-taught, thirteen months ago, by people who had learned it the same way. Holds ground the way he held pickers: by being the one who does not go home first. Thirty years of colour at the edge of the field and he kept planting anyway.",
     ],
-    tail: { heading: "MEK — mek_thorne, catalyst Wolf", body: "Raised on the Fitting Yards' own floor on Tallowmere, steady and dutiful — the formation-minded constant under a foreman who is still learning that a lance is not a picking crew." },
+    tail: { heading: "MEK — mek_thorne, catalyst Wolf", body: "Raised on the Fitting Yards' own floor on Tallowmere, steady and dutiful, the formation-minded constant under a foreman who is still learning that a lance is not a picking crew." },
   },
   {
     id: "pilot_kastan",
@@ -1376,9 +1397,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Meeps. Hiopi — centauroid frame. Eleven levels down in Cistgate's stacks, where up was a direction other people took for granted, and no academy would have her. The House's levy would. She is in a mech to get out of the stack for good and she does not pretend otherwise; the callsign is the crew's, for the way she stands in a field and things stay off it.",
+      "Meeps. Hiopi, centauroid frame. Eleven levels down in Cistgate's stacks, where up was a direction other people took for granted, and no academy would have her. The House's levy would. She is in a mech to get out of the stack for good and she does not pretend otherwise. The callsign is the crew's, for the way she stands in a field and things stay off it.",
     ],
-    tail: { heading: "MEK — mek_kastan, catalyst Raven", body: "Garrison quarter on Pale Cistern, close enough to Glasswater's comfort to see the gap, the Conservatory turning it into instruction — the one voice that slows her down long enough to aim." },
+    tail: { heading: "MEK — mek_kastan, catalyst Raven", body: "Garrison quarter on Pale Cistern, close enough to Glasswater's comfort to see the gap, the Conservatory turning it into instruction, the one voice that slows her down long enough to aim." },
   },
   {
     id: "pilot_osei",
@@ -1389,9 +1410,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Reeps. Osnian — vibrissal frame. A Greywatch Muster staff kid who never enrolled: raised in the quartermaster's stores, learned every shelf in the cage before he learned to shoot, and walked out with the habit the callsign names — there is always one more shot stashed somewhere only he knows. Quick, improvising, and not yet tested by anything that could not be solved from the shelf.",
+      "Reeps. Osnian, vibrissal frame. A Greywatch Muster staff kid who never enrolled: raised in the quartermaster's stores, learned every shelf in the cage before he learned to shoot, and walked out with the habit the callsign names: there is always one more shot stashed somewhere only he knows. Quick, improvising, and not yet tested by anything that could not be solved from the shelf.",
     ],
-    tail: { heading: "MEK — mek_osei, catalyst Shark", body: "A Cistgate stack kid who tested into the Ledgerworks and never looked down again — ambition beside a scrounger's trickery. Between them nothing in the cage is ever unaccounted for." },
+    tail: { heading: "MEK — mek_osei, catalyst Shark", body: "A Cistgate stack kid who tested into the Ledgerworks and never looked down again. Ambition beside a scrounger's trickery. Between them nothing in the cage is ever unaccounted for." },
   },
   {
     id: "pilot_dunmore",
@@ -1402,9 +1423,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Munti. Hiopi — centauroid frame. A registry-colony labour family on Loomvale, the charter house's paper handled by her parents and never theirs; no pipeline, the levy instead. A healer who advances by being the person nobody can do without, and who knows to the mission how many times she has been. Kastan and she will have noticed they want the same thing.",
+      "Munti. Hiopi, centauroid frame. A registry-colony labour family on Loomvale, the charter house's paper handled by her parents and never theirs. No pipeline, the levy instead. A healer who advances by being the person nobody can do without, and who knows to the mission how many times she has been. Kastan and she will have noticed they want the same thing.",
     ],
-    tail: { heading: "MEK — mek_dunmore, catalyst Crow", body: "A farming pocket on Emberfall, refinery world, hardship met with chosen lightness — the joke in the cradle beside a Munti who advances by never needing one." },
+    tail: { heading: "MEK — mek_dunmore, catalyst Crow", body: "A farming pocket on Emberfall, refinery world, hardship met with chosen lightness, the joke in the cradle beside a Munti who advances by never needing one." },
   },
   {
     id: "pilot_amsel",
@@ -1415,9 +1436,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     fac: "amaranth",
     statusMode: "roster",
     body: [
-      "Meeps. Human. A House labour family on Aerius, the money at one remove, and the job in the growth zones from the day he could carry a rig — a Ward-Crop Technician until thirteen months ago, when the program ran out of people to put between it and the drift. He replanted the line the drift crossed every season, for years, and kept doing it. Knows the ground better than anyone who outranks him. Private.",
+      "Meeps. Human. A House labour family on Aerius, the money at one remove, and the job in the growth zones from the day he could carry a rig, a Ward-Crop Technician until thirteen months ago, when the program ran out of people to put between it and the drift. He replanted the line the drift crossed every season, for years, and kept doing it. Knows the ground better than anyone who outranks him. Private.",
     ],
-    tail: { heading: "MEK — mek_amsel, catalyst Rabbit", body: "A cultivated plot on Pale Cistern, real shelter, and a real early loss the Conservatory could not prevent — fiercely protective of a pilot who has already lost one crew to the zones." },
+    tail: { heading: "MEK — mek_amsel, catalyst Rabbit", body: "A cultivated plot on Pale Cistern, real shelter, and a real early loss the Conservatory could not prevent. Fiercely protective of a pilot who has already lost one crew to the zones." },
   },
   {
     id: "house_estate",
@@ -1462,7 +1483,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Official. Filed by the party it describes.",
     },
     body: [
-      "HOUSE AMARANTH, CHARTERED BATTLEGROUP. Formation type: charter house levy. Seal: held, House Amaranth, in absentia (Osnius). Sword: Brig. V. Amaranth, House-conferred; lance command Col. Y. Marrow, field-confirmed. Station: Amaranth Reach, the terraces. Seat: the Greathouse. Status: ACTIVE. Standing: under audit — see sector governor-general's office, orders 14, 22, 24, 29, all unresolved.",
+      "HOUSE AMARANTH, CHARTERED BATTLEGROUP. Formation type: charter house levy. Seal: held, House Amaranth, in absentia (Osnius). Sword: Brig. V. Amaranth, House-conferred. Lance command Col. Y. Marrow, field-confirmed. Station: Amaranth Reach, the terraces. Seat: the Greathouse. Status: ACTIVE. Standing: under audit, see sector governor-general's office, orders 14, 22, 24, 29, all unresolved.",
       "Clerk's note: this formation has filed a return every season of the war, on time, and every return has been accepted. The audits listed above concern the program the formation defends, not the formation. The Registry does not adjudicate programs.",
     ],
   },
@@ -1483,7 +1504,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "Written by the people who fought it. They had been tending it for two seasons.",
     },
     body: [
-      "It has a name in the Cultivar Works' books and a different one in the lance's, and this is the lance's. It does not move; it was never meant to. It was meant to be where it is — that is the entire program, a target zone the relays steer the drift into, and this is what a target zone becomes when it has been fed for long enough. It calls up burrowers of its own the longer a fight runs, and the ground around it has not been ground for a season.",
+      "It has a name in the Cultivar Works' books and a different one in the lance's, and this is the lance's. It does not move. It was never meant to. It was meant to be where it is. That is the entire program, a target zone the relays steer the drift into, and this is what a target zone becomes when it has been fed for long enough. It calls up burrowers of its own the longer a fight runs, and the ground around it has not been ground for a season.",
       "The Root Answers Back was the first time it pushed against the containment instead of sitting inside it. Nobody on the line thinks it escaped. It was talking, in the only language it has, and it was not asking.",
     ],
   },
@@ -1502,7 +1523,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "Fast. That is the first thing, and for a lot of people it was the last: nothing the program is built around moves like this. The drift the relays steer is slow and dull and goes where it is put, and the Bramble is what that same drift becomes when it stops going. It comes in packs of four to six, it closes across open ground in a turn, and it hits at the reach of a claw with the weight of something that has been growing on the terraces' own feed for two seasons.",
-      "It does not respond to the relays. That is the finding, and the Works can dress it up however they like — a strain, a rejection, a failure of doctrine. The lance's version is shorter. The garden stopped being tended, and this is the weed.",
+      "It does not respond to the relays. That is the finding, and the Works can dress it up however they like: a strain, a rejection, a failure of doctrine. The lance's version is shorter. The garden stopped being tended, and this is the weed.",
     ],
   },
 
@@ -1522,8 +1543,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "The House's own account of the House's own program. Correct in every particular it measures.",
     },
     body: [
-      "The drift is not an enemy. That is the first principle, and every officer of the battlegroup is asked to read the sentence twice before objecting to it. An enemy is fought; a blight is managed. The Reach's terraces were the first ground anywhere to get a close, sustained look at what the drift does to living tissue, and what the first generation of the program found was that it behaves like a blight — it follows water, it prefers saturated ground, it spreads along lines that can be predicted and, with the right fields in the right places, chosen.",
-      "The second principle follows: a drift that can be predicted can be steered. The ward-crop is a cultivar bred, over three decades, to be more attractive to the drift than anything growing beside it. Plant it on the ground you can spare and the drift goes there and not to the ground you cannot. The relay is what makes the ward-crop's pull reach further than a field — it is a signal, not a fence.",
+      "The drift is not an enemy. That is the first principle, and every officer of the battlegroup is asked to read the sentence twice before objecting to it. An enemy is fought. A blight is managed. The Reach's terraces were the first ground anywhere to get a close, sustained look at what the drift does to living tissue, and what the first generation of the program found was that it behaves like a blight: it follows water, it prefers saturated ground, it spreads along lines that can be predicted and, with the right fields in the right places, chosen.",
+      "The second principle follows: a drift that can be predicted can be steered. The ward-crop is a cultivar bred, over three decades, to be more attractive to the drift than anything growing beside it. Plant it on the ground you can spare and the drift goes there and not to the ground you cannot. The relay is what makes the ward-crop's pull reach further than a field. It is a signal, not a fence.",
       "The third principle is the one the program's critics never quote: the redirected drift is still drift. It is not gone. It is somewhere the House chose, being watched by people the House pays, on ground the House has written off. The program calls this stewardship. It is a fair word for it as long as the watching continues.",
     ],
   },
@@ -1541,8 +1562,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "It's a manual. It's right.",
     },
     body: [
-      "A relay does one thing: it makes a target zone read, to the drift, as a field of ward-crop many times its size. Under load — a drift heavier than the zone was rated for — the relay does not fail gracefully. It keeps pulling until the zone is oversubscribed, and then it pulls a drift onto ground that cannot hold it, and the ground fails before the relay does.",
-      "Hold the relay. A relay lost under load does not release the drift it has already called; it strands it, and a stranded drift goes where a drift goes when nothing is telling it otherwise, which is toward whatever is nearest and alive.",
+      "A relay does one thing: it makes a target zone read, to the drift, as a field of ward-crop many times its size. Under load, a drift heavier than the zone was rated for, the relay does not fail gracefully. It keeps pulling until the zone is oversubscribed, and then it pulls a drift onto ground that cannot hold it, and the ground fails before the relay does.",
+      "Hold the relay. A relay lost under load does not release the drift it has already called. It strands it, and a stranded drift goes where a drift goes when nothing is telling it otherwise, which is toward whatever is nearest and alive.",
     ],
   },
   {
@@ -1575,7 +1596,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 23,
         body: [
-          "Withdrawn. The tables are no longer issued. The zone the program was built around — the one the lances call the Root — has exceeded every tolerance the Works can write, and pushed back against containment for the first time. The Works does not have a number for a zone that answers. It is working on one.",
+          "Withdrawn. The tables are no longer issued. The zone the program was built around, the one the lances call the Root, has exceeded every tolerance the Works can write, and pushed back against containment for the first time. The Works does not have a number for a zone that answers. It is working on one.",
         ],
       },
     ],
@@ -1613,7 +1634,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     },
     body: [
       "The strain does not respond to the relays. Every test the Works can run from behind the line agrees: a Bramble pack walks past a rated target zone without turning, and walks into the nearest lance instead. The ward-crop's pull, which has steered every drift on the terraces for three decades, does nothing to it.",
-      "The Works' best reading is that it is not a new arrival. It is the program's own drift — fed, called, and held in one place for long enough that a part of it stopped answering. The Works declines to say whether that means the doctrine can be repaired or has been answered. It notes only that the Root and the Bramble have not yet been seen to move together, and that the day they do, this note will need a second edition.",
+      "The Works' best reading is that it is not a new arrival. It is the program's own drift: fed, called, and held in one place for long enough that a part of it stopped answering. The Works declines to say whether that means the doctrine can be repaired or has been answered. It notes only that the Root and the Bramble have not yet been seen to move together, and that the day they do, this note will need a second edition.",
     ],
   },
 
@@ -1633,7 +1654,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "It is the founding document. It is also a family telling you who it is.",
     },
     body: [
-      "The House holds the terraces by charter of the Coalition, granted to the founding line for the settling of the Reach and the feeding of its worlds, and holds them still. The charter names the terraces, the seat, the Seal, and the levy — the House's right to raise and hold a battlegroup of its own in the Reach's defence, under its own Seal, beside the sector's own regulars and not beneath them.",
+      "The House holds the terraces by charter of the Coalition, granted to the founding line for the settling of the Reach and the feeding of its worlds, and holds them still. The charter names the terraces, the seat, the Seal, and the levy, the House's right to raise and hold a battlegroup of its own in the Reach's defence, under its own Seal, beside the sector's own regulars and not beneath them.",
       "The founding line is generations deep in the ground it holds. The Reach's wealth is the terraces' wealth and the Reach's name is the House's name, and every survey the Coalition has ever taken of the sector begins at the Greathouse's gate because that is where the sector's records were kept before there was a sector to keep them for.",
       "The charter has been read at the investiture of every Sword the House has ever conferred. It has never been amended. Article Nine, which divides the Seal from the Sword, is displayed in the Control Room and not the Gallery, for reasons the House considers self-evident.",
     ],
@@ -1671,7 +1692,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 5,
         body: [
-          "Halcyon Amaranth. Head of the founding line, holder of the Seal, and the program's owner in every sense the charter recognises. She is not on the terraces. She is where the Reach's politics are done, and the officer who came for the muster carried her Seal the way a courier carries a letter — it spoke for her, and the battlegroup made it look easy because that is what the Seal was there to see.",
+          "Halcyon Amaranth. Head of the founding line, holder of the Seal, and the program's owner in every sense the charter recognises. She is not on the terraces. She is where the Reach's politics are done, and the officer who came for the muster carried her Seal the way a courier carries a letter. It spoke for her, and the battlegroup made it look easy because that is what the Seal was there to see.",
         ],
       },
       {
@@ -1708,7 +1729,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "The chain of command, as it actually runs.",
     },
     body: [
-      "The Seal is held. It is held on Osnius, by a member of the founding line whose name does not appear in the battlegroup's orders because the battlegroup's orders do not come from the Seal. The Seal speaks for the House in its standing, its charter, its levies, and its name; it does not speak to a lance, and it has not been on the terraces since the war began.",
+      "The Seal is held. It is held on Osnius, by a member of the founding line whose name does not appear in the battlegroup's orders because the battlegroup's orders do not come from the Seal. The Seal speaks for the House in its standing, its charter, its levies, and its name. It does not speak to a lance, and it has not been on the terraces since the war began.",
       "In the field the House is Brig. Amaranth, and the lances are Col. Marrow, and between the two of them sits Article Nine and an empty chair. Every officer new to the estate is walked past the chair on their first day. Nobody explains it. That is the explanation.",
     ],
   },
@@ -1723,14 +1744,14 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 9,
         body: [
-          "The Reach is held, nominally, by a sector governor-general who answers to a Core that has never once been in danger from anything that happens here. The office fields the Reach's own regulars — the loyalists, in the House's vocabulary, which is not a compliment — and it audits the charter houses' levies on a schedule the houses consider theirs to ignore.",
+          "The Reach is held, nominally, by a sector governor-general who answers to a Core that has never once been in danger from anything that happens here. The office fields the Reach's own regulars, the loyalists, in the House's vocabulary, which is not a compliment, and it audits the charter houses' levies on a schedule the houses consider theirs to ignore.",
           "Loyalist Eyes was an audit. An auditor from the office toured the program for a day and watched the battlegroup hold a clean, boring line for an audience that had come hoping for a mess. The auditor's report is not on this console. The staff assumes it was disappointed.",
         ],
       },
       {
         after: 14,
         body: [
-          "The office sent a liaison, and the liaison saw too much, and the battlegroup escorted him out before he could see the rest. What he took back to the office is not known. What the office has done since — more audits, closer, with regulars attached — is.",
+          "The office sent a liaison, and the liaison saw too much, and the battlegroup escorted him out before he could see the rest. What he took back to the office is not known. What the office has done since is: more audits, closer, with regulars attached.",
         ],
       },
       {
@@ -1761,7 +1782,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 11,
         body: [
-          "The program is not run by the battlegroup. It is run by ward-crop technicians — rigs, seals, survey — who walk the target zones on foot, read the relays, and replant the cultivar where the drift has thinned it. They are House people in the old sense: company housing, generational, the money at one remove and the seat never. Most of them grew up on the terrace they now tend. Most of them have never been off it.",
+          "The program is not run by the battlegroup. It is run by ward-crop technicians: rigs, seals, survey. They walk the target zones on foot, read the relays, and replant the cultivar where the drift has thinned it. They are House people in the old sense: company housing, generational, the money at one remove and the seat never. Most of them grew up on the terrace they now tend. Most of them have never been off it.",
           "A technician went missing inside a growth zone this season. The program's ledger records a replanting delayed. The battlegroup's records the extraction. Nobody's records the name, because the program does not log its casualties and the battlegroup was not there when it happened.",
         ],
       },
@@ -1796,7 +1817,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "What a first-year needs to know before standing near one.",
     },
     body: [
-      "A mast, a field coil, and a bed of ward-crop at the base of it, sized to a terrace tier. The coil does not broadcast anything a mech's sensors will read; it carries the cultivar's own signal — whatever it is the drift prefers about it — further than the plants themselves could. The Works has bred the cultivar for three decades and does not fully know what the signal is. It knows the drift turns toward it, and it knows how far.",
+      "A mast, a field coil, and a bed of ward-crop at the base of it, sized to a terrace tier. The coil does not broadcast anything a mech's sensors will read. It carries the cultivar's own signal, whatever it is the drift prefers about it, further than the plants themselves could. The Works has bred the cultivar for three decades and does not fully know what the signal is. It knows the drift turns toward it, and it knows how far.",
       "A relay is rated for a load. Under it, the target zone thickens on schedule and the surrounding ground stays clean. Over it, the zone outgrows the footprint and the relay keeps pulling anyway, because a relay does not know what a footprint is. The rating is written on the mast. Read it before the fight, not during.",
     ],
   },
@@ -1814,7 +1835,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       note: "New this season. Nobody has seen one hold through a whole one.",
     },
     body: [
-      "A ring of relays wired to pull inward instead of outward — not a fence, the Works insists, a fold: a zone that is more attractive from the inside than from the edge, so that a drift already in it stays in it. The first was deployed onto contested ground at the Cultivator's Gambit, directly onto a zone that was still hot, because there was no cold ground left to put it on.",
+      "A ring of relays wired to pull inward instead of outward, not a fence, the Works insists, a fold: a zone that is more attractive from the inside than from the edge, so that a drift already in it stays in it. The first was deployed onto contested ground at the Cultivator's Gambit, directly onto a zone that was still hot, because there was no cold ground left to put it on.",
       "It held. The Works is careful about the tense.",
     ],
   },
@@ -1838,7 +1859,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 24,
         body: [
-          "The sector has moved against the House. Whatever the Reach was — the House's sector, in every way that mattered on the ground — it is a contested one now, with loyalist regulars on House terraces and a seizure order that names the program by its charter title. The staff has stopped saying 'the Reach' and started saying 'the terraces'. Smaller. More accurate.",
+          "The sector has moved against the House. Whatever the Reach was, the House's sector, in every way that mattered on the ground, it is a contested one now, with loyalist regulars on House terraces and a seizure order that names the program by its charter title. The staff has stopped saying 'the Reach' and started saying 'the terraces'. Smaller. More accurate.",
         ],
       },
       {
@@ -1872,7 +1893,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 20,
         body: [
-          "Marrow's Line. Their lieutenant and the House's colonel on one field, and the House's objective was never to win it — it was to prove the battlegroup could disengage on its own terms, in order, under fire, and it did. Marrow told their lieutenant something on the way out about her own company's paperwork. She has not repeated it here, and she was not asked to.",
+          "Marrow's Line. Their lieutenant and the House's colonel on one field, and the House's objective was never to win it. It was to prove the battlegroup could disengage on its own terms, in order, under fire, and it did. Marrow told their lieutenant something on the way out about her own company's paperwork. She has not repeated it here, and she was not asked to.",
         ],
       },
     ],
@@ -1888,7 +1909,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: null,
         body: [
-          "Tiered ground, cut into the Reach's hills generations ago for the crops that feed the sector, and now cut a second time — into the fields the House farms and the zones the House feeds to the drift. From the Greathouse's gate the lower terraces read as a patchwork: green where the cultivar is thin, the drift's own colour where the relays have called it, and a line of bare ground between the two that the technicians replant every season and the drift crosses every season anyway.",
+          "Tiered ground, cut into the Reach's hills generations ago for the crops that feed the sector, and now cut a second time, into the fields the House farms and the zones the House feeds to the drift. From the Greathouse's gate the lower terraces read as a patchwork: green where the cultivar is thin, the drift's own colour where the relays have called it, and a line of bare ground between the two that the technicians replant every season and the drift crosses every season anyway.",
         ],
       },
       {
@@ -1900,7 +1921,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 26,
         body: [
-          "The Bramble changed what the terraces are. A zone was a place the drift was kept; now a zone is a place the Bramble comes from, and the bare line between the fields and the zones is a line the lances hold rather than a line the technicians replant. The lower terraces are not green anywhere.",
+          "The Bramble changed what the terraces are. A zone was a place the drift was kept. Now a zone is a place the Bramble comes from, and the bare line between the fields and the zones is a line the lances hold rather than a line the technicians replant. The lower terraces are not green anywhere.",
         ],
       },
       {
@@ -1922,7 +1943,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 15,
         body: [
-          "A target zone — the program's oldest, the one the whole method was built around — growing faster than it is told to. Rootbound was the first time a relay's zone outran its rating with the relay intact, and the lances held the line around it while the Works decided whether to be worried. The staff has started calling it the Root. The Works has not.",
+          "A target zone, the program's oldest, the one the whole method was built around, growing faster than it is told to. Rootbound was the first time a relay's zone outran its rating with the relay intact, and the lances held the line around it while the Works decided whether to be worried. The staff has started calling it the Root. The Works has not.",
         ],
       },
       {
@@ -1934,7 +1955,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 23,
         body: [
-          "It answered. Not an escape — a push, against the containment, in the only language it has. The battlegroup held it, and it stopped, and nobody on the line believes it stopped because it was beaten. The Works has withdrawn its tables. The staff has stopped asking the Works.",
+          "It answered. Not an escape: a push, against the containment, in the only language it has. The battlegroup held it, and it stopped, and nobody on the line believes it stopped because it was beaten. The Works has withdrawn its tables. The staff has stopped asking the Works.",
         ],
       },
       {
@@ -1946,7 +1967,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 36,
         body: [
-          "Held, at the Root, until the doctrine closed the loop — the array, the relays, the whole of three decades, brought to bear on the one zone it was all for. It is pacified. The House's word. The lances have not found a better one, and have stopped looking.",
+          "Held, at the Root, until the doctrine closed the loop: the array, the relays, the whole of three decades, brought to bear on the one zone it was all for. It is pacified. The House's word. The lances have not found a better one, and have stopped looking.",
         ],
       },
     ],
@@ -1983,7 +2004,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Ward-crop",
     gate: null,
     body: [
-      "A cultivar bred by House Amaranth to draw the drift — the crop the Bloom prefers, planted where the House wants the Bloom to go.",
+      "A cultivar bred by House Amaranth to draw the drift: the crop the Bloom prefers, planted where the House wants the Bloom to go.",
     ],
   },
   {
@@ -1993,7 +2014,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Diversion relay",
     gate: null,
     body: [
-      "A mast that carries the ward-crop's pull further than the plants themselves can. The bargain's machinery. Rated for a load; not to be trusted past it.",
+      "A mast that carries the ward-crop's pull further than the plants themselves can. The bargain's machinery. Rated for a load. Not to be trusted past it.",
     ],
   },
   {
@@ -2013,7 +2034,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Beacon",
     gate: null,
     body: [
-      "Field revival. A beacon placed inside your own sight and reach spends one crate and one charge to put a downed pilot back on their feet in the fight that is still going on around them — not the next one. Both are bought ahead of time and both run out. A Fabricator Mek's own pilot draws on that Mek's spares instead of the company shelf.",
+      "Field revival. A beacon placed inside your own sight and reach spends one crate and one charge to put a downed pilot back on their feet in the fight that is still going on around them. Not the next one. Both are bought ahead of time and both run out. A Fabricator Mek's own pilot draws on that Mek's spares instead of the company shelf.",
     ],
   },
   {
@@ -2053,7 +2074,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Personal points",
     gate: null,
     body: [
-      "A pilot's own ledger, earned by that pilot and spent on that pilot — it is what buys their way up the gear tiers. The company's money is a separate ledger and the two never pour into each other.",
+      "A pilot's own ledger, earned by that pilot and spent on that pilot. It is what buys their way up the gear tiers. The company's money is a separate ledger and the two never pour into each other.",
     ],
   },
   {
@@ -2063,7 +2084,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Frame system",
     gate: null,
     body: [
-      "A module bolted into the frame rather than carried in its hands — plating, drive, sensors, generator. Bought once, fitted once, and it changes what the mech can do rather than how hard it hits.",
+      "A module bolted into the frame rather than carried in its hands: plating, drive, sensors, generator. Bought once, fitted once, and it changes what the mech can do rather than how hard it hits.",
     ],
   },
   {
@@ -2093,8 +2114,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Synker",
     gate: null,
     body: [
-      "The word for the job, and the older of the two: a synker is synchronised to the frame, and there have been synkers for as long as there have been frames to sync to. Official paper says synker because it is correct. Pilot is the borrowed word — a vehicle word, put on mechs by people selling tickets — and it is what the line, this manual, and most of the field notes in this archive actually say.",
-      "Collective in service usage: an officer says \"one of my synker\" the way he would say one of my personnel. Counted like anything else outside it — two synkers, the synkers in Lance B.",
+      "The word for the job, and the older of the two: a synker is synchronised to the frame, and there have been synkers for as long as there have been frames to sync to. Official paper says synker because it is correct. Pilot is the borrowed word, a vehicle word, put on mechs by people selling tickets, and it is what the line, this manual, and most of the field notes in this archive actually say.",
+      "Collective in service usage: an officer says \"one of my synker\" the way he would say one of my personnel. Counted like anything else outside it: two synkers, the synkers in Lance B.",
     ],
   },
 
@@ -2107,11 +2128,11 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "The Three Paths",
     gate: null,
     body: [
-      "Every pilot flies one of three combat paths, and the three beat each other in a loop: Meeps beats Reeps, Reeps beats Tank, Tank beats Meeps. No path is strongest overall — which one wins a fight depends entirely on who's fighting whom.",
-      "A Meeps is fast and fragile — six tiles of movement, one-tile reach, built to close distance before anything can react. It doesn't out-fight a Tank; it goes around one, because a Tank's whole threat is standing next to you, and a Meeps' whole plan is never giving it the chance.",
-      "A Tank stands its ground — short movement, high defense, an overshield that protects everyone standing near it. It punishes anything that comes adjacent. It has no answer to anything that doesn't.",
-      "A Reeps fights from range — two to four tiles out, never in melee, never countered for it. It chips away at a Tank's raised defense from a distance the Tank can't close, and it dies in two hits if a Meeps ever actually reaches it.",
-      "A fourth path, Munti, sits outside the triangle entirely. It doesn't win fights — it keeps everyone else alive. Every mission is quietly a mission to protect it.",
+      "Every pilot flies one of three combat paths, and the three beat each other in a loop: Meeps beats Reeps, Reeps beats Tank, Tank beats Meeps. No path is strongest overall. Which one wins a fight depends entirely on who's fighting whom.",
+      "A Meeps is fast and fragile: six tiles of movement, one-tile reach, built to close distance before anything can react. It doesn't out-fight a Tank. It goes around one, because a Tank's whole threat is standing next to you, and a Meeps' whole plan is never giving it the chance.",
+      "A Tank stands its ground: short movement, high defense, an overshield that protects everyone standing near it. It punishes anything that comes adjacent. It has no answer to anything that doesn't.",
+      "A Reeps fights from range: two to four tiles out, never in melee, never countered for it. It chips away at a Tank's raised defense from a distance the Tank can't close, and it dies in two hits if a Meeps ever actually reaches it.",
+      "A fourth path, Munti, sits outside the triangle entirely. It doesn't win fights. It keeps everyone else alive. Every mission is quietly a mission to protect it.",
     ],
   },
   {
@@ -2121,10 +2142,10 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Chassis and Species",
     gate: null,
     body: [
-      "Every pilot's body shapes how they move and fight, independent of which of the three paths they've chosen — a Hiopi Meeps and a human Meeps are both Meeps, they just get there differently.",
-      "Human pilots use the standard bipedal frame — no terrain penalties, no special tricks, a slightly higher baseline toughness to make up for it.",
-      "Hiopi pilots use a centauroid frame — full speed across open ground, slower through rubble and tight structures, and a real reward for committing to it: charging three tiles or more in a straight line before striking hits harder.",
-      "Osnian pilots use a modified bipedal frame with a longer sensor suite — wider vision, and the ability to see burrowed threats other pilots can only find by walking into them.",
+      "Every pilot's body shapes how they move and fight, independent of which of the three paths they've chosen. A Hiopi Meeps and a human Meeps are both Meeps, they just get there differently.",
+      "Human pilots use the standard bipedal frame: no terrain penalties, no special tricks, a slightly higher baseline toughness to make up for it.",
+      "Hiopi pilots use a centauroid frame: full speed across open ground, slower through rubble and tight structures, and a real reward for committing to it: charging three tiles or more in a straight line before striking hits harder.",
+      "Osnian pilots use a modified bipedal frame with a longer sensor suite: wider vision, and the ability to see burrowed threats other pilots can only find by walking into them.",
     ],
   },
   {
@@ -2134,9 +2155,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Meks",
     gate: null,
     body: [
-      "Every pilot has exactly one Mek — never on the board, never a target, never lost to anything that happens in a fight. A Mek doesn't fight. It's the reason the pilot fights a little better, all the time, without anyone having to think about it mid-mission.",
-      "Four real specialties, and a Mek carries one, sometimes two. A Fabricator keeps spare parts in reserve — a downed pilot's own restock crate, so when Beacon Control pulls them back into the fight it costs the company nothing from the Restock Room shelf. An Armorer simply makes the whole unit hit harder and shrug off more. A Runemaster sharpens awareness and reaction across the board — sees further, reacts first, and makes whatever the pilot's own weapon does on a hit last longer and bite harder. A Fieldwright rewards holding position: heals the pilot who stays put, and if that pilot is a Munti, makes their own healing hit harder too.",
-      "One specialty exists only as a Mek's second skill, never its first — a Mek that's purely good at stretching the company's points further, cheaper gear for the rest of the campaign, nothing sharper in a fight. Not every pilot wants that trade. Some do, and it adds up.",
+      "Every pilot has exactly one Mek: never on the board, never a target, never lost to anything that happens in a fight. A Mek doesn't fight. It's the reason the pilot fights a little better, all the time, without anyone having to think about it mid-mission.",
+      "Four real specialties, and a Mek carries one, sometimes two. A Fabricator keeps spare parts in reserve: a downed pilot's own restock crate, so when Beacon Control pulls them back into the fight it costs the company nothing from the Restock Room shelf. An Armorer simply makes the whole unit hit harder and shrug off more. A Runemaster sharpens awareness and reaction across the board: sees further, reacts first, and makes whatever the pilot's own weapon does on a hit last longer and bite harder. A Fieldwright rewards holding position: heals the pilot who stays put, and if that pilot is a Munti, makes their own healing hit harder too.",
+      "One specialty exists only as a Mek's second skill, never its first: a Mek that's purely good at stretching the company's points further, cheaper gear for the rest of the campaign, nothing sharper in a fight. Not every pilot wants that trade. Some do, and it adds up.",
     ],
   },
   {
@@ -2146,9 +2167,9 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Gear Tiers",
     gate: null,
     body: [
-      "Every pilot starts on standard issue and earns better with points spent, not levels grinded — a straight climb from G up to A, seven rungs, each one a real but modest step rather than a leap that makes everything below it obsolete. The company doesn't hand out gear that turns a fight into a stat check. It hands out gear that turns a close fight into a winnable one.",
-      "What it's actually called changes with what a pilot flies. A Meeps climbs from a Stocklance through Heavylance, Twinlance, and Pairblade, on to an Arcblade, a Flareblade, and — for the very few who get there — a Stormblade. A Tank goes Blockshield to Wallpanel to Skinshield to Groupshield, then Maserline, Tachlance, Bastion. A Reeps runs a Popgun up through Burstrifle, Twinburst, Longeye, Farmark, Twinmark, to a Skyline. A Munti's kit goes from a Quickfix kit to a Longarm, a Farfix, a Lifebox, a Quickbox, a Widefix, and at the very top, an Overcharge.",
-      "D-tier is the first rung that earns a real ability. B-tier earns a second. A-tier is as far as the standard ladder goes — and past it, there's nothing left to buy. What's past it isn't for sale at all.",
+      "Every pilot starts on standard issue and earns better with points spent, not levels grinded: a straight climb from G up to A, seven rungs, each one a real but modest step rather than a leap that makes everything below it obsolete. The company doesn't hand out gear that turns a fight into a stat check. It hands out gear that turns a close fight into a winnable one.",
+      "What it's actually called changes with what a pilot flies. A Meeps climbs from a Stocklance through Heavylance, Twinlance, and Pairblade, on to an Arcblade, a Flareblade, and, for the very few who get there, a Stormblade. A Tank goes Blockshield to Wallpanel to Skinshield to Groupshield, then Maserline, Tachlance, Bastion. A Reeps runs a Popgun up through Burstrifle, Twinburst, Longeye, Farmark, Twinmark, to a Skyline. A Munti's kit goes from a Quickfix kit to a Longarm, a Farfix, a Lifebox, a Quickbox, a Widefix, and at the very top, an Overcharge.",
+      "D-tier is the first rung that earns a real ability. B-tier earns a second. A-tier is as far as the standard ladder goes, and past it, there's nothing left to buy. What's past it isn't for sale at all.",
     ],
   },
   {
@@ -2158,7 +2179,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "How the Bloom Dies: the Collapse Rule",
     gate: null,
     body: [
-      "A Bloom creature's health isn't one bar — it's two: Endurance, the shell, and Vitality, the thing living underneath it. Damage empties Endurance first, and a hit that overflows past zero Endurance does not carry into Vitality — the shell simply breaks. Once Endurance hits zero, the creature enters Collapse: any hit at least as hard as its remaining Vitality kills it outright, and — this is the part worth watching for — a creature in Collapse hits back at full strength, not weaker. The moment it looks like it's dying is the moment it's most dangerous. That's not a bug in how it reads. That's the whole point.",
+      "A Bloom creature's health isn't one bar. It's two: Endurance, the shell, and Vitality, the thing living underneath it. Damage empties Endurance first, and a hit that overflows past zero Endurance does not carry into Vitality. The shell simply breaks. Once Endurance hits zero, the creature enters Collapse: any hit at least as hard as its remaining Vitality kills it outright. This is the part worth watching for: a creature in Collapse hits back at full strength, not weaker. The moment it looks like it's dying is the moment it's most dangerous. That's not a bug in how it reads. That's the whole point.",
     ],
   },
   {
@@ -2170,7 +2191,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     body: [
       "An Heirloom is not a weapon a pilot earns. It is a mech and a pilot together: a frame built generations ago for one family's use, and the son or daughter of that family who climbs into it. The frame sits at S, a rung above the top of the earned ladder, and no amount of points moves anyone onto it. No house sends one of its own to a company that has not first proved it can hold.",
       "Recruiting one costs the company, not the pilot. Growing the kit afterward costs the pilot, the way any pilot grows. An Heirloom carries three abilities, each on its own timer, and the frame's name is the name of the thing it does best. Only one takes the field at a time. The rest wait on the ship.",
-      "They are family property. The company never owns one — it borrows one, through that family's child, and if the child does not come home, neither does the frame. The house takes it back, and nobody argues.",
+      "They are family property. The company never owns one. It borrows one, through that family's child, and if the child does not come home, neither does the frame. The house takes it back, and nobody argues.",
       "Not everything aboard at S was issued by a house. What Warden Company holds that no family will claim has its own entry.",
     ],
   },
@@ -2184,8 +2205,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 1,
         body: [
-          "One charge, shared by the whole company — filled by every hit landed and every hit taken, by anyone on the field, and spent all at once by whoever is holding the weapon when it is full. Aim it in a straight line, eight tiles long, and it fires.",
-          "It doesn't ask what's standing in that line. Ally, enemy, doesn't matter — it hits everything the same, at the same fixed, ugly number, no gear bonus, no defence stat softening it, nothing. Every other hit in this war respects one limit: nothing can drop a mech from full health in a single shot. This doesn't know that rule exists. And against anything the Bloom fields with a shell worth grinding down — the kind of thing that shrugs off everything smaller — it doesn't grind. It goes straight through the shell to whatever's actually alive underneath, and if that's not much, that's the whole fight, over, in one line drawn across the map.",
+          "One charge, shared by the whole company, filled by every hit landed and every hit taken, by anyone on the field, and spent all at once by whoever is holding the weapon when it is full. Aim it in a straight line, eight tiles long, and it fires.",
+          "It doesn't ask what's standing in that line. Ally, enemy, doesn't matter. It hits everything the same, at the same fixed, ugly number, no gear bonus, no defence stat softening it, nothing. Every other hit in this war respects one limit: nothing can drop a mech from full health in a single shot. This doesn't know that rule exists. And against anything the Bloom fields with a shell worth grinding down, the kind of thing that shrugs off everything smaller, it doesn't grind. It goes straight through the shell to whatever's actually alive underneath, and if that's not much, that's the whole fight, over, in one line drawn across the map.",
           "The one weapon that runs it is called Gjallar. It was not inherited. Bosk carries it, and how he came to is not a thing he explains.",
           "Charging it is free. Firing it never is.",
         ],
@@ -2193,7 +2214,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
       {
         after: 12,
         body: [
-          "Gjallar is Rourke's now. The company's charge fills for her hand the same as it filled for his — every hit landed, every hit taken, by anyone — and spends the same way: one straight line, eight tiles, no exceptions for what's standing in it. Nothing about the weapon changed. Everything about who's holding it did.",
+          "Gjallar is Rourke's now. The company's charge fills for her hand the same as it filled for his, every hit landed, every hit taken, by anyone, and spends the same way: one straight line, eight tiles, no exceptions for what's standing in it. Nothing about the weapon changed. Everything about who's holding it did.",
           "Charging it is free. Firing it never is.",
         ],
       },
@@ -2206,8 +2227,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "The Weapons Bay",
     gate: null,
     body: [
-      "Providence has guns. Whether they can reach a given field is a matter for the mission and where the ship is sitting, not for anyone on the ground — but when they can, a pilot with the ship on the line can call them down on any ground that pilot can see. The strike lands flat. Everything hostile standing near the mark takes it, cover doesn't soften it, and nothing shoots back at a gun that isn't on the field. It costs the pilot who called it their whole turn, and it costs the company one of two calls a mission. A strike on empty ground still spends the call.",
-      "The Weapons Bay is the reserve line. Build it and the ship keeps one more round ready past the two — usable only once those are gone, and slow to reload between calls. The Forward Battery, fitted in the Workshop on top of the bay, widens what a strike covers from a tight box around the mark to a broad one. More ground per call. Not more calls.",
+      "Providence has guns. Whether they can reach a given field is a matter for the mission and where the ship is sitting, not for anyone on the ground, but when they can, a pilot with the ship on the line can call them down on any ground that pilot can see. The strike lands flat. Everything hostile standing near the mark takes it, cover doesn't soften it, and nothing shoots back at a gun that isn't on the field. It costs the pilot who called it their whole turn, and it costs the company one of two calls a mission. A strike on empty ground still spends the call.",
+      "The Weapons Bay is the reserve line. Build it and the ship keeps one more round ready past the two, usable only once those are gone, and slow to reload between calls. The Forward Battery, fitted in the Workshop on top of the bay, widens what a strike covers from a tight box around the mark to a broad one. More ground per call. Not more calls.",
     ],
   },
   {
@@ -2262,7 +2283,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Munti",
     gate: null,
     body: [
-      "Support path. Outside the triangle entirely — doesn't fight to win, keeps everyone else alive. Every mission is quietly a mission to protect it.",
+      "Support path. Outside the triangle entirely: doesn't fight to win, keeps everyone else alive. Every mission is quietly a mission to protect it.",
     ],
   },
   {
@@ -2272,7 +2293,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Endurance",
     gate: null,
     body: [
-      "A Bloom creature's outer health value. Depletes first; a hit that overflows past zero doesn't carry through to Vitality underneath.",
+      "A Bloom creature's outer health value. Depletes first. A hit that overflows past zero doesn't carry through to Vitality underneath.",
     ],
   },
   {
@@ -2292,7 +2313,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Collapse",
     gate: null,
     body: [
-      "The state a Bloom creature enters the instant its Endurance hits zero. Fights back at full strength while in it — not weaker.",
+      "The state a Bloom creature enters the instant its Endurance hits zero. Fights back at full strength while in it, not weaker.",
     ],
   },
   {
@@ -2302,7 +2323,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Restock",
     gate: null,
     body: [
-      "A downed pilot returns to the field at full strength next mission, rather than being lost for good — provided a Munti was alive on the field at the moment they went down. No Munti on the field, no restock.",
+      "A downed pilot returns to the field at full strength next mission, rather than being lost for good, provided a Munti was alive on the field at the moment they went down. No Munti on the field, no restock.",
     ],
   },
   {
@@ -2342,7 +2363,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Lance",
     gate: null,
     body: [
-      "A five-pilot squad; the basic organizational unit Warden Company is built from.",
+      "A five-pilot squad. The basic organizational unit Warden Company is built from.",
     ],
   },
   {
@@ -2352,7 +2373,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Gear tier",
     gate: null,
     body: [
-      "A pilot's own equipment ladder, G up through A, climbed with points rather than time served. An Heirloom pilot sits above it entirely, at S — a rung nothing can be bought up to.",
+      "A pilot's own equipment ladder, G up through A, climbed with points rather than time served. An Heirloom pilot sits above it entirely, at S, a rung nothing can be bought up to.",
     ],
   },
   {
@@ -2372,7 +2393,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Heirloom",
     gate: null,
     body: [
-      "A family's own mech, generations old, at S tier — and the family's own son or daughter piloting it. Lent to a company that has proved it can hold, one on the field at a time. Returned to the house if the pilot doesn't come home.",
+      "A family's own mech, generations old, at S tier, and the family's own son or daughter piloting it. Lent to a company that has proved it can hold, one on the field at a time. Returned to the house if the pilot doesn't come home.",
     ],
   },
 
@@ -2387,7 +2408,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.",
-      "Click a unit — selects it. Click green — moves there, costs 1 action, doesn't end your turn. Click red — attacks, burns every remaining action and ends the unit's turn. Click cyan — Munti only, heals that ally instead of attacking. End Turn resolves the hostile AI's whole turn, then the environment step: bloom-mat burn, mat regrowth, shield regen, Munti regen, and any asset the mission is making you protect.",
+      "Click a unit: selects it. Click green: moves there, costs 1 action, doesn't end your turn. Click red: attacks, burns every remaining action and ends the unit's turn. Click cyan: Munti only, heals that ally instead of attacking. End Turn resolves the hostile AI's whole turn, then the environment step: bloom-mat burn, mat regrowth, shield regen, Munti regen, and any asset the mission is making you protect.",
     ],
   },
   {
@@ -2397,8 +2418,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Reading the Board",
     gate: null,
     body: [
-      "No sprites yet — every unit is a shape. Shape says class, fill says side, outline says chassis.",
-      "Triangle — Meeps. Square — Tank. Diamond — Reeps. Circle with a bar — Munti. Blue fill is yours, tan is a hostile mech, a coloured blob is a Bloom creature. Thick white outline is a centauroid chassis. A burrowed Bloom renders faded and is already targetable at range — it is hiding from your eyes, not from your guns.",
+      "No sprites yet. Every unit is a shape. Shape says class, fill says side, outline says chassis.",
+      "Triangle: Meeps. Square: Tank. Diamond: Reeps. Circle with a bar: Munti. Blue fill is yours, tan is a hostile mech, a coloured blob is a Bloom creature. Thick white outline is a centauroid chassis. A burrowed Bloom renders faded and is already targetable at range. It is hiding from your eyes, not from your guns.",
     ],
   },
   {
@@ -2409,7 +2430,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "Tile colour on the board is the actual rules data, not decoration.",
-      "Fourteen tile types with their move cost and defence stars — Plain, Road, Scrub, Rubble, Structure, Bloom mat, Ridge, Sump, Deploy pad, Spawn seam, Exit, Hold zone, Dock, Wall. Drawn with the real swatches in the game. Bloom mat is the one that costs you for standing still on it; Ridge and Structure are the two worth walking further to reach.",
+      "Fourteen tile types with their move cost and defence stars: Plain, Road, Scrub, Rubble, Structure, Bloom mat, Ridge, Sump, Deploy pad, Spawn seam, Exit, Hold zone, Dock, Wall. Drawn with the real swatches in the game. Bloom mat is the one that costs you for standing still on it. Ridge and Structure are the two worth walking further to reach.",
     ],
   },
   {
@@ -2431,7 +2452,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.",
-      "The base-damage matrix, attacker vs. defender, drawn with the real numbers in the game. Munti is on it for completeness and loses every column — it is not a fighting path and no matchup makes it one.",
+      "The base-damage matrix, attacker vs. defender, drawn with the real numbers in the game. Munti is on it for completeness and loses every column. It is not a fighting path and no matchup makes it one.",
     ],
   },
   {
@@ -2442,7 +2463,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "Four abilities that come with a chassis or a path, and four rules that are this game's own.",
-      "Overshield (Tank, passive), Repair (Munti, active), Charge (centauroid, passive), Sensor Sweep (vibrissal, passive — burrow detection is live, and a Runemaster-primary Mek extends its reach). Then the house rules: Meeps Dodge, 40% on two independent rolls; Tank Shield, a real 20-point pool that regenerates 8 a turn if that unit took nothing since the last tick; Munti Regen, 8 a turn inside 2 tiles, free and always on; and 2 Actions per Turn, where moving and repairing each cost one and attacking burns whatever is left.",
+      "Overshield (Tank, passive), Repair (Munti, active), Charge (centauroid, passive), Sensor Sweep (vibrissal, passive: burrow detection is live, and a Runemaster-primary Mek extends its reach). Then the house rules. Meeps Dodge, 40% on two independent rolls. Tank Shield, a real 20-point pool that regenerates 8 a turn if that unit took nothing since the last tick. Munti Regen, 8 a turn inside 2 tiles, free and always on. And 2 Actions per Turn, where moving and repairing each cost one and attacking burns whatever is left.",
     ],
   },
   {
@@ -2453,7 +2474,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "Seven objective types. Four of them cannot be lost on the clock, and three can.",
-      "eliminate_all — kill every hostile; the turn number on the briefing is a bonus target, not a deadline. hold_zone — get a unit onto the gold tiles and keep hostiles off them from the hold turn on; a real deadline. extract_unit — the named unit onto a green exit tile before the limit; a real deadline, and the one kept on purpose. clear_bloom — win when no bloom-mat tile is left on the board; the mat regrows, so clear it faster than it spreads. survive_n_turns — win the instant the turn count is reached with the squad still standing. contested_landing — the same win and loss as eliminate_all; what the name warns you about is the opening, because the hostiles are already on top of your deploy pads at turn 1. protect_asset — something off-board with its own health bar sits inside a defended perimeter, and it loses health once a turn for every hostile that ENDS its turn inside that perimeter. Not for every hostile that attacks. Pulling them out of the zone is the whole job; reaching the turn limit with the asset alive is a win.",
+      "eliminate_all: kill every hostile. The turn number on the briefing is a bonus target, not a deadline. hold_zone: get a unit onto the gold tiles and keep hostiles off them from the hold turn on. A real deadline. extract_unit: the named unit onto a green exit tile before the limit. A real deadline, and the one kept on purpose. clear_bloom: win when no bloom-mat tile is left on the board. The mat regrows, so clear it faster than it spreads. survive_n_turns: win the instant the turn count is reached with the squad still standing. contested_landing: the same win and loss as eliminate_all. What the name warns you about is the opening, because the hostiles are already on top of your deploy pads at turn 1. protect_asset: something off-board with its own health bar sits inside a defended perimeter, and it loses health once a turn for every hostile that ENDS its turn inside that perimeter. Not for every hostile that attacks. Pulling them out of the zone is the whole job. Reaching the turn limit with the asset alive is a win.",
     ],
   },
   {
@@ -2464,7 +2485,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "The three things that decide what a mech does before you buy it a single piece of gear.",
-      "PATH is the combat role — Meeps, Reeps, Tank, Munti — and it is what the class triangle reads. CHASSIS comes from the pilot's species and never changes: bipedal is the default, centauroid can Charge, and bipedal_vibrissal reads the ground close-in and finds burrowers. MEK TRACK is the person in the cradle, and there are five — Fabricator, Armorer, Runemaster, Fieldwright, Quartermaster. A Mek's primary track changes what that one pilot's frame actually does, which is why two identical mechs with different Meks are not identical mechs. Your roster is not fixed: pilots are recruited, assigned to lances, and lost. Who is currently on it is in Personnel, not here.",
+      "PATH is the combat role, Meeps, Reeps, Tank, Munti, and it is what the class triangle reads. CHASSIS comes from the pilot's species and never changes: bipedal is the default, centauroid can Charge, and bipedal_vibrissal reads the ground close-in and finds burrowers. MEK TRACK is the person in the cradle, and there are five: Fabricator, Armorer, Runemaster, Fieldwright, Quartermaster. A Mek's primary track changes what that one pilot's frame actually does, which is why two identical mechs with different Meks are not identical mechs. Your roster is not fixed: pilots are recruited, assigned to lances, and lost. Who is currently on it is in Personnel, not here.",
     ],
   },
   {
@@ -2475,7 +2496,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "The briefing panel before a mission is the only place that tells you the win condition. Read the turn number correctly.",
-      "The panel names the objective, the threat you have been told to expect, and a turn number. That number means two different things depending on the objective, and getting it wrong is the most common way a good squad loses a mission it was winning. For eliminate_all, clear_bloom, contested_landing and protect_asset it is a bonus target — running past it costs you a reward, never the mission. For hold_zone, extract_unit and survive_n_turns it is the mission. The threat list is what intelligence expected, not a guarantee; waves arrive on their own schedule and the briefing does not always know about the second one.",
+      "The panel names the objective, the threat you have been told to expect, and a turn number. That number means two different things depending on the objective, and getting it wrong is the most common way a good squad loses a mission it was winning. For eliminate_all, clear_bloom, contested_landing and protect_asset it is a bonus target: running past it costs you a reward, never the mission. For hold_zone, extract_unit and survive_n_turns it is the mission. The threat list is what intelligence expected, not a guarantee. Waves arrive on their own schedule and the briefing does not always know about the second one.",
     ],
   },
 ];

@@ -35,6 +35,87 @@ export type Chassis = "bipedal" | "centauroid" | "bipedal_vibrissal";
 export type Tier = "G" | "F" | "E" | "D" | "C" | "B" | "A" | "S";
 export type MekTrack = "fabricator" | "armorer" | "runemaster" | "fieldwright" | "quartermaster";
 
+// Background — a pilot or Mek's origin, added 9 Sep 2026 reviving
+// `Bloom_Wars_Catalyst_Gauntlet_v2_ThirdLance_Verinis_Recruits.md` §5 (its
+// own "go," Maxime, 7 Sep 2026: "The recruit generator is folded into the
+// codex build"). Four layers, each closed under exactly the naming-lock
+// discipline `Bloom_Wars_Background_Zones_Birthplace_Academy_Planet_Sector_v1.md`
+// §1 sets out (every proper noun below invented fresh, checked against
+// both reserved terms, zero collisions) — see that document's §2-§4 for
+// the full flavor text behind each value, and
+// `Bloom_Wars_NPC_Catalyst_Formula_Closing_And_Roster_Assignments_v1.md`
+// §2 for what a background actually determines (a catalyst — see
+// data/background.ts's deriveCatalyst).
+//
+// Six sectors, not five: the Amaranth Reach was added 7 Sep 2026
+// (Catalyst_Gauntlet_v2 §2, Maxime: "Yes 6th, terrace world called
+// Aerius") once House Amaranth's Third Lance turned out to have no sector
+// of their own to come from.
+export type Sector = "Cordage Belt" | "Long Marches" | "Glasswater Reach" | "The Understrand" | "Emberfall Drift" | "Amaranth Reach";
+
+// Two planets per sector, Background Zones §2 / Catalyst_Gauntlet_v2 §2.
+export type Planet =
+  | "Tallowmere"
+  | "Skeinreach"
+  | "Harrow's Table"
+  | "Cutbank"
+  | "Glasswater"
+  | "Pale Cistern"
+  | "Cistgate"
+  | "Loomvale"
+  | "Emberfall"
+  | "Greywatch"
+  | "Meridian"
+  | "Aerius";
+
+// Cross-cuts every planet — Background Zones §4. Not weighted evenly by
+// design; see data/background.ts's rollBackground for the (documented, my
+// own call, not locked) non-uniform weights.
+export type BirthplaceTexture =
+  | "Dockside"
+  | "Terrace Farmstead"
+  | "Arcology Stack"
+  | "Garrison Quarter"
+  | "Drift Colony"
+  | "Company Housing"
+  | "Preserve-Adjacent"
+  | "Academy Ward";
+
+// Five real academies plus the honest sixth option — Background Zones §3.
+// Full names, matching Catalyst_Gauntlet_v2 §3's own Pressure table row
+// labels exactly (data/background.ts's PRESSURE_TABLE keys off these).
+export type Academy =
+  | "Tallowmere Fitting Yards"
+  | "Cutbank Muster School"
+  | "Glasswater Conservatory of Arms"
+  | "The Cistgate Ledgerworks"
+  | "The Greywatch Muster"
+  | "Line-trained";
+
+/**
+ * A pilot or Mek's origin — Sector/Planet/Birthplace Texture/Academy,
+ * Background Zones v1's four layers. Optional on both PilotRecord and
+ * MekArchetype: every existing save and every named/authored record reads
+ * as "no background," no migration needed. Today only `generatePilot`
+ * (engine/campaignState.ts) actually rolls one, for a shop-generated
+ * recruit and their Mek — every named, hand-authored pilot and Mek got
+ * theirs from the 1 Sep/7 Sep design passes as a plain catalyst string,
+ * never as a real PilotBackground record (see npcSeed.ts's
+ * BACKGROUND_CATALYST_ASSIGNMENTS), and Rourke/Marrow have neither, by
+ * Maxime's own explicit exclusion (Catalyst_Gauntlet_v2 §6).
+ *
+ * Determines a catalyst via data/background.ts's deriveCatalyst — see
+ * npcSeed.ts's catalystForPilot for where that plugs in — and is read
+ * directly by engine/archiveDossier.ts's buildArchiveDossier for the
+ * Codex intake line.
+ */
+export interface PilotBackground {
+  sector: Sector;
+  planet: Planet;
+  texture: BirthplaceTexture;
+  academy: Academy;
+}
+
 export type Coord = { x: number; y: number };
 
 export type TileType =
@@ -176,6 +257,14 @@ export interface PilotRecord {
   // engine/mission.ts's Mission.signatureHpCosts/LastWordSignatureCostRecord
   // for the recording half.
   permanentMaxHpMultiplier?: number;
+  // Background — Sector/Planet/Birthplace Texture/Academy, and (via
+  // data/background.ts's deriveCatalyst) the source of this pilot's
+  // catalyst once it's set. See PilotBackground's own comment above for
+  // the full picture. Only `generatePilot` (engine/campaignState.ts) sets
+  // this today, for shop-generated recruits; absent/undefined on every
+  // named, hand-authored pilot and on Rourke, same as every other pilot
+  // predating 9 Sep 2026 — reads as "no background," not a migration gap.
+  background?: PilotBackground;
 }
 
 export interface MekArchetype {
@@ -184,6 +273,13 @@ export interface MekArchetype {
   primary: MekTrack;
   secondary: MekTrack | null;
   spareParts: number; // campaign-persistent, fabricator only
+  // Meks run the gauntlet too — Maxime's own words, Catalyst_Gauntlet_v2
+  // §5 item 3: "mek.background on the MekArchetype too." Only a generated
+  // recruit's Mek carries one today, deliberately rolled from a DIFFERENT
+  // sector than their own pilot's (generatePilot's "a second, contrasting"
+  // background) — every named Mek's catalyst is still a plain, hand-
+  // assigned/reverse-fit string (npcSeed.ts), never a real background.
+  background?: PilotBackground;
 }
 
 export interface BloomArchetype {

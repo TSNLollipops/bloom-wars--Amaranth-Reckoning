@@ -95,7 +95,10 @@ export function runGriefCatalyst(state: CampaignState, deployedPilotIds: readonl
     const stillDrunk = !!social.drunkUntil && social.drunkUntil > Date.now(); // same pattern as scenes/Hub.ts's buildNpcs()
 
     const ambient: AmbientPilotState = {
-      catalyst: catalystForPilot(pilotId),
+      // entry.pilot.background (9 Sep 2026 recruit generator) is only ever
+      // set on a generated recruit — undefined for every named pilot,
+      // which is behavior-identical to before this pass for all of them.
+      catalyst: catalystForPilot(pilotId, entry.pilot.background),
       stage: stageFromTier(entry.pilot.tier),
       stress: social.stress,
       morale: social.morale,

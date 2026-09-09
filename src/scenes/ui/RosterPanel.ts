@@ -129,8 +129,10 @@ export class RosterPanel {
     // hit-tests them with each child's, so one without it draws correctly
     // and takes clicks somewhere else entirely. See StandingsPanel.ts.
     // One tab object per POSSIBLE lance (LanceId carries five for Gladiator),
-    // built once here and shown/hidden per save in render(): a carrier gains
-    // one lance per act, so this campaign only ever reveals three.
+    // built once here and shown/hidden per save in render(): activeLanceIds
+    // reveals four for this campaign (Recruit Cap Rework, 9 Sep 2026,
+    // engine/campaignState.ts), open to recruiting from Mission 1 — the
+    // fifth stays Gladiator-only.
     let tx = bounds.left + 20;
     for (const id of ALL_TABS) {
       const t = scene.add
