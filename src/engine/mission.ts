@@ -145,6 +145,11 @@ import {
 } from "./events";
 import { evaluatePermadeathCheck, type ReservedBayId } from "./campaignState";
 import { isCooldownReady, startCooldown, cooldownTurnsRemaining } from "./cooldown";
+// Worries System, build order step 3, 10 Sep 2026 — see
+// data/combatWorry.ts's own header for the classifier, and
+// Mission.pushCombatWorry()/combatWorries below for the wiring.
+import { upsertWorry, type WorryEntry } from "../data/worries";
+import { classifyCombatWorry, COMBAT_WORRY_EXPIRY_MS, type CombatWorryEvent } from "../data/combatWorry";
 
 // "commander_down" (25 Aug 2026 — see Mission.handleDowned() below for
 // where this actually gets set) is its own distinct outcome, not a flavor
@@ -666,6 +671,25 @@ export class Mission {
   // pilots and *why*; it does not itself touch any campaign save data,
   // since Mission has no CampaignState reference and isn't meant to.
   permanentLosses: PermanentLossRecord[] = [];
+  /**
+   * Worries System, build order step 3, 10 Sep 2026 — mission-scoped
+   * combat-outcome worries, keyed by pilotId (data/combatWorry.ts's own
+   * header has the classifier and the full catalyst-mapping rationale).
+   * "Cleared on mission end" — the design doc's own requirement — needs no
+   * explicit clear call anywhere: unlike permanentLosses above, nothing
+   * ever copies this out to CampaignState. It lives exactly as long as
+   * this Mission instance does, and scenes/Battle.ts constructs a fresh
+   * Mission per attempt, so it simply stops existing the moment that
+   * instance is discarded for Debrief. Public for the same reason
+   * permanentLosses is: tests (and any future reader — none yet, this is
+   * forward-looking plumbing the same way Mission Worry's own catalyst tag
+   * was before a second source existed) can inspect it directly. Never
+   * merged with Hub.ts's own HubNpc.worries list — the two are separate
+   * storage in separate scenes, which is what keeps a hub-context and a
+   * battle-context WorryEntry from ever needing to be compared against
+   * each other (the proposal's own unresolved "two clocks" question).
+   */
+  combatWorries: Record<string, WorryEntry[]> = {};
   /**
    * lastword_signature (Migawari/The Last Word) — one entry per use, live
    * this mission. Same "Mission records, Debrief applies" split as
@@ -2021,6 +2045,22 @@ export class Mission {
       this.hostilePhaseEvents.push({ kind: "attack", attackerId, defenderId, outcome });
     }
 
+    // Worries System step 3, 10 Sep 2026 (data/combatWorry.ts) — same
+    // "resolveAttack is the one true choke point" reasoning as the
+    // enemy-phase-playback push right above: every dodge and every
+    // overwatch reaction shot in the game resolves through here exactly
+    // once, whether the attacker/defender is a player pilot or not — no
+    // separate hook needed in attack()/triggerOverwatch(). Only the
+    // PRIMARY defender's dodge is classified here, not a secondary
+    // counter-dodge (attackerDodgedCounter/counterDodged) — a scope
+    // simplification, flagged as easy to extend if a future pass wants
+    // the nested case covered too. pushCombatWorry no-ops on its own when
+    // pilotId is undefined, so a hostile/Bloom dodging or (never built
+    // today, but harmless if it ever is) holding overwatch costs nothing
+    // extra here.
+    if (opts?.reaction && attacker.pilotId) this.pushCombatWorry(attacker.pilotId, { kind: "overwatch_trigger" });
+    if (outcome.defenderDodged && defender.pilotId) this.pushCombatWorry(defender.pilotId, { kind: "dodge" });
+
     return outcome;
   }
 
@@ -2118,6 +2158,33 @@ export class Mission {
   }
 
   /**
+   * Worries System, build order step 3, 10 Sep 2026 — classifies `event`
+   * (data/combatWorry.ts) and pushes the result onto `pilotId`'s own entry
+   * in `combatWorries`, tagged `context: "battle"`. No-ops on a hostile or
+   * Bloom actor (`pilotId` undefined) — only a player pilot's own mind is
+   * ever on this list; hostiles/Blooms have no roster identity to attach a
+   * worry to. Reuses upsertWorry (data/worries.ts) as-is: a second event
+   * from the same source this mission (a pilot's second kill, say) simply
+   * refreshes that source's own entry — the freshest reading is what's on
+   * their mind now, same "insert-or-refresh" semantics Mission Worry
+   * itself already relies on.
+   */
+  private pushCombatWorry(pilotId: string | undefined, event: CombatWorryEvent): void {
+    if (!pilotId) return;
+    const classified = classifyCombatWorry(event);
+    const now = Date.now();
+    const entry: WorryEntry = {
+      source: classified.source,
+      catalyst: classified.catalyst,
+      intensity: classified.intensity,
+      context: "battle",
+      bornAt: now,
+      expiresAt: now + COMBAT_WORRY_EXPIRY_MS,
+    };
+    this.combatWorries[pilotId] = upsertWorry(this.combatWorries[pilotId] ?? [], entry);
+  }
+
+  /**
    * A victim just went down. `finisherPilotId` gets the kill (unchanged
    * behavior). Everyone else who's in that victim's contribution bucket —
    * i.e. damaged it at some earlier point this mission without being the
@@ -2128,6 +2195,12 @@ export class Mission {
    * against it.
    */
   private resolveKill(victimInstanceId: string, finisherPilotId: string | undefined): void {
+    // Worries System step 3 — a kill only ever reaches here via
+    // recordPerformance's own `defender.side === "hostile"` gate (see that
+    // method's comment above), so finisherPilotId is already correctly
+    // scoped to "a player pilot just downed a hostile" — no extra side
+    // check needed, same as creditKill right below.
+    this.pushCombatWorry(finisherPilotId, { kind: "kill" });
     this.creditKill(finisherPilotId);
     // ledger_entry (Skuld/Widow's Ledger) rank 5's one-time move-range bonus
     // — "the bonus also applies to move range past 3 stacks." Fires the
@@ -2247,6 +2320,10 @@ export class Mission {
     // repair that actually restored HP counts (amount > 0), same
     // "did-it-actually-do-anything" guard creditDamage already uses.
     if (amount > 0) this.creditAssist(healer.pilotId, REPAIR_ASSIST_FRACTION);
+    // Worries System step 3, 10 Sep 2026 — same "did-it-actually-do-
+    // anything" guard as creditAssist right above; a repair that restored
+    // 0 HP (already at max) has nothing to be on the healer's mind about.
+    if (amount > 0) this.pushCombatWorry(healer.pilotId, { kind: "repair", healedAmount: amount });
     this.log.push(
       `${healer.displayName} repairs ${target.displayName} for ${amount} HP${
         usingFieldDoctorBonus ? ` (Field Doctor — free, ready again in ${FIELD_DOCTOR_COOLDOWN_TURNS} turns)` : ""
@@ -4468,6 +4545,17 @@ export class Mission {
       }
     }
 
+    // Worries System step 3, 10 Sep 2026 — the pilot's own worry about
+    // having just been knocked out of the fight, independent of whatever
+    // the permadeath check below finds (a squad-mate who is fine but
+    // rattled feels different from one who might not come back — see the
+    // separate combat_permadeath_lost/combat_permadeath_recoverable push
+    // below for that half). No-ops on a hostile/Bloom (no pilotId), and is
+    // correctly skipped for the commander_down early return right above —
+    // same "nothing about that attempt resolves" reasoning that already
+    // applies to everything else past this point in the method.
+    this.pushCombatWorry(unit.pilotId, { kind: "downed" });
+
     // Mission 5's rescue-and-recruit bonus objective (23 Aug 2026): a
     // rescue can fail two ways — the NPC themselves is killed before ever
     // being reached (unit.npcIncapacitated), or whoever picked them up goes
@@ -4520,6 +4608,12 @@ export class Mission {
       const sameSide = this.units.filter((u) => u.side === unit.side);
       const check = evaluatePermadeathCheck(unit, sameSide);
       this.log.push(`Permadeath check — ${unit.displayName}: ${check.reason}`);
+      // Worries System step 3, 10 Sep 2026 — the check's own verdict,
+      // classified separately from the "downed" push above (two distinct
+      // source ids, data/combatWorry.ts) so a recoverable scare and an
+      // actual permanent loss read as genuinely different weights on the
+      // Worries stack, not the same entry with a bigger number.
+      this.pushCombatWorry(unit.pilotId, { kind: "permadeath_check", permanentlyLost: check.permanent });
       if (check.permanent) {
         // The four "how was the company standing" facts, captured at the
         // only moment they are still knowable — see PermanentLossRecord's

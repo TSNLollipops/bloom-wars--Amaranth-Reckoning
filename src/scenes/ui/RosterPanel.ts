@@ -27,7 +27,23 @@
 // Permanently lost pilots do not appear here at all. They are recorded once,
 // in the Vault's roll (scenes/ui/MemorialPanel.ts) — Maxime's call, so the
 // same names never live in two screens.
-
+//
+// Click-to-carry redesign, 9 Sep 2026 (Maxime, live-testing this panel the
+// night the per-lance [→Lance] buttons shipped: "i cant find the button to
+// move my unit around their lance can you build a column ui box I can clic
+// and drag? instead of a button? use the same kind of ui setting as the
+// codex. it look nice compared to rooster"). Real Phaser drag-and-drop was
+// the other option on offer and Maxime picked the lighter one deliberately
+// (no ghost sprite, no drop-zone hit-testing, no half-dragged-then-released
+// edge cases): click a pilot's card to pick them up, then click a lance tab
+// to drop them there, or another pilot's card to trade places. The engine
+// calls underneath (assignPilotToLance, swapPilotLances) and the pick-up/
+// trade state machine (swapFrom, pickForSwap) are UNCHANGED from the
+// button-per-lance version this replaces — only what you click and how a
+// row looks changed. Each pilot is now a real card (background + border,
+// hover state, a highlighted fill while picked up) styled off the same
+// palette Codex.ts and ShopPanel.ts already use, rather than one long Text
+// blob with bracket-button overlays.
 import Phaser from "phaser";
 import {
   assignPilotToLance,
@@ -60,14 +76,24 @@ const TEXT_ACCENT = "#c8b273";
 const TEXT_WARN = "#c17a6a";
 const TEXT_OK = "#7fa88a";
 
-// B4, 5 Sep 2026 — portrait gutter. bodyText's own left margin (originally
-// a bare `bounds.left + 22`) shifts right by PORTRAIT_GUTTER to make room;
-// PORTRAIT_R leaves comfortable padding above/below inside one row's real
-// rendered height (see render()'s own rowH comment — a fixed ROW_H constant
-// used to live here too, but it didn't match what 4 lines of this panel's
-// own text actually render at, so it's gone; rowH is measured live instead).
+// Card palette — the same hex values Codex.ts's own PAL and ShopPanel.ts's
+// button chrome already use (cardBg/cardBorder/playerBlue/hover), reused
+// directly rather than reinvented, per Maxime's own "same kind of ui
+// setting as the codex" ask.
+const CARD_BG = 0x1a2028;
+const CARD_BORDER = 0x2a323b;
+const CARD_HOVER_BG = 0x22303c;
+const CARRY_BG = 0x2e5c7a; // Codex's PAL.playerBlue — the "this one is selected" fill
+const CARRY_BORDER = 0x4a7a9a;
+
+// B4, 5 Sep 2026 — portrait gutter. Each card's text starts PORTRAIT_GUTTER
+// right of the card's own left padding to make room for the avatar;
+// PORTRAIT_R leaves comfortable padding above/below inside the card.
 const PORTRAIT_R = 15;
 const PORTRAIT_GUTTER = 42;
+const CARD_PAD_X = 14;
+const CARD_PAD_Y = 8;
+const CARD_GAP = 6;
 
 // The full id space, for building tab objects once. What's actually SHOWN is
 // activeLanceIds(state) — see the tab loop.
@@ -84,21 +110,23 @@ export class RosterPanel {
   private container: Phaser.GameObjects.Container;
   private tabTexts: Phaser.GameObjects.Text[] = [];
   private warnText: Phaser.GameObjects.Text;
-  private bodyText: Phaser.GameObjects.Text;
-  private moveTexts: Phaser.GameObjects.Text[] = [];
-  // B4, 5 Sep 2026 — one per visible row, rebuilt every render() the same
-  // way moveTexts/swap buttons already are (see that cleanup below).
-  private avatarObjs: Phaser.GameObjects.Container[] = [];
+  private emptyText: Phaser.GameObjects.Text;
+  // One entry per currently-rendered pilot card: the background rectangle,
+  // its text, and (when it has one) its portrait container. Destroyed and
+  // rebuilt whole on every render(), same immediate-mode convention the
+  // rest of this panel (and ShopPanel/Codex) already follow.
+  private rowObjs: Phaser.GameObjects.GameObject[] = [];
   private noticeText: Phaser.GameObjects.Text;
 
   private state!: CampaignState;
   private tab: LanceId = "a";
   private records: Record<string, PilotServiceRecord> = {};
   private notice = "";
-  // B2 swap mode. The cap alone deadlocks a full roster (15 pilots, 3
-  // lances of 5 — see swapPilotLances' own header), so a pilot can be
-  // picked up here and traded with anyone in another lance. Null = nobody
-  // picked up.
+  // B2 swap mode, now doubling as "who's picked up" for the click-to-carry
+  // flow. The cap alone deadlocks a full roster (15 pilots, 3 lances of 5 —
+  // see swapPilotLances' own header), so a pilot can be picked up here and
+  // either dropped on a lance tab (assignPilotToLance) or traded with
+  // someone (swapPilotLances). Null = nobody picked up.
   private swapFrom: string | null = null;
   private readonly bounds: RosterPanelBounds;
   private readonly onChanged: () => void;
@@ -133,6 +161,10 @@ export class RosterPanel {
     // reveals four for this campaign (Recruit Cap Rework, 9 Sep 2026,
     // engine/campaignState.ts), open to recruiting from Mission 1 — the
     // fifth stays Gladiator-only.
+    //
+    // Click-to-carry, 9 Sep 2026: a tab is now a plain view-switcher when
+    // nobody's picked up, and a drop zone the moment someone is — see
+    // onTabClick.
     let tx = bounds.left + 20;
     for (const id of ALL_TABS) {
       const t = scene.add
@@ -140,7 +172,7 @@ export class RosterPanel {
         .setOrigin(0, 0.5)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0);
-      t.on("pointerdown", () => this.setTab(id));
+      t.on("pointerdown", () => this.onTabClick(id));
       this.container.add(t);
       this.tabTexts.push(t);
       tx += t.width + 10;
@@ -152,20 +184,17 @@ export class RosterPanel {
       .setScrollFactor(0);
     this.container.add(this.warnText);
 
-    // B4, 5 Sep 2026 — x shifted right by PORTRAIT_GUTTER (was a bare
-    // `bounds.left + 22`) to leave room for the per-row portrait render()
-    // now draws in that gutter. Each roster entry is still exactly 4 lines
-    // (name, stats, service record, blank) — render() measures this Text
-    // object's own rendered height per render() rather than assuming a
-    // fixed row height, see its own rowH comment for why.
-    this.bodyText = scene.add
-      .text(bounds.left + 22 + PORTRAIT_GUTTER, bounds.top + 68, "", { fontFamily: "monospace", fontSize: "11px", color: TEXT_MAIN, lineSpacing: 3 })
+    // Shown only for an empty lance ("Nobody assigned to this lance.") —
+    // the pilot roster itself is now a stack of per-pilot cards built fresh
+    // in render(), not one shared Text blob (see rowObjs).
+    this.emptyText = scene.add
+      .text(bounds.left + 22, bounds.top + 68, "", { fontFamily: "monospace", fontSize: "11px", color: TEXT_MAIN })
       .setOrigin(0, 0)
       .setScrollFactor(0);
-    this.container.add(this.bodyText);
+    this.container.add(this.emptyText);
 
     this.noticeText = scene.add
-      .text(cx, bounds.bottom - 20, "", { fontFamily: "monospace", fontSize: "10px", color: TEXT_WARN })
+      .text(cx, bounds.bottom - 20, "", { fontFamily: "monospace", fontSize: "10px", color: TEXT_WARN, align: "center", wordWrap: { width: bounds.right - bounds.left - 40 } })
       .setOrigin(0.5, 0.5)
       .setScrollFactor(0);
     this.container.add(this.noticeText);
@@ -203,7 +232,31 @@ export class RosterPanel {
     this.render();
   }
 
-  /** Exposed for the verify script — the same path the [→ 2nd Lance] buttons take. */
+  /**
+   * Tab click, routed through carrying state. Idle: an ordinary view
+   * switch. Carrying and a DIFFERENT tab: a drop — attempts the move and,
+   * win or lose, follows the player's eye onto that lance (a real move
+   * lands them there; a full lance lands them there ready to pick a trade
+   * partner, same as movePilot's own fallback already offers). Carrying
+   * and the SAME tab (the lance already being viewed): reads as "changed
+   * my mind," same as clicking the carried pilot's own card again.
+   */
+  private onTabClick(id: LanceId): void {
+    if (this.swapFrom === null) {
+      this.setTab(id);
+      return;
+    }
+    if (id === this.tab) {
+      this.swapFrom = null;
+      this.notice = "";
+      this.render();
+      return;
+    }
+    this.tab = id;
+    this.movePilot(this.swapFrom, id);
+  }
+
+  /** Exposed for the verify script — the same path a lance-tab drop takes. */
   movePilot(pilotId: string, to: LanceId): void {
     const result = assignPilotToLance(this.state, pilotId, to);
     if (result.ok) {
@@ -213,8 +266,10 @@ export class RosterPanel {
     } else {
       // A full destination is the common case at full roster, and a bare
       // refusal there is a dead end — every other lance is full too. Pick
-      // the pilot up instead and tell the player to choose a trade.
-      this.notice = `${result.reason} — pick someone there to trade with.`;
+      // the pilot up instead and tell the player to choose a trade. The
+      // caller (onTabClick) has already switched this.tab to `to`, so the
+      // player is looking straight at the lance they need to trade into.
+      this.notice = `${result.reason} — click someone here to trade places, or click them again to cancel.`;
       this.swapFrom = pilotId;
     }
     this.render();
@@ -223,8 +278,9 @@ export class RosterPanel {
   /** Pick a pilot up for trading, or complete a trade if one is already held. */
   pickForSwap(pilotId: string): void {
     if (this.swapFrom === null) {
+      const name = this.state.pilots[pilotId]?.pilot.displayName ?? "them";
       this.swapFrom = pilotId;
-      this.notice = "picked up — click another pilot's [ trade ] to swap places.";
+      this.notice = `Carrying ${name} — click a lance tab to move them, another pilot to trade places, or click them again to cancel.`;
       this.render();
       return;
     }
@@ -246,14 +302,9 @@ export class RosterPanel {
     const active = activeLanceIds(this.state);
     // A lance the carrier doesn't have yet is not a tab you can click.
     if (!active.includes(this.tab)) this.tab = active[0];
-    for (const t of this.moveTexts) t.destroy();
-    this.moveTexts = [];
-    // Container.destroy() destroys its children too (Phaser's own default —
-    // Container.exclusive is true unless explicitly turned off, which
-    // nothing here does), so this alone is enough to clean up each avatar's
-    // portrait Image/hitCircle along with it.
-    for (const a of this.avatarObjs) a.destroy();
-    this.avatarObjs = [];
+
+    for (const o of this.rowObjs) o.destroy();
+    this.rowObjs = [];
 
     // Tabs are laid out HERE, not at construction: their labels gain the
     // "n/5" occupancy at render, which is wider than the bare name they were
@@ -272,10 +323,14 @@ export class RosterPanel {
       t.setText(`[ ${lanceDisplayName(id)} ${count}/${MAX_LANCE_SIZE} ]`);
       t.setX(tabX);
       tabX += t.width + 12;
-      // The selected tab is bright; an unfieldable lance is flagged in the
-      // tab strip itself, so a problem in a lance you're NOT looking at is
-      // still visible without clicking through all three.
-      t.setColor(id === this.tab ? TEXT_MAIN : fit.fieldable ? TEXT_DIM : TEXT_WARN);
+      // The selected tab is bright; carrying a pilot tints every OTHER tab
+      // as a live drop target (same accent color the cards use for a
+      // clickable affordance); an unfieldable lance is flagged in the tab
+      // strip itself either way, so a problem in a lance you're not
+      // looking at is still visible without clicking through all of them.
+      const isCurrent = id === this.tab;
+      const isDropTarget = this.swapFrom !== null && !isCurrent;
+      t.setColor(isCurrent ? TEXT_MAIN : isDropTarget ? TEXT_ACCENT : fit.fieldable ? TEXT_DIM : TEXT_WARN);
     }
 
     const fit = lanceFieldability(this.state, this.tab);
@@ -284,29 +339,37 @@ export class RosterPanel {
 
     const roster = lanceRoster(this.state, this.tab);
     if (roster.length === 0) {
-      this.bodyText.setText("Nobody assigned to this lance.");
+      this.emptyText.setText("Nobody assigned to this lance.");
       this.noticeText.setText(this.notice);
       return;
     }
+    this.emptyText.setText("");
 
-    const lines: string[] = [];
+    // Click-to-carry, 9 Sep 2026: each pilot is a real card (background,
+    // border, hover state) rather than a shared Text blob with bracket
+    // buttons floating over it. The whole card is the click target —
+    // pickForSwap handles pick-up/cancel/trade identically to what the old
+    // [ trade ] button called, so the engine-facing behavior is unchanged.
+    const cardL = this.bounds.left + 14;
+    const cardR = this.bounds.right - 14;
+    const cardW = cardR - cardL;
+    const cardCx = (cardL + cardR) / 2;
+    let y = this.bounds.top + 64;
+
     for (const entry of roster) {
       const p = entry.pilot;
+      if (y > this.bounds.bottom - 34) break; // never draw a card past the panel
+
       const path = UNIT_ARCHETYPES[p.archetypeId]?.path ?? "?";
       const rec = this.records[p.id];
       const social = entry.social;
-      // Line 1 — who they are.
-      lines.push(`${p.displayName}`);
-      // Line 2 — the standing stats the Hub used to leak ambiently.
+
       const standing = [`${path} · Tier ${p.tier}`, `${entry.personalPoints} pts`];
       if (social) {
         standing.push(`favorability ${social.favorability >= 0 ? "+" : ""}${social.favorability}`);
         if (social.inRelationship) standing.push("♥");
       }
-      lines.push(`    ${standing.join("  ·  ")}`);
-      // Line 3 — B2's actual headline: the service record. "absent" rather
-      // than zeroes for a pilot who has never flown, so a fresh campaign
-      // doesn't read as a squad of people who all went 0-for-0.
+      let serviceLine: string;
       if (rec) {
         const service = [
           `${rec.missionsFlown} mission${rec.missionsFlown === 1 ? "" : "s"} (${rec.wins}W)`,
@@ -315,91 +378,51 @@ export class RosterPanel {
         ];
         const fav = rec.favoriteAbility ? ABILITIES[rec.favoriteAbility]?.displayName : undefined;
         if (fav) service.push(`most-used: ${fav}`);
-        lines.push(`    ${service.join("  ·  ")}`);
+        serviceLine = service.join("  ·  ");
       } else {
-        lines.push("    no missions flown yet");
+        serviceLine = "no missions flown yet";
       }
-      lines.push("");
-    }
-    this.bodyText.setText(lines.join("\n"));
 
-    // One move button per pilot, cycling to the next lance — laid out
-    // against the text block's own MEASURED per-entry height, not the
-    // ROW_H constant. B4, 5 Sep 2026: caught by adding a portrait, which
-    // made a pre-existing drift impossible to miss — ROW_H (46) was never
-    // actually what 4 lines of this Text object render at (real fontSize
-    // 11px + lineSpacing 3 comes out closer to 63px/entry), so buttons had
-    // been quietly floating further above their own pilot's text with every
-    // row down the list. bodyText.height / roster.length is exactly that
-    // real per-entry height, however the font ends up rendering — immune to
-    // this drift returning if the style ever changes again.
-    const rowTop = this.bounds.top + 68;
-    const rowH = this.bodyText.height / roster.length;
-    for (const [i, entry] of roster.entries()) {
-      const y = rowTop + i * rowH + 6;
-      if (y > this.bounds.bottom - 40) break; // never draw a control past the panel
-      const to = this.nextLance(this.tab);
-      const pilotId = entry.pilot.id;
-      const held = this.swapFrom === pilotId;
-
-      // B4, 5 Sep 2026 — real portrait when one exists, the same filled-
-      // circle+initials placeholder every other scene falls back to
-      // otherwise. Centered on the row's own measured rowH band (see this
-      // loop's own header comment on why that's rowH and not ROW_H) rather
-      // than reusing the button's `y` (which is offset to sit at the text
-      // block's own top line, not the row's vertical middle).
-      const path = UNIT_ARCHETYPES[entry.pilot.archetypeId]?.path;
-      const avatar = drawPilotAvatar(
-        scene,
-        this.bounds.left + 22 + PORTRAIT_R,
-        rowTop + i * rowH + rowH / 2,
-        PORTRAIT_R,
-        pilotId,
-        entry.pilot.displayName,
-        path ? PATH_COLORS[path] : 0x555555
-      );
-      avatar.container.setScrollFactor(0);
-      this.container.add(avatar.container);
-      this.avatarObjs.push(avatar.container);
-
-      // Move is the SECONDARY action, dimmer of the two: lances arrive full
-      // (one per act, 5 pilots, cap 5), so a plain move only succeeds into a
-      // slot a casualty opened. Day to day, reorganising means trading.
-      const roomThere = lanceRoster(this.state, to).length < MAX_LANCE_SIZE;
-      const btn = scene.add
-        .text(this.bounds.right - 24, y, `[ → ${lanceDisplayName(to)} ]`, { fontFamily: "monospace", fontSize: "10px", color: roomThere ? TEXT_ACCENT : TEXT_DIM })
-        .setOrigin(1, 0)
-        .setInteractive({ useHandCursor: true })
-        .setScrollFactor(0);
-      btn.on("pointerdown", () => this.movePilot(pilotId, to));
-      this.container.add(btn);
-      this.moveTexts.push(btn);
-
-      // Swap handle. Always present, not just when a lance is full: trading
-      // two specific people is a thing a player wants to do on purpose, not
-      // only a workaround for the cap.
-      const swapBtn = scene.add
-        .text(this.bounds.right - 24, y + 13, held ? "[ holding — pick a partner ]" : "[ trade ]", {
+      const isCarried = this.swapFrom === p.id;
+      const textLines = [p.displayName, `    ${standing.join("  ·  ")}`, `    ${serviceLine}`].join("\n");
+      const cardText = scene.add
+        .text(cardL + CARD_PAD_X + PORTRAIT_GUTTER, y + CARD_PAD_Y, textLines, {
           fontFamily: "monospace",
-          fontSize: "10px",
-          color: held ? TEXT_WARN : TEXT_ACCENT,
+          fontSize: "11px",
+          lineSpacing: 3,
+          color: isCarried ? "#ffffff" : TEXT_MAIN,
         })
-        .setOrigin(1, 0)
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      const cardH = cardText.height + CARD_PAD_Y * 2;
+      const cardCy = y + cardH / 2;
+
+      const restBg = isCarried ? CARRY_BG : CARD_BG;
+      const restBorder = isCarried ? CARRY_BORDER : CARD_BORDER;
+      const cardBg = scene.add
+        .rectangle(cardCx, cardCy, cardW, cardH, restBg, 1)
+        .setStrokeStyle(1, restBorder)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0);
-      swapBtn.on("pointerdown", () => this.pickForSwap(pilotId));
-      this.container.add(swapBtn);
-      this.moveTexts.push(swapBtn);
+      cardBg.on("pointerover", () => cardBg.setFillStyle(isCarried ? CARRY_BG : CARD_HOVER_BG, 1));
+      cardBg.on("pointerout", () => cardBg.setFillStyle(restBg, 1));
+      cardBg.on("pointerdown", () => this.pickForSwap(p.id));
+
+      const avatar = drawPilotAvatar(scene, cardL + CARD_PAD_X + PORTRAIT_R, cardCy, PORTRAIT_R, p.id, p.displayName, path ? PATH_COLORS[path] : 0x555555);
+      avatar.container.setScrollFactor(0);
+
+      // Background first so the avatar and text paint on top of it.
+      this.container.add(cardBg);
+      this.container.add(avatar.container);
+      this.container.add(cardText);
+      this.rowObjs.push(cardBg, avatar.container, cardText);
+
+      y += cardH + CARD_GAP;
     }
 
-    this.noticeText.setText(this.notice);
-  }
-
-  /** Cycles only through lances this carrier actually has — never offers a move to one that doesn't exist. */
-  private nextLance(from: LanceId): LanceId {
-    const active = activeLanceIds(this.state);
-    const i = active.indexOf(from);
-    return active[(i + 1) % active.length];
+    this.noticeText.setText(
+      this.notice || "Click a pilot to pick them up, then click a lance tab to move them, or another pilot to trade places."
+    );
   }
 
   /** The pilot ids currently in `lance` — Hub hands these to the Transporter Pad as a deploy pre-selection. */

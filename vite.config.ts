@@ -17,6 +17,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const buildTime = `${stamp.getUTCFullYear()}-${pad(stamp.getUTCMonth() + 1)}-${pad(stamp.getUTCDate())} ${pad(stamp.getUTCHours())}:${pad(stamp.getUTCMinutes())}Z`;
 
 export default defineConfig({
+  // Relative asset paths, not absolute ones (the Vite default). Added
+  // 9 Sep 2026 for the Electron packaging pass — the packaged app loads
+  // dist/index.html via file://, where an absolute path like "/assets/x.js"
+  // resolves to the filesystem root instead of the game folder, which is a
+  // guaranteed blank screen on first launch. This has zero effect on the
+  // existing itch.io/browser build: a relative base still serves correctly
+  // from a site root, it just also happens to work from a local file.
+  base: "./",
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_TIME__: JSON.stringify(buildTime),

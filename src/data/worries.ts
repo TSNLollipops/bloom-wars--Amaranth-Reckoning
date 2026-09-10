@@ -1,5 +1,5 @@
 // src/data/worries.ts
-// Worries System, build order step 2, 6 Sep 2026 — see
+// Worries System, build order steps 2 and 3 — see
 // Bloom_Wars_Worries_System_Proposal_v1.md's own header for the full
 // design pass (28 Aug 2026, Maxime's sign-off on the open questions below).
 // A general-purpose, short-window "what's currently on this pilot's mind
@@ -9,14 +9,22 @@
 // the player exits, what isn't saved is lost" framing Mission Worry always
 // had (Maxime, 25 Aug 2026).
 //
-// Absorbs missionWorry.ts as its first live source, per Maxime's own
-// direction, 28 Aug 2026: "it becomes one entry source on the general
-// list, not a parallel system." Scoped to build order step 2 ONLY —
-// read-side, wired into ambientLines.ts's pickSoloEcho chain. Deliberately
-// NOT built here: the mission.ts combat-outcome bridge (step 3, mission-
-// scoped entries only), the domestic bucket (step 4 — "is the oven off,"
-// needs its own content brief first), or any real Stress/Morale feedback
-// (step 5, explicitly deferred pending actual playtesting).
+// Step 2, 6 Sep 2026 — absorbs missionWorry.ts as its first live source,
+// per Maxime's own direction, 28 Aug 2026: "it becomes one entry source on
+// the general list, not a parallel system." Read-side, wired into
+// ambientLines.ts's pickSoloEcho chain.
+//
+// Step 3, 10 Sep 2026 — the mission.ts combat-outcome classifier
+// (data/combatWorry.ts), wired into engine/mission.ts's Mission class at
+// its real action-resolution hook points (kill, repair, downed, a
+// permadeath check's verdict, an overwatch trigger, a dodge). Mission-
+// scoped: lives only on a Mission instance's own `combatWorries` field
+// (see that field's comment for why "cleared on mission end" needs no
+// explicit clear call), never touches Hub.ts's own HubNpc.worries list.
+// Still open, deliberately NOT built here: the domestic bucket (step 4 —
+// "is the oven off," needs its own content brief first), or any real
+// Stress/Morale feedback (step 5, explicitly deferred pending actual
+// playtesting).
 //
 // The "two clocks" problem (real-world-time entries like Mission Worry vs.
 // an in-game-time framing for others) is resolved as Option 2, checked
@@ -43,14 +51,38 @@ import type { Catalyst } from "./ambientLines";
 // unrelated type.
 export type AnimalTag = Catalyst;
 
-// Only one real source exists after this pass — more join this union in
-// steps 3 (mission.ts combat outcomes) and 4 (the domestic bucket).
-export type WorrySourceId = "mission_pilot_missing";
+// Worries System step 3, 10 Sep 2026 — the mission.ts combat-outcome
+// classifier (data/combatWorry.ts) adds six new sources. Step 4's domestic
+// bucket is the one still left to join this union.
+export type WorrySourceId =
+  | "mission_pilot_missing"
+  | "combat_kill"
+  | "combat_repair"
+  | "combat_downed"
+  | "combat_permadeath_lost"
+  | "combat_permadeath_recoverable"
+  | "combat_overwatch"
+  | "combat_dodge";
 
 export type WorryEntry = {
   source: WorrySourceId;
   catalyst: AnimalTag;
   intensity: number; // 0-1 — whatever the owning source's own clock/formula says right now
+  // Added 10 Sep 2026, step 3 — the original 28 Aug proposal's own
+  // "Proposed entry shape" always had this field, but step 2 (6 Sep) never
+  // actually needed it: with exactly one source, and that source only ever
+  // firing from Hub.ts, there was nothing to distinguish it FROM. Real now
+  // that a second source (the combat-outcome classifier below) exists and
+  // fires from inside a mission instead. Deliberately NOT a filter switch
+  // anywhere in this module or in pickSoloEcho — see combatWorry.ts's own
+  // header and mission.ts's Mission.combatWorries field for why a
+  // hub-context and a battle-context entry can never actually end up being
+  // compared against each other: they live in two entirely separate lists
+  // (Hub.ts's own HubNpc.worries vs. a Mission instance's own
+  // combatWorries), never merged. This field is provenance, read by
+  // nothing today — same "forward-looking metadata" status Mission Worry's
+  // own catalyst tag already has.
+  context: "hub" | "battle";
   bornAt: number;
   // Real elapsed time, not an in-game-day unit — the proposal's own
   // verification pass rejected that framing twice (28 Aug: no in-game

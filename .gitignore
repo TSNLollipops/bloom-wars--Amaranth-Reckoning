@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Electron packaging output (electron-builder) — the installer/exe itself,
+# same reasoning as dist above: built artifacts, not source.
+release
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

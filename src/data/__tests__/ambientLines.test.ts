@@ -32,7 +32,7 @@ function pilot(overrides: Partial<AmbientPilotState> = {}): AmbientPilotState {
 // re-testing the probability roll itself (that's worryTriggerChance's own
 // job, covered in missionWorry.test.ts).
 function worry(intensity = 1): WorryEntry {
-  return { source: "mission_pilot_missing", catalyst: "wolf", intensity, bornAt: 0, expiresAt: Number.MAX_SAFE_INTEGER };
+  return { source: "mission_pilot_missing", catalyst: "wolf", intensity, context: "hub", bornAt: 0, expiresAt: Number.MAX_SAFE_INTEGER };
 }
 
 describe("pickSoloEcho — worried/topWorry, Hub polish 26 Aug 2026, generalized 6 Sep 2026", () => {

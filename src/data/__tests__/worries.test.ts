@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest";
 import { upsertWorry, removeWorry, pruneExpiredWorries, loudestWorry, WORRIES_STACK_CAP, type WorryEntry } from "../worries";
 
 function entry(overrides: Partial<WorryEntry> = {}): WorryEntry {
-  return { source: "mission_pilot_missing", catalyst: "wolf", intensity: 0.5, bornAt: 0, expiresAt: 1000, ...overrides };
+  return { source: "mission_pilot_missing", catalyst: "wolf", intensity: 0.5, context: "hub", bornAt: 0, expiresAt: 1000, ...overrides };
 }
 
 describe("upsertWorry — insert-or-refresh with a fixed small stack cap", () => {
@@ -107,5 +107,19 @@ describe("loudestWorry — Gate 3's own 'loudest thing wins' rule", () => {
     const expiredLoud = entry({ source: "expiredLoud" as WorryEntry["source"], intensity: 0.99, expiresAt: 500 });
     const live = entry({ source: "live" as WorryEntry["source"], intensity: 0.4, expiresAt: 2000 });
     expect(loudestWorry([expiredLoud, live], 1000)?.source).toBe("live");
+  });
+
+  // Worries System step 3, 10 Sep 2026 — context is provenance only (see
+  // WorryEntry.context's own comment): nothing in this module ever reads
+  // or filters on it. A "battle" entry competes for loudest on intensity
+  // alone, exactly like a "hub" one — this is the module-level half of the
+  // guarantee that a hub-context and a battle-context entry never need a
+  // "two clocks" comparison rule, because nothing here ever mixes them by
+  // source or by context, only by whichever list they were already handed
+  // in (the caller's job, not this module's).
+  it("a battle-context entry wins loudest exactly like a hub-context one would — context never gates the comparison", () => {
+    const hub = entry({ source: "mission_pilot_missing", context: "hub", intensity: 0.3 });
+    const battle = entry({ source: "combat_kill", context: "battle", intensity: 0.7 });
+    expect(loudestWorry([hub, battle], 0)?.source).toBe("combat_kill");
   });
 });

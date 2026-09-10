@@ -44,7 +44,7 @@
     { "name": "Doyle Marsh", "match": "full" },
     { "name": "Sana Voight", "match": "full" },
     { "name": "Soren Adair", "match": "full" },
-    { "name": "Chidi Ekwueme", "match": "full", "note": "Added 9 Sep 2026, v34 sheets — promoted from the background register B1.CH06-25. His surname alone is already an accepted RECRUIT_SURNAMES entry (src/data/names.ts), same 'full' precedent as Okafor/Reyes/Osei below — flagged for Maxime's own read in the name-check doc, not auto-changed." },
+    { "name": "Chidi Ekwueme", "match": "full", "note": "Added 9 Sep 2026, v34 sheets — promoted from the background register B1.CH06-25. His surname alone collided with a RECRUIT_SURNAMES entry (src/data/names.ts), same 'full' precedent as Okafor/Reyes/Osei below — resolved same day by swapping that pool entry to 'Okorie' (see names.ts's own header comment)." },
     { "name": "Mikka Reyes", "match": "full" },
     { "name": "Perrin Cato", "match": "full" },
     { "name": "Faela Bren", "match": "full" },

@@ -20,13 +20,25 @@
 // caps how far main.ts's Phaser.Scale.FIT is allowed to stretch the game on
 // a bigger monitor (Maxime's own "the UI gotten too big" report). See
 // src/engine/displayScale.ts and claude/Bloom_Wars_Screen_Resolution_Plan_v1.md.
+//
+// Tester Notes, 10 Sep 2026 (claude/Bloom_Wars_Spitball_Ideas_Addendum_ReassuranceVerbAndTesterNotepad_08Sep2026.md
+// §2, built for the first outside-friend alpha share): a fourth control, a
+// local scratchpad reusing the exact same "everything stays on this
+// computer, copy it yourself" rule the STATISTICS & BUG REPORTS block
+// above already established. See src/engine/testerNotes.ts for the full
+// design reasoning and src/scenes/ui/NotesPanel.ts for the panel itself.
+// Every row below AUDIO shifted down 28px to make room — same "compact
+// everything a little rather than scroll" call the 9 Sep audio rows
+// already made (see this file's own note above them).
 import Phaser from "phaser";
 import { hasSeenTutorial, resetTutorialSeen, areTutorialHintsEnabled, setTutorialHintsEnabled } from "../engine/campaignState";
 import { clearStats, exportStatsJson, listMissionSummaries } from "../engine/statsStore";
 import { currentGameVersion } from "../engine/telemetry";
 import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getStoredDisplayScaleId, setStoredDisplayScaleId } from "../engine/displayScale";
+import { getTesterNotes } from "../engine/testerNotes";
 import { makeShopButton } from "./shop/ShopPanel";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
+import { showNotesPanel } from "./ui/NotesPanel";
 import { getMusicVolume, setMusicVolume, getSfxVolume, setSfxVolume } from "../engine/audioSettings";
 import { playAmbient, stopAmbient, applyMusicVolumeLive, playSfx } from "./audio/AudioManager";
 
@@ -35,6 +47,11 @@ export class Options extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
   private exportPanel: Phaser.GameObjects.Container | null = null;
+  // Tester Notes, 10 Sep 2026 — same "panel open? don't stack a second one"
+  // guard as exportPanel above, plus a status line under the button that
+  // reflects how much is currently saved (mirrors statsText's own shape).
+  private notesPanel: Phaser.GameObjects.Container | null = null;
+  private notesStatusText!: Phaser.GameObjects.Text;
   // DISPLAY SIZE row rebuilds itself on every click (same "destroy and
   // redraw" shape as exportPanel above) — makeShopButton has no built-in
   // "selected" visual state, so the active option is shown by bracketing
@@ -65,6 +82,7 @@ export class Options extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor("#0a0d10");
     this.exportPanel = null;
+    this.notesPanel = null;
     this.displayScaleLayer = null;
     this.tutorialToggleLayer = null;
     this.musicVolumeLayer = null;
@@ -81,8 +99,9 @@ export class Options extends Phaser.Scene {
 
     // Vertical rhythm below is deliberately tight (compacted 9 Sep 2026 to
     // fit the two new AUDIO rows into the same 640px-tall screen without a
-    // scrolling container) — every row shrank a little rather than one row
-    // getting pushed off the bottom.
+    // scrolling container, compacted again 10 Sep 2026 for TESTER NOTES) —
+    // every row shrank a little rather than one row getting pushed off the
+    // bottom.
     this.add
       .text(480, 110, "TUTORIAL HINTS", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
@@ -118,18 +137,28 @@ export class Options extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Tester Notes, 10 Sep 2026 — same local-only rule as the block above,
+    // reused rather than restated at length; see testerNotes.ts's own
+    // header for the full reasoning (local-only, global not per-save,
+    // scoped to closed testing).
+    makeShopButton(this, layer, 480, 370, 320, 28, "TESTER NOTES", true, () => this.openNotesPanel());
+    this.notesStatusText = this.add
+      .text(480, 394, "", { fontFamily: "monospace", fontSize: "10px", color: "#4a5563" })
+      .setOrigin(0.5);
+    this.refreshNotesStatus();
+
     this.add
-      .text(480, 374, "AUDIO", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .text(480, 414, "AUDIO", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
     this.refreshMusicVolumeRow();
     this.refreshSfxVolumeRow();
 
     this.add
-      .text(480, 462, "DISPLAY SIZE", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .text(480, 502, "DISPLAY SIZE", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
     this.refreshDisplayScaleRow();
 
-    makeShopButton(this, this.add.container(0, 0), 480, 566, 260, 32, "BACK", true, () => {
+    makeShopButton(this, this.add.container(0, 0), 480, 606, 260, 32, "BACK", true, () => {
       this.scene.start(this.returnScene);
     });
   }
@@ -148,7 +177,7 @@ export class Options extends Phaser.Scene {
 
     const current = getDisplayScaleOption(getStoredDisplayScaleId());
     const status = this.add
-      .text(480, 484, `Caps how big Scale.FIT can stretch the game on a bigger monitor — current: ${current.shortLabel}`, {
+      .text(480, 524, `Caps how big Scale.FIT can stretch the game on a bigger monitor — current: ${current.shortLabel}`, {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#6b7a8a",
@@ -159,7 +188,7 @@ export class Options extends Phaser.Scene {
     DISPLAY_SCALE_OPTIONS.forEach((option, i) => {
       const cx = 480 + (i - 2) * 104;
       const label = option.id === current.id ? `[${option.shortLabel}]` : option.shortLabel;
-      makeShopButton(this, row, cx, 514, 96, 24, label, true, () => {
+      makeShopButton(this, row, cx, 554, 96, 24, label, true, () => {
         setStoredDisplayScaleId(option.id);
         applyDisplayScale(option.id);
         // Changing #app's own CSS max-width/max-height doesn't fire a
@@ -213,7 +242,7 @@ export class Options extends Phaser.Scene {
     this.musicVolumeLayer?.destroy(true);
     const row = this.add.container(0, 0);
     this.musicVolumeLayer = row;
-    this.buildVolumeRow(row, 400, "MUSIC", getMusicVolume(), setMusicVolume, () => {
+    this.buildVolumeRow(row, 440, "MUSIC", getMusicVolume(), setMusicVolume, () => {
       // Live-updates the preview loop this screen's own create() started
       // (playAmbient(this, "hub") above) — no need to restart it, just
       // re-read the slider AudioManager's own applyMusicVolumeLive() does.
@@ -227,7 +256,7 @@ export class Options extends Phaser.Scene {
     this.sfxVolumeLayer?.destroy(true);
     const row = this.add.container(0, 0);
     this.sfxVolumeLayer = row;
-    this.buildVolumeRow(row, 428, "SFX", getSfxVolume(), setSfxVolume, () => {
+    this.buildVolumeRow(row, 468, "SFX", getSfxVolume(), setSfxVolume, () => {
       // A one-shot sample at the NEW level — playSfx reads the just-saved
       // volume itself, so this plays at whatever the player just picked.
       playSfx(this, "click");
@@ -281,6 +310,12 @@ export class Options extends Phaser.Scene {
     );
   }
 
+  /** Mirrors refreshStats()'s own shape — a short one-line summary of what's currently saved. */
+  private refreshNotesStatus() {
+    const notes = getTesterNotes();
+    this.notesStatusText.setText(notes.trim().length === 0 ? "nothing saved yet — local scratchpad, copy it yourself when you want to send it" : `${notes.length} characters saved — local scratchpad, copy it yourself when you want to send it`);
+  }
+
   /**
    * The export: tries the clipboard first (works in Electron and on any
    * https page that allows it), and ALWAYS shows the blob in a selectable
@@ -300,6 +335,20 @@ export class Options extends Phaser.Scene {
     // that file's header.
     this.exportPanel = showCopyTextPanel(this, blob, () => {
       this.exportPanel = null;
+    });
+  }
+
+  /**
+   * The Tester Notes scratchpad — an editable panel, unlike
+   * openExportPanel's read-only one above. See scenes/ui/NotesPanel.ts's
+   * own header for why it's a separate component rather than a second mode
+   * on showCopyTextPanel.
+   */
+  private openNotesPanel() {
+    if (this.notesPanel) return;
+    this.notesPanel = showNotesPanel(this, () => {
+      this.notesPanel = null;
+      this.refreshNotesStatus();
     });
   }
 }

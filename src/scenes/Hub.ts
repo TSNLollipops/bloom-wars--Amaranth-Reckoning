@@ -8194,6 +8194,10 @@ export class Hub extends Phaser.Scene {
         source: "mission_pilot_missing",
         catalyst: "wolf",
         intensity,
+        // Worries System step 3, 10 Sep 2026 — WorryEntry.context is new;
+        // Mission Worry is (and stays) the only hub-context source. See
+        // that field's own comment in data/worries.ts.
+        context: "hub",
         bornAt: now,
         // Safety-net only (module header's own comment) — the no-attempt
         // branch above is the real removal path in the ordinary case.

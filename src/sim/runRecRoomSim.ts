@@ -42,11 +42,18 @@ import { createWardenCampaignState } from "../engine/campaignState";
 import { catalystForPilot } from "../data/npcSeed";
 import { UNIT_ARCHETYPES } from "../data/units";
 import type { Catalyst, Stage } from "../data/ambientLines";
+import type { Species } from "../data/types";
 
 const DAYS = Number(process.argv[2] ?? 300);
 
+// species is required on SocialSimPilot as of 9 Sep 2026 (romance.ts's
+// speciesCompatibleForRomance) — see socialSim.ts's own header on the field.
+// This harness never calls resolveAskOutEncounter (only the three minigame
+// resolvers), so the actual value can't affect any of the four checks below;
+// "human" is picked as a neutral, always-valid default, not a real reading
+// on these two synthetic test pilots.
 function pilot(pilotId: string, displayName: string, catalyst: Catalyst) {
-  return { pilotId, displayName, catalyst, stage: "blooded" as Stage };
+  return { pilotId, displayName, catalyst, stage: "blooded" as Stage, species: "human" as Species };
 }
 
 function playOne(gameId: RecGameId, skillA: number, skillB: number): EncounterResult {

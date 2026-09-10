@@ -102,11 +102,11 @@ export const HOUSE_AMARANTH_PILOTS: PilotRecord[] = [
 // track every single Munti in either existing roster carries (Lask,
 // Vashti) -- no exception invented here either.
 export const HOUSE_AMARANTH_MEKS: Record<string, MekArchetype> = {
-  mek_marrow: { id: "mek_marrow", displayName: "Marrow's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_vondra: { id: "mek_vondra", displayName: "Vondra's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_meir: { id: "mek_meir", displayName: "Meir's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_bray: { id: "mek_bray", displayName: "Bray's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_orin: { id: "mek_orin", displayName: "Orin's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_marrow: { id: "mek_marrow", displayName: "Roan", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_vondra: { id: "mek_vondra", displayName: "Pike", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_meir: { id: "mek_meir", displayName: "Fitz", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_bray: { id: "mek_bray", displayName: "Marit", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_orin: { id: "mek_orin", displayName: "Nash", primary: "fieldwright", secondary: null, spareParts: 0 },
 };
 
 export const HOUSE_AMARANTH_ROSTER_IDS = HOUSE_AMARANTH_PILOTS.map((p) => p.id);
@@ -199,11 +199,11 @@ export const HOUSE_AMARANTH_SECOND_LANCE_PILOTS: PilotRecord[] = [
 // shooter's-instinct reasoning. Marrin (the second Munti) gets
 // Fieldwright, same as every Munti in either roster so far.
 export const HOUSE_AMARANTH_SECOND_LANCE_MEKS: Record<string, MekArchetype> = {
-  mek_kessler: { id: "mek_kessler", displayName: "Kessler's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_vantana: { id: "mek_vantana", displayName: "Vantana's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_reyken: { id: "mek_reyken", displayName: "Reyken's Mek", primary: "fabricator", secondary: null, spareParts: 0 },
-  mek_solano: { id: "mek_solano", displayName: "Solano's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_marrin: { id: "mek_marrin", displayName: "Marrin's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_kessler: { id: "mek_kessler", displayName: "Lior", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_vantana: { id: "mek_vantana", displayName: "Idun", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_reyken: { id: "mek_reyken", displayName: "Dara", primary: "fabricator", secondary: null, spareParts: 0 },
+  mek_solano: { id: "mek_solano", displayName: "Sloane", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_marrin: { id: "mek_marrin", displayName: "Lenna", primary: "fieldwright", secondary: null, spareParts: 0 },
 };
 
 export const HOUSE_AMARANTH_SECOND_LANCE_ROSTER_IDS = HOUSE_AMARANTH_SECOND_LANCE_PILOTS.map((p) => p.id);
@@ -300,11 +300,11 @@ export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
 // a precedent for -- fitting for someone thirteen months removed from
 // civilian work.
 export const HOUSE_AMARANTH_THIRD_LANCE_MEKS: Record<string, MekArchetype> = {
-  mek_thorne: { id: "mek_thorne", displayName: "Thorne's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_kastan: { id: "mek_kastan", displayName: "Kastan's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_osei: { id: "mek_osei", displayName: "Osei's Mek", primary: "quartermaster", secondary: null, spareParts: 0 },
-  mek_dunmore: { id: "mek_dunmore", displayName: "Dunmore's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
-  mek_amsel: { id: "mek_amsel", displayName: "Amsel's Mek", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_thorne: { id: "mek_thorne", displayName: "Ebba", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_kastan: { id: "mek_kastan", displayName: "Anouk", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_osei: { id: "mek_osei", displayName: "Zeno", primary: "quartermaster", secondary: null, spareParts: 0 },
+  mek_dunmore: { id: "mek_dunmore", displayName: "Fay", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_amsel: { id: "mek_amsel", displayName: "Hanne", primary: "armorer", secondary: null, spareParts: 0 },
 };
 
 export const HOUSE_AMARANTH_THIRD_LANCE_ROSTER_IDS = HOUSE_AMARANTH_THIRD_LANCE_PILOTS.map((p) => p.id);

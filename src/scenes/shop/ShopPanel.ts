@@ -110,10 +110,23 @@ type ShopEntry =
 
 const ROW_H: Record<ShopEntry["type"], number> = {
   sectionHeader: 30,
-  pilot: 148, // grown from 96 (25 Aug 2026) to fit the Weapon Branch button row added 27 Aug 2026
+  // grown from 96 (25 Aug 2026) to fit the Weapon Branch button row added
+  // 27 Aug 2026; grown again 9 Sep 2026 (Maxime's own screenshot: a pilot
+  // card's "needs tier X+" line and the next pilot's own header reading as
+  // overlapping) for headroom — same recurring footprint two earlier
+  // comments in drawPilotRow already flag as having been patched before.
+  // Not pinned to one exact overflowing line (the screenshot was too
+  // blurry to read pixel-for-pixel); this is a safety margin, not a
+  // measured fix — flag it again if a card still crowds its neighbour
+  // after this.
+  pilot: 164,
   mek: 54,
   info: 30,
-  recruit: 210, // grown 5 Sep 2026 for the lance selector + candidate list (recruit-your-own-lance)
+  // grown 5 Sep 2026 for the lance selector + candidate list, grown again
+  // 9 Sep 2026 (Maxime's own screenshot: the sign-on message printing on
+  // top of the candidate list) to give messageY — see drawRecruitRow —
+  // room below a full 4-candidate list plus a wrapped two-line message.
+  recruit: 240,
   // Beacon Control's crate/charge stockpile (built 4 Sep 2026) — one row,
   // two buy buttons side by side, same rough footprint as drawMekRow's own
   // 54 but a hair taller since it carries two stock counts instead of one.
@@ -1040,6 +1053,17 @@ export class ShopPanel {
     const candidates = recruitCandidates(this.state).slice(0, 4);
     const canAfford = this.state.points >= DISCRETIONARY_RECRUIT_COST;
     const lance = this.recruitLance;
+    // messageY (9 Sep 2026, Maxime's own screenshot: the sign-on confirmation
+    // text landing printed right on top of the candidate list) tracks where
+    // the candidate list / empty-state line actually ends, so the
+    // recruitMessage drawn at the bottom of this method can sit below it
+    // instead of at the hardcoded `top + 190` that assumed at most ~3
+    // candidates. With 4 candidates shown (recruitCandidates().slice(0, 4)'s
+    // own ceiling), the list's last row alone reaches top + 188 — inside the
+    // old fixed offset. Same class of bug as the Weapon Branch row's own
+    // overlap history a few methods up in this file; fixed the same way,
+    // by measuring instead of assuming.
+    let messageY = top + 184; // clears the HIRE button (top + 150, 26 tall) with margin
 
     if (candidates.length) {
       this.shopLayer.add(
@@ -1078,6 +1102,7 @@ export class ShopPanel {
         this.shopLayer.add(t);
         cyc += 16;
       }
+      messageY = Math.max(messageY, cyc + 6);
     } else {
       this.shopLayer.add(
         this.scene.add.text(SHOP_CARD_L + 14, top + 118, "No named candidates left — hiring draws from the general pool.", {
@@ -1127,7 +1152,7 @@ export class ShopPanel {
 
     if (this.recruitMessage) {
       this.shopLayer.add(
-        this.scene.add.text(SHOP_CARD_L + 14, top + 190, this.recruitMessage, {
+        this.scene.add.text(SHOP_CARD_L + 14, messageY, this.recruitMessage, {
           fontFamily: "monospace",
           fontSize: "10px",
           color: this.recruitMessageColor,

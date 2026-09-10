@@ -35,12 +35,13 @@
 // names are too (Sgt. Petra Vondra, Pvt. Emeka Thorne), and the third
 // surname paired with one of those first names spelled a book character
 // outright. "Marrow" left the callsign pool for the same reason: it is
-// the House's own Colonel. A fourth surname left 9 Sep 2026, same reason:
-// the book's own current character sheets (Maxime's upload) promoted a
-// background character to a full sheet under that exact surname, so the
-// pool token and the book character's surname token now matched — see
-// tools/qiraki_named_cast.json's "Chidi Ekwueme" entry. Replacements keep
-// every pool the same size.
+// the House's own Colonel. A fourth surname (Ekwueme) left 9 Sep 2026,
+// same reason: the book's own current character sheets (Maxime's upload)
+// promoted a background character to a full sheet whose surname matched
+// this pool's own token exactly — see that character's reserved entry in
+// tools/qiraki_named_cast.json for the citation (the full name isn't
+// repeated here on purpose, so this comment doesn't trip its own
+// collision lint). Replacements keep every pool the same size.
 //
 // This file imports nothing — src/data stays pure, hand-editable data.
 

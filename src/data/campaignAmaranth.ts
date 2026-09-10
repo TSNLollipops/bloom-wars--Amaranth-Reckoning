@@ -105,11 +105,11 @@ export const WARDEN_PILOTS: PilotRecord[] = [
 // isn't a new pattern; Lask (the fragile centre everyone organizes around)
 // gets Fieldwright, exactly like Team One's Munti (Barasj).
 export const WARDEN_MEKS: Record<string, MekArchetype> = {
-  mek_rourke: { id: "mek_rourke", displayName: "Rourke's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_bosk: { id: "mek_bosk", displayName: "Bosk's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_iyari: { id: "mek_iyari", displayName: "Iyari's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_anand: { id: "mek_anand", displayName: "Anand's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_lask: { id: "mek_lask", displayName: "Lask's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_rourke: { id: "mek_rourke", displayName: "Ivar", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_bosk: { id: "mek_bosk", displayName: "Torvald", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_iyari: { id: "mek_iyari", displayName: "Kit", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_anand: { id: "mek_anand", displayName: "Odell", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_lask: { id: "mek_lask", displayName: "Maren", primary: "fieldwright", secondary: null, spareParts: 0 },
 };
 
 const WARDEN_ROSTER_IDS = WARDEN_PILOTS.map((p) => p.id);
@@ -178,11 +178,11 @@ export const SECOND_LANCE_PILOTS: PilotRecord[] = [
 // gets Armorer like Iyari. Vashti (the second Munti) gets Fieldwright,
 // same as every Munti in either roster so far.
 export const SECOND_LANCE_MEKS: Record<string, MekArchetype> = {
-  mek_okafor: { id: "mek_okafor", displayName: "Okafor's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_solheim: { id: "mek_solheim", displayName: "Solheim's Mek", primary: "runemaster", secondary: null, spareParts: 0 },
-  mek_tarrant: { id: "mek_tarrant", displayName: "Tarrant's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_vashti: { id: "mek_vashti", displayName: "Vashti's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
-  mek_reyes: { id: "mek_reyes", displayName: "Reyes's Mek", primary: "fabricator", secondary: null, spareParts: 0 },
+  mek_okafor: { id: "mek_okafor", displayName: "Hale", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_solheim: { id: "mek_solheim", displayName: "Maud", primary: "runemaster", secondary: null, spareParts: 0 },
+  mek_tarrant: { id: "mek_tarrant", displayName: "Juno", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_vashti: { id: "mek_vashti", displayName: "Sorel", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_reyes: { id: "mek_reyes", displayName: "Greer", primary: "fabricator", secondary: null, spareParts: 0 },
 };
 
 export const SECOND_LANCE_ROSTER_IDS = SECOND_LANCE_PILOTS.map((p) => p.id);
@@ -269,11 +269,11 @@ export const THIRD_LANCE_PILOTS: PilotRecord[] = [
 // above), same "introduce the next unused track" beat Second Lance's own
 // Reyes/Fabricator pairing already set as precedent.
 export const THIRD_LANCE_MEKS: Record<string, MekArchetype> = {
-  mek_kova: { id: "mek_kova", displayName: "Kova's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_ness: { id: "mek_ness", displayName: "Ness's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_onwuka: { id: "mek_onwuka", displayName: "Onwuka's Mek", primary: "armorer", secondary: null, spareParts: 0 },
-  mek_delgado: { id: "mek_delgado", displayName: "Delgado's Mek", primary: "quartermaster", secondary: null, spareParts: 0 },
-  mek_yeun: { id: "mek_yeun", displayName: "Yeun's Mek", primary: "fieldwright", secondary: null, spareParts: 0 },
+  mek_kova: { id: "mek_kova", displayName: "Osric", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_ness: { id: "mek_ness", displayName: "Holt", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_onwuka: { id: "mek_onwuka", displayName: "Tam", primary: "armorer", secondary: null, spareParts: 0 },
+  mek_delgado: { id: "mek_delgado", displayName: "Piet", primary: "quartermaster", secondary: null, spareParts: 0 },
+  mek_yeun: { id: "mek_yeun", displayName: "Emory", primary: "fieldwright", secondary: null, spareParts: 0 },
 };
 
 export const THIRD_LANCE_ROSTER_IDS = THIRD_LANCE_PILOTS.map((p) => p.id);
