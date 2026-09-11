@@ -248,6 +248,16 @@ import { REC_GAME_IDS } from "../data/recRoomAptitude";
 import { StandingsPanel } from "./ui/StandingsPanel";
 import { MemorialPanel } from "./ui/MemorialPanel";
 import { RosterPanel } from "./ui/RosterPanel"; // B2, the Hangar Deck crew records // B3, the roll of pilots lost — opened from the Vault
+// UI Prettiness Pass v1, 10 Sep 2026 — the Workshop and Vault overlays'
+// shared chrome (see the field comments just above and buildWorkshopOverlay/
+// buildVaultOverlay below). Only the class, not its palette constants: this
+// file already declares its own PANEL_BG/PANEL_BORDER/TEXT_MAIN/TEXT_DIM
+// below (used by every OTHER overlay in this file — History, Highlights,
+// Hangar Shop, Peg Board, Poker, Darts — none of which this pass touches),
+// and Panel.ts's own copies of those constants are numerically identical on
+// purpose, not a second competing palette — importing both under the same
+// names would collide.
+import { Panel } from "./ui/Panel";
 // Codex Rebuild & Live Briefing Plan v1, Part B (4 Sep 2026) — the CO's
 // "brief" chat command now opens a real, live, per-mission briefing. See
 // data/missionBriefing.ts's own header for why the next-mission lookup
@@ -1974,17 +1984,19 @@ export class Hub extends Phaser.Scene {
   // framed the same way the other overlays are.
   private hangarShopOpen = false;
   // The Workshop bench panel, 2 Sep 2026 — see buildWorkshopOverlay.
+  // UI Prettiness Pass v1, 10 Sep 2026 — workshopOverlay/workshopRows
+  // (hand-built container + a manually tracked rebuilt-row array) are now
+  // one shared ui/Panel.ts instance, which owns both the chrome those two
+  // fields used to split between them AND the clear-and-rebuild bookkeeping
+  // workshopRows existed only to do by hand — see Panel.clearContent()/
+  // add(). Same reasoning applies to the Vault fields just below.
   private workshopOpen = false;
-  private workshopOverlay!: Phaser.GameObjects.Container;
-  /** Rebuilt-per-render row objects; cleared in renderWorkshop, never accumulated. */
-  private workshopRows: Phaser.GameObjects.GameObject[] = [];
+  private workshopPanel!: Panel;
   private workshopBenchOutline?: Phaser.GameObjects.Graphics;
   private workshopBenchLabel?: Phaser.GameObjects.Text;
   // The Vault plinth, 2 Sep 2026 — see buildVaultOverlay.
   private vaultOpen = false;
-  private vaultOverlay!: Phaser.GameObjects.Container;
-  /** Rebuilt-per-render row objects; cleared in renderVault, never accumulated — same discipline as workshopRows. */
-  private vaultRows: Phaser.GameObjects.GameObject[] = [];
+  private vaultPanel!: Panel;
   // Vault scroll fix, 6 Sep 2026 (Maxime, screenshot: the Vault's own content
   // stack — dedication + House Offers + Holdings & the Shelf — outgrows
   // ROOM_BOUNDS the moment you've recruited a couple of Heirlooms, and
@@ -1993,9 +2005,10 @@ export class Hub extends Phaser.Scene {
   // already uses (see that file's own header comment): a nested container
   // holds every rebuilt row, a GeometryMask clips it to the panel body, and
   // a mouse-wheel handler offsets it, clamped so it can't scroll past its
-  // own content in either direction.
-  private vaultContentLayer!: Phaser.GameObjects.Container;
-  private vaultScrollMinY = 0;
+  // own content in either direction. 10 Sep 2026: that container, mask, and
+  // clamp now live inside vaultPanel itself (Panel's own `scrollable`
+  // option) — see buildVaultOverlay and the wheel handler at the bottom of
+  // it — rather than as three separate hand-maintained fields here.
   private standingsBoardOutline?: Phaser.GameObjects.Graphics;
   private standingsBoardLabel?: Phaser.GameObjects.Text;
   private archiveTableOutline?: Phaser.GameObjects.Graphics;
@@ -4104,43 +4117,45 @@ export class Hub extends Phaser.Scene {
   // afford, so there is no partial redraw that would be correct.
   private buildWorkshopOverlay() {
     // STANDING RULE for every overlay in this file, learned the hard way on
-    // 3 Sep 2026 — pinning the CONTAINER (below) is only half of it. Phaser
-    // renders a container's children using the container's scroll factor,
-    // but hit-tests each child using only that CHILD's own (see
-    // InputManager.hitTest's `px = worldX + csx * gameObject.scrollFactorX
-    // - csx` against ContainerWebGLRenderer's `child.setScrollFactor(
-    // childSF * containerSF)`). So an interactive child left at the default
-    // factor of 1 inside a pinned container DRAWS in the right place and
-    // takes clicks somewhere else — off by exactly the camera's scroll.
-    // Every .setInteractive() in this file that lives inside one of these
-    // overlays therefore carries its own .setScrollFactor(0) right next to
-    // it. Add one to any new interactive overlay element too; tsc, eslint
-    // and the whole unit suite all pass clean either way, so nothing but a
-    // live click-test catches it (tools/verify/
+    // 3 Sep 2026 — pinning the CONTAINER is only half of it. Phaser renders
+    // a container's children using the container's scroll factor, but
+    // hit-tests each child using only that CHILD's own (see InputManager.
+    // hitTest's `px = worldX + csx * gameObject.scrollFactorX - csx`
+    // against ContainerWebGLRenderer's `child.setScrollFactor(childSF *
+    // containerSF)`). So an interactive child left at the default factor of
+    // 1 inside a pinned container DRAWS in the right place and takes clicks
+    // somewhere else — off by exactly the camera's scroll. Panel.ts's own
+    // frame/chrome already carries .setScrollFactor(0) on every interactive
+    // piece it builds; this note is for anything Workshop-specific added
+    // INSIDE the panel from here on (renderWorkshop's own rows already do —
+    // see makeShopButton's call sites there). tsc, eslint and the whole
+    // unit suite all pass clean either way, so nothing but a live
+    // click-test catches a missed one (tools/verify/
     // checkHubInteractionAfterScroll.mjs is that test).
-    this.workshopOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
-    const bg = this.add
-      .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
-      .setStrokeStyle(1, PANEL_BORDER);
-    this.workshopOverlay.add(bg);
-
-    const closeBtn = this.add
-      .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
-      .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
-    closeBtn.on("pointerdown", () => this.closeWorkshop());
-    this.workshopOverlay.add(closeBtn);
+    //
+    // 10 Sep 2026 (UI Prettiness Pass v1) — this used to hand-build a
+    // container + background rectangle + close button here, the exact
+    // shape ui/Panel.ts now exists to share across every overlay in this
+    // file rather than reinvent. Same ROOM_BOUNDS footprint as before,
+    // same depth 60, same "[ close — Esc ]" control — only where that code
+    // lives changed.
+    this.workshopPanel = new Panel(
+      this,
+      { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
+      () => this.closeWorkshop(),
+      { title: "THE WORKSHOP — CARRIER UPGRADE MODULES" }
+    );
   }
 
   private openWorkshop() {
     this.workshopOpen = true;
-    this.workshopOverlay.setVisible(true);
+    this.workshopPanel.open();
     this.renderWorkshop();
   }
 
   private closeWorkshop() {
     this.workshopOpen = false;
-    this.workshopOverlay.setVisible(false);
+    this.workshopPanel.close();
   }
 
   /**
@@ -4149,29 +4164,32 @@ export class Hub extends Phaser.Scene {
    * Rows are destroyed and recreated wholesale rather than updated in
    * place — the list is at most seven rows, and a purchase changes the
    * affordability of every OTHER row, so a targeted update would have to
-   * touch nearly all of them anyway. `workshopRows` is the accumulate-once
-   * pool that gets cleared here; see Battle.ts's actionSlots for the same
-   * discipline and the bug that taught it.
+   * touch nearly all of them anyway. workshopPanel.clearContent() is the
+   * accumulate-once pool that gets cleared here (workshopRows' own hand-
+   * tracked array, before 10 Sep 2026's UI Prettiness Pass); see
+   * Battle.ts's actionSlots for the same discipline and the bug that taught
+   * it.
    */
   private renderWorkshop() {
-    for (const obj of this.workshopRows) obj.destroy();
-    this.workshopRows = [];
+    // 10 Sep 2026 (UI Prettiness Pass v1) — workshopRows' destroy-and-clear
+    // loop is now workshopPanel.clearContent() (same wholesale-rebuild
+    // discipline, Panel just owns the bookkeeping); `add` now delegates to
+    // Panel.add() instead of pushing onto a hand-tracked array.
+    this.workshopPanel.clearContent();
 
     const owned = this.campaignState.builtModules ?? [];
     const points = this.campaignState.points;
-    const add = (obj: Phaser.GameObjects.GameObject) => {
-      this.workshopOverlay.add(obj);
-      this.workshopRows.push(obj);
-    };
+    const add = (obj: Phaser.GameObjects.GameObject) => this.workshopPanel.add(obj);
 
+    // The title used to be the first row of this rebuilt stack (destroyed
+    // and redrawn every render for no reason — it's static text). Panel now
+    // draws it once, fixed, in its own header — see buildWorkshopOverlay —
+    // the same fixed-header move Vault's own 6 Sep 2026 scroll fix already
+    // made for its own title; Workshop just never had a reason to catch up
+    // until this pass touched it too.
     add(
       this.add
-        .text(480, ROOM_BOUNDS.top + 22, "THE WORKSHOP — CARRIER UPGRADE MODULES", { fontFamily: "monospace", fontSize: "13px", color: TEXT_MAIN })
-        .setOrigin(0.5, 0),
-    );
-    add(
-      this.add
-        .text(480, ROOM_BOUNDS.top + 44, `Company points: ${points}    (gear, tiers and spare parts are at the Hangar Deck console)`, {
+        .text(480, ROOM_BOUNDS.top + 46, `Company points: ${points}    (gear, tiers and spare parts are at the Hangar Deck console)`, {
           fontFamily: "monospace",
           fontSize: "11px",
           color: TEXT_DIM,
@@ -4179,7 +4197,7 @@ export class Hub extends Phaser.Scene {
         .setOrigin(0.5, 0),
     );
 
-    let y = ROOM_BOUNDS.top + 78;
+    let y = ROOM_BOUNDS.top + 80;
     for (const id of Object.keys(CARRIER_MODULES) as CarrierModuleId[]) {
       const def = CARRIER_MODULES[id];
       const isOwned = owned.includes(id);
@@ -4271,84 +4289,55 @@ export class Hub extends Phaser.Scene {
   // (data/heirlooms.ts) is the single source of truth for which 5 those
   // are — never a second hand-copied list here.
   private buildVaultOverlay() {
-    this.vaultOverlay = this.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
-    const bg = this.add
-      .rectangle(480, 330, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - ROOM_BOUNDS.top, PANEL_BG, 0.96)
-      .setStrokeStyle(1, PANEL_BORDER);
-    this.vaultOverlay.add(bg);
-
-    // Vault scroll fix, 6 Sep 2026 — the scrollable body. Added to the
-    // overlay BEFORE the fixed header controls below on purpose: same
-    // click-through-the-header bug MapSelect.ts's own "Click-through-the-
-    // Act-tabs fix" comment documents (30 Aug 2026) — a GeometryMask only
-    // clips RENDERING, not input hit-testing, so a row scrolled up into the
-    // header's y-band would still be invisible-but-clickable there. Phaser
-    // hands a click to whichever hit object is LATEST in the display list,
-    // so the fixed header has to be added after this container, not before
-    // it, or a scrolled recruit/rank-up row would eat clicks meant for
-    // close/the memorial link.
-    this.vaultContentLayer = this.add.container(0, 0);
-    this.vaultOverlay.add(this.vaultContentLayer);
-
-    const contentTop = ROOM_BOUNDS.top + 46; // just under the fixed title row below
-    const maskShape = this.make.graphics({});
-    // Pinned scrollFactor(0), same defensive reasoning as buildChatLogPanel's
-    // own mask comment: a GeometryMask is its own GameObject with its own
-    // scrollFactor (default 1, world-space), independent of what it masks —
-    // Hub's main camera pans, so an unpinned mask would drift away from this
-    // screen-fixed content the instant the player walked anywhere.
-    maskShape.setScrollFactor(0);
-    maskShape.fillRect(ROOM_BOUNDS.left, contentTop, ROOM_BOUNDS.right - ROOM_BOUNDS.left, ROOM_BOUNDS.bottom - contentTop - 8);
-    this.vaultContentLayer.setMask(maskShape.createGeometryMask());
-
-    const closeBtn = this.add
-      .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ close — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
-      .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true }).setScrollFactor(0);
-    closeBtn.on("pointerdown", () => this.closeVault());
-    this.vaultOverlay.add(closeBtn);
-
-    // B3 — the way into the roll of pilots lost. Built HERE, in the overlay's
-    // fixed header row opposite the close button, and deliberately NOT in
-    // renderVault's content stack, same reasoning as before the scroll fix
-    // (a fixed header button adds zero height either way) — but now it's
-    // fixed for a second reason too: it needs to stay outside
-    // vaultContentLayer so it never scrolls, not just so it never grows the
-    // stack. See MemorialPanel's own header for the button itself.
-    const memorialBtn = this.add
-      .text(ROOM_BOUNDS.left + 20, ROOM_BOUNDS.top + 20, "[ the roll — pilots lost ]", { fontFamily: "monospace", fontSize: "11px", color: "#c17a6a" })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true })
-      .setScrollFactor(0);
-    memorialBtn.on("pointerdown", () => this.openMemorial());
-    this.vaultOverlay.add(memorialBtn);
-
-    // The title used to be the first row of renderVault's own rebuilt stack
-    // (destroyed and redrawn every render for no reason — it's static text).
-    // Moved here, fixed, same header row as the two buttons above; it also
-    // has to stay OUT of vaultContentLayer so scrolling never carries it off.
-    const title = this.add
-      .text(480, ROOM_BOUNDS.top + 22, "THE VAULT — HOUSE OFFERS & STANDING", { fontFamily: "monospace", fontSize: "13px", color: TEXT_MAIN })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0);
-    this.vaultOverlay.add(title);
+    // 10 Sep 2026 (UI Prettiness Pass v1) — this used to hand-build its own
+    // container/background/mask/close-button/title, duplicating
+    // buildWorkshopOverlay's own shape with the scroll wiring the 6 Sep
+    // Vault scroll fix added on top. ui/Panel.ts's own `scrollable` option
+    // now does exactly what the old vaultContentLayer + maskShape +
+    // vaultScrollMinY trio did (see that class's setContentExtent/scrollBy),
+    // and `extraHeader` gives the memorial link below the same "outside the
+    // scrolling well, in the fixed row" placement the old code needed a
+    // dedicated container split to get.
+    this.vaultPanel = new Panel(
+      this,
+      { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
+      () => this.closeVault(),
+      {
+        title: "THE VAULT — HOUSE OFFERS & STANDING",
+        scrollable: true,
+        // B3 — the way into the roll of pilots lost. Same reasoning as
+        // before this pass: built in the fixed header row opposite the
+        // close button, not in renderVault's own rebuilt content stack, so
+        // it neither grows on every render nor ever scrolls off. See
+        // MemorialPanel's own header for the button it opens.
+        extraHeader: (bounds, add) => {
+          const memorialBtn = this.add
+            .text(bounds.left + 20, bounds.top + 20, "[ the roll — pilots lost ]", { fontFamily: "monospace", fontSize: "11px", color: "#c17a6a" })
+            .setOrigin(0, 0.5)
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(0);
+          memorialBtn.on("pointerdown", () => this.openMemorial());
+          add(memorialBtn);
+        },
+      }
+    );
 
     // One mouse-wheel handler for the whole scene, same idiom and the same
     // re-create()-accumulation caution as MapSelect.ts's own listener
     // (Hub.create() re-runs every time the player leaves and comes back via
     // scene.start("Hub"), so this has to be reset, not stacked). Guarded on
-    // vaultOpen so it's a no-op whenever the Vault isn't the thing on screen.
+    // vaultOpen so it's a no-op whenever the Vault isn't the thing on
+    // screen; the actual clamp math now lives in vaultPanel.scrollBy.
     this.input.off("wheel");
     this.input.on("wheel", (_pointer: unknown, _over: unknown, _dx: number, dy: number) => {
       if (!this.vaultOpen) return;
-      this.vaultContentLayer.y = Phaser.Math.Clamp(this.vaultContentLayer.y - dy * 0.5, this.vaultScrollMinY, 0);
+      this.vaultPanel.scrollBy(dy);
     });
   }
 
   private openVault() {
     this.vaultOpen = true;
-    this.vaultOverlay.setVisible(true);
-    this.vaultContentLayer.y = 0; // walking up fresh always starts at the top of the list
+    this.vaultPanel.open(); // walking up fresh always starts at the top of the list — Panel.open() resets scroll to 0 itself
     this.renderVault();
   }
 
@@ -4373,7 +4362,7 @@ export class Hub extends Phaser.Scene {
 
   private closeVault() {
     this.vaultOpen = false;
-    this.vaultOverlay.setVisible(false);
+    this.vaultPanel.close();
   }
 
   /**
@@ -4413,18 +4402,18 @@ export class Hub extends Phaser.Scene {
    * standing, AND the holdings list all in one action.
    */
   private renderVault() {
-    for (const obj of this.vaultRows) obj.destroy();
-    this.vaultRows = [];
-    // Vault scroll fix, 6 Sep 2026 — every row goes into vaultContentLayer
-    // now (the masked, scrollable container), not vaultOverlay directly. The
-    // title used to be the first row built here; it's a fixed header now
-    // (see buildVaultOverlay), built once instead of destroyed/redrawn every
+    // Vault scroll fix, 6 Sep 2026 — every row goes into the panel's own
+    // scrollable content well now, not the frame directly. The title used
+    // to be the first row built here; it's a fixed header now (see
+    // buildVaultOverlay), built once instead of destroyed/redrawn every
     // render for no reason, which is also why `y` starts where the title
     // used to END rather than where it used to begin.
-    const add = (obj: Phaser.GameObjects.GameObject) => {
-      this.vaultContentLayer.add(obj);
-      this.vaultRows.push(obj);
-    };
+    // 10 Sep 2026 (UI Prettiness Pass v1) — vaultRows' own destroy-and-clear
+    // loop and the `add` closure's array bookkeeping are now
+    // vaultPanel.clearContent()/vaultPanel.add(), same as Workshop's own
+    // version just above in this file.
+    this.vaultPanel.clearContent();
+    const add = (obj: Phaser.GameObjects.GameObject) => this.vaultPanel.add(obj);
 
     const state = this.campaignState;
     let y = ROOM_BOUNDS.top + 46;
@@ -4678,9 +4667,12 @@ export class Hub extends Phaser.Scene {
     // recruited yet — never scrolls at all). Re-clamped, not reset, so a
     // recruit/field/rank-up click that triggers this same rebuild doesn't
     // snap the player back to the top of a list they'd scrolled down —
-    // openVault() is the only place that actually resets to the top.
-    this.vaultScrollMinY = -Math.max(0, y + 16 - ROOM_BOUNDS.bottom);
-    this.vaultContentLayer.y = Phaser.Math.Clamp(this.vaultContentLayer.y, this.vaultScrollMinY, 0);
+    // openVault() is the only place that actually resets to the top. 10 Sep
+    // 2026: the actual scrollMinY field and the clamp itself now live in
+    // vaultPanel (setContentExtent) — this call is what feeds it the one
+    // number it can't know on its own, where this particular render's
+    // content actually ended.
+    this.vaultPanel.setContentExtent(y);
   }
 
   /**

@@ -13,11 +13,22 @@ import { CAMPAIGNS } from "../data/allCampaigns";
 import { baseSceneKeyFor, loadCampaignState } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
+import { TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
 
 const CARD_SPACING = 92;
 const CARD_HEIGHT = 74;
 const GAME_HEIGHT = 640;
 const SCROLL_BOTTOM_MARGIN = 16;
+// UI Prettiness Pass v1, 10 Sep 2026 — Claude's own call on the specific
+// values (Maxime asked for color/contrast and typography/spacing in
+// general, not these exact pixels): a slim accent bar on each card's left
+// edge, same PANEL_ACCENT gold Panel.ts's corner brackets use, so the list
+// reads as "the same game" as the newly-reskinned Workshop/Vault rather
+// than a third, unrelated visual language. CARD_ACCENT_W is inside the
+// card's own existing bounds, not added width — nothing downstream that
+// measures CARD_SPACING/CARD_HEIGHT (the scroll-clamp math below) needed to
+// change for this.
+const CARD_ACCENT_W = 4;
 
 export class MapSelect extends Phaser.Scene {
   private missionListLayer!: Phaser.GameObjects.Container;
@@ -42,10 +53,16 @@ export class MapSelect extends Phaser.Scene {
   create() {
     this.activeCampaignIndex = Math.min(this.activeCampaignIndex, CAMPAIGNS.length - 1);
     this.cameras.main.setBackgroundColor("#0c0f12");
-    this.add.text(480, 44, "THE BLOOM WARS", { fontFamily: "monospace", fontSize: "30px", color: "#e8e2d4" }).setOrigin(0.5);
-    this.add
-      .text(480, 76, "engine test pass — pick a mission", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
-      .setOrigin(0.5);
+    // "engine test pass — pick a mission" removed here, 10 Sep 2026 (EA
+    // Dev-Cleanup Checklist v1's first confirmed item) — real dev-comment
+    // text that had been rendering on screen since before MainMenu.ts (28
+    // Aug) gave this scene a front door, describing a scene that no longer
+    // needed the excuse. Not replaced with new flavor text of its own —
+    // inventing a new line in Maxime's voice isn't this pass's call to
+    // make, so the header gets a quieter accent rule instead of a swapped-in
+    // sentence.
+    this.add.text(480, 40, "THE BLOOM WARS", { fontFamily: "monospace", fontSize: "30px", color: TEXT_MAIN, letterSpacing: 2 }).setOrigin(0.5);
+    this.add.rectangle(480, 66, 220, 1, PANEL_BORDER, 0.9);
 
     // Click-through-the-Act-tabs fix (30 Aug 2026, Maxime: "if I scroll
     // down the mission number and I then click on the act pannel, i hit
@@ -112,12 +129,20 @@ export class MapSelect extends Phaser.Scene {
       const tabWidth = 900 / CAMPAIGNS.length;
       CAMPAIGNS.forEach((campaign, i) => {
         const x = 30 + tabWidth * i + tabWidth / 2;
+        const active = i === this.activeCampaignIndex;
         const bg = this.add
-          .rectangle(x, 116, tabWidth - 12, 40, i === this.activeCampaignIndex ? 0x2e5c7a : 0x1a2028, 1)
-          .setStrokeStyle(1, 0x3a4552)
+          .rectangle(x, 116, tabWidth - 12, 40, active ? 0x2e5c7a : 0x1a2028, 1)
+          .setStrokeStyle(1, active ? PANEL_ACCENT : PANEL_BORDER)
           .setInteractive({ useHandCursor: true });
         const label = this.add
-          .text(x, 116, campaign.name, { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", align: "center", wordWrap: { width: tabWidth - 24 } })
+          .text(x, 116, campaign.name, {
+            fontFamily: "monospace",
+            fontSize: "12px",
+            color: active ? TEXT_MAIN : TEXT_DIM,
+            align: "center",
+            letterSpacing: 0.5,
+            wordWrap: { width: tabWidth - 24 },
+          })
           .setOrigin(0.5);
         bg.on("pointerdown", () => this.selectCampaign(i));
         bg.on("pointerover", () => {
@@ -154,7 +179,18 @@ export class MapSelect extends Phaser.Scene {
   private selectCampaign(index: number) {
     if (index === this.activeCampaignIndex) return;
     this.activeCampaignIndex = index;
-    this.tabButtons.forEach((t, i) => t.bg.setFillStyle(i === index ? 0x2e5c7a : 0x1a2028, 1));
+    // Border/label color now carry the active state too (10 Sep 2026 — see
+    // create()'s own tab-row comment), so switching campaigns has to update
+    // all three together or the PREVIOUS tab is left with the active
+    // border/label color and the new one never gets it — same "every place
+    // that sets this has to agree" trap the fill-only version never hit
+    // because it only ever touched one property.
+    this.tabButtons.forEach((t, i) => {
+      const active = i === index;
+      t.bg.setFillStyle(active ? 0x2e5c7a : 0x1a2028, 1);
+      t.bg.setStrokeStyle(1, active ? PANEL_ACCENT : PANEL_BORDER);
+      t.label.setColor(active ? TEXT_MAIN : TEXT_DIM);
+    });
     this.renderMissionList(156); // only reachable when showTabs was true
   }
 
@@ -175,14 +211,29 @@ export class MapSelect extends Phaser.Scene {
     this.listScrollMinY = -Math.max(0, contentBottom - GAME_HEIGHT);
 
     campaign.missions.forEach((mission, i) => {
-      const y = listTop + i * 92;
-      const card = this.add.rectangle(480, y, 860, 74, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552).setInteractive({ useHandCursor: true });
-      const title = this.add.text(140, y - 20, mission.displayName, { fontFamily: "monospace", fontSize: "17px", color: "#e8e2d4" });
-      const brief = this.add.text(140, y + 6, mission.briefing, { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: 700 } });
-      card.on("pointerover", () => card.setFillStyle(0x232b35, 1));
-      card.on("pointerout", () => card.setFillStyle(0x1a2028, 1));
+      const y = listTop + i * CARD_SPACING;
+      const card = this.add.rectangle(480, y, 860, CARD_HEIGHT, 0x1a2028, 1).setStrokeStyle(1, PANEL_BORDER).setInteractive({ useHandCursor: true });
+      // Left accent bar + mission index — 10 Sep 2026, see the CARD_ACCENT_W
+      // comment up top. A UI numbering device only (i+1 into this
+      // campaign's own mission array), not new mission content — the same
+      // "don't invent what isn't there" line the removed placeholder header
+      // was on the wrong side of.
+      const accent = this.add.rectangle(50 + CARD_ACCENT_W / 2, y, CARD_ACCENT_W, CARD_HEIGHT - 2, PANEL_ACCENT, 0.85);
+      const index = this.add
+        .text(50 + CARD_ACCENT_W + 10, y, String(i + 1).padStart(2, "0"), { fontFamily: "monospace", fontSize: "10px", color: TEXT_ACCENT })
+        .setOrigin(0, 0.5);
+      const title = this.add.text(140, y - 20, mission.displayName, { fontFamily: "monospace", fontSize: "17px", color: TEXT_MAIN, letterSpacing: 0.5 });
+      const brief = this.add.text(140, y + 6, mission.briefing, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 700 } });
+      card.on("pointerover", () => {
+        card.setFillStyle(0x1f2b36, 1);
+        card.setStrokeStyle(1, PANEL_ACCENT);
+      });
+      card.on("pointerout", () => {
+        card.setFillStyle(0x1a2028, 1);
+        card.setStrokeStyle(1, PANEL_BORDER);
+      });
       card.on("pointerdown", () => this.scene.start("TransporterPad", { missionId: mission.id }));
-      this.missionListLayer.add([card, title, brief]);
+      this.missionListLayer.add([card, accent, index, title, brief]);
     });
   }
 }

@@ -82,6 +82,18 @@ import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_B
 import { equippedWeaponBranchesOf, mountsFor, drawCapacityFor, frameDrawUsed } from "../../engine/frameSystems";
 import { showFrameOverlay } from "./FramePanel";
 import { playSfx } from "../audio/AudioManager";
+// UI Prettiness Pass v1, 10 Sep 2026 — Roster & Gear is the fourth screen
+// this pass touches, and the one with the narrowest scope, on purpose: this
+// file's own comment history (ROW_H's pilot-row comment, the Weapon Branch
+// row's two documented overlap fixes, the 9 Sep candidate-list collision)
+// is a record of small, well-intentioned layout changes here breaking a
+// neighbor. So this pass is additive-only — a left accent bar per card and
+// the shared palette on top of the existing pixel-exact layout — nothing
+// that moves a button, a row height, or anything computed from a text
+// object's own .width. See the plan doc (Bloom_Wars_UI_Prettiness_Pass_
+// Plan_v1) for why Workshop/Vault/Mission Select got a fuller pass and this
+// one deliberately didn't.
+import { PANEL_BG, PANEL_BORDER, PANEL_ACCENT, TEXT_MAIN, TEXT_DIM, TEXT_ACCENT } from "../ui/Panel";
 
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
@@ -525,12 +537,33 @@ export class ShopPanel {
     this.onRender?.();
   }
 
+  /**
+   * A slim gold accent bar on a card's left edge — 10 Sep 2026, UI
+   * Prettiness Pass v1. Purely additive: one more rectangle laid over the
+   * card background this row already draws, at the card's own existing
+   * bounds (cx/cardH match the caller's own rectangle exactly). Doesn't
+   * move or resize anything else on the card, so it can't reopen any of
+   * this file's own documented overlap history. Same PANEL_ACCENT gold
+   * Panel.ts's corner brackets and MapSelect.ts's own card accent use, so
+   * Roster & Gear reads as the same game as the other three screens this
+   * pass touched.
+   */
+  private drawCardAccent(cy: number, cardH: number): void {
+    this.shopLayer.add(this.scene.add.rectangle(SHOP_CARD_L + 2, cy, 4, cardH - 2, PANEL_ACCENT, 0.85));
+  }
+
   private drawEntry(entry: ShopEntry, top: number): number {
     const h = ROW_H[entry.type];
     switch (entry.type) {
       case "sectionHeader":
+        // Section headers now carry the shared gold accent (10 Sep 2026,
+        // UI Prettiness Pass v1) instead of plain dim grey — a pure color/
+        // letterSpacing change on a text object nothing else measures, the
+        // lowest-risk kind of typography improvement this file allows.
         this.shopLayer.add(
-          this.scene.add.text(480, top + 6, entry.label, { fontFamily: "monospace", fontSize: "12px", color: "#8a97a6" }).setOrigin(0.5, 0)
+          this.scene.add
+            .text(480, top + 6, entry.label, { fontFamily: "monospace", fontSize: "12px", color: TEXT_ACCENT, letterSpacing: 0.5 })
+            .setOrigin(0.5, 0)
         );
         break;
       case "pilot":
@@ -563,13 +596,16 @@ export class ShopPanel {
     const cardH = h - 6;
     const cy = top + cardH / 2;
 
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552));
-    this.shopLayer.add(this.scene.add.text(SHOP_CARD_L + 14, top + 8, pilot.displayName, { fontFamily: "monospace", fontSize: "13px", color: "#e8e2d4" }));
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    this.drawCardAccent(cy, cardH);
+    this.shopLayer.add(
+      this.scene.add.text(SHOP_CARD_L + 14, top + 8, pilot.displayName, { fontFamily: "monospace", fontSize: "13px", color: TEXT_MAIN, letterSpacing: 0.5 })
+    );
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, top + 26, `${path ? capitalize(path) : "Unknown"} · Tier ${pilot.tier} · ${mek?.displayName ?? "no loadout"}`, {
         fontFamily: "monospace",
         fontSize: "10px",
-        color: "#8a97a6",
+        color: TEXT_DIM,
       })
     );
     this.shopLayer.add(
@@ -890,7 +926,8 @@ export class ShopPanel {
     const cardH = h - 6;
     const cy = top + cardH / 2;
 
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552));
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, cy, `${mek.displayName} (${entry.pilot.displayName}) — Spare Parts: ${mek.spareParts}/${max}`, {
         fontFamily: "monospace",
@@ -926,7 +963,8 @@ export class ShopPanel {
     const crates = this.state.beaconCrates ?? 0;
     const charges = this.state.beaconCharges ?? 0;
 
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552));
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, top + 8, `Fabricator crates: ${crates}  ·  Restock Room charges: ${charges}`, {
         fontFamily: "monospace",
@@ -957,7 +995,8 @@ export class ShopPanel {
   private drawRecruitRow(top: number, h: number): void {
     const cardH = h - 6;
     const cy = top + cardH / 2;
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, 0x1a2028, 1).setStrokeStyle(1, 0x3a4552));
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, top + 8, "RECRUIT A NEW PILOT", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4" })
     );
