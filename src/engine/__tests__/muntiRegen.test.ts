@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { Mission } from "../mission";
 import { MISSION_1A } from "../../data/campaign";
 import { MUNTI_REGEN_RADIUS, MUNTI_REGEN_PER_TURN } from "../../data/combatTables";
-import { AEGIS_WARD_REGEN_RADIUS, COMBAT_MEDIC_REGEN_RADIUS, COMBAT_MEDIC_REGEN_MULTIPLIER } from "../../data/weaponBranches";
+import { COMBAT_MEDIC_REGEN_RADIUS, COMBAT_MEDIC_REGEN_MULTIPLIER } from "../../data/weaponBranches";
 import { MEK_TRACK_EFFECTS } from "../../data/meks";
 
 // Barasj's mek (data/meks.ts, the Team One slice MISSION_1A deploys) is
@@ -121,44 +121,16 @@ describe("Mission — Munti passive regen tick", () => {
     expect(ally.currentHp).toBe(ally.maxHp);
   });
 
-  // Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
-  // 1 Sep 2026) — a Munti with this branch equipped projects the aura at
-  // AEGIS_WARD_REGEN_RADIUS instead of the plain MUNTI_REGEN_RADIUS.
-  it("Aegis Ward extends the aura radius for the Munti who has it equipped", () => {
-    const mission = new Mission(MISSION_1A);
-    neutralizeHostiles(mission);
-    const munti = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
-    const ally = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
-    munti.weaponBranchId = "munti_aegis_ward";
-    munti.pos = { x: 5, y: 5 };
-    ally.pos = { x: 5 + AEGIS_WARD_REGEN_RADIUS, y: 5 }; // past the plain radius, within the Ward's
-    const hpBefore = ally.maxHp - 20;
-    ally.currentHp = hpBefore;
+  // Aegis Ward used to have its own pair of tests here (radius-only bump,
+  // 1 Sep 2026) — cut 12 Sep 2026, a strict subset of Combat Medic below:
+  // same radius formula, plus triple the healing on top. See
+  // data/weaponBranches.ts's own header for the full account.
 
-    mission.endPlayerTurn();
-    expect(ally.currentHp).toBe(hpBefore + MUNTI_REGEN_PER_TURN);
-  });
-
-  it("does not extend the aura at that same distance without the branch equipped", () => {
-    const mission = new Mission(MISSION_1A);
-    neutralizeHostiles(mission);
-    const munti = mission.units.find((u) => u.pilotId === "pilot_barasj")!;
-    const ally = mission.units.find((u) => u.pilotId === "pilot_nagori")!;
-    munti.pos = { x: 5, y: 5 };
-    ally.pos = { x: 5 + AEGIS_WARD_REGEN_RADIUS, y: 5 };
-    const hpBefore = ally.maxHp - 20;
-    ally.currentHp = hpBefore;
-
-    mission.endPlayerTurn();
-    expect(ally.currentHp).toBe(hpBefore);
-  });
-
-  // Combat Medic (Munti's 4th branch, Weapon Branch Point System,
-  // data/weaponBranches.ts, 5 Sep 2026, Maxime's own design: "triple
-  // passive regen. to those within 3 tile of themself"). Same tickMuntiRegen
-  // aura Aegis Ward extends the radius of — this branch instead (also)
-  // triples the healing amount, and reaches COMBAT_MEDIC_REGEN_RADIUS
-  // (currently the same 3 tiles Aegis Ward's own radius reaches).
+  // Combat Medic (Munti's flagship support branch, Weapon Branch Point
+  // System, data/weaponBranches.ts, 5 Sep 2026, Maxime's own design:
+  // "triple passive regen. to those within 3 tile of themself"). This
+  // branch scales BOTH the tickMuntiRegen aura's radius (to
+  // COMBAT_MEDIC_REGEN_RADIUS) and its healing amount (triple) at once.
   it("Combat Medic heals for triple the flat amount within its own radius", () => {
     const mission = new Mission(MISSION_1A);
     neutralizeHostiles(mission);

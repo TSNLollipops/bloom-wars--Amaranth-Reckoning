@@ -58,7 +58,6 @@ import {
   RAIL_LANCE_DEF_IGNORE_PCT,
   DEFAULT_REPAIR_RANGE,
   RAPID_RESPONSE_REPAIR_RANGE,
-  AEGIS_WARD_REGEN_RADIUS,
   COMBAT_MEDIC_REGEN_RADIUS,
   COMBAT_MEDIC_REGEN_MULTIPLIER,
   type WeaponBranchId,
@@ -331,24 +330,23 @@ export interface RegenAura {
 
 /**
  * Every passive-regen aura this unit projects onto its own side — the
- * Munti's (radius/amount by which of Aegis Ward / Combat Medic is live,
- * exactly the rule tickMuntiRegen used to compute inline) plus a Salve
- * Drone's, on any path. Empty for a unit with neither. tickMuntiRegen
- * (engine/mission.ts) takes the BEST applicable aura across every source
- * in range — the existing no-stacking rule — so a Munti carrying a Salve
- * Drone simply has two auras, of which the Munti's own wins wherever both
- * reach.
+ * Munti's (radius/amount if Combat Medic is live, exactly the rule
+ * tickMuntiRegen used to compute inline) plus a Salve Drone's, on any path.
+ * Empty for a unit with neither. tickMuntiRegen (engine/mission.ts) takes
+ * the BEST applicable aura across every source in range — the existing
+ * no-stacking rule — so a Munti carrying a Salve Drone simply has two
+ * auras, of which the Munti's own wins wherever both reach.
  *
- * Two live Munti branches at once (Aegis Ward + Combat Medic on two mounts)
- * merge to the wider radius and the bigger amount — today both radii are
- * MUNTI_REGEN_RADIUS + 1, so that pair is just Combat Medic's numbers.
+ * Aegis Ward used to also bump the radius alone (no amount change) — cut
+ * 12 Sep 2026 as a strict subset of Combat Medic, which reaches the exact
+ * same radius and triples the heal on top. See data/weaponBranches.ts's
+ * own header for the full account.
  */
 export function regenAurasFor(unit: BattleUnit): RegenAura[] {
   const out: RegenAura[] = [];
   if (unit.path === "munti") {
     let radius = MUNTI_REGEN_RADIUS;
     let amount = MUNTI_REGEN_PER_TURN;
-    if (unitHasBranch(unit, "munti_aegis_ward")) radius = Math.max(radius, AEGIS_WARD_REGEN_RADIUS);
     if (unitHasBranch(unit, "munti_combat_medic")) {
       radius = Math.max(radius, COMBAT_MEDIC_REGEN_RADIUS);
       amount = MUNTI_REGEN_PER_TURN * COMBAT_MEDIC_REGEN_MULTIPLIER;

@@ -625,7 +625,7 @@ describe("repair range and regen auras", () => {
     expect(regenAurasFor(tank)).toEqual([{ radius: 1, amount: SALVE_DRONE_REGEN_PER_TURN }]);
     const munti = testUnit("munti");
     munti.frameSystemIds = ["support_salve_drone"];
-    munti.weaponBranchIds = ["munti_combat_medic", "munti_aegis_ward"];
+    munti.weaponBranchIds = ["munti_combat_medic"];
     const auras = regenAurasFor(munti);
     expect(auras.length).toBe(2);
     expect(auras[0].amount).toBe(MUNTI_REGEN_PER_TURN * 3);

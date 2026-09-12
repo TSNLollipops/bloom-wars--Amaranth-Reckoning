@@ -98,6 +98,17 @@ import {
   type LanceId,
 } from "../../engine/campaignState";
 import { UNIT_ARCHETYPES } from "../../data/units";
+// Stress/Morale readout, 12 Sep 2026 — Maxime, after the Emotional Brain
+// build gave these two numbers real teeth (Debrief write-back, panic at
+// STRESS_PANIC_THRESHOLD): "you can see your unit shaken in archive, but
+// if you think we should add it too. go ahead." The Archive dossier
+// already shows this per pilot, one at a time; the gap this closes is
+// squad-picking, where you want to see who's carrying it BEFORE you
+// deploy them, not after you've clicked into each one. Reusing the
+// Archive's own band words (stressBand/moraleBand) rather than inventing
+// new wording, so a pilot never reads as "fine" here and "near the line"
+// there.
+import { moraleBand, stressBand } from "../../data/archive";
 import { pilotServiceRecords, type PilotServiceRecord } from "../../engine/statsStore";
 import { ABILITIES } from "../../data/abilities";
 // B4 (portrait wiring), 5 Sep 2026 — this panel never had a placeholder
@@ -607,6 +618,13 @@ export class RosterPanel {
       } else {
         serviceLine = "no missions flown yet";
       }
+      // Its own line, not folded into `standing` above — the whole point
+      // is a squad-picker being able to scan straight down one column and
+      // spot who's carrying it, which a run-on line with tier/points/
+      // favorability already competing for attention would defeat. No
+      // recruit has ever set foot in the Hub, so no `social` means no line
+      // at all rather than a misleading "stress 0."
+      const wellbeingLine = social ? `    stress ${stressBand(social.stress)} ${social.stress}  ·  morale ${moraleBand(social.morale)} ${social.morale}` : "";
 
       // Nobody is "carried" by a click any more (see beginDrag) — swapFrom
       // now only ever gets set by a FAILED drag-drop (movePilot's failure
@@ -614,7 +632,7 @@ export class RosterPanel {
       // directly, neither of which is this card being actively dragged
       // right now, so isCarried keeps meaning exactly what its name says.
       const isCarried = this.swapFrom === p.id;
-      const textLines = [p.displayName, `    ${standing.join("  ·  ")}`, `    ${serviceLine}`].join("\n");
+      const textLines = [p.displayName, `    ${standing.join("  ·  ")}`, wellbeingLine, `    ${serviceLine}`].filter(Boolean).join("\n");
       const cardText = scene.add
         .text(cardL + CARD_PAD_X + PORTRAIT_GUTTER, y + CARD_PAD_Y, textLines, {
           fontFamily: "monospace",

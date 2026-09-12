@@ -665,73 +665,49 @@ describe("purchaseWeaponBranch / equipWeaponBranch — the Weapon Branch Point S
     expect(state.pilots[reeps].personalPoints).toBe(0);
   });
 
-  // Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
+  // Field Doctor (Weapon Branch Point System, data/weaponBranches.ts,
   // 1 Sep 2026) — Munti's 2nd branch, same "2nd branch = tier C" shape
-  // the Reeps case above already exercises.
-  it("gates a Munti pilot's 2nd branch (Aegis Ward) at WEAPON_BRANCH_TIER_GATE[1] (C), priced at WEAPON_BRANCH_COSTS[1]", () => {
+  // the Reeps case above already exercises. (Aegis Ward used to occupy
+  // this slot — cut 12 Sep 2026, a strict subset of Combat Medic below.
+  // See data/weaponBranches.ts's own header for the full account.)
+  it("gates a Munti pilot's 2nd branch (Field Doctor) at WEAPON_BRANCH_TIER_GATE[1] (C), priced at WEAPON_BRANCH_COSTS[1]", () => {
     const state = createWardenCampaignState();
     const munti = "pilot_lask"; // arch_munti, per WARDEN_PILOTS
     state.pilots[munti].pilot.tier = WEAPON_BRANCH_TIER_GATE[1]; // "C" — enough for the 2nd, not gate-blocked
     state.pilots[munti].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1];
     const first = purchaseWeaponBranch(state, munti, "munti_rapid_response");
     expect(first.ok).toBe(true);
-    const second = purchaseWeaponBranch(state, munti, "munti_aegis_ward");
+    const second = purchaseWeaponBranch(state, munti, "munti_field_doctor");
     expect(second.ok).toBe(true);
     expect(second.cost).toBe(WEAPON_BRANCH_COSTS[1]);
     expect(state.pilots[munti].personalPoints).toBe(0);
-    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_aegis_ward"]);
+    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_field_doctor"]);
   });
 
-  // Field Doctor (Weapon Branch Point System, data/weaponBranches.ts,
-  // 1 Sep 2026) — Munti's 3rd branch, same purchase-order-not-branch-
-  // identity shape as the 2nd-branch cases just above: 3rd branch = tier
-  // B, WEAPON_BRANCH_COSTS[2], regardless of which specific branch it is.
-  it("gates a Munti pilot's 3rd branch (Field Doctor) at WEAPON_BRANCH_TIER_GATE[2] (B), priced at WEAPON_BRANCH_COSTS[2]", () => {
+  // Combat Medic (Weapon Branch Point System, data/weaponBranches.ts,
+  // 5 Sep 2026) — Munti's 3rd and, as of the Aegis Ward cut (12 Sep 2026),
+  // LAST branch. Same "3rd branch = tier B, WEAPON_BRANCH_COSTS[2]" shape
+  // as every other purchase-order case above, regardless of which specific
+  // branch.
+  it("gates a Munti pilot's 3rd branch (Combat Medic) at WEAPON_BRANCH_TIER_GATE[2] (B), priced at WEAPON_BRANCH_COSTS[2]", () => {
     const state = createWardenCampaignState();
     const munti = "pilot_lask"; // arch_munti, per WARDEN_PILOTS
     state.pilots[munti].pilot.tier = WEAPON_BRANCH_TIER_GATE[2]; // "B" — enough for the 3rd, not gate-blocked
     state.pilots[munti].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1] + WEAPON_BRANCH_COSTS[2];
     const first = purchaseWeaponBranch(state, munti, "munti_rapid_response");
     expect(first.ok).toBe(true);
-    const second = purchaseWeaponBranch(state, munti, "munti_aegis_ward");
+    const second = purchaseWeaponBranch(state, munti, "munti_field_doctor");
     expect(second.ok).toBe(true);
-    const third = purchaseWeaponBranch(state, munti, "munti_field_doctor");
+    const third = purchaseWeaponBranch(state, munti, "munti_combat_medic");
     expect(third.ok).toBe(true);
     expect(third.cost).toBe(WEAPON_BRANCH_COSTS[2]);
     expect(state.pilots[munti].personalPoints).toBe(0);
-    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor"]);
-  });
-
-  // Combat Medic (Weapon Branch Point System, data/weaponBranches.ts,
-  // 5 Sep 2026) — Munti's 4th branch, the one path with a real 4th slot.
-  // Same "4th branch = tier A, WEAPON_BRANCH_COSTS[3]" shape as every
-  // other purchase-order case above, regardless of which specific branch.
-  it("gates a Munti pilot's 4th branch (Combat Medic) at WEAPON_BRANCH_TIER_GATE[3] (A), priced at WEAPON_BRANCH_COSTS[3]", () => {
-    const state = createWardenCampaignState();
-    const munti = "pilot_lask"; // arch_munti, per WARDEN_PILOTS
-    state.pilots[munti].pilot.tier = WEAPON_BRANCH_TIER_GATE[3]; // "A" — enough for the 4th, not gate-blocked
-    state.pilots[munti].personalPoints = WEAPON_BRANCH_COSTS[0] + WEAPON_BRANCH_COSTS[1] + WEAPON_BRANCH_COSTS[2] + WEAPON_BRANCH_COSTS[3];
-    const first = purchaseWeaponBranch(state, munti, "munti_rapid_response");
-    expect(first.ok).toBe(true);
-    const second = purchaseWeaponBranch(state, munti, "munti_aegis_ward");
-    expect(second.ok).toBe(true);
-    const third = purchaseWeaponBranch(state, munti, "munti_field_doctor");
-    expect(third.ok).toBe(true);
-    const fourth = purchaseWeaponBranch(state, munti, "munti_combat_medic");
-    expect(fourth.ok).toBe(true);
-    expect(fourth.cost).toBe(WEAPON_BRANCH_COSTS[3]);
-    expect(state.pilots[munti].personalPoints).toBe(0);
-    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual([
-      "munti_rapid_response",
-      "munti_aegis_ward",
-      "munti_field_doctor",
-      "munti_combat_medic",
-    ]);
-    // Munti only has 4 defined branches total (WEAPON_BRANCHES_BY_PATH) —
-    // all four now owned, so any further purchase attempt fails cleanly.
-    const fifth = purchaseWeaponBranch(state, munti, "munti_rapid_response");
-    expect(fifth.ok).toBe(false);
-    expect(fifth.reason).toMatch(/already owns/);
+    expect(state.pilots[munti].pilot.ownedWeaponBranches).toEqual(["munti_rapid_response", "munti_field_doctor", "munti_combat_medic"]);
+    // Munti only has 3 defined branches total (WEAPON_BRANCHES_BY_PATH) —
+    // all three now owned, so any further purchase attempt fails cleanly.
+    const fourth = purchaseWeaponBranch(state, munti, "munti_rapid_response");
+    expect(fourth.ok).toBe(false);
+    expect(fourth.reason).toMatch(/already owns/);
   });
 
   it("fails cleanly when the pilot can't afford it, leaving ownedWeaponBranches untouched", () => {

@@ -33,16 +33,18 @@
 // tech as Repair, aimed at a hostile instead") — Munti's `POWER["munti"]`
 // row already exists and already lets a Munti attack normally, so there
 // is nothing to build for the default weapon itself; only Munti's
-// SUPPORT branches (this file's munti_rapid_response/munti_aegis_ward)
-// are new.
+// SUPPORT branches (this file's munti_rapid_response/munti_field_doctor/
+// munti_combat_medic) are new.
 //
-// Aegis Ward added 1 Sep 2026 — claude/Bloom_Wars_Weapon_Branch_Expansion_
-// Plan_v1.md's own "cheap — numbers/economy only" bucket, task-list item
-// #3. Munti already has the passive AoE regen aura (engine/mission.ts's
-// tickMuntiRegen, MUNTI_REGEN_RADIUS in data/combatTables.ts); this branch
-// just scales that existing radius for whichever Munti has it equipped,
-// same shape as Rapid Response scaling repair range — zero new engine
-// surface, exactly as the plan doc predicted for this one.
+// Aegis Ward — added 1 Sep 2026, CUT 12 Sep 2026. Scaled the passive aura's
+// radius only, for whichever Munti had it equipped. Maxime caught it live:
+// "aegis ward does the same thing as combat medic, we can remove it from
+// the game" — checked against how both actually shipped, and it was worse
+// than an overlap. Combat Medic (5 Sep) reuses the exact same radius
+// formula (MUNTI_REGEN_RADIUS + 1) AND triples the heal on top, so Aegis
+// Ward was a strict subset of Combat Medic with nothing of its own — no
+// build order made it the better pick. Full account:
+// claude/claude_Bloom_Wars_Placeholder_Session_TODO.md, 12 Sep 2026.
 //
 // Field Doctor added the same day, in a second pass — the plan doc's own
 // framing ("cheaper Repair, or an extra Repair charge per mission") didn't
@@ -240,21 +242,19 @@
 // themself." No new StatusEffect kind, no new ability, no new UI — this is
 // the SAME tickMuntiRegen() aura Munti already has (engine/mission.ts),
 // just a bigger number and a wider radius for whichever Munti has this
-// branch equipped, same per-Munti-not-squad-wide shape Aegis Ward already
-// established for radius alone. Combat Medic is the one branch that scales
-// BOTH the aura's amount and its radius at once, which is what makes it
-// the flagship 4th branch rather than a second cheap economy-only tweak
-// stacked on Aegis Ward's own radius idea.
+// branch equipped, same per-Munti-not-squad-wide shape Rapid Response's
+// own repair-range bonus already established for its own stat. Combat
+// Medic is the one branch that scales BOTH the aura's amount and its
+// radius at once, which is what makes it the flagship 4th branch rather
+// than a second cheap economy-only tweak.
 //
 // COMBAT_MEDIC_REGEN_RADIUS is derived as MUNTI_REGEN_RADIUS + 1 (= 3
 // today) rather than a hardcoded 3, my own judgment call (Foundation's
 // attribution rule) rather than a literal reading of "3 tile": Maxime's
 // wording gives the right CURRENT value either way, but deriving it keeps
 // this branch meaningfully wider than the base radius if that base is ever
-// raised later, the exact reasoning Aegis Ward's own radius constant
-// already uses — and it means Combat Medic and Aegis Ward land on the same
-// radius (3) today, which reads as intentional (Combat Medic = Aegis
-// Ward's radius AND triple the healing) rather than a coincidence.
+// raised later, the same "+1, not fixed" convention Rapid Response's own
+// repair-range constant already uses below.
 // COMBAT_MEDIC_REGEN_MULTIPLIER (3) is Maxime's own literal number, kept as
 // a named multiplier rather than a flat HP value so it stays visibly
 // "triple," not just some other number that happens to equal 24 today.
@@ -263,7 +263,7 @@
 // "is any qualifying Munti in range" check, since every Munti healed for
 // the same MUNTI_REGEN_PER_TURN regardless of which one was in range —
 // that no longer holds once Combat Medic heals for a different amount than
-// plain/Aegis Ward, so the tick now takes the BEST (highest) applicable
+// the plain aura, so the tick now takes the BEST (highest) applicable
 // amount across every same-side Munti in range of a given unit, not the
 // first one found and not a sum — multiple Muntis still "don't stack" per
 // this system's existing rule, extended to mean "the strongest aura wins"
@@ -282,7 +282,6 @@ export type WeaponBranchId =
   | "reeps_rail_lance"
   | "reeps_suppression_autocannon"
   | "munti_rapid_response"
-  | "munti_aegis_ward"
   | "munti_field_doctor"
   | "munti_combat_medic";
 
@@ -416,13 +415,10 @@ export const DEFAULT_REPAIR_RANGE = 3;
 /** Munti Support Branch — one further tile beyond the base range above, not a fixed absolute number, so raising the base later keeps this branch meaningfully better rather than converging with it. */
 export const RAPID_RESPONSE_REPAIR_RANGE = DEFAULT_REPAIR_RANGE + 1;
 
-/** Munti Support Branch — Aegis Ward, 1 Sep 2026. One tile further than the baseline MUNTI_REGEN_RADIUS (data/combatTables.ts), same "+1, not a fixed absolute number" convention as RAPID_RESPONSE_REPAIR_RANGE above, for the same reason — if the baseline aura radius is ever raised later, this branch stays meaningfully better rather than converging with it. Applied per-Munti in engine/mission.ts's tickMuntiRegen(): only the Munti who actually owns and has equipped this branch projects the wider aura; a squad's other Muntis (if any) still use the plain MUNTI_REGEN_RADIUS. */
-export const AEGIS_WARD_REGEN_RADIUS = MUNTI_REGEN_RADIUS + 1;
-
 /** Munti Support Branch — Field Doctor, 1 Sep 2026, Maxime's own pick ("Free Repair every N turns"). Same value as WEAPONS_BAY_FIRE_SUPPORT_COOLDOWN_TURNS (data/combatTables.ts) — deliberately matching the plan doc's own "same shape as Weapons Bay's bonus Fire Support charge" comparison exactly rather than picking an unrelated number. Placeholder, not run through combat_sim.py or an equivalent — same status as every other weapon-branch number in this file, worth a real playtest pass once there's a Munti actually carrying it in a run. */
 export const FIELD_DOCTOR_COOLDOWN_TURNS = 3;
 
-/** Munti's 4th and flagship branch, Combat Medic, 5 Sep 2026 — Maxime's own design, given directly rather than guessed: "triple passive regen. to those within 3 tile of themself." Derived as MUNTI_REGEN_RADIUS + 1 (see this file's header comment for why derived rather than a hardcoded 3) — lands on 3 today, same radius Aegis Ward's own aura already reaches, deliberately: Combat Medic is Aegis Ward's radius PLUS triple the healing, not a second, unrelated radius number. */
+/** Munti's flagship support branch, Combat Medic, 5 Sep 2026 — Maxime's own design, given directly rather than guessed: "triple passive regen. to those within 3 tile of themself." Derived as MUNTI_REGEN_RADIUS + 1 (see this file's header comment for why derived rather than a hardcoded 3) — lands on 3 today, the same "+1, not fixed" convention Rapid Response's own repair-range constant uses above. */
 export const COMBAT_MEDIC_REGEN_RADIUS = MUNTI_REGEN_RADIUS + 1;
 /** Munti's Combat Medic — the healing-amount multiplier, Maxime's own literal "triple." Kept as a named multiplier (applied to MUNTI_REGEN_PER_TURN at the tickMuntiRegen() call site, engine/mission.ts) rather than a flat HP constant, so retuning the base regen amount later automatically keeps this branch at "3x," not stuck at whatever flat number 3x used to equal. Placeholder in the sense every weapon-branch number in this file is (not run through combat_sim.py), though the multiplier ITSELF is Maxime's own settled call, not a guess needing a playtest pass the way the exact numbers on Riot Drum/Maser Lance/Suppression Autocannon do. */
 export const COMBAT_MEDIC_REGEN_MULTIPLIER = 3;
@@ -488,12 +484,6 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
     path: "munti",
     description: `Repair range extends to ${RAPID_RESPONSE_REPAIR_RANGE} tiles (was ${DEFAULT_REPAIR_RANGE}).`,
   },
-  munti_aegis_ward: {
-    id: "munti_aegis_ward",
-    displayName: "Aegis Ward",
-    path: "munti",
-    description: `Passive regen aura radius extends to ${AEGIS_WARD_REGEN_RADIUS} tiles (was ${MUNTI_REGEN_RADIUS}).`,
-  },
   munti_field_doctor: {
     id: "munti_field_doctor",
     displayName: "Field Doctor",
@@ -508,10 +498,10 @@ export const WEAPON_BRANCHES: Record<WeaponBranchId, WeaponBranchDef> = {
   },
 };
 
-/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy — see this file's own header comment for why that's a hint, not an enforced sequence: any listed branch is buyable at any purchase-order slot). Reeps gets three (Missiles, Rail Lance, then Suppression Autocannon, 5 Sep 2026) — its own full, final track per the source doc's own table, not one slot short the way Meeps/Tank briefly were. Munti now gets FOUR (Rapid Response, Aegis Ward, Field Doctor, then Combat Medic, 5 Sep 2026) — the one path with a real 4th slot, since its first three were all cheap radius/cooldown/range tweaks on the same underlying Repair/regen mechanics and Combat Medic is the first Munti branch that meaningfully scales the actual healing output. Meeps gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. Tank gets three (Grinder Claw, Riot Drum, then Maser Lance, 5 Sep 2026) — Riot Drum was the second branch to use that same status-effect infrastructure and the first to grant more than one on-hit effect off a single hit; Maser Lance is this file's second GRANTED-ABILITY branch after Missiles (MASER_LANCE_GRANT_ABILITY above), and its first non-radius, direction-picked shape. Suppression Autocannon (Reeps' 3rd, same day) is the third branch to use the status-effect infrastructure and the first to reuse the "debuff_attack" kind on the mech->Bloom side. */
+/** Every branch currently buildable for a given class, in unlock order (index 0 = 1st branch a pilot of this path can buy — see this file's own header comment for why that's a hint, not an enforced sequence: any listed branch is buyable at any purchase-order slot). Reeps gets three (Missiles, Rail Lance, then Suppression Autocannon, 5 Sep 2026) — its own full, final track per the source doc's own table, not one slot short the way Meeps/Tank briefly were. Meeps gets three (Impact Lance, Scattershot Pistols, then Shock Claws, 3 Sep 2026) — Shock Claws is the first branch in the file to actually use the status-effect infrastructure (stun, via WEAPON_BRANCH_ON_HIT_EFFECT/MECH_ON_HIT_EFFECTS above and engine/turnManager.ts's applyMechOnHitEffect) rather than just a stat/targeting change. Tank gets three (Grinder Claw, Riot Drum, then Maser Lance, 5 Sep 2026) — Riot Drum was the second branch to use that same status-effect infrastructure and the first to grant more than one on-hit effect off a single hit; Maser Lance is this file's second GRANTED-ABILITY branch after Missiles (MASER_LANCE_GRANT_ABILITY above), and its first non-radius, direction-picked shape. Suppression Autocannon (Reeps' 3rd, same day) is the third branch to use the status-effect infrastructure and the first to reuse the "debuff_attack" kind on the mech->Bloom side. Munti gets three (Rapid Response, Field Doctor, then Combat Medic) — briefly four with Aegis Ward wedged in second (1-5 Sep 2026), cut 12 Sep 2026 once Combat Medic made it a strict downgrade with nothing of its own (see this file's header comment for the full account). "4 per class" was never a hard rule to begin with (claude/Bloom_Wars_Weapon_Branch_Expansion_Plan_v1.md's own finding), so Munti landing back on 3 matches every other path. */
 export const WEAPON_BRANCHES_BY_PATH: Record<Path, WeaponBranchId[]> = {
   meeps: ["meeps_impact_lance", "meeps_scattershot_pistols", "meeps_shock_claws"],
   tank: ["tank_grinder_claw", "tank_riot_drum", "tank_maser_lance"],
   reeps: ["reeps_missiles", "reeps_rail_lance", "reeps_suppression_autocannon"],
-  munti: ["munti_rapid_response", "munti_aegis_ward", "munti_field_doctor", "munti_combat_medic"],
+  munti: ["munti_rapid_response", "munti_field_doctor", "munti_combat_medic"],
 };

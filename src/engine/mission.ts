@@ -6492,21 +6492,15 @@ export class Mission {
    * at maxHp. Doesn't consume any unit's action — it's a passive aura, on
    * top of whatever the Munti's active Repair does that turn.
    *
-   * Aegis Ward (Weapon Branch Point System, data/weaponBranches.ts,
-   * 1 Sep 2026) — a Munti who's bought and equipped this branch projects
-   * the aura at AEGIS_WARD_REGEN_RADIUS instead of the plain
-   * MUNTI_REGEN_RADIUS. Per-Munti, not squad-wide: same convention as
-   * Rapid Response's per-healer repair range above — a squad with more
-   * than one Munti only gets the wider radius from whichever one actually
-   * has the branch equipped, the other(s) still project the base radius.
-   *
-   * Combat Medic (Munti's 4th branch, 5 Sep 2026, Maxime's own design —
-   * "triple passive regen. to those within 3 tile of themself") — a Munti
-   * with this branch equipped projects the aura at COMBAT_MEDIC_REGEN_RADIUS
-   * AND heals for MUNTI_REGEN_PER_TURN * COMBAT_MEDIC_REGEN_MULTIPLIER
-   * instead of the plain amount, same per-Munti-equipped shape as Aegis
-   * Ward. Because the healing amount can now differ by which Munti is in
-   * range (it used to be flat regardless), "multiple Muntis in range don't
+   * Combat Medic (Munti's flagship support branch, 5 Sep 2026, Maxime's own
+   * design — "triple passive regen. to those within 3 tile of themself") —
+   * a Munti with this branch equipped projects the aura at
+   * COMBAT_MEDIC_REGEN_RADIUS AND heals for MUNTI_REGEN_PER_TURN *
+   * COMBAT_MEDIC_REGEN_MULTIPLIER instead of the plain amount,
+   * per-Munti-equipped, not squad-wide — same convention as Rapid
+   * Response's per-healer repair range above. Because the healing amount
+   * can now differ by which Munti is in range (it used to be flat
+   * regardless), "multiple Muntis in range don't
    * stack" is implemented as "the unit heals for the BEST (highest)
    * applicable amount among every same-side Munti in range," not a sum and
    * not just the first one found — a squad with both a plain Munti and a
