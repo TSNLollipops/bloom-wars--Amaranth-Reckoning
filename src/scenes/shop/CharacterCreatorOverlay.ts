@@ -41,8 +41,11 @@ import {
   type CampaignState,
 } from "../../engine/campaignState";
 import { UNIT_ARCHETYPES } from "../../data/units";
+import { ABILITIES } from "../../data/abilities";
 import { generateRecruitName } from "../../data/names";
 import { makeShopButton } from "./ShopPanel";
+import { HoverTip } from "../ui/HoverTip";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 /** The three species labels a player actually reads, in the same order as ALL_CHASSIS_SUFFIXES. Kept local — this is UI copy, not a third copy of the chassis-to-species mapping (that mapping lives once, in data/units.ts's own UNIT_ARCHETYPES entries). */
 const CHASSIS_LABELS: Record<ArchetypeChassisSuffix, string> = {
@@ -54,6 +57,29 @@ const CHASSIS_LABELS: Record<ArchetypeChassisSuffix, string> = {
 /** Reads a pilot's current chassis suffix straight off their archetypeId — the same three suffixes ALL_CHASSIS_SUFFIXES lists, so this never needs its own separate source of truth. Falls back to "bipedal" only if archetypeId is somehow malformed (shouldn't happen; generatePilot always builds it as arch_<class>_<suffix>). */
 function chassisSuffixOf(archetypeId: string): ArchetypeChassisSuffix {
   return ALL_CHASSIS_SUFFIXES.find((suffix) => archetypeId.endsWith(`_${suffix}`)) ?? "bipedal";
+}
+
+// Tooltip pass, 12 Sep 2026 (standing rule — see
+// claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+// Species choice here is NOT cosmetic — rechassisPilot rebuilds
+// archetypeId as arch_<same class>_<new chassis>, and data/units.ts's own
+// arch_*_bipedal / _centauroid / _vibrissal entries carry genuinely
+// different baseHp, vision, and (on two of the three chassis) a bonus
+// class ability. A generic "just changes species" tooltip would be wrong,
+// so this looks up the pilot's real class+chassis combo and states its
+// actual numbers, same discipline as everywhere else in this pass.
+function chassisTooltipLines(pathId: string | undefined, suffix: ArchetypeChassisSuffix): string[] {
+  const title = CHASSIS_LABELS[suffix];
+  const arch = pathId ? UNIT_ARCHETYPES[`arch_${pathId}_${suffix}`] : undefined;
+  if (!arch) {
+    // Shouldn't happen — every class this creator can show already has all
+    // three chassis defined — but never let a missing lookup crash the
+    // picker over a cosmetic tooltip.
+    return [title, "", ...wrapTipText("Switches this recruit to this species.", 42)];
+  }
+  const abilityNames = arch.abilities.map((id) => ABILITIES[id]?.displayName ?? id).join(", ");
+  const body = `${arch.baseHp} HP, vision ${arch.vision}. Abilities: ${abilityNames}.`;
+  return [title, "", ...wrapTipText(body, 42)];
 }
 
 /**
@@ -80,6 +106,10 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
   }
 
   const layer = scene.add.container(0, 0).setDepth(30).setScrollFactor(0);
+  // One shared instance for this overlay's whole lifetime — CONFIRM is the
+  // single choke point everything else already destroys through, so it's
+  // also the one place this gets torn down.
+  const hoverTip = new HoverTip(scene);
   const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.8).setInteractive().setScrollFactor(0);
   const panel = scene.add.rectangle(480, 320, 560, 360, 0x141a20, 1).setStrokeStyle(1, 0x3a4552).setScrollFactor(0);
   const title = scene.add.text(480, 172, "NEW RECRUIT", { fontFamily: "monospace", fontSize: "18px", color: "#facc15" }).setOrigin(0.5).setScrollFactor(0);
@@ -130,9 +160,21 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
   // handler below since layer.destroy() has no idea it exists.
   nameInput.setDepth(31);
 
-  makeShopButton(scene, layer, 610, 270, 110, 30, "REROLL", true, () => {
-    nameNode.value = generateRecruitName();
-  });
+  makeShopButton(
+    scene,
+    layer,
+    610,
+    270,
+    110,
+    30,
+    "REROLL",
+    true,
+    () => {
+      nameNode.value = generateRecruitName();
+    },
+    ["Reroll", "", ...wrapTipText("Randomizes this recruit's name. Doesn't touch species or Mek.", 42)],
+    hoverTip
+  );
 
   const speciesLabel = scene.add.text(480, 306, "SPECIES", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0.5).setScrollFactor(0);
   layer.add(speciesLabel);
@@ -158,6 +200,10 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
         .text(cx, 332, CHASSIS_LABELS[suffix], { fontFamily: "monospace", fontSize: "11px", color: selected ? "#ffffff" : "#8a97a6" })
         .setOrigin(0.5)
         .setScrollFactor(0);
+      const chassisTip = chassisTooltipLines(currentArchetype?.path, suffix);
+      bg.on("pointerover", (pointer: Phaser.Input.Pointer) => hoverTip.show(chassisTip, pointer.x, pointer.y))
+        .on("pointermove", (pointer: Phaser.Input.Pointer) => hoverTip.show(chassisTip, pointer.x, pointer.y))
+        .on("pointerout", () => hoverTip.hide());
       bg.on("pointerdown", () => {
         if (suffix === currentChassis) return;
         const result = rechassisPilot(state, pilotId, suffix);
@@ -171,10 +217,23 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
   }
   redrawSpeciesRow();
 
-  makeShopButton(scene, layer, 480, 384, 220, 36, "CONFIRM", true, () => {
-    renamePilot(state, pilotId, nameNode.value);
-    layer.destroy();
-    nameInput.destroy();
-    onDone?.();
-  });
+  makeShopButton(
+    scene,
+    layer,
+    480,
+    384,
+    220,
+    36,
+    "CONFIRM",
+    true,
+    () => {
+      renamePilot(state, pilotId, nameNode.value);
+      layer.destroy();
+      nameInput.destroy();
+      hoverTip.destroy();
+      onDone?.();
+    },
+    ["Confirm", "", ...wrapTipText("Locks in this name and species, and adds the recruit to the roster as shown.", 42)],
+    hoverTip
+  );
 }

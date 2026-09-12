@@ -148,7 +148,11 @@ import { isCooldownReady, startCooldown, cooldownTurnsRemaining } from "./cooldo
 // Worries System, build order step 3, 10 Sep 2026 — see
 // data/combatWorry.ts's own header for the classifier, and
 // Mission.pushCombatWorry()/combatWorries below for the wiring.
-import { upsertWorry, type WorryEntry } from "../data/worries";
+import { upsertWorry, loudestWorry, type WorryEntry } from "../data/worries";
+// Combat-log Worry Lines, wired 11 Sep 2026 — see that file's own header
+// (Maxime's lines, claude/Bloom_Wars_Combat_Worry_Lines_v1.md) and
+// Mission.pushCombatWorry below for the throttle rule.
+import { pickCombatWorryLine } from "../data/combatWorryLines";
 import { classifyCombatWorry, COMBAT_WORRY_EXPIRY_MS, type CombatWorryEvent } from "../data/combatWorry";
 
 // "commander_down" (25 Aug 2026 — see Mission.handleDowned() below for
@@ -690,6 +694,19 @@ export class Mission {
    * each other (the proposal's own unresolved "two clocks" question).
    */
   combatWorries: Record<string, WorryEntry[]> = {};
+  /**
+   * Combat-log Worry Lines, wired 11 Sep 2026 — which pilotIds have
+   * already had one of Maxime's lines (data/combatWorryLines.ts) surface
+   * in the log this mission. The throttle rule (claude/
+   * Bloom_Wars_Combat_Worry_Lines_v1.md's own "For whoever wires this in"
+   * section) is "once per pilot per mission," a flat cap, not once per
+   * SOURCE — a pilot who both lands a kill and later gets downed in the
+   * same mission still only ever gets ONE line out of the two, whichever
+   * qualified first. Mission-scoped exactly like combatWorries above and
+   * for the identical reason: nothing here ever needs to outlive this
+   * Mission instance.
+   */
+  private combatWorryLineShown: Record<string, boolean> = {};
   /**
    * lastword_signature (Migawari/The Last Word) — one entry per use, live
    * this mission. Same "Mission records, Debrief applies" split as
@@ -2182,6 +2199,36 @@ export class Mission {
       expiresAt: now + COMBAT_WORRY_EXPIRY_MS,
     };
     this.combatWorries[pilotId] = upsertWorry(this.combatWorries[pilotId] ?? [], entry);
+    this.maybeLogCombatWorryLine(pilotId, classified.source, now);
+  }
+
+  /**
+   * Combat-log Worry Lines, wired 11 Sep 2026 (data/combatWorryLines.ts —
+   * Maxime's own lines, claude/Bloom_Wars_Combat_Worry_Lines_v1.md).
+   * Throttle rule straight from that doc's own "For whoever wires this
+   * in" section:
+   *   - once per pilot per mission (combatWorryLineShown), a flat cap
+   *     across all seven sources, not once per source;
+   *   - and only when this push just made itself the pilot's own loudest
+   *     LIVE entry — loudestWorry re-derives that fresh off the just-
+   *     updated list rather than assuming the push above won, since a
+   *     still-live higher-intensity earlier entry (a downing, say) can
+   *     outrank a fresh dodge landing on top of it, and prior entries can
+   *     have quietly expired since they were last checked.
+   * No fallback to ambientLines.ts's Hub bank on a miss (confirmed 10 Sep
+   * in the source doc: that bank's register doesn't fit here) — a source
+   * with no pool, or a pilot who's already had their one line this
+   * mission, or a push that didn't end up loudest, all just log nothing.
+   */
+  private maybeLogCombatWorryLine(pilotId: string, source: WorryEntry["source"], now: number): void {
+    if (this.combatWorryLineShown[pilotId]) return;
+    const loudest = loudestWorry(this.combatWorries[pilotId] ?? [], now);
+    if (loudest?.source !== source) return;
+    const line = pickCombatWorryLine(source);
+    if (!line) return;
+    this.combatWorryLineShown[pilotId] = true;
+    const speaker = this.units.find((u) => u.pilotId === pilotId);
+    this.log.push(`(dialogue) ${speaker ? `${speaker.displayName}: ` : ""}${line}`);
   }
 
   /**

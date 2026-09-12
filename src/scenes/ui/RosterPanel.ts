@@ -36,14 +36,54 @@
 // the other option on offer and Maxime picked the lighter one deliberately
 // (no ghost sprite, no drop-zone hit-testing, no half-dragged-then-released
 // edge cases): click a pilot's card to pick them up, then click a lance tab
-// to drop them there, or another pilot's card to trade places. The engine
-// calls underneath (assignPilotToLance, swapPilotLances) and the pick-up/
-// trade state machine (swapFrom, pickForSwap) are UNCHANGED from the
-// button-per-lance version this replaces — only what you click and how a
-// row looks changed. Each pilot is now a real card (background + border,
-// hover state, a highlighted fill while picked up) styled off the same
-// palette Codex.ts and ShopPanel.ts already use, rather than one long Text
-// blob with bracket-button overlays.
+// to drop them there, or another pilot's card to trade places.
+//
+// Real drag-and-drop, 11 Sep 2026 — click-to-carry replaced, not patched.
+// Maxime playtested it and it didn't click twice in a row ("switching a
+// pilot from lance to lance is nit intuitive... I havent found out how to
+// do it and youve explained it to me as you built the thi g"), so this is
+// the option that lost the 9 Sep call, now built for real — with an added
+// reason: it's meant to double as groundwork for Gladiator's "massive
+// army" management later, per Maxime's own call when he picked it.
+// (Gladiator is currently planned as its OWN separate project/codebase,
+// not a mode inside this game — see Bloom_Wars_Gladiator_Fleet_Battle_
+// Concept_v1.md's "the gladiator thing is the next project" — so nothing
+// here gets literally imported there. What carries over is the pattern
+// and the lesson, which is why this stayed a RosterPanel-local build
+// rather than a speculative generic drag-drop framework nobody's asked
+// for yet. Flagged to Maxime directly, not a silent call.)
+//
+// Every pilot card (drawPilotAvatar + name + stats) is now a real Phaser
+// draggable: mousedown-and-move past the threshold fires dragstart, the
+// card itself goes invisible (alpha 0, NOT setVisible(false) — Phaser
+// keeps feeding drag events to the object that started the drag regardless
+// of tab switches mid-drag, and alpha is a rendering property that input
+// hit-testing never looks at, so this is the safe way to "hide" it without
+// risking the drag silently dying) and a small floating ghost (avatar +
+// name, Codex/ShopPanel palette) follows the pointer instead. Hovering a
+// DIFFERENT lance's tab while still holding the pointer down live-switches
+// which lance's cards are on screen — the same "peek into the other bag
+// tab while still holding the item" motion WoW and EVE both already use,
+// which is exactly why it was picked over a louder click-to-carry retry.
+// Dropping on a tab moves them (or, if that lance is already at
+// MAX_LANCE_SIZE, leaves them "held" the same way the old flow did — see
+// movePilot's failure branch); dropping on another pilot's card trades
+// the two. All engine-facing logic is UNCHANGED from the click-to-carry
+// build: movePilot/pickForSwap/swapFrom are still exactly what actually
+// calls assignPilotToLance/swapPilotLances underneath, and are still the
+// same public API tools/verify/checkRosterPanel.mjs drives headlessly
+// (it calls them directly, never through a pointer event) — this redesign
+// only changes what the PLAYER touches and what appears on screen, not the
+// state machine or its tests. Drag geometry (tabRects/cardRects) is
+// recomputed every render() and hit-tested manually in code rather than
+// via Phaser's own drop-zone system, on purpose: this build has no way to
+// visually playtest itself, so keeping hit-testing as plain, readable
+// coordinate math (rather than Phaser's own zone/overlap machinery) is
+// what's actually checkable by reading it. Maxime's own manual playtest
+// (and, ideally, a real mouse-drag pass through checkRosterPanel.mjs or
+// its drag companion — see tools/verify/checkRosterPanelDrag.mjs) is what
+// actually proves this works, the same honesty this project runs on
+// everywhere else.
 import Phaser from "phaser";
 import {
   assignPilotToLance,
@@ -67,6 +107,7 @@ import { ABILITIES } from "../../data/abilities";
 // when one exists, the original filled-circle+initials placeholder
 // otherwise) rather than inventing a second convention here.
 import { PATH_COLORS, drawPilotAvatar } from "../TransporterPad";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 const PANEL_BG = 0x1a2028;
 const PANEL_BORDER = 0x3a4552;
@@ -130,15 +171,52 @@ export class RosterPanel {
   private swapFrom: string | null = null;
   private readonly bounds: RosterPanelBounds;
   private readonly onChanged: () => void;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // This panel draws straight into Hub's own scene (it's constructed with
+  // Hub's `this`, not a scene of its own), and Hub already has a
+  // competing scene-wide hover system (see Hub.ts's own overlayHoverActive/
+  // wireHoverTip — a raw new HoverTip() here would get stomped by that
+  // handler on the very next pixel of mouse movement, same bug Hub.ts's
+  // own tooltip pass already found and fixed for its Workshop/Vault
+  // panels). So this panel takes Hub's wireHoverTip as a callback instead
+  // of owning a HoverTip itself — same fix, applied across the file
+  // boundary. Optional so a future, simpler host isn't forced to supply
+  // one — every tooltip call below is a no-op without it.
+  private readonly showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void;
+
+  // Real drag-and-drop, 11 Sep 2026. dragPilotId/dragOriginTab track the
+  // live gesture; dragObjs are the three GameObjects (card background,
+  // avatar, text) of the card actually being dragged, pulled OUT of
+  // rowObjs the moment a drag starts so a mid-drag render() (see
+  // onDragMove's tab-hover-switch) rebuilds every other card without
+  // destroying the one Phaser is still feeding drag events to. dragGhost
+  // is the small floating card that follows the pointer instead.
+  // tabRects/cardRects are rebuilt every render() and hit-tested by hand
+  // in onDragMove/endDrag — see this file's header comment for why manual
+  // coordinate math was picked over Phaser's own drop-zone system here.
+  private dragPilotId: string | null = null;
+  private dragOriginTab: LanceId | null = null;
+  private dragGhost: Phaser.GameObjects.Container | null = null;
+  private dragObjs: Phaser.GameObjects.GameObject[] = [];
+  private tabRects: { id: LanceId; x: number; y: number; w: number; h: number }[] = [];
+  private cardRects: { pilotId: string; x: number; y: number; w: number; h: number }[] = [];
 
   /**
    * `onChanged` fires after any assignment that actually moved someone, so
    * Hub can persist the save and re-seed the affected Mek/berth NPCs — a
    * reassignment is supposed to be visible in the ship, not just on paper.
    */
-  constructor(scene: Phaser.Scene, bounds: RosterPanelBounds, onClose: () => void, onChanged: () => void) {
+  constructor(
+    scene: Phaser.Scene,
+    bounds: RosterPanelBounds,
+    onClose: () => void,
+    onChanged: () => void,
+    showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void
+  ) {
     this.bounds = bounds;
     this.onChanged = onChanged;
+    this.showTooltip = showTooltip;
     const cx = (bounds.left + bounds.right) / 2;
     this.container = scene.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
@@ -173,6 +251,11 @@ export class RosterPanel {
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0);
       t.on("pointerdown", () => this.onTabClick(id));
+      this.showTooltip?.(t, [
+        lanceDisplayName(id),
+        "",
+        ...wrapTipText("Click to view this lance's roster. Drag a pilot's card here to move them into it.", 42),
+      ]);
       this.container.add(t);
       this.tabTexts.push(t);
       tx += t.width + 10;
@@ -205,6 +288,7 @@ export class RosterPanel {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     closeBtn.on("pointerdown", onClose);
+    this.showTooltip?.(closeBtn, ["Close", "", ...wrapTipText("Closes Crew Records. Nothing here needs a separate save — every move already applied.", 42)]);
     this.container.add(closeBtn);
   }
 
@@ -267,9 +351,17 @@ export class RosterPanel {
       // A full destination is the common case at full roster, and a bare
       // refusal there is a dead end — every other lance is full too. Pick
       // the pilot up instead and tell the player to choose a trade. The
-      // caller (onTabClick) has already switched this.tab to `to`, so the
-      // player is looking straight at the lance they need to trade into.
-      this.notice = `${result.reason} — click someone here to trade places, or click them again to cancel.`;
+      // caller (onTabClick, or endDrag on a failed drag-drop) has already
+      // switched this.tab to `to`, so the player is looking straight at
+      // the lance they need to trade into. Still says "holding" on
+      // purpose (checked live by tools/verify/checkRosterPanel.mjs) — it's
+      // accurate either way a player got here: a plain click on a
+      // different tab still runs this exact branch and still leaves
+      // swapFrom set for a follow-up click (onTabClick), same as a failed
+      // drag-drop leaves it set for a follow-up drag (beginDrag resets it
+      // first, so a fresh drag never picks up this stale hold by mistake).
+      const name = this.state.pilots[pilotId]?.pilot.displayName ?? "them";
+      this.notice = `${result.reason} Still holding ${name} — drag them onto a pilot below to trade places, click another tab to send them there instead, or click this tab again to cancel.`;
       this.swapFrom = pilotId;
     }
     this.render();
@@ -297,6 +389,128 @@ export class RosterPanel {
     this.render();
   }
 
+  /**
+   * Fires on the card's own dragstart — see this file's header comment for
+   * the full design. Detaches this pilot's three row objects from rowObjs
+   * (so a mid-drag render() rebuilds everyone else without destroying the
+   * object Phaser is still feeding drag events to), hides them via alpha
+   * (never setVisible — see header comment on why), and spawns the ghost
+   * that actually follows the pointer.
+   */
+  private beginDrag(
+    pilotId: string,
+    cardBg: Phaser.GameObjects.Rectangle,
+    avatarContainer: Phaser.GameObjects.Container,
+    cardText: Phaser.GameObjects.Text,
+    pathColor: number,
+    displayName: string,
+    pointer: Phaser.Input.Pointer
+  ): void {
+    // A stale swapFrom left over from a previous failed drag-drop (see
+    // movePilot's failure branch) must never bleed into a fresh drag —
+    // pickForSwap's own pick-up/trade toggle only makes sense starting
+    // from null, and a leftover value here would silently trade the WRONG
+    // two pilots the moment this new drag lands on a card (see endDrag).
+    this.swapFrom = null;
+    this.notice = "";
+    this.dragPilotId = pilotId;
+    this.dragOriginTab = this.tab;
+    this.dragObjs = [cardBg, avatarContainer, cardText];
+    this.rowObjs = this.rowObjs.filter((o) => !this.dragObjs.includes(o));
+    cardBg.setAlpha(0);
+    avatarContainer.setAlpha(0);
+    cardText.setAlpha(0);
+
+    const scene = this.container.scene;
+    const ghost = scene.add.container(pointer.x + 14, pointer.y + 10).setScrollFactor(0);
+    const ghostBg = scene.add
+      .rectangle(0, 0, 210, 34, CARRY_BG, 0.95)
+      .setStrokeStyle(1, CARRY_BORDER)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0);
+    const ghostAvatar = drawPilotAvatar(scene, 16, 0, 12, pilotId, displayName, pathColor);
+    ghostAvatar.container.setScrollFactor(0);
+    const ghostText = scene.add
+      .text(34, 0, displayName, { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" })
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0);
+    ghost.add([ghostBg, ghostAvatar.container, ghostText]);
+    this.container.add(ghost);
+    this.dragGhost = ghost;
+
+    this.noticeText.setText("Drop on a lance tab to move them, or on another pilot's card to trade places.");
+  }
+
+  /** Fires on every pointer move while a card is being dragged. */
+  private onDragMove(pointer: Phaser.Input.Pointer): void {
+    if (!this.dragGhost) return;
+    this.dragGhost.setPosition(pointer.x + 14, pointer.y + 10);
+
+    // Hovering a different lance's tab while still holding the pointer
+    // down live-switches the visible roster to it — see header comment.
+    const hovered = this.tabRects.find((r) => pointer.x >= r.x && pointer.x <= r.x + r.w && pointer.y >= r.y && pointer.y <= r.y + r.h);
+    if (hovered && hovered.id !== this.tab) {
+      this.tab = hovered.id;
+      this.render();
+    }
+  }
+
+  /** Fires on pointer release. Hit-tests by hand against this render's own tabRects/cardRects — see header comment on why. */
+  private endDrag(pointer: Phaser.Input.Pointer): void {
+    const pilotId = this.dragPilotId;
+    const originTab = this.dragOriginTab;
+    this.destroyDragVisuals();
+    if (!pilotId) return;
+
+    const overCard = this.cardRects.find(
+      (r) => r.pilotId !== pilotId && pointer.x >= r.x && pointer.x <= r.x + r.w && pointer.y >= r.y && pointer.y <= r.y + r.h
+    );
+    if (overCard) {
+      // Both ids are already known synchronously, but this still goes
+      // through pickForSwap (called twice) rather than swapPilotLances
+      // directly — reusing the exact pick-up/trade path
+      // checkRosterPanel.mjs already drives headlessly, instead of a
+      // second, parallel way to reach the same engine call.
+      this.pickForSwap(pilotId);
+      this.pickForSwap(overCard.pilotId);
+      return;
+    }
+
+    const overTab = this.tabRects.find((r) => pointer.x >= r.x && pointer.x <= r.x + r.w && pointer.y >= r.y && pointer.y <= r.y + r.h);
+    if (overTab) {
+      if (overTab.id === originTab) {
+        // Dropped back where they started — "changed my mind," same read
+        // as clicking the carried pilot's own card again under the old flow.
+        this.notice = "";
+        this.render();
+        return;
+      }
+      this.movePilot(pilotId, overTab.id);
+      return;
+    }
+
+    // Released over neither a card nor a tab — cancelled, nothing moves.
+    this.notice = "";
+    this.render();
+  }
+
+  /** Phaser's rare dragcancel (e.g. losing pointer capture mid-drag) — clean up, apply nothing. */
+  private cancelDrag(): void {
+    this.destroyDragVisuals();
+    this.notice = "";
+    this.render();
+  }
+
+  /** Shared teardown for both endDrag and cancelDrag — destroys the ghost and the detached original card, then clears drag state. */
+  private destroyDragVisuals(): void {
+    for (const o of this.dragObjs) o.destroy();
+    this.dragObjs = [];
+    if (this.dragGhost) this.dragGhost.destroy();
+    this.dragGhost = null;
+    this.dragPilotId = null;
+    this.dragOriginTab = null;
+  }
+
   private render(): void {
     const scene = this.container.scene;
     const active = activeLanceIds(this.state);
@@ -305,6 +519,8 @@ export class RosterPanel {
 
     for (const o of this.rowObjs) o.destroy();
     this.rowObjs = [];
+    this.tabRects = [];
+    this.cardRects = [];
 
     // Tabs are laid out HERE, not at construction: their labels gain the
     // "n/5" occupancy at render, which is wider than the bare name they were
@@ -322,15 +538,24 @@ export class RosterPanel {
       const count = lanceRoster(this.state, id).length;
       t.setText(`[ ${lanceDisplayName(id)} ${count}/${MAX_LANCE_SIZE} ]`);
       t.setX(tabX);
-      tabX += t.width + 12;
-      // The selected tab is bright; carrying a pilot tints every OTHER tab
-      // as a live drop target (same accent color the cards use for a
-      // clickable affordance); an unfieldable lance is flagged in the tab
-      // strip itself either way, so a problem in a lance you're not
-      // looking at is still visible without clicking through all of them.
+      const tabW = t.width;
+      // A generous, padded hit box — not the bare text glyphs — since a
+      // real drag drop is far less precise than a click. Recomputed every
+      // render because tabX/tabW shift with the "n/5" text each time.
+      this.tabRects.push({ id, x: tabX - 8, y: this.bounds.top + 46 - 14, w: tabW + 16, h: 28 });
+      tabX += tabW + 12;
+      // The selected tab is bright; dragging a pilot tints every OTHER tab
+      // as a live drop target — accent for "drop here to just move them",
+      // warn for "this lance is already full, you'll need to trade" (the
+      // same color a fielding problem already uses, reused on purpose so
+      // "full" always reads as the same color everywhere in this panel).
+      // An unfieldable lance is flagged in the tab strip itself either
+      // way, so a problem in a lance you're not looking at is still
+      // visible without switching to it.
       const isCurrent = id === this.tab;
-      const isDropTarget = this.swapFrom !== null && !isCurrent;
-      t.setColor(isCurrent ? TEXT_MAIN : isDropTarget ? TEXT_ACCENT : fit.fieldable ? TEXT_DIM : TEXT_WARN);
+      const isFull = count >= MAX_LANCE_SIZE;
+      const isDropTarget = this.dragPilotId !== null && !isCurrent;
+      t.setColor(isCurrent ? TEXT_MAIN : isDropTarget ? (isFull ? TEXT_WARN : TEXT_ACCENT) : fit.fieldable ? TEXT_DIM : TEXT_WARN);
     }
 
     const fit = lanceFieldability(this.state, this.tab);
@@ -383,6 +608,11 @@ export class RosterPanel {
         serviceLine = "no missions flown yet";
       }
 
+      // Nobody is "carried" by a click any more (see beginDrag) — swapFrom
+      // now only ever gets set by a FAILED drag-drop (movePilot's failure
+      // branch) or by the headless verify script calling pickForSwap
+      // directly, neither of which is this card being actively dragged
+      // right now, so isCarried keeps meaning exactly what its name says.
       const isCarried = this.swapFrom === p.id;
       const textLines = [p.displayName, `    ${standing.join("  ·  ")}`, `    ${serviceLine}`].join("\n");
       const cardText = scene.add
@@ -396,6 +626,7 @@ export class RosterPanel {
         .setScrollFactor(0);
       const cardH = cardText.height + CARD_PAD_Y * 2;
       const cardCy = y + cardH / 2;
+      this.cardRects.push({ pilotId: p.id, x: cardL, y, w: cardW, h: cardH });
 
       const restBg = isCarried ? CARRY_BG : CARD_BG;
       const restBorder = isCarried ? CARRY_BORDER : CARD_BORDER;
@@ -406,10 +637,29 @@ export class RosterPanel {
         .setScrollFactor(0);
       cardBg.on("pointerover", () => cardBg.setFillStyle(isCarried ? CARRY_BG : CARD_HOVER_BG, 1));
       cardBg.on("pointerout", () => cardBg.setFillStyle(restBg, 1));
-      cardBg.on("pointerdown", () => this.pickForSwap(p.id));
+      this.showTooltip?.(cardBg, [
+        p.displayName,
+        "",
+        ...wrapTipText("Drag onto a lance tab to move them there, or onto another pilot's card to trade places.", 42),
+      ]);
 
-      const avatar = drawPilotAvatar(scene, cardL + CARD_PAD_X + PORTRAIT_R, cardCy, PORTRAIT_R, p.id, p.displayName, path ? PATH_COLORS[path] : 0x555555);
+      // Resolved once, reused for both this card's avatar and the ghost's
+      // (beginDrag takes the resolved color, not `path` itself — path's
+      // type is narrow enough for PATH_COLORS right here but widening it
+      // to a method parameter isn't worth relitigating, so the color is
+      // what crosses that boundary instead).
+      const pathColor = path ? PATH_COLORS[path] : 0x555555;
+      const avatar = drawPilotAvatar(scene, cardL + CARD_PAD_X + PORTRAIT_R, cardCy, PORTRAIT_R, p.id, p.displayName, pathColor);
       avatar.container.setScrollFactor(0);
+
+      // Real drag-and-drop, 11 Sep 2026 — see this file's header comment.
+      // setDraggable is what turns a plain interactive rectangle into
+      // something Phaser will actually fire dragstart/drag/dragend on.
+      scene.input.setDraggable(cardBg);
+      cardBg.on("dragstart", (pointer: Phaser.Input.Pointer) => this.beginDrag(p.id, cardBg, avatar.container, cardText, pathColor, p.displayName, pointer));
+      cardBg.on("drag", (pointer: Phaser.Input.Pointer) => this.onDragMove(pointer));
+      cardBg.on("dragend", (pointer: Phaser.Input.Pointer) => this.endDrag(pointer));
+      cardBg.on("dragcancel", () => this.cancelDrag());
 
       // Background first so the avatar and text paint on top of it.
       this.container.add(cardBg);
@@ -421,8 +671,12 @@ export class RosterPanel {
     }
 
     this.noticeText.setText(
-      this.notice || "Click a pilot to pick them up, then click a lance tab to move them, or another pilot to trade places."
+      this.notice || "Drag a pilot's card onto a lance tab to move them, or onto another pilot's card to trade places."
     );
+    // A mid-drag render() (onDragMove's tab-hover-switch) adds every new
+    // card AFTER the ghost in this.container's child list, which would
+    // otherwise bury the ghost under them — keep it on top regardless.
+    if (this.dragGhost) this.container.bringToTop(this.dragGhost);
   }
 
   /** The pilot ids currently in `lance` — Hub hands these to the Transporter Pad as a deploy pre-selection. */

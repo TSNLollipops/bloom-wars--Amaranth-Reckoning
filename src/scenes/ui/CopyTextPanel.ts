@@ -21,6 +21,8 @@
 //   selectable text on screen either way.
 import Phaser from "phaser";
 import { makeShopButton } from "../shop/ShopPanel";
+import { HoverTip } from "./HoverTip";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 /**
  * Shows the copy panel over the current scene.
@@ -77,6 +79,12 @@ export function showCopyTextPanel(scene: Phaser.Scene, blob: string, onClose: ()
 
   const closeLayer = scene.add.container(0, 0);
   const panel = scene.add.container(0, 0, [bg, title, area, closeLayer]);
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Same shape as NotesPanel.ts's own (its editable sibling, see this
+  // file's header): a standalone function with one close() every exit path
+  // already runs through, so one HoverTip, destroyed there.
+  const hoverTip = new HoverTip(scene);
 
   // 7 Sep 2026 — Maxime got stuck on this exact panel (Debrief's COPY
   // MISSION LOG) with no way out: at any Display Size other than 100%
@@ -103,9 +111,22 @@ export function showCopyTextPanel(scene: Phaser.Scene, blob: string, onClose: ()
   function close() {
     document.removeEventListener("keydown", onKeyDown);
     panel.destroy(true);
+    hoverTip.destroy();
     onClose();
   }
 
-  makeShopButton(scene, closeLayer, 480, 556, 200, 30, "CLOSE (or press Esc)", true, close);
+  makeShopButton(
+    scene,
+    closeLayer,
+    480,
+    556,
+    200,
+    30,
+    "CLOSE (or press Esc)",
+    true,
+    close,
+    ["Close", "", ...wrapTipText("Closes this panel. The text is already on the clipboard (or selected above) — closing doesn't lose it.", 42)],
+    hoverTip
+  );
   return panel;
 }

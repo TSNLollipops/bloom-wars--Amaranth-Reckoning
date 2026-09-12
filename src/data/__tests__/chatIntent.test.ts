@@ -274,6 +274,30 @@ describe("detectVerbRequest — real, actionable verb framework requests", () =>
     expect(detectVerbRequest("go on a date with me")).toBe("askOut");
   });
 
+  // Split 12 Sep 2026 (Maxime: "Allow cute to be a flirt word... itl raise
+  // fav") — casual compliments used to roll a full Ask Out attempt (see the
+  // 9 Sep widening this replaces); they resolve to the new, softer `flirt`
+  // verb now, and only the literal proposal phrasing still resolves to
+  // askOut. Both halves of the split get a test so a future accidental
+  // merge of the two lists shows up here first.
+  it("recognizes a Flirt request — the softer tier split out of Ask Out, 12 Sep 2026", () => {
+    expect(detectVerbRequest("you're cute")).toBe("flirt");
+    expect(detectVerbRequest("youre cute")).toBe("flirt");
+    expect(detectVerbRequest("you're pretty")).toBe("flirt");
+    expect(detectVerbRequest("you're gorgeous")).toBe("flirt");
+    expect(detectVerbRequest("you're hot")).toBe("flirt");
+    expect(detectVerbRequest("i want to flirt with you")).toBe("flirt");
+    expect(detectVerbRequest("i like you")).toBe("flirt");
+  });
+
+  it("keeps the literal proposal phrasing on Ask Out, not Flirt", () => {
+    expect(detectVerbRequest("will you go out with me")).toBe("askOut");
+    expect(detectVerbRequest("be my girlfriend")).toBe("askOut");
+    expect(detectVerbRequest("be my boyfriend")).toBe("askOut");
+    expect(detectVerbRequest("i have feelings for you")).toBe("askOut");
+    expect(detectVerbRequest("i love you")).toBe("askOut");
+  });
+
   it("returns null for verbs that exist as names but have no real VerbDef yet (spar)", () => {
     expect(detectVerbRequest("let's spar")).toBeNull();
   });

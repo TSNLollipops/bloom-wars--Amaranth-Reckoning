@@ -8,13 +8,22 @@
 import Phaser from "phaser";
 import { listManualSlots, loadManualSlot, saveCampaignState, rankDisplayTitle, MANUAL_SAVE_SLOT_COUNT } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 export class LoadGame extends Phaser.Scene {
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // A plain Phaser.Scene — one instance for its own lifetime, same as every
+  // other scene-owned HoverTip this pass.
+  private hoverTip!: HoverTip;
+
   constructor() {
     super("LoadGame");
   }
 
   create() {
+    this.hoverTip = new HoverTip(this);
     this.cameras.main.setBackgroundColor("#0a0d10");
     this.add.text(480, 44, "LOAD GAME", { fontFamily: "monospace", fontSize: "24px", color: "#e8e2d4" }).setOrigin(0.5);
     this.add
@@ -29,9 +38,21 @@ export class LoadGame extends Phaser.Scene {
 
     this.renderSlots();
 
-    makeShopButton(this, this.add.container(0, 0), 480, 590, 260, 34, "BACK TO MAIN MENU", true, () => {
-      this.scene.start("MainMenu");
-    });
+    makeShopButton(
+      this,
+      this.add.container(0, 0),
+      480,
+      590,
+      260,
+      34,
+      "BACK TO MAIN MENU",
+      true,
+      () => {
+        this.scene.start("MainMenu");
+      },
+      ["Back to Main Menu", "", ...wrapTipText("Leaves without loading anything. Your current live save is untouched.", 42)],
+      this.hoverTip
+    );
   }
 
   private renderSlots() {
@@ -62,12 +83,24 @@ export class LoadGame extends Phaser.Scene {
         })
         .setOrigin(0, 0.5);
 
-      makeShopButton(this, layer, 720, y, 140, 34, "LOAD", true, () => {
-        const loaded = loadManualSlot(i);
-        if (!loaded) return; // shouldn't happen — meta and state can drift only if storage was edited by hand outside this game
-        saveCampaignState(loaded); // rewind semantics — the loaded slot becomes the new live/continuing save
-        this.scene.start("MapSelect");
-      });
+      makeShopButton(
+        this,
+        layer,
+        720,
+        y,
+        140,
+        34,
+        "LOAD",
+        true,
+        () => {
+          const loaded = loadManualSlot(i);
+          if (!loaded) return; // shouldn't happen — meta and state can drift only if storage was edited by hand outside this game
+          saveCampaignState(loaded); // rewind semantics — the loaded slot becomes the new live/continuing save
+          this.scene.start("MapSelect");
+        },
+        [`Load Slot ${i + 1}`, "", ...wrapTipText("Replaces your current live save with this slot, then goes to mission select — same as a rewind, not a branch.", 42)],
+        this.hoverTip
+      );
     }
 
     if (slots.every((s) => s === null)) {

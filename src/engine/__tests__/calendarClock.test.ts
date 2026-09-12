@@ -243,10 +243,11 @@ describe("measureRealDelta — wall-clock, not Phaser's smoothed delta", () => {
 
 describe("the accent layer — per-verb costs", () => {
   it("charges nothing for conversation", () => {
-    // Talk and the five chat-driven crew-interaction verbs are covered by
-    // the running clock already; charging them too would double-bill.
+    // Talk and the six chat-driven crew-interaction verbs (flirt joined
+    // the other five 12 Sep 2026) are covered by the running clock
+    // already; charging them too would double-bill.
     const state = freshState();
-    for (const verb of ["talk", "gift", "praise", "insult", "apology", "congratulate"] as const) {
+    for (const verb of ["talk", "gift", "praise", "flirt", "insult", "apology", "congratulate"] as const) {
       applyVerbDayCost(state, verb);
     }
     expect(rawCalendarDay(state)).toBe(1);

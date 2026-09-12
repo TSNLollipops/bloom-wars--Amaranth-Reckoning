@@ -18,6 +18,8 @@ import {
 import { makeShopButton } from "./shop/ShopPanel";
 import { AMARANTH_ACT1 } from "../data/campaignAmaranth";
 import { HOUSE_AMARANTH_ACT1 } from "../data/campaignHouseAmaranth";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 type Side = "warden" | "house_amaranth";
 
@@ -44,6 +46,11 @@ export class CampaignSetup extends Phaser.Scene {
   // doesn't leave "Warden Company" sitting in the box; the moment they edit
   // it, side changes stop overwriting what they wrote.
   private companyNameEdited = false;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // This scene had no HoverTip before — a plain scene class, same as
+  // Options.ts/ShopPanel.ts, so one shared instance covers everything.
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("CampaignSetup");
@@ -52,6 +59,7 @@ export class CampaignSetup extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor("#0a0d10");
     this.ironmanChecked = true;
+    this.hoverTip = new HoverTip(this);
 
     this.add.text(480, 50, "NEW CAMPAIGN", { fontFamily: "monospace", fontSize: "26px", color: "#e8e2d4" }).setOrigin(0.5);
 
@@ -61,9 +69,21 @@ export class CampaignSetup extends Phaser.Scene {
     this.drawIronmanCheckbox();
     this.drawBeginButton();
 
-    makeShopButton(this, this.add.container(0, 0), 100, 604, 160, 30, "BACK", true, () => {
-      this.scene.start("MainMenu");
-    });
+    makeShopButton(
+      this,
+      this.add.container(0, 0),
+      100,
+      604,
+      160,
+      30,
+      "BACK",
+      true,
+      () => {
+        this.scene.start("MainMenu");
+      },
+      ["Back", "", ...wrapTipText("Returns to the main menu. Nothing on this screen is saved until you press BEGIN CAMPAIGN.", 42)],
+      this.hoverTip
+    );
   }
 
   // Side select (§5): "Warden Company" vs. "House Amaranth," made real 1
@@ -90,6 +110,20 @@ export class CampaignSetup extends Phaser.Scene {
 
     this.wardenBg.on("pointerdown", () => this.setSide("warden"));
     this.houseAmaranthBg.on("pointerdown", () => this.setSide("house_amaranth"));
+    const wardenTip = ["Warden Company", "", ...wrapTipText("The default side — a full Hub to walk around in between missions, plus the Shop, Roster, and everything else.", 42)];
+    const houseTip = [
+      "House Amaranth",
+      "",
+      ...wrapTipText("Missions and roster only — no Hub screen to walk around in yet. Shop, gear, and recruiting all still work the same.", 42),
+    ];
+    this.wardenBg
+      .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(wardenTip, pointer.x, pointer.y))
+      .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(wardenTip, pointer.x, pointer.y))
+      .on("pointerout", () => this.hoverTip.hide());
+    this.houseAmaranthBg
+      .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(houseTip, pointer.x, pointer.y))
+      .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(houseTip, pointer.x, pointer.y))
+      .on("pointerout", () => this.hoverTip.hide());
 
     // y=178, not 168 (Claude, 5 Sep 2026 — pre-existing, found by screenshot
     // during the B6 pass, not caused by it). This string is 94 characters,
@@ -216,13 +250,32 @@ export class CampaignSetup extends Phaser.Scene {
     // derived from the same arrays MapSelect itself renders, so this can
     // never silently drift from whatever each side's actual opening
     // mission is if either array's order ever changes.
-    makeShopButton(this, this.add.container(0, 0), 480, 540, 320, 48, "BEGIN CAMPAIGN", true, () => {
-      const state = this.selectedSide === "house_amaranth" ? createHouseAmaranthCampaignState() : createWardenCampaignState();
-      state.ironman = this.ironmanChecked;
-      state.companyName = this.resolveCompanyName(); // B6 — same "overwrite the factory default before the first save" shape as ironman right above
-      saveCampaignState(state);
-      const missionId = this.selectedSide === "house_amaranth" ? HOUSE_AMARANTH_ACT1[0].id : AMARANTH_ACT1[0].id;
-      this.scene.start("TransporterPad", { missionId });
-    });
+    makeShopButton(
+      this,
+      this.add.container(0, 0),
+      480,
+      540,
+      320,
+      48,
+      "BEGIN CAMPAIGN",
+      true,
+      () => {
+        const state = this.selectedSide === "house_amaranth" ? createHouseAmaranthCampaignState() : createWardenCampaignState();
+        state.ironman = this.ironmanChecked;
+        state.companyName = this.resolveCompanyName(); // B6 — same "overwrite the factory default before the first save" shape as ironman right above
+        saveCampaignState(state);
+        const missionId = this.selectedSide === "house_amaranth" ? HOUSE_AMARANTH_ACT1[0].id : AMARANTH_ACT1[0].id;
+        this.scene.start("TransporterPad", { missionId });
+      },
+      [
+        "Begin Campaign",
+        "",
+        ...wrapTipText(
+          "Creates the new campaign with the side, Ironman setting, and company name set above (blank name falls back to the side's default), and launches straight into its opening mission.",
+          42
+        ),
+      ],
+      this.hoverTip
+    );
   }
 }

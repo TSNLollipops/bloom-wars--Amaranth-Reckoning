@@ -68,7 +68,10 @@ import {
   resetTutorialSeen,
   areTutorialHintsEnabled,
   setTutorialHintsEnabled,
+  isMissionUnlocked,
+  recordMissionWin,
 } from "../campaignState";
+import type { CampaignMission } from "../../data/types";
 import { catalystForPilot } from "../../data/npcSeed";
 import { deriveCatalyst, ZONE_BY_SECTOR, SECTOR_PLANETS } from "../../data/background";
 import { MEK_GIVEN_NAMES } from "../../data/names";
@@ -1901,5 +1904,57 @@ describe("tutorial hints ON/OFF switch, Options screen, 8 Sep 2026", () => {
 
   it("reads enabled (never false-by-accident) when no storage is available, same contract as hasSeenTutorial", () => {
     expect(areTutorialHintsEnabled(undefined)).toBe(true);
+  });
+});
+
+describe("mission-order gating (isMissionUnlocked/recordMissionWin), 12 Sep 2026", () => {
+  // Minimal fake chain — isMissionUnlocked only ever reads .id off a chain
+  // entry, so a real CampaignMission's other required fields (mapId,
+  // objective, enemyWaves, ...) would be pure noise here. Double-cast
+  // rather than a partial CampaignMission literal, same reasoning as
+  // testHelpers.ts's own synthetic units: this is deliberately not a real
+  // mission, just enough shape for the function under test.
+  const fakeChain = [
+    { id: "m1", displayName: "Mission One" },
+    { id: "m2", displayName: "Mission Two" },
+    { id: "m3", displayName: "Mission Three" },
+  ] as unknown as CampaignMission[];
+
+  it("a brand-new campaign starts with only the chain's own first mission unlocked", () => {
+    const state = createWardenCampaignState();
+    expect(isMissionUnlocked(state, fakeChain, "m1")).toBe(true);
+    expect(isMissionUnlocked(state, fakeChain, "m2")).toBe(false);
+    expect(isMissionUnlocked(state, fakeChain, "m3")).toBe(false);
+  });
+
+  it("winning a mission unlocks exactly the next one in the chain, not the whole rest of it", () => {
+    const state = createWardenCampaignState();
+    recordMissionWin(state, "m1");
+    expect(isMissionUnlocked(state, fakeChain, "m2")).toBe(true);
+    expect(isMissionUnlocked(state, fakeChain, "m3")).toBe(false);
+  });
+
+  it("a mission never recorded as won stays locked no matter how many other missions have been", () => {
+    const state = createWardenCampaignState();
+    recordMissionWin(state, "m1");
+    // m3 needs m2, not m1 — winning m1 alone must not skip a link in the chain
+    expect(isMissionUnlocked(state, fakeChain, "m3")).toBe(false);
+  });
+
+  it("a mission id the chain doesn't contain at all reads as unlocked, not locked — this function only gates missions it recognizes", () => {
+    const state = createWardenCampaignState();
+    expect(isMissionUnlocked(state, fakeChain, "some_mission_from_a_different_chain")).toBe(true);
+  });
+
+  it("grandfathers a save from before this field existed — completedMissionIds undefined reads as fully unlocked, forever, not as zero wins", () => {
+    const state = createWardenCampaignState();
+    delete (state as { completedMissionIds?: unknown }).completedMissionIds;
+    expect(isMissionUnlocked(state, fakeChain, "m3")).toBe(true);
+    // recordMissionWin refuses to start tracking a grandfathered save
+    // retroactively — doing so would re-lock missions it already has real
+    // access to (see that function's own doc comment).
+    recordMissionWin(state, "m1");
+    expect(state.completedMissionIds).toBeUndefined();
+    expect(isMissionUnlocked(state, fakeChain, "m3")).toBe(true); // still fully open
   });
 });

@@ -30,6 +30,7 @@
 import Phaser from "phaser";
 import type { CampaignMission } from "../../data/types";
 import { describeObjective, passiveScan } from "../../data/missionBriefing";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 const PANEL_BG = 0x1a2028;
 const PANEL_BORDER = 0x3a4552;
@@ -48,8 +49,16 @@ export class MissionBriefingPanel {
   private container: Phaser.GameObjects.Container;
   private titleText: Phaser.GameObjects.Text;
   private bodyText: Phaser.GameObjects.Text;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Same cross-file fix as StandingsPanel.ts/MemorialPanel.ts/RosterPanel.ts:
+  // drawn straight into Hub's scene, over its own competing scene-wide hover
+  // system, so this takes Hub's wireHoverTip as a callback instead of
+  // owning a HoverTip itself.
+  private readonly showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void;
 
-  constructor(scene: Phaser.Scene, bounds: MissionBriefingPanelBounds, onClose: () => void) {
+  constructor(scene: Phaser.Scene, bounds: MissionBriefingPanelBounds, onClose: () => void, showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void) {
+    this.showTooltip = showTooltip;
     const cx = (bounds.left + bounds.right) / 2;
     this.container = scene.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
@@ -88,6 +97,7 @@ export class MissionBriefingPanel {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     closeBtn.on("pointerdown", onClose);
+    this.showTooltip?.(closeBtn, ["Close", "", ...wrapTipText("Back to the Hub floor. This is read-only mission intel — nothing here needs a save.", 42)]);
     this.container.add(closeBtn);
   }
 

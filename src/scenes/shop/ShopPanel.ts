@@ -79,9 +79,25 @@ import {
   type CampaignState,
 } from "../../engine/campaignState";
 import { WEAPON_BRANCHES, WEAPON_BRANCHES_BY_PATH, WEAPON_BRANCH_COSTS, WEAPON_BRANCH_TIER_GATE, type WeaponBranchId } from "../../data/weaponBranches";
+// Tier-upgrade tooltip, 11 Sep 2026 (Maxime: "rank upgrade will need a
+// tooltip about what it mean") — TIERS is the actual stat table
+// engine/units.ts applies (base -> tier -> mek -> branch), so the delta
+// shown is the real number this purchase grants, not a guess.
+import { TIERS } from "../../data/combatTables";
 import { equippedWeaponBranchesOf, mountsFor, drawCapacityFor, frameDrawUsed } from "../../engine/frameSystems";
 import { showFrameOverlay } from "./FramePanel";
 import { playSfx } from "../audio/AudioManager";
+// Item-purchase tooltip pass, 11 Sep 2026 (playtest note: "no way to know
+// what an item does before buying it" — Bloom_Wars_Playtest_Log.md's
+// General/UX section). Reuses the exact same HoverTip box Hub.ts and
+// Battle.ts already draw for NPC/unit hover — see scenes/ui/HoverTip.ts's
+// own header for why this is a shared class rather than a third
+// hand-rolled floating panel. wrapTipText is the same word-wrap
+// hoverTipLayout.ts's own measureTipBox expects its input pre-wrapped
+// with, so a long weapon-branch description doesn't run off toward
+// whichever screen edge the button happens to sit near.
+import { HoverTip } from "../ui/HoverTip";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 // UI Prettiness Pass v1, 10 Sep 2026 — Roster & Gear is the fourth screen
 // this pass touches, and the one with the narrowest scope, on purpose: this
 // file's own comment history (ROW_H's pilot-row comment, the Weapon Branch
@@ -93,7 +109,7 @@ import { playSfx } from "../audio/AudioManager";
 // object's own .width. See the plan doc (Bloom_Wars_UI_Prettiness_Pass_
 // Plan_v1) for why Workshop/Vault/Mission Select got a fuller pass and this
 // one deliberately didn't.
-import { PANEL_BG, PANEL_BORDER, PANEL_ACCENT, TEXT_MAIN, TEXT_DIM, TEXT_ACCENT } from "../ui/Panel";
+import { PANEL_BG, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_MAIN, TEXT_DIM, TEXT_ACCENT } from "../ui/Panel";
 
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
@@ -106,8 +122,35 @@ const TRACK_LABELS: Record<MekTrack, string> = {
   fieldwright: "Field",
   quartermaster: "Qtrm",
 };
+// Secondary-track tooltips, 11 Sep 2026 (Maxime: "we need those tooltips
+// too. the fabricator and stuff") — these five buttons only ever add a
+// SECONDARY specialization (the primary is fixed at character creation;
+// see this section's own `if (!mek.secondary)` guard above it), so every
+// number below is that track's `secondary` row in data/meks.ts's
+// MEK_TRACK_EFFECTS, not its (stronger) primary row. Transcribed straight
+// off that table, nothing derived or guessed — same discipline as the
+// weapon-branch tooltips just above.
+const SECONDARY_TRACK_TOOLTIPS: Record<MekTrack, string> = {
+  fabricator: "+1 spare part. Beacon Control burns a spare part instead of a Restock Room crate when reviving this pilot.",
+  armorer: "+4 attack, +4 defense, +5 max HP for this pilot's mek.",
+  runemaster: "+1 vision. Any on-hit effect this pilot's mek inflicts through a weapon branch (acid, knockback, stun) lasts or reaches ×1.25 further.",
+  fieldwright: "+8 HP/turn self-repair whenever this pilot's mek stands still instead of moving.",
+  quartermaster: "25% off every shop purchase this pilot makes. Secondary only — there's no primary version of this track.",
+};
 const ALL_TRACKS: MekTrack[] = ["fabricator", "armorer", "runemaster", "fieldwright", "quartermaster"];
 const ALL_CLASSES: Path[] = ["meeps", "tank", "reeps", "munti"];
+// Recruit class-picker tooltips, 11 Sep 2026 — Tooltip Coverage Standing
+// Rule checklist's "Recruit section (class picker...)" row. Verified
+// straight off each archetype's own attackRange/abilities in data/units.ts
+// (all three chassis per class share the same range and path abilities),
+// not written from flavor memory: meeps/tank are both range [1,1] melee,
+// reeps is [2,4] ranged, munti is [1,2] with the repair/evac/screen kit.
+const CLASS_ROLE_TOOLTIPS: Record<Path, string> = {
+  meeps: "Melee striker, range 1. Ambush lets them go unseen and hold their shot until an enemy walks into range.",
+  tank: "Melee frontline, range 1. Interdict pins anything that walks into their zone; Overshield adds a damage buffer.",
+  reeps: "Ranged attacker, range 2-4 tiles. Stay out of melee range to use this class well.",
+  munti: "Support and combat medic, range 1-2. Repairs allies, evacuates a downed cockpit, and screens the squad from detection. Every lance needs one to deploy.",
+};
 
 // ---- Shop layout: a flat, height-budgeted list of rows (unchanged from
 // Debrief.ts's original version — see that file's own history for why
@@ -179,7 +222,16 @@ export function makeShopButton(
   h: number,
   label: string,
   enabled: boolean,
-  onClick: () => void
+  onClick: () => void,
+  // Item-purchase tooltip pass, 11 Sep 2026 — both optional and both trail
+  // every existing positional argument, so every call site across the game
+  // that doesn't pass them (Options, MainMenu, every other Hub overlay)
+  // keeps compiling and behaving exactly as before. `hoverTip` is the
+  // caller's own HoverTip instance (this function has no scene-lifetime
+  // state of its own to own one) — pass both or neither; `tooltip` alone
+  // with no `hoverTip` is silently a no-op rather than a crash.
+  tooltip?: string[],
+  hoverTip?: HoverTip
 ): void {
   const bg = scene.add
     .rectangle(cx, cy, w, h, enabled ? 0x2e5c7a : 0x1a2028, 1)
@@ -188,6 +240,17 @@ export function makeShopButton(
     .text(cx, cy, label, { fontFamily: "monospace", fontSize: "10px", color: enabled ? "#ffffff" : "#5a6472", align: "center", wordWrap: { width: w - 6 } })
     .setOrigin(0.5);
   layer.add([bg, txt]);
+  // Wired before the `if (!enabled) return` below on purpose: "why is this
+  // greyed out" (can't afford it yet, needs a higher tier) is exactly the
+  // moment a tooltip earns its keep, so a disabled button still shows one
+  // if it's given tooltip lines — it just never gets a click handler.
+  if (tooltip && tooltip.length && hoverTip) {
+    bg.setInteractive();
+    bg.setScrollFactor(layer.scrollFactorX, layer.scrollFactorY);
+    bg.on("pointerover", (pointer: Phaser.Input.Pointer) => hoverTip.show(tooltip, pointer.x, pointer.y));
+    bg.on("pointermove", (pointer: Phaser.Input.Pointer) => hoverTip.show(tooltip, pointer.x, pointer.y));
+    bg.on("pointerout", () => hoverTip.hide());
+  }
   if (!enabled) return;
   bg.setInteractive({ useHandCursor: true });
   // Carrier Scale-Up Plan v1 Phase 1 follow-on, 3 Sep 2026 — inherit the
@@ -268,6 +331,93 @@ export function showSaveAsOverlay(scene: Phaser.Scene, state: CampaignState, onS
 }
 
 /**
+ * Discharge confirmation modal (11 Sep 2026 — Maxime: "the dismiss synker
+ * button in red on the rooster ui is still hidden halfway into the upgrade
+ * button. better make sure those are not close to ceach other so player
+ * dont dimiss accidentlay. also it need a confirm popop when u dismiss a
+ * unit"). Replaces the old in-place "[ discharge ]" -> "[ CONFIRM
+ * DISCHARGE ]" / "[ cancel ]" text-swap (5 Sep 2026) with a real modal,
+ * same showSaveAsOverlay pattern just above (dimmed backdrop, centered
+ * panel, two makeShopButton calls) rather than inventing a second overlay
+ * style.
+ *
+ * The old flow's actual bug wasn't that it lacked a confirm step — it
+ * always had one, arm-then-reclick — it's that "confirm" was just a
+ * longer, redder piece of TEXT sitting at the exact same coordinates
+ * (SHOP_CARD_L+14, top+44) every render, one row above a real BUTTON
+ * (the tier-upgrade makeShopButton, centered at top+62, spanning roughly
+ * y:[50,74] — see drawPilotRow) that a 9px line of text has no business
+ * being that close to. A modal fixes this at the root: the discharge
+ * link drawn on the card itself is now always the same short, constant-
+ * width "[ discharge ]" string (nothing ever grows into "[ CONFIRM
+ * DISCHARGE ]" in place), and the actual confirmation happens on a
+ * dimmed full-screen layer where nothing behind it is clickable at all.
+ * drawPilotRow's own tier-button position also moves down slightly in
+ * this same pass, for real measured clearance from that now-constant
+ * link rather than relying on the modal alone to paper over cramped
+ * geometry — see that call site's own comment.
+ */
+export function showDischargeConfirmOverlay(
+  scene: Phaser.Scene,
+  state: CampaignState,
+  pilotId: string,
+  depth: number,
+  onResolved: (message: string, color: string) => void
+): { close: () => void } {
+  const pilot = state.pilots[pilotId]?.pilot;
+  const pilotName = pilot?.displayName ?? "This pilot";
+  const layer = scene.add.container(0, 0).setDepth(depth).setScrollFactor(0);
+  const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.75).setInteractive().setScrollFactor(0);
+  const panel = scene.add.rectangle(480, 320, 460, 220, 0x141a20, 1).setStrokeStyle(1, 0x3a4552);
+  const title = scene.add
+    .text(480, 236, `DISCHARGE ${pilotName.toUpperCase()}?`, {
+      fontFamily: "monospace",
+      fontSize: "15px",
+      color: "#ef4444",
+      align: "center",
+      wordWrap: { width: 420 },
+    })
+    .setOrigin(0.5);
+  // 52-char wrap at this dialog's 11px body font: same 6.6px/char advance
+  // scenes/ui/HoverTip.ts's own CHAR_W constant uses at 11px, so 52 chars
+  // lands around 343px — comfortably inside the 460px panel with margin
+  // on both sides, not a guessed number.
+  const bodyLines = wrapTipText(
+    `Permanently removes ${pilotName} from the active roster. Their mek, loadout, and gear go with them. This can't be undone.`,
+    52
+  );
+  const body = scene.add
+    .text(480, 288, bodyLines.join("\n"), {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: TEXT_DIM,
+      align: "center",
+      lineSpacing: 2,
+    })
+    .setOrigin(0.5);
+  layer.add([backdrop, panel, title, body]);
+
+  const close = () => layer.destroy();
+  makeShopButton(scene, layer, 400, 368, 190, 32, "DISCHARGE", true, () => {
+    const result = dischargePilot(state, pilotId);
+    close();
+    if (result.ok) {
+      onResolved(
+        result.muntiReplacement
+          ? `${pilotName} discharged. They were the roster's last Munti — ${result.muntiReplacement.displayName} was brought in to cover the gap.`
+          : `${pilotName} discharged from the active roster.`,
+        "#4ade80"
+      );
+    } else {
+      onResolved(result.reason ?? "Discharge failed.", "#ef4444");
+    }
+  });
+  makeShopButton(scene, layer, 570, 368, 150, 32, "CANCEL", true, close);
+
+  return { close };
+}
+
+/**
  * The buy/upgrade/recruit panel itself. Owns its own page state and two
  * Phaser containers (shop rows + prev/next nav), both created against
  * whatever scene it's handed. Call render() once after construction and
@@ -294,13 +444,16 @@ export class ShopPanel {
   private recruitLance: LanceId | null = null;
   private recruitMessage = "";
   private recruitMessageColor = "#8a97a6";
-  // Pilot Discharge (5 Sep 2026) — the shop's own arm-then-confirm click,
-  // one pilot at a time, so a stray click can't discharge someone by
-  // accident (Maxime: "worth a confirm prompt so it's not an accidental
-  // click"). Cleared on every successful/failed discharge and left
-  // otherwise — see drawPilotRow's own comment for the two-text-object
-  // click layout.
-  private dischargeArmedPilotId: string | null = null;
+  // Pilot Discharge (5 Sep 2026; reworked 11 Sep 2026 into a real modal —
+  // see showDischargeConfirmOverlay's own header for why). dischargeOverlay
+  // is this panel's own copy of the frameOverlay pattern a few fields
+  // down: a standalone top-level container, not a child of shopLayer, so
+  // it survives render()'s removeAll(true) while it's open and gets torn
+  // down the same way setVisible(false) already tears down frameOverlay.
+  // dischargeMessage/dischargeMessageColor are unchanged from 5 Sep — the
+  // post-discharge feedback line buildEntries() surfaces as an "info" row
+  // once the discharged pilot's own row is gone.
+  private dischargeOverlay: { close: () => void } | null = null;
   private dischargeMessage = "";
   private dischargeMessageColor = "#8a97a6";
   private shopLayer: Phaser.GameObjects.Container;
@@ -315,15 +468,31 @@ export class ShopPanel {
   // Debrief.ts and Hangar.ts do) can keep it in sync without this panel
   // needing to know anything about what a footer is.
   private onRender?: () => void;
+  // "[ move lance ]" jump, 11 Sep 2026 — optional, since only the Hub's
+  // Roster & Gear console (this file's own crew, lances are a Hub-only
+  // concept) wires it; Debrief.ts's own use of this panel leaves it
+  // undefined and the link just doesn't render. See drawPilotRow's own
+  // comment on why this jumps to RosterPanel instead of building a second
+  // lance-picker inside this already-dense card.
+  private onMoveLance?: (pilotId: string) => void;
+  // Item-purchase tooltip pass, 11 Sep 2026 — one HoverTip per panel
+  // instance, same lifetime discipline Hub.ts/Battle.ts already use for
+  // their own (created once, shown/hidden repeatedly by render() calls
+  // that rebuild everything else in shopLayer). Its container sits at
+  // HoverTip's own fixed depth of 10,000, so it draws above this panel
+  // regardless of what depth the host scene gave shopLayer/navLayer.
+  private hoverTip: HoverTip;
 
-  constructor(scene: Phaser.Scene, state: CampaignState, top: number, bottom: number, onRender?: () => void) {
+  constructor(scene: Phaser.Scene, state: CampaignState, top: number, bottom: number, onRender?: () => void, onMoveLance?: (pilotId: string) => void) {
     this.scene = scene;
     this.state = state;
     this.top = top;
     this.bottom = bottom;
     this.onRender = onRender;
+    this.onMoveLance = onMoveLance;
     this.shopLayer = scene.add.container(0, 0);
     this.navLayer = scene.add.container(0, 0);
+    this.hoverTip = new HoverTip(scene);
   }
 
   private buildEntries(): ShopEntry[] {
@@ -388,6 +557,15 @@ export class ShopPanel {
     // ship. Closed here with the panel; Debrief/Hangar never call this and
     // tear the whole scene down instead.
     if (!visible) this.frameOverlay?.close();
+    // Same reasoning again, 11 Sep 2026, for the discharge confirm modal —
+    // its own top-level container, not a child of shopLayer.
+    if (!visible) this.dischargeOverlay?.close();
+    // Same reasoning, 11 Sep 2026, for the tooltip box: it's a fixed-depth,
+    // screen-pinned container of its own, not a child of shopLayer, so
+    // hiding the panel without this would leave a stale tooltip floating
+    // over whatever Hub shows next if the pointer happened to be sitting on
+    // a button the instant Esc closed this panel.
+    if (!visible) this.hoverTip.hide();
   }
   private frameOverlay: { close: () => void } | null = null;
 
@@ -519,10 +697,16 @@ export class ShopPanel {
       const navY = this.bottom + 8;
       const prevEnabled = this.shopPage > 0;
       const nextEnabled = this.shopPage < pages.length - 1;
+      // Page-nav tooltips, 11 Sep 2026 — Tooltip Coverage Standing Rule
+      // checklist's last open row in this file. Arguably borderline against
+      // the rule's own "self-explanatory from a live number" exemption
+      // (the "page X/Y" readout between them already says where you are),
+      // but cheap, harmless, and consistent with "every clickable gets
+      // one" rather than a judgment call worth relitigating per button.
       makeShopButton(this.scene, this.navLayer, 400, navY, 80, 24, "< PREV", prevEnabled, () => {
         this.shopPage -= 1;
         this.render();
-      });
+      }, ["< PREV", "", "Show the previous page of this list."], this.hoverTip);
       this.navLayer.add(
         this.scene.add
           .text(480, navY, `page ${this.shopPage + 1}/${pages.length}`, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
@@ -531,7 +715,7 @@ export class ShopPanel {
       makeShopButton(this.scene, this.navLayer, 560, navY, 80, 24, "NEXT >", nextEnabled, () => {
         this.shopPage += 1;
         this.render();
-      });
+      }, ["NEXT >", "", "Show the next page of this list."], this.hoverTip);
     }
 
     this.onRender?.();
@@ -596,7 +780,9 @@ export class ShopPanel {
     const cardH = h - 6;
     const cy = top + cardH / 2;
 
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    // PANEL_CARD_BORDER — Codex's own card-stroke color, a subtler, darker
+    // shade than its outer panel frame. Codex UI match, 11 Sep 2026.
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_CARD_BORDER));
     this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, top + 8, pilot.displayName, { fontFamily: "monospace", fontSize: "13px", color: TEXT_MAIN, letterSpacing: 0.5 })
@@ -616,9 +802,12 @@ export class ShopPanel {
     );
 
     // Pilot Discharge (5 Sep 2026 — Pilot Discharge & Roster Pressure,
-    // shape decided 28 Aug 2026 per Maxime's own delegation). Lives right
-    // on this pilot's own card, in the one strip this card had left empty
-    // (below the name/subline, above the tier-upgrade button at top+62) —
+    // shape decided 28 Aug 2026 per Maxime's own delegation; reworked 11
+    // Sep 2026 into a real confirm modal — see showDischargeConfirmOverlay's
+    // own header for the full reasoning, including why the old arm-then-
+    // reclick text swap wasn't actually the fix it looked like). Lives
+    // right on this pilot's own card, in the one strip this card had left
+    // empty (below the name/subline, above the tier-upgrade button) —
     // deliberately NOT a new section-list next to Discretionary Recruiting
     // the way the proposal's own phrasing first suggested, because that
     // list would need to hold a variable, roster-sized number of rows
@@ -627,62 +816,50 @@ export class ShopPanel {
     // Recruit section's own candidate list deliberately caps at 4 to avoid.
     // One pilot's own row is a fixed, known size regardless of roster size.
     //
-    // Two separate text objects, not one text object sliced by click
-    // x-position — this project's own recent Shop-row collision (Convert-
-    // to-company, 5 Sep 2026) came from exactly that kind of guessed pixel
-    // math, and two real objects with their own bounding boxes can't
-    // silently drift out of sync with each other the way a hand-picked
-    // x-threshold inside one string can.
+    // One constant-width text object now, not the old armed/confirm/cancel
+    // trio — this link's label and footprint never change on click, so
+    // there's nothing left here to grow into the tier-upgrade button's own
+    // space the way "[ CONFIRM DISCHARGE ]" used to (see that button's own
+    // comment for the matching half of this fix). The actual confirm step
+    // now happens entirely on showDischargeConfirmOverlay's modal.
     //
     // Never drawn for the commander (PilotRecord.exemptFromPermadeath) —
     // dischargePilot refuses them anyway, but there's no reason to show a
     // control that can only ever fail.
     if (!pilot.exemptFromPermadeath) {
-      const armed = this.dischargeArmedPilotId === pilotId;
-      if (!armed) {
-        this.shopLayer.add(
-          this.scene.add
-            .text(SHOP_CARD_L + 14, top + 44, "[ discharge ]", { fontFamily: "monospace", fontSize: "9px", color: "#b45309" })
-            .setInteractive({ useHandCursor: true })
-            .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
-            .on("pointerdown", () => {
-              this.dischargeArmedPilotId = pilotId;
-              this.dischargeMessage = "";
+      // "Clickable = tooltip," 11 Sep 2026 (Maxime: "honestly, if its
+      // clickable at some poijnt it need a tooltips" — adopted as a
+      // standing rule tonight, see claude/Bloom_Wars_Tooltip_Coverage_
+      // Standing_Rule_And_Checklist_v1_11Sep2026.md for the full-game
+      // checklist this is one row of). Same content as the confirm
+      // modal's own warning text, shown before the click this time —
+      // the point isn't new copy, it's not making the player click
+      // through to the popup just to find out what the link does.
+      const dischargeTooltip = [
+        "Discharge",
+        "",
+        ...wrapTipText(
+          "Permanently removes this pilot from the active roster — their mek, loadout, and gear go with them. Opens a confirm step before anything happens. Can't be undone.",
+          42
+        ),
+      ];
+      this.shopLayer.add(
+        this.scene.add
+          .text(SHOP_CARD_L + 14, top + 44, "[ discharge ]", { fontFamily: "monospace", fontSize: "9px", color: "#b45309" })
+          .setInteractive({ useHandCursor: true })
+          .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+          .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(dischargeTooltip, pointer.x, pointer.y))
+          .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(dischargeTooltip, pointer.x, pointer.y))
+          .on("pointerout", () => this.hoverTip.hide())
+          .on("pointerdown", () => {
+            this.dischargeOverlay?.close();
+            this.dischargeOverlay = showDischargeConfirmOverlay(this.scene, this.state, pilotId, this.depth + 10, (message, color) => {
+              this.dischargeMessage = message;
+              this.dischargeMessageColor = color;
               this.render();
-            })
-        );
-      } else {
-        this.shopLayer.add(
-          this.scene.add
-            .text(SHOP_CARD_L + 14, top + 44, "[ CONFIRM DISCHARGE ]", { fontFamily: "monospace", fontSize: "9px", color: "#ef4444" })
-            .setInteractive({ useHandCursor: true })
-            .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
-            .on("pointerdown", () => {
-              const result = dischargePilot(this.state, pilotId);
-              this.dischargeArmedPilotId = null;
-              if (result.ok) {
-                this.dischargeMessageColor = "#4ade80";
-                this.dischargeMessage = result.muntiReplacement
-                  ? `${pilot.displayName} discharged. They were the roster's last Munti — ${result.muntiReplacement.displayName} was brought in to cover the gap.`
-                  : `${pilot.displayName} discharged from the active roster.`;
-              } else {
-                this.dischargeMessageColor = "#ef4444";
-                this.dischargeMessage = result.reason ?? "Discharge failed.";
-              }
-              this.render();
-            })
-        );
-        this.shopLayer.add(
-          this.scene.add
-            .text(SHOP_CARD_L + 170, top + 44, "[ cancel ]", { fontFamily: "monospace", fontSize: "9px", color: "#6b7a8a" })
-            .setInteractive({ useHandCursor: true })
-            .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
-            .on("pointerdown", () => {
-              this.dischargeArmedPilotId = null;
-              this.render();
-            })
-        );
-      }
+            });
+          })
+      );
     }
 
     // Frame Systems Layer (6 Sep 2026, data/frameSystems.ts) — the one door
@@ -695,12 +872,25 @@ export class ShopPanel {
     {
       const frameMek = this.state.meks[pilot.mekId];
       const frameLabel = `[ FRAME · Draw ${frameDrawUsed(pilot, frameMek)}/${drawCapacityFor(pilot)} · mounts ${equippedWeaponBranchesOf(pilot).length}/${mountsFor(pilot)} ]`;
+      // "Clickable = tooltip," 11 Sep 2026 — see the Discharge tooltip's own
+      // comment just above for the standing rule this is one row of.
+      const frameTooltip = [
+        "Frame",
+        "",
+        ...wrapTipText(
+          "Opens this pilot's Frame panel — install Draw-budgeted systems and weapon mounts, and (at tier A) the frame refit. Draw/mounts here are the live totals in use right now.",
+          42
+        ),
+      ];
       this.shopLayer.add(
         this.scene.add
           .text(SHOP_CARD_R - 14, top + 44, frameLabel, { fontFamily: "monospace", fontSize: "9px", color: "#7dd3fc" })
           .setOrigin(1, 0)
           .setInteractive({ useHandCursor: true })
           .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+          .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(frameTooltip, pointer.x, pointer.y))
+          .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(frameTooltip, pointer.x, pointer.y))
+          .on("pointerout", () => this.hoverTip.hide())
           .on("pointerdown", () => {
             this.frameOverlay?.close();
             this.frameOverlay = showFrameOverlay(this.scene, this.state, pilotId, {
@@ -711,6 +901,33 @@ export class ShopPanel {
               },
             });
           })
+      );
+    }
+
+    // "[ move lance ]" jump, 11 Sep 2026 (Maxime: "rooster and gear should
+    // have a easy way for me to move my npc from lance to lance. An
+    // obvious one.") — placed in the one gap this card had free, measured
+    // rather than guessed: FRAME sits at top+44 (origin 1,0, so it clears
+    // by top+44 plus its own ~16px line height) and "Convert to company"
+    // starts at top+92 — nothing else in this card touches the right-hand
+    // column between those two rows. Reuses RosterPanel's own click-to-
+    // carry (see the Hub.ts call site this callback comes from) rather
+    // than a second picker built here — see that comment for the full
+    // reasoning on why, not just where.
+    if (this.onMoveLance) {
+      // "Clickable = tooltip," 11 Sep 2026 — same standing rule as Discharge/
+      // Frame just above.
+      const moveLanceTooltip = ["Move Lance", "", ...wrapTipText("Jumps to Crew Records so you can drag this pilot into a different lance.", 42)];
+      this.shopLayer.add(
+        this.scene.add
+          .text(SHOP_CARD_R - 14, top + 66, "[ move lance → crew records ]", { fontFamily: "monospace", fontSize: "10px", color: TEXT_ACCENT })
+          .setOrigin(1, 0.5)
+          .setInteractive({ useHandCursor: true })
+          .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+          .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(moveLanceTooltip, pointer.x, pointer.y))
+          .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(moveLanceTooltip, pointer.x, pointer.y))
+          .on("pointerout", () => this.hoverTip.hide())
+          .on("pointerdown", () => this.onMoveLance?.(pilotId))
       );
     }
 
@@ -749,10 +966,50 @@ export class ShopPanel {
         ? "MAXED - S COMES FROM AN HEIRLOOM"
         : `UPGRADE -> ${TIER_ORDER[idx + 1]} (${tierCost})`;
     const tierEnabled = !atMaxTier && tierCost !== undefined && entry.personalPoints >= tierCost;
-    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 84, top + 62, 148, 24, tierLabel, tierEnabled, () => {
+    // Tier-upgrade tooltip, 11 Sep 2026 (Maxime: "rank upgrade will need a
+    // tooltip about what it mean") — three cases, same "show it even
+    // disabled" reasoning as every other tooltip on this card:
+    //   - a real next step: the exact stat delta this purchase buys,
+    //     read straight off TIERS (the table engine/units.ts actually
+    //     applies), plus the standing fact that gear tier is also what
+    //     gates weapon-branch purchases (D/C/B/A -> 2nd/3rd/4th/5th).
+    //   - maxed at A: says what's left above it and why it's unreachable
+    //     by purchase, rather than leaving "MAXED" to speak for itself.
+    //   - Heirloom (S): same, for the other unreachable-by-purchase case.
+    const tierTooltip = isHeirloomTier
+      ? ["Heirloom Tier (S)", "", ...wrapTipText("The strongest gear tier in the game. Granted automatically by this pilot's Heirloom weapon — never purchasable, at any price.", 42)]
+      : atMaxTier
+        ? ["Tier A (maxed)", "", ...wrapTipText("The top of the purchase ladder. S tier exists above it but is only granted by an Heirloom weapon, never bought.", 42)]
+        : (() => {
+            const nextTier = TIER_ORDER[idx + 1];
+            const cur = TIERS[pilot.tier];
+            const next = TIERS[nextTier];
+            const dMove = next.move - cur.move;
+            const body = `+${next.attack - cur.attack} attack, +${next.defense - cur.defense} defense, +${next.hp - cur.hp} max HP${dMove > 0 ? `, +${dMove} move` : ""}. Gear tier also gates weapon-branch purchases — D/C/B/A unlock the 2nd/3rd/4th/5th branch.`;
+            return [`Tier ${pilot.tier} -> ${nextTier}`, "", ...wrapTipText(body, 42)];
+          })();
+    // Y-position moved top+62 -> top+76, 11 Sep 2026 (Maxime: "the dismiss
+    // synker button in red on the rooster ui is still hidden halfway into
+    // the upgrade button... make sure those are not close to ceach
+    // other"). Real, measured overlap, not a vague complaint: this button
+    // is 24px tall centered at top+62, so it span[ped] y:[50,74] and
+    // x:[SHOP_CARD_L+10, SHOP_CARD_L+158] — and the discharge link sits at
+    // (SHOP_CARD_L+14, top+44), a 9px line whose own bottom edge lands
+    // around y=55-56, which is INSIDE that button's old top edge (50).
+    // Centering here at top+76 instead moves the button's span to roughly
+    // y:[64,88] — about 8px of real clearance above the discharge link's
+    // bottom edge, and still 4px clear of the "Weapon Branch:"/"Convert to
+    // company" labels at top+92 below (a text label, not a button, so a
+    // tighter gap there carries none of the misclick risk the discharge
+    // link/button pair had). Nothing else on this card shares this
+    // button's x-range at this y (the secondary-track buttons start at
+    // secX = SHOP_CARD_L+250, well clear horizontally) — checked against
+    // the rest of drawPilotRow before moving this, per this file's own
+    // repeated "a fix here breaks a neighbor" history.
+    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 84, top + 76, 148, 24, tierLabel, tierEnabled, () => {
       purchaseTierUpgrade(this.state, pilotId);
       this.render();
-    });
+    }, tierTooltip, this.hoverTip);
 
     // Loadout secondary specialization (renamed from "Mek Secondary" 29 Aug
     // 2026 — Mek NPC Introduction Plan v1 §1: "Mek" is reserved for the
@@ -772,10 +1029,18 @@ export class ShopPanel {
         let tx = secX;
         for (const track of ALL_TRACKS) {
           const disabled = track === mek.primary || entry.personalPoints < MEK_SECONDARY_COST;
+          // Secondary-track tooltips, 11 Sep 2026 (Maxime: "we need those
+          // tooltips too. the fabricator and stuff") — same treatment as
+          // the weapon-branch buttons above: shown even when disabled
+          // (can't afford it, or it's already this pilot's primary), since
+          // "what does this actually do" matters most exactly when you're
+          // deciding whether it's worth saving up for.
+          const trackTooltip = [capitalize(track), "", ...wrapTipText(SECONDARY_TRACK_TOOLTIPS[track], 42)];
+          if (track === mek.primary) trackTooltip.push("", "already this pilot's primary track");
           makeShopButton(this.scene, this.shopLayer, tx, top + 74, 66, 20, TRACK_LABELS[track], !disabled, () => {
             purchaseMekSecondary(this.state, pilotId, track);
             this.render();
-          });
+          }, trackTooltip, this.hoverTip);
           tx += 72;
         }
       }
@@ -799,13 +1064,25 @@ export class ShopPanel {
     );
     const convertGain = Math.floor(entry.personalPoints / CONVERSION_RATE);
     const convertLabel = entry.personalPoints > 0 ? `CONVERT ALL (${entry.personalPoints} -> ${convertGain})` : "NOTHING TO CONVERT";
+    // "Clickable = tooltip," 11 Sep 2026 — same standing rule as Discharge/
+    // Frame/Move Lance above. Verified against convertPersonalToCompany's
+    // own doc comment (engine/campaignEconomy.ts) rather than guessed:
+    // one-way, floor-rounded, no inverse function exists.
+    const convertTooltip = [
+      "Convert to Company",
+      "",
+      ...wrapTipText(
+        `Moves this pilot's personal points into the shared company pool at half value, rounded down (CONVERSION_RATE=${CONVERSION_RATE}). One-way — there's no converting company points back to personal.`,
+        42
+      ),
+    ];
     // top + 114 (was 112) and the label at top + 92 (was 96): the 22px
     // button used to overlap its own 9px label — same overlap the Weapon
     // Branch row below had, fixed together 1 Sep 2026.
     makeShopButton(this.scene, this.shopLayer, convertX, top + 114, 170, 22, convertLabel, entry.personalPoints > 0, () => {
       convertPersonalToCompany(this.state, pilotId, entry.personalPoints);
       this.render();
-    });
+    }, convertTooltip, this.hoverTip);
 
     // Weapon Branch Point System (claude/Bloom_Wars_Weapon_Branch_Point_System_v1.md,
     // 27 Aug 2026) — one row of buttons per branch buildable on this
@@ -889,10 +1166,19 @@ export class ShopPanel {
         const tierMet = pilotTierIdx >= TIER_ORDER.indexOf(requiredTier);
         const affordable = cost !== undefined && entry.personalPoints >= cost;
         const label = cost === undefined ? `${branch.displayName} (maxed)` : `BUY ${branch.displayName} (${cost})`;
+        // Item-purchase tooltip, 11 Sep 2026 — branch.description already
+        // exists in data/weaponBranches.ts for every branch (it's what
+        // FramePanel.ts's own systems/refits print inline); this button
+        // was the one place in the shop that never showed it. Shown on the
+        // button whether or not it's currently affordable/tier-gated — a
+        // player weighing whether to save up for it needs to know what
+        // it DOES, not just what it costs.
+        const branchTooltip = [branch.displayName, "", ...wrapTipText(branch.description, 42)];
+        if (cost !== undefined && !tierMet) branchTooltip.push("", `needs tier ${requiredTier}+`);
         makeShopButton(this.scene, this.shopLayer, cx, top + 114, BRANCH_BTN_W, 22, label, cost !== undefined && tierMet && affordable, () => {
           purchaseWeaponBranch(this.state, pilotId, branchId);
           this.render();
-        });
+        }, branchTooltip, this.hoverTip);
         if (cost !== undefined && !tierMet) {
           this.shopLayer.add(
             this.scene.add
@@ -907,11 +1193,12 @@ export class ShopPanel {
           : mountsFull
             ? `${branch.displayName} (MOUNTS FULL)`
             : `${mountCap > 1 ? "MOUNT" : "EQUIP"} ${branch.displayName}`;
+        const ownedTooltip = [branch.displayName, "", ...wrapTipText(branch.description, 42)];
         makeShopButton(this.scene, this.shopLayer, cx, top + 114, BRANCH_BTN_W, 22, label, isEquipped || !mountsFull, () => {
           if (isEquipped) unequipWeaponBranch(this.state, pilotId, branchId);
           else equipWeaponBranch(this.state, pilotId, branchId);
           this.render();
-        });
+        }, ownedTooltip, this.hoverTip);
       }
       bx += BRANCH_BTN_PITCH;
     }
@@ -926,7 +1213,9 @@ export class ShopPanel {
     const cardH = h - 6;
     const cy = top + cardH / 2;
 
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    // PANEL_CARD_BORDER — Codex's own card-stroke color, a subtler, darker
+    // shade than its outer panel frame. Codex UI match, 11 Sep 2026.
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_CARD_BORDER));
     this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, cy, `${mek.displayName} (${entry.pilot.displayName}) — Spare Parts: ${mek.spareParts}/${max}`, {
@@ -937,10 +1226,24 @@ export class ShopPanel {
     );
     const atMax = mek.spareParts >= max;
     const enabled = !atMax && this.state.points >= SPARE_PART_COST;
+    // Spare Parts tooltip, 11 Sep 2026 — verified against
+    // engine/campaignEconomy.ts's own purchaseSpareParts/fabricatorMaxSpareParts:
+    // COMPANY pool (not personal), capped at this mek's Fabricator-track max,
+    // and its actual job in play is Beacon Control (a Fabricator mek's own
+    // spare part is tried before a company-wide crate on revive — see the
+    // Beacon Control tooltip just below).
+    const sparePartTooltip = [
+      "Spare Part",
+      "",
+      ...wrapTipText(
+        `Adds one spare part to ${mek.displayName}'s Fabricator stockpile, from the company pool (${SPARE_PART_COST} pts) — not this pilot's personal points. Capped at their Fabricator track's max (${max} for this mek). Beacon Control burns this pilot's own spare part instead of a company crate when reviving them mid-mission.`,
+        42
+      ),
+    ];
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 90, cy, 160, 26, atMax ? "AT MAX" : `BUY PART (${SPARE_PART_COST})`, enabled, () => {
       purchaseSpareParts(this.state, mek.id);
       this.render();
-    });
+    }, sparePartTooltip, this.hoverTip);
   }
 
   /**
@@ -963,7 +1266,9 @@ export class ShopPanel {
     const crates = this.state.beaconCrates ?? 0;
     const charges = this.state.beaconCharges ?? 0;
 
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    // PANEL_CARD_BORDER — Codex's own card-stroke color, a subtler, darker
+    // shade than its outer panel frame. Codex UI match, 11 Sep 2026.
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_CARD_BORDER));
     this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, top + 8, `Fabricator crates: ${crates}  ·  Restock Room charges: ${charges}`, {
@@ -980,22 +1285,47 @@ export class ShopPanel {
       })
     );
 
+    // Beacon Control tooltips, 11 Sep 2026 — verified against
+    // Bloom_Wars_Beacon_Restock_Economy_v1.md §3/§5: a mid-mission revive
+    // spends 15% of that mission's completion bonus, ONE of these two
+    // stockpiles, AND a Restock Room charge is separately required (waived
+    // free if a living Munti is on the field) — a crate and a charge are
+    // not the same resource, so each gets its own accurate line rather than
+    // one shared blurb.
+    const crateTooltip = [
+      "Fabricator Crate",
+      "",
+      ...wrapTipText(
+        `Company-pool stockpile (${crateCost} pts${fabricatorBuilt ? ", halved by the Fabricator bay" : ""}). Beacon Control spends one of these to revive a downed pilot who has no Fabricator spare part of their own left.`,
+        42
+      ),
+    ];
+    const chargeTooltip = [
+      "Restock Room Charge",
+      "",
+      ...wrapTipText(
+        `Company-pool stockpile (${chargeCost} pts${fabricatorBuilt ? ", halved by the Fabricator bay" : ""}). Beacon Control always spends one of these per revive too, alongside the crate/part — free (0 charges) if a living Munti is on the field when the beacon is used.`,
+        42
+      ),
+    ];
     const crateEnabled = this.state.points >= crateCost;
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 190, top + 44, 170, 22, `BUY CRATE (${crateCost})`, crateEnabled, () => {
       purchaseBeaconCrate(this.state);
       this.render();
-    });
+    }, crateTooltip, this.hoverTip);
     const chargeEnabled = this.state.points >= chargeCost;
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 190, top + 44, 170, 22, `BUY CHARGE (${chargeCost})`, chargeEnabled, () => {
       purchaseBeaconCharge(this.state);
       this.render();
-    });
+    }, chargeTooltip, this.hoverTip);
   }
 
   private drawRecruitRow(top: number, h: number): void {
     const cardH = h - 6;
     const cy = top + cardH / 2;
-    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_BORDER));
+    // PANEL_CARD_BORDER — Codex's own card-stroke color, a subtler, darker
+    // shade than its outer panel frame. Codex UI match, 11 Sep 2026.
+    this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_CARD_BORDER));
     this.drawCardAccent(cy, cardH);
     this.shopLayer.add(
       this.scene.add.text(SHOP_CARD_L + 14, top + 8, "RECRUIT A NEW PILOT", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4" })
@@ -1011,6 +1341,7 @@ export class ShopPanel {
     let cx = SHOP_CARD_L + 14;
     for (const cls of ALL_CLASSES) {
       const selected = this.recruitClass === cls;
+      const classTooltip = [capitalize(cls), "", ...wrapTipText(CLASS_ROLE_TOOLTIPS[cls], 42)];
       const bg = this.scene.add
         .rectangle(cx + 60, top + 62, 118, 26, selected ? 0x2e5c7a : 0x1a2028, 1)
         .setStrokeStyle(1, selected ? 0x4a7a9a : 0x3a4552)
@@ -1021,6 +1352,9 @@ export class ShopPanel {
         // from shopLayer at creation rather than relying on any one-time
         // pass over the container.
         .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+        .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(classTooltip, pointer.x, pointer.y))
+        .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(classTooltip, pointer.x, pointer.y))
+        .on("pointerout", () => this.hoverTip.hide())
         .on("pointerdown", () => {
           this.recruitClass = cls;
           this.recruitMessage = "";
@@ -1049,10 +1383,21 @@ export class ShopPanel {
       const count = lanceRoster(this.state, id).length;
       const open = count < MAX_LANCE_SIZE;
       const picked = this.recruitLance === id;
+      // Lance-selector tooltip, 11 Sep 2026 — same row the checklist flagged.
+      // A full lance's own greyed-out state is exactly the "why can't I
+      // click this" moment the standing rule calls out, so it gets hover
+      // wired below regardless of `open`, not just the pickable ones.
+      const lanceTooltip = open
+        ? [lanceDisplayName(id), "", ...wrapTipText(`A new hire signs into this lance. ${MAX_LANCE_SIZE - count} of ${MAX_LANCE_SIZE} slots open.`, 42)]
+        : [lanceDisplayName(id), "", ...wrapTipText(`Full at ${MAX_LANCE_SIZE}/${MAX_LANCE_SIZE}. Move someone out on the Roster panel to open a slot here.`, 42)];
       const lbg = this.scene.add
         .rectangle(lx + 70, top + 96, 138, 24, picked ? 0x2e5c7a : 0x1a2028, 1)
         .setStrokeStyle(1, picked ? 0x4a7a9a : 0x3a4552)
-        .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY);
+        .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+        .setInteractive()
+        .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(lanceTooltip, pointer.x, pointer.y))
+        .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(lanceTooltip, pointer.x, pointer.y))
+        .on("pointerout", () => this.hoverTip.hide());
       if (open) {
         lbg.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
           this.recruitLance = id;
@@ -1114,14 +1459,34 @@ export class ShopPanel {
       );
       let cyc = top + 140;
       for (const cand of candidates) {
-        const label = `${cand.displayName}  ·  ${UNIT_ARCHETYPES[cand.archetypeId]?.path ?? "?"}`;
+        const candPath = UNIT_ARCHETYPES[cand.archetypeId]?.path;
+        const label = `${cand.displayName}  ·  ${candPath ?? "?"}`;
+        // Candidate sign-on tooltip, 11 Sep 2026 — the checklist's
+        // "sign-on candidates" row. Adds the cost/lance-target info the
+        // label itself doesn't show; falls back to the affordability
+        // reason when greyed out, same "disabled still explains itself"
+        // rule as everywhere else in this pass.
+        const candTooltip = canAfford
+          ? [
+              cand.displayName,
+              "",
+              ...wrapTipText(
+                `${candPath ? CLASS_ROLE_TOOLTIPS[candPath] : ""} Signs into ${lanceDisplayName(lance)} for ${DISCRETIONARY_RECRUIT_COST} pts.`.trim(),
+                42
+              ),
+            ]
+          : [cand.displayName, "", ...wrapTipText(`Not enough company points — signing costs ${DISCRETIONARY_RECRUIT_COST}, company has ${this.state.points}.`, 42)];
         const t = this.scene.add
           .text(SHOP_CARD_L + 22, cyc, `[ sign ] ${label}`, {
             fontFamily: "monospace",
             fontSize: "10px",
             color: canAfford ? "#c8b273" : "#5a6472",
           })
-          .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY);
+          .setScrollFactor(this.shopLayer.scrollFactorX, this.shopLayer.scrollFactorY)
+          .setInteractive()
+          .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(candTooltip, pointer.x, pointer.y))
+          .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(candTooltip, pointer.x, pointer.y))
+          .on("pointerout", () => this.hoverTip.hide());
         if (canAfford) {
           t.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
             const result = recruitIntoLance(this.state, lance, cand.id);
@@ -1163,6 +1528,14 @@ export class ShopPanel {
     // species before walking away. The success message itself waits for
     // the overlay to close (the overlay's onDone) so it reports the
     // FINAL name if the player renamed them, not the one that was rolled.
+    const hireTooltip = [
+      `Hire ${capitalize(this.recruitClass)}`,
+      "",
+      ...wrapTipText(
+        `${CLASS_ROLE_TOOLTIPS[this.recruitClass]} A generated recruit — species rolled, name and species both editable next screen. Signs into ${lanceDisplayName(lance)} for ${DISCRETIONARY_RECRUIT_COST} pts.`,
+        42
+      ),
+    ];
     makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 110, top + 150, 180, 26, `HIRE ${capitalize(this.recruitClass).toUpperCase()} (${DISCRETIONARY_RECRUIT_COST})`, canAfford, () => {
       const result = recruitDiscretionary(this.state, this.recruitClass);
       if (result.ok && result.pilot) {
@@ -1187,7 +1560,7 @@ export class ShopPanel {
         this.recruitMessageColor = "#ef4444";
         this.render();
       }
-    });
+    }, hireTooltip, this.hoverTip);
 
     if (this.recruitMessage) {
       this.shopLayer.add(

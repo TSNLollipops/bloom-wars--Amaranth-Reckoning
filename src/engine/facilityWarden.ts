@@ -1,5 +1,14 @@
-// engine/facilityWarden.ts — Warden Company's hub, the Antfarm, as a
-// FacilityProfile. 6 Sep 2026, House Amaranth Hub build step 1.
+// engine/facilityWarden.ts — Warden Company's hub, the Providence, as a
+// FacilityProfile. 6 Sep 2026, House Amaranth Hub build step 1. Renamed
+// from "the Antfarm" 12 Sep 2026 (Maxime: "we gotta rename the hub from
+// antfarm to the providence") — displayName below is the only line that
+// actually reaches the player (Hub.ts's own header readout, `${profile.
+// displayName} — ${roomTitle}`); every dated build-log comment elsewhere
+// in this codebase that says "Antfarm Grid v0," "Antfarm build economy,"
+// or cites Bloom_Wars_Antfarm_Carrier_Hub_v1.md by name is left exactly
+// as it was on purpose — those are historical build-phase labels and doc
+// citations from when that WAS the name, not live UI text, and rewriting
+// them would misdate the project's own history for no player-facing gain.
 //
 // Nothing in this file is new. Every table, point, name and seed below is
 // exactly what scenes/Hub.ts held as module-level constants until the
@@ -58,7 +67,7 @@ function rourkeHeaderLabel(state: { rourkeRank: Parameters<typeof rankDisplayTit
 
 export const WARDEN_FACILITY: FacilityProfile = {
   sceneKey: "Hub",
-  displayName: "THE ANTFARM",
+  displayName: "THE PROVIDENCE",
   levelWord: "DECK",
   companyName: "Warden Company",
   // Renamed from "BACK TO HANGAR" (3 Sep 2026, Maxime's call) — this button

@@ -126,3 +126,18 @@ export const ALL_MISSIONS_BY_ID: Record<string, CampaignMission> = {
   ...AMARANTH_MISSIONS_BY_ID,
   ...HOUSE_AMARANTH_MISSIONS_BY_ID,
 };
+
+// Mission-order gating (12 Sep 2026, Maxime: "make the mission in the
+// campaign gated on completing the previous mission 1st") — the real,
+// continuous 36-mission order per side, backing engine/campaignState.ts's
+// isMissionUnlocked()/recordMissionWin(). CAMPAIGNS above splits each side
+// into three separate CampaignDef entries for the mission-select UI's own
+// reasons (three shorter tab lists fit the screen better than one long
+// one — see this file's own header comment on the Act I/II split); the
+// gate doesn't care about that split, only about chain position, so these
+// two arrays re-concatenate each side's three Acts back into one ordered
+// list. Matches the continuous "missions 13-24 of 24" numbering every
+// CampaignDef.subtitle above already uses — mission 13 needs mission 12
+// won, not a fresh count starting at Act II's own first entry.
+export const WARDEN_MISSION_CHAIN: CampaignMission[] = [...AMARANTH_ACT1, ...AMARANTH_ACT2, ...AMARANTH_ACT3];
+export const HOUSE_AMARANTH_MISSION_CHAIN: CampaignMission[] = [...HOUSE_AMARANTH_ACT1, ...HOUSE_AMARANTH_ACT2, ...HOUSE_AMARANTH_ACT3];

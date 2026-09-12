@@ -9,11 +9,14 @@
 // this straight to a single mission list with no dead switcher UI, and the
 // switcher comes back on its own if a second campaign is ever un-archived.
 import Phaser from "phaser";
-import { CAMPAIGNS } from "../data/allCampaigns";
-import { baseSceneKeyFor, loadCampaignState } from "../engine/campaignState";
+import { CAMPAIGNS, WARDEN_MISSION_CHAIN, HOUSE_AMARANTH_MISSION_CHAIN } from "../data/allCampaigns";
+import type { CampaignMission } from "../data/types";
+import { baseSceneKeyFor, loadCampaignState, isMissionUnlocked } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
-import { TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
+import { TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 const CARD_SPACING = 92;
 const CARD_HEIGHT = 74;
@@ -45,6 +48,11 @@ export class MapSelect extends Phaser.Scene {
   // edge instead of drawing over the fixed header above it.
   private listScrollMinY = 0;
   private listMask?: Phaser.Display.Masks.GeometryMask;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Plain scene class, no competing scene-wide hover system — one shared
+  // instance covers the header buttons, campaign tabs, and mission cards.
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("MapSelect");
@@ -53,6 +61,7 @@ export class MapSelect extends Phaser.Scene {
   create() {
     this.activeCampaignIndex = Math.min(this.activeCampaignIndex, CAMPAIGNS.length - 1);
     this.cameras.main.setBackgroundColor("#0c0f12");
+    this.hoverTip = new HoverTip(this);
     // "engine test pass — pick a mission" removed here, 10 Sep 2026 (EA
     // Dev-Cleanup Checklist v1's first confirmed item) — real dev-comment
     // text that had been rendering on screen since before MainMenu.ts (28
@@ -94,9 +103,21 @@ export class MapSelect extends Phaser.Scene {
     // and campaign switches and stays reachable without finishing a
     // mission first (unlike Debrief's copy of the same shop).
     const hangarLayer = this.add.container(0, 0);
-    makeShopButton(this, hangarLayer, 880, 20, 150, 30, "CAMPAIGN SHOP", true, () => {
-      this.scene.start("Hangar");
-    });
+    makeShopButton(
+      this,
+      hangarLayer,
+      880,
+      20,
+      150,
+      30,
+      "CAMPAIGN SHOP",
+      true,
+      () => {
+        this.scene.start("Hangar");
+      },
+      ["Campaign Shop", "", ...wrapTipText("Buy gear, recruit, and manage lances between missions — no mission needs to be finished first to reach it.", 42)],
+      this.hoverTip
+    );
 
     // Back-to-Hub button — EA Launch Plan Week 1 finding (Readiness Plan
     // §3.1, 1 Sep 2026): this scene was the only real dead end in the
@@ -105,13 +126,25 @@ export class MapSelect extends Phaser.Scene {
     // but with no way back except finishing a mission. Same header row,
     // same makeShopButton styling as CAMPAIGN SHOP, positioned clear of
     // both that button and the centered title text above.
-    makeShopButton(this, hangarLayer, 730, 20, 140, 30, "BACK TO HUB", true, () => {
-      // 6 Sep 2026, House Amaranth Hub — whichever side's hub this save
-      // belongs to (a save without one falls back to the Campaign Shop,
-      // the same way every other return-to-base button already routes).
-      const state = loadCampaignState();
-      this.scene.start(state ? baseSceneKeyFor(state) : "Hub");
-    });
+    makeShopButton(
+      this,
+      hangarLayer,
+      730,
+      20,
+      140,
+      30,
+      "BACK TO HUB",
+      true,
+      () => {
+        // 6 Sep 2026, House Amaranth Hub — whichever side's hub this save
+        // belongs to (a save without one falls back to the Campaign Shop,
+        // the same way every other return-to-base button already routes).
+        const state = loadCampaignState();
+        this.scene.start(state ? baseSceneKeyFor(state) : "Hub");
+      },
+      ["Back to Hub", "", ...wrapTipText("Returns to your side's Hub to walk around in (or the Campaign Shop, for a House Amaranth save with no Hub of its own yet).", 42)],
+      this.hoverTip
+    );
 
     // Shared MENU corner control (Main Menu / Save / Ironman UI Plan v1
     // §2) — top-left, clear of the CAMPAIGN SHOP button and the tab row.
@@ -144,12 +177,16 @@ export class MapSelect extends Phaser.Scene {
             wordWrap: { width: tabWidth - 24 },
           })
           .setOrigin(0.5);
+        const tabTip = [campaign.name, "", ...wrapTipText(campaign.subtitle, 42)];
         bg.on("pointerdown", () => this.selectCampaign(i));
-        bg.on("pointerover", () => {
+        bg.on("pointerover", (pointer: Phaser.Input.Pointer) => {
           if (i !== this.activeCampaignIndex) bg.setFillStyle(0x232b35, 1);
+          this.hoverTip.show(tabTip, pointer.x, pointer.y);
         });
+        bg.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(tabTip, pointer.x, pointer.y));
         bg.on("pointerout", () => {
           if (i !== this.activeCampaignIndex) bg.setFillStyle(0x1a2028, 1);
+          this.hoverTip.hide();
         });
         this.tabButtons.push({ bg, label, campaignId: campaign.id });
       });
@@ -210,29 +247,84 @@ export class MapSelect extends Phaser.Scene {
     const contentBottom = listTop + (campaign.missions.length - 1) * CARD_SPACING + CARD_HEIGHT / 2 + SCROLL_BOTTOM_MARGIN;
     this.listScrollMinY = -Math.max(0, contentBottom - GAME_HEIGHT);
 
+    // Mission-order gating, 12 Sep 2026 (Maxime: "make the mission in the
+    // campaign gated on completing the previous mission 1st"). One load per
+    // render rather than per card — loadCampaignState() already reads
+    // localStorage fresh every call, same cost this scene's own BACK TO HUB
+    // button already pays per click, just amortized over one render instead
+    // of N cards. `state` can be null here (no save at all reachable this
+    // scene) — treated as "don't gate anything," same permissive fallback
+    // isMissionUnlocked() itself uses for state.completedMissionIds ===
+    // undefined, so a missing save never LOOKS locked, just unlocked.
+    const state = loadCampaignState();
+    // Which side's continuous 36-mission chain this tab's cards gate
+    // against — a UI/tab-id concern, not the save's own side (see
+    // WARDEN_MISSION_CHAIN/HOUSE_AMARANTH_MISSION_CHAIN's own comment):
+    // a Warden save browsing a House Amaranth tab just sees that chain's
+    // own mission 1 unlocked and nothing past it, since it can never have
+    // won a House Amaranth mission — no special-casing needed here for
+    // that already-documented cross-side permissiveness.
+    const chain: readonly CampaignMission[] = campaign.id.startsWith("house_amaranth") ? HOUSE_AMARANTH_MISSION_CHAIN : WARDEN_MISSION_CHAIN;
+
     campaign.missions.forEach((mission, i) => {
       const y = listTop + i * CARD_SPACING;
-      const card = this.add.rectangle(480, y, 860, CARD_HEIGHT, 0x1a2028, 1).setStrokeStyle(1, PANEL_BORDER).setInteractive({ useHandCursor: true });
+      const unlocked = !state || isMissionUnlocked(state, chain, mission.id);
+      // Only meaningful when `!unlocked` — isMissionUnlocked's own contract
+      // guarantees a locked mission is never the chain's own first entry,
+      // so chainIndex > 0 always holds here; requiredMission is only read
+      // inside the `!unlocked` branches below.
+      const chainIndex = chain.findIndex((m) => m.id === mission.id);
+      const requiredMission = chainIndex > 0 ? chain[chainIndex - 1] : undefined;
+
+      // PANEL_CARD_BORDER, not PANEL_BORDER — Codex UI match, 11 Sep 2026:
+      // a mission card is a Codex-style card, not a chip/tab, so it takes
+      // the darker of Codex's two border shades (see ui/Panel.ts's own
+      // PANEL_CARD_BORDER comment). Locked cards stay on this same border
+      // (no new color introduced) but a darker fill and dimmed text carry
+      // the "can't touch this yet" read instead — same "hover always
+      // wired, click gated separately" shape this doc's own tooltip
+      // checklist already documents for a disabled Recruit-row candidate.
+      const card = this.add
+        .rectangle(480, y, 860, CARD_HEIGHT, unlocked ? 0x1a2028 : 0x14181c, 1)
+        .setStrokeStyle(1, PANEL_CARD_BORDER)
+        .setInteractive({ useHandCursor: unlocked });
       // Left accent bar + mission index — 10 Sep 2026, see the CARD_ACCENT_W
       // comment up top. A UI numbering device only (i+1 into this
       // campaign's own mission array), not new mission content — the same
       // "don't invent what isn't there" line the removed placeholder header
-      // was on the wrong side of.
-      const accent = this.add.rectangle(50 + CARD_ACCENT_W / 2, y, CARD_ACCENT_W, CARD_HEIGHT - 2, PANEL_ACCENT, 0.85);
+      // was on the wrong side of. Locked cards dim the accent from gold to
+      // TEXT_DIM's own shade — still a numbering device, just reading as
+      // "not yours yet" rather than "next up."
+      const accent = this.add.rectangle(50 + CARD_ACCENT_W / 2, y, CARD_ACCENT_W, CARD_HEIGHT - 2, unlocked ? PANEL_ACCENT : 0x3a4149, unlocked ? 0.85 : 0.6);
       const index = this.add
-        .text(50 + CARD_ACCENT_W + 10, y, String(i + 1).padStart(2, "0"), { fontFamily: "monospace", fontSize: "10px", color: TEXT_ACCENT })
+        .text(50 + CARD_ACCENT_W + 10, y, String(i + 1).padStart(2, "0"), { fontFamily: "monospace", fontSize: "10px", color: unlocked ? TEXT_ACCENT : TEXT_DIM })
         .setOrigin(0, 0.5);
-      const title = this.add.text(140, y - 20, mission.displayName, { fontFamily: "monospace", fontSize: "17px", color: TEXT_MAIN, letterSpacing: 0.5 });
-      const brief = this.add.text(140, y + 6, mission.briefing, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 700 } });
-      card.on("pointerover", () => {
-        card.setFillStyle(0x1f2b36, 1);
-        card.setStrokeStyle(1, PANEL_ACCENT);
+      const title = this.add.text(140, y - 20, mission.displayName, { fontFamily: "monospace", fontSize: "17px", color: unlocked ? TEXT_MAIN : TEXT_DIM, letterSpacing: 0.5 });
+      // Locked cards swap the briefing line for the lock reason itself —
+      // stating a mission's real briefing text right under a card you
+      // can't yet open reads as a spoiler for nothing gained; the lock
+      // reason is the actually-useful line in that state instead.
+      const briefText = unlocked ? mission.briefing : `LOCKED — win "${requiredMission?.displayName ?? ""}" first.`;
+      const brief = this.add.text(140, y + 6, briefText, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 700 } });
+      const cardTip = unlocked
+        ? [mission.displayName, "", ...wrapTipText("Opens the squad review (BEAM DOWN) screen for this mission — not straight into combat.", 42)]
+        : [mission.displayName, "", ...wrapTipText(`Locked — win "${requiredMission?.displayName ?? ""}" first. Once it's won, this card unlocks on its own.`, 42)];
+      card.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+        if (unlocked) {
+          card.setFillStyle(0x1f2b36, 1);
+          card.setStrokeStyle(1, PANEL_ACCENT);
+        }
+        this.hoverTip.show(cardTip, pointer.x, pointer.y);
       });
+      card.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(cardTip, pointer.x, pointer.y));
       card.on("pointerout", () => {
-        card.setFillStyle(0x1a2028, 1);
-        card.setStrokeStyle(1, PANEL_BORDER);
+        if (unlocked) {
+          card.setFillStyle(0x1a2028, 1);
+          card.setStrokeStyle(1, PANEL_CARD_BORDER);
+        }
+        this.hoverTip.hide();
       });
-      card.on("pointerdown", () => this.scene.start("TransporterPad", { missionId: mission.id }));
+      if (unlocked) card.on("pointerdown", () => this.scene.start("TransporterPad", { missionId: mission.id }));
       this.missionListLayer.add([card, accent, index, title, brief]);
     });
   }

@@ -50,7 +50,7 @@
 // screen gets built (extend pilotRegistry's lookup to also check the
 // active CampaignState, or have Mission accept resolved PilotRecords
 // directly instead of ids) but is out of scope here.
-import type { MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
+import type { CampaignMission, MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
 import type { Stage } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { rollBackground } from "../data/background";
@@ -321,6 +321,25 @@ export interface CampaignState {
   // shape as builtBays and builtModules above, for the same reason: an
   // older save simply has none, which means exactly "nothing recruited."
   heirlooms?: HeirloomCampaignState;
+  // Mission-order gating (12 Sep 2026, Maxime: "make the mission in the
+  // campaign gated on completing the previous mission 1st") — which mission
+  // ids this save has actually WON, ever, on any side. Deliberately
+  // `undefined` rather than `{}` for every save that existed before this
+  // field did: `loadCampaignState` never backfills it (contrast with
+  // `builtBays`/`builtModules`/`heirlooms` above, which read fine as "empty"
+  // either way) because there is no honest empty value here — an existing
+  // save already has real progress this field was never around to record,
+  // and guessing at it (from `lancesGranted`, say) would either lock a
+  // mission that save could open yesterday or leave the guess permanently
+  // wrong. `undefined` is read as "grandfathered — gate doesn't apply to
+  // this save" by isMissionUnlocked() below, forever, not just until its
+  // next win; only createCampaignState (brand-new campaigns, from now on)
+  // ever sets this to `{}`, and recordMissionWin() below refuses to
+  // initialize it retroactively for exactly the reason just given. See
+  // isMissionUnlocked/recordMissionWin's own comments, and
+  // data/allCampaigns.ts's WARDEN_MISSION_CHAIN/HOUSE_AMARANTH_MISSION_CHAIN
+  // for the actual 36-mission-per-side ordering this gates against.
+  completedMissionIds?: Record<string, true>;
   /**
    * seal_borrowed_authority (Simulacrum/The Stolen Seal, Vault Phase 2 slice
    * 6, 3 Sep 2026) — which on-hit-effect KINDS (OnHitEffectKind,
@@ -635,6 +654,13 @@ export function createCampaignState(pilots: PilotRecord[], meks: Record<string, 
     // keeps derivedLanceCount reserved for genuinely legacy saves (pre
     // 5 Sep 2026) loaded through backfillLancesGranted, never a fresh one.
     lancesGranted: 1,
+    // Mission-order gating (12 Sep 2026) — every brand-new campaign from
+    // here on tracks its own wins, starting from nothing. See
+    // CampaignState.completedMissionIds' own comment for why this is the
+    // ONLY place that ever sets this to `{}` rather than leaving it
+    // `undefined` — a save from before this field existed must never pass
+    // through here again, so it can't pick this up retroactively.
+    completedMissionIds: {},
   };
   for (const p of pilots) state.pilots[p.id] = { pilot: { ...p }, status: "active", personalPoints: 0 };
   for (const [id, m] of Object.entries(meks)) state.meks[id] = { ...m };
@@ -983,6 +1009,61 @@ export function setTutorialHintsEnabled(enabled: boolean, storage?: CampaignStor
   const s = resolveStorage(storage);
   if (!s) return;
   s.setItem(TUTORIAL_HINTS_ENABLED_KEY, enabled ? "1" : "0");
+}
+
+// Hub hints & orientation — own key, survives New Game, same reasoning as
+// TUTORIAL_SEEN_KEY above (`Bloom_Wars_Hub_Hints_And_Orientation_Scoping_v1_
+// 11Sep2026.md`, built 11 Sep 2026). Maxime's own answers to that doc's §3:
+// shape = a contextual sequence (each hint fires on ITS OWN real first-time
+// trigger — first Roster & Gear visit, first NPC talk, first Vault/Archive
+// visit, first Rec Room game, first deploy — not a forced walkthrough
+// order), coverage = everything in that doc's §1 list plus Vault/Archive/
+// Rec Room, and it shares TUTORIAL_HINTS_ENABLED_KEY's own switch above
+// rather than a second toggle (Hub.ts's showHubHint() reads
+// areTutorialHintsEnabled() directly before ever calling markHubHintSeen
+// below).
+//
+// One id-keyed set rather than six copies of the hasSeenTutorial/
+// markTutorialSeen pair above: each hint is independent and can fire in
+// whatever order the player actually visits these six things, so "which
+// ids have already fired" is both the more honest data shape (nothing here
+// is actually sequential) and a lot less copy-pasted boilerplate than six
+// near-identical booleans would be.
+export type HubHintId = "roster" | "crew_talk" | "vault" | "archive" | "rec_room" | "bay";
+
+const HUB_HINTS_SEEN_KEY = "bloomwars_hub_hints_seen_v1";
+
+function loadHubHintsSeen(storage?: CampaignStorage): Set<HubHintId> {
+  const s = resolveStorage(storage);
+  if (!s) return new Set();
+  const raw = s.getItem(HUB_HINTS_SEEN_KEY);
+  if (!raw) return new Set();
+  try {
+    return new Set(JSON.parse(raw) as HubHintId[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** True once this specific Hub hint has ever fired to completion on this browser. False (never true-by-accident) on no storage — same contract as hasSeenTutorial. */
+export function hasSeenHubHint(id: HubHintId, storage?: CampaignStorage): boolean {
+  return loadHubHintsSeen(storage).has(id);
+}
+
+/** Marks one Hub hint fired so it never shows again. A no-op when no storage is available, same contract as markTutorialSeen. */
+export function markHubHintSeen(id: HubHintId, storage?: CampaignStorage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  const seen = loadHubHintsSeen(storage);
+  seen.add(id);
+  s.setItem(HUB_HINTS_SEEN_KEY, JSON.stringify([...seen]));
+}
+
+/** RESET TUTORIAL HINTS (Options.ts) calls this alongside resetTutorialSeen() — one button, read by its own label as "reset every tutorial hint," clears both rather than leaving Hub hints half-reset behind it. */
+export function resetHubHintsSeen(storage?: CampaignStorage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  s.removeItem(HUB_HINTS_SEEN_KEY);
 }
 
 // ---- 1 & 3. Live Munti-gated restock/permadeath check ------------------
@@ -1850,6 +1931,70 @@ export function integrateHouseAmaranthThirdLance(state: CampaignState): ThirdLan
   if ((state.lancesGranted ?? derivedLanceCount(state)) >= 3) return { integrated: false };
   grantLance(state);
   return { integrated: true, pilots: [] };
+}
+
+// ---- 8b. Mission-order gating (12 Sep 2026, Maxime: "make the mission in
+// the campaign gated on completing the previous mission 1st") -------------
+//
+// Before this: scenes/MapSelect.ts's own mission cards had zero order
+// enforcement (its own tooltip said so outright — "Nothing here is locked
+// by mission order") and nothing in this file recorded which missions a
+// save had actually won, ever, anywhere. Four real decisions, all Maxime's
+// own call rather than guessed at:
+//   1. Only a WIN unlocks the next mission — a loss doesn't, matching the
+//      "only a win counts" reading integrateSecondLance/integrateThirdLance
+//      above already use for their own Act-finale beats.
+//   2. Existing saves are grandfathered, permanently, never retroactively
+//      locked — see CampaignState.completedMissionIds' own comment for why
+//      `undefined` (not a guessed-at partial history) is what makes that
+//      work.
+//   3. The gate reads as ONE continuous chain per side across all three
+//      Acts (mission 13 needs mission 12 won), not three separately-reset
+//      per-Act chains — matching the "missions 13-24 of 24" continuous
+//      numbering data/allCampaigns.ts's own CampaignDef.subtitle strings
+//      already use.
+//   4. A locked mission's card stays visible (greyed out, tooltip explains
+//      it) rather than disappearing from the list — scenes/MapSelect.ts's
+//      own concern, not this file's.
+
+/**
+ * Is `missionId` unlocked in `chain` (WARDEN_MISSION_CHAIN or
+ * HOUSE_AMARANTH_MISSION_CHAIN, data/allCampaigns.ts — the full 36-mission,
+ * three-Act-concatenated order for one side)? The chain's own first mission
+ * is always unlocked; every mission after that needs the one immediately
+ * before it IN THIS SAME CHAIN already won. A mission id this chain doesn't
+ * contain (the other side's chain, Team One's archived slice) reads as
+ * unlocked too — this function only ever locks something it can actually
+ * place in the chain it was handed, never a mission it doesn't recognize.
+ *
+ * `state.completedMissionIds === undefined` is the grandfather case — see
+ * that field's own comment on CampaignState above — and short-circuits to
+ * "everything unlocked" before any chain lookup happens at all.
+ */
+export function isMissionUnlocked(state: CampaignState, chain: readonly CampaignMission[], missionId: string): boolean {
+  if (!state.completedMissionIds) return true;
+  const index = chain.findIndex((m) => m.id === missionId);
+  if (index <= 0) return true; // not this chain's mission to gate, or its own first entry — both always open
+  return chain[index - 1].id in state.completedMissionIds;
+}
+
+/**
+ * Records a real mission win for isMissionUnlocked() above to read back.
+ * Call site: scenes/Debrief.ts, right alongside the lastMissionEcho write,
+ * gated on `this.mission.outcome === "win"` only (see this section's own
+ * header, point 1) — never called at all on a loss.
+ *
+ * Deliberately a no-op when `state.completedMissionIds` is `undefined`
+ * (this save predates the gate) rather than initializing it to `{ [missionId]: true }`
+ * here: doing that would start tracking a save mid-chain, which would then
+ * read as "only THIS one mission won" the next time isMissionUnlocked runs
+ * — silently re-locking every earlier mission in its own chain that this
+ * save already has real, legitimate access to. Grandfathering has to mean
+ * forever, not "until the next win," or it isn't really grandfathering.
+ */
+export function recordMissionWin(state: CampaignState, missionId: string): void {
+  if (!state.completedMissionIds) return;
+  state.completedMissionIds[missionId] = true;
 }
 
 // ---- 8a. Rourke rank correctness backfill (27 Aug 2026 — same-day

@@ -31,6 +31,8 @@
 // here") rather than inventing a new scroll idiom for one screen.
 import Phaser from "phaser";
 import { makeShopButton } from "./shop/ShopPanel";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 
 // ---- Palette — the game's existing UI chrome colors (panel/card/border/
@@ -281,6 +283,11 @@ export class Codex extends Phaser.Scene {
   private categoryLayer!: Phaser.GameObjects.Container;
   private contentLayer!: Phaser.GameObjects.Container;
   private navLayer!: Phaser.GameObjects.Container;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Plain scene class, no competing scene-wide hover system — same simple
+  // shape as Options.ts/ShopPanel.ts, one shared instance for everything.
+  private hoverTip!: HoverTip;
 
 
   private readonly contentX = 262;
@@ -310,6 +317,7 @@ export class Codex extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(PAL.bg);
+    this.hoverTip = new HoverTip(this);
     this.drawChrome();
     this.categoryLayer = this.add.container(0, 0);
     this.contentLayer = this.add.container(0, 0);
@@ -329,9 +337,21 @@ export class Codex extends Phaser.Scene {
       .rectangle(this.contentX + this.contentW / 2, this.contentY + this.contentH / 2, this.contentW, this.contentH, PAL.panel, 1)
       .setStrokeStyle(1, PAL.panelBorder);
 
-    makeShopButton(this, this.add.container(0, 0), ccx, 616, 220, 32, "BACK", true, () => {
-      this.scene.start(this.returnScene);
-    });
+    makeShopButton(
+      this,
+      this.add.container(0, 0),
+      ccx,
+      616,
+      220,
+      32,
+      "BACK",
+      true,
+      () => {
+        this.scene.start(this.returnScene);
+      },
+      ["Back", "", ...wrapTipText("Returns to wherever this manual was opened from. Nothing here is saved or changed by browsing it.", 42)],
+      this.hoverTip
+    );
   }
 
   private drawCategoryList() {
@@ -374,8 +394,16 @@ export class Codex extends Phaser.Scene {
         })
         .setOrigin(0.5);
       this.categoryLayer.add([bg, txt]);
-      bg.on("pointerover", () => { if (i !== this.sectionIndex) bg.setFillStyle(0x22303c, 1); });
-      bg.on("pointerout", () => bg.setFillStyle(i === this.sectionIndex ? PAL.playerBlue : PAL.cardBg, 1));
+      const secTip = [`${sec.num} — ${sec.title}`, "", ...wrapTipText(sec.dek, 42)];
+      bg.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+        if (i !== this.sectionIndex) bg.setFillStyle(0x22303c, 1);
+        this.hoverTip.show(secTip, pointer.x, pointer.y);
+      });
+      bg.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(secTip, pointer.x, pointer.y));
+      bg.on("pointerout", () => {
+        bg.setFillStyle(i === this.sectionIndex ? PAL.playerBlue : PAL.cardBg, 1);
+        this.hoverTip.hide();
+      });
       bg.on("pointerdown", () => {
         if (this.sectionIndex === i) return;
         this.sectionIndex = i;
@@ -435,10 +463,34 @@ export class Codex extends Phaser.Scene {
   private drawPageNav(pageCount: number) {
     const y = this.contentY + this.contentH - 18;
     const rx = this.contentX + this.contentW - 90;
-    makeShopButton(this, this.navLayer, rx - 44, y, 26, 22, "<", this.page > 0, () => { this.page--; this.renderSection(); });
+    makeShopButton(
+      this,
+      this.navLayer,
+      rx - 44,
+      y,
+      26,
+      22,
+      "<",
+      this.page > 0,
+      () => { this.page--; this.renderSection(); },
+      ["Previous Page", "", ...wrapTipText("Back one page within this section.", 42)],
+      this.hoverTip
+    );
     const label = this.add.text(rx, y, `PAGE ${this.page + 1} / ${pageCount}`, { fontFamily: "monospace", fontSize: "10px", color: PAL.textMuted }).setOrigin(0.5);
     this.navLayer.add(label);
-    makeShopButton(this, this.navLayer, rx + 44, y, 26, 22, ">", this.page < pageCount - 1, () => { this.page++; this.renderSection(); });
+    makeShopButton(
+      this,
+      this.navLayer,
+      rx + 44,
+      y,
+      26,
+      22,
+      ">",
+      this.page < pageCount - 1,
+      () => { this.page++; this.renderSection(); },
+      ["Next Page", "", ...wrapTipText("Forward one page within this section.", 42)],
+      this.hoverTip
+    );
   }
 
   private swatch(x: number, y: number, size: number, color: number): Phaser.GameObjects.Rectangle {

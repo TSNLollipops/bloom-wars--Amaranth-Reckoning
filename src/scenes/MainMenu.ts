@@ -30,9 +30,17 @@
 import Phaser from "phaser";
 import { loadCampaignState, listManualSlots, baseSceneKeyFor } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
+// "Clickable = tooltip," 11 Sep 2026 standing rule (claude/Bloom_Wars_
+// Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md) — this
+// screen's own row. No competing scene-wide hover system here (same as
+// Options.ts), so plain three-listener wiring via makeShopButton's own
+// trailing params, nothing extra needed.
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 export class MainMenu extends Phaser.Scene {
   private confirmLayer!: Phaser.GameObjects.Container;
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("MainMenu");
@@ -40,6 +48,7 @@ export class MainMenu extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0a0d10");
+    this.hoverTip = new HoverTip(this);
     this.drawBackdrop();
     this.drawTitle();
     this.drawButtons();
@@ -119,27 +128,51 @@ export class MainMenu extends Phaser.Scene {
     const spacing = 58;
     let y = 300;
 
+    // "Clickable = tooltip," 11 Sep 2026 standing rule — CONTINUE/LOAD GAME
+    // both have real, distinct reasons they can be greyed out, so each gets
+    // a tooltip that names the actual reason rather than a generic "can't
+    // click this" — verified against this same function's own hasLiveSave/
+    // loadGameEnabled locals just above, not guessed.
+    const continueTooltip = hasLiveSave
+      ? ["Continue", "", ...wrapTipText("Picks up your live save exactly where you left off, in the Hub.", 42)]
+      : ["Continue", "", ...wrapTipText("No campaign saved yet — start with NEW CAMPAIGN.", 42)];
     makeShopButton(this, layer, cx, y, w, h, "CONTINUE", hasLiveSave, () => {
       // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
       // campaignState.ts): a House Amaranth save has no Hub to send it to.
       this.scene.start(state ? baseSceneKeyFor(state) : "Hub");
-    });
+    }, continueTooltip, this.hoverTip);
     y += spacing;
 
     makeShopButton(this, layer, cx, y, w, h, "NEW CAMPAIGN", true, () => {
       if (hasLiveSave) this.showNewCampaignConfirm();
       else this.scene.start("CampaignSetup");
-    });
+    }, [
+      "New Campaign",
+      "",
+      ...wrapTipText(
+        hasLiveSave
+          ? "Starts fresh. There's only one live save, so this asks you to confirm before it overwrites your current run."
+          : "Starts a new campaign — choose your company name, house, and Ironman setting on the next screen.",
+        42
+      ),
+    ], this.hoverTip);
     y += spacing;
 
+    const loadGameTooltip = !hasLiveSave
+      ? ["Load Game", "", ...wrapTipText("No campaign saved yet — start with NEW CAMPAIGN first.", 42)]
+      : state!.ironman
+      ? ["Load Game", "", ...wrapTipText("This is an Ironman campaign — one continuously-overwriting save, no manual slots, no do-overs. That's the whole point of Ironman, so there's nothing here to load.", 42)]
+      : !hasAnyManualSlot
+      ? ["Load Game", "", ...wrapTipText("No manual save slots yet. Use SAVE AS on the Hangar or Debrief screen during a run to create one.", 42)]
+      : ["Load Game", "", ...wrapTipText("Loads one of your manually-saved slots.", 42)];
     makeShopButton(this, layer, cx, y, w, h, "LOAD GAME", loadGameEnabled, () => {
       this.scene.start("LoadGame");
-    });
+    }, loadGameTooltip, this.hoverTip);
     y += spacing;
 
     makeShopButton(this, layer, cx, y, w, h, "OPTIONS", true, () => {
       this.scene.start("Options", { returnScene: "MainMenu" });
-    });
+    }, ["Options", "", ...wrapTipText("Tutorial hints, statistics, audio, and display size.", 42)], this.hoverTip);
     y += spacing;
 
     // Forgotten Plans Audit, 1 Sep 2026 — the field-manual codex, reachable
@@ -153,7 +186,7 @@ export class MainMenu extends Phaser.Scene {
     // check already handles as "no save" — same object, no new lookup.
     makeShopButton(this, layer, cx, y, w, h, "HOW TO PLAY", true, () => {
       this.scene.start("Codex", { returnScene: "MainMenu", campaignState: state });
-    });
+    }, ["How To Play", "", ...wrapTipText("The field manual — Personnel, Bestiary, and World entries. Shows live data from your save if you have one.", 42)], this.hoverTip);
 
     if (!hasLiveSave) {
       this.add
@@ -192,10 +225,10 @@ export class MainMenu extends Phaser.Scene {
 
     makeShopButton(this, this.confirmLayer, 380, 380, 180, 38, "GO BACK", true, () => {
       this.confirmLayer.setVisible(false);
-    });
+    }, ["Go Back", "", ...wrapTipText("Cancels — your live save is untouched.", 42)], this.hoverTip);
     makeShopButton(this, this.confirmLayer, 580, 380, 180, 38, "START NEW CAMPAIGN", true, () => {
       this.confirmLayer.setVisible(false);
       this.scene.start("CampaignSetup");
-    });
+    }, ["Start New Campaign", "", ...wrapTipText("Overwrites your one live save the moment you press BEGIN CAMPAIGN on the next screen. Can't be undone unless you already saved this run to a slot.", 42)], this.hoverTip);
   }
 }

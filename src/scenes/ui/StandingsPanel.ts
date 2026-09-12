@@ -25,6 +25,7 @@ import {
   type StandingsTab,
 } from "../../engine/recRoomRecord";
 import { REC_GAME_LABELS } from "../../data/recRoomAptitude";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 const PANEL_BG = 0x1a2028;
 const PANEL_BORDER = 0x3a4552;
@@ -62,8 +63,16 @@ export class StandingsPanel {
   private state: RecRoomState = { records: {} };
   private entrants: readonly StandingsEntrant[] = [];
   private day = 1;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Same cross-file fix as RosterPanel.ts/MemorialPanel.ts: drawn straight
+  // into Hub's scene, over its own competing scene-wide hover system, so
+  // this takes Hub's wireHoverTip as a callback instead of owning a
+  // HoverTip itself.
+  private readonly showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void;
 
-  constructor(scene: Phaser.Scene, bounds: StandingsPanelBounds, onClose: () => void) {
+  constructor(scene: Phaser.Scene, bounds: StandingsPanelBounds, onClose: () => void, showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void) {
+    this.showTooltip = showTooltip;
     const cx = (bounds.left + bounds.right) / 2;
     this.container = scene.add.container(0, 0).setDepth(60).setVisible(false).setScrollFactor(0);
 
@@ -90,6 +99,7 @@ export class StandingsPanel {
         .setScrollFactor(0);
       t.on("pointerdown", () => this.setTab(tab));
       t.setData("tab", tab);
+      this.showTooltip?.(t, [tabLabel(tab), "", ...wrapTipText("Shows the board filtered to this game. Lost pilots keep their earned rows.", 42)]);
       this.container.add(t);
       this.tabTexts.push(t);
       tx += t.width + 12;
@@ -113,6 +123,7 @@ export class StandingsPanel {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     closeBtn.on("pointerdown", onClose);
+    this.showTooltip?.(closeBtn, ["Close", "", ...wrapTipText("Back to the Hub floor. This board is a read-only record — there's nothing here to save.", 42)]);
     this.container.add(closeBtn);
   }
 

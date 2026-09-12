@@ -39,6 +39,7 @@ import { ABILITIES } from "../../data/abilities";
 // lookup everywhere else uses — a lost recruit keeps the exact portrait they
 // had while alive, since that assignment is keyed to the id, not liveness.
 import { drawPilotAvatar } from "../TransporterPad";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 const PANEL_BG = 0x1a2028;
 const PANEL_BORDER = 0x3a4552;
@@ -80,9 +81,17 @@ export class MemorialPanel {
   private readonly rowsPerPage: number;
   private readonly listLeft: number;
   private readonly listTop: number;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Same cross-file fix as RosterPanel.ts (see that file's own comment on
+  // this field): drawn straight into Hub's scene, over its own competing
+  // scene-wide hover system, so this takes Hub's wireHoverTip as a
+  // callback instead of owning a HoverTip itself.
+  private readonly showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void;
 
-  constructor(scene: Phaser.Scene, bounds: MemorialPanelBounds, onClose: () => void) {
+  constructor(scene: Phaser.Scene, bounds: MemorialPanelBounds, onClose: () => void, showTooltip?: (obj: Phaser.GameObjects.GameObject, lines: string[]) => void) {
     this.scene = scene;
+    this.showTooltip = showTooltip;
     this.listLeft = bounds.left + 26;
     const cx = (bounds.left + bounds.right) / 2;
     const listTop = bounds.top + LIST_TOP_OFFSET;
@@ -145,6 +154,7 @@ export class MemorialPanel {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     this.prevBtn.on("pointerdown", () => this.turnPage(-1));
+    this.showTooltip?.(this.prevBtn, ["Previous Page", "", ...wrapTipText("Shows the previous page of pilots lost.", 42)]);
     this.container.add(this.prevBtn);
 
     this.pagerText = scene.add
@@ -159,6 +169,7 @@ export class MemorialPanel {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     this.nextBtn.on("pointerdown", () => this.turnPage(1));
+    this.showTooltip?.(this.nextBtn, ["Next Page", "", ...wrapTipText("Shows the next page of pilots lost.", 42)]);
     this.container.add(this.nextBtn);
 
     const closeBtn = scene.add
@@ -167,6 +178,7 @@ export class MemorialPanel {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     closeBtn.on("pointerdown", onClose);
+    this.showTooltip?.(closeBtn, ["Close", "", ...wrapTipText("Back to the Vault. This screen is a read-only record — there's nothing here to save.", 42)]);
     this.container.add(closeBtn);
   }
 

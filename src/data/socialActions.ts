@@ -244,6 +244,92 @@ export function pickSendOffLine(catalyst: Catalyst): string {
   return SEND_OFF_LINES[catalyst];
 }
 
+// ---- Flirt ---------------------------------------------------------------
+// New verb, 12 Sep 2026 (Maxime: "Allow cute to be a flirt word... I could
+// say you are cute to a npc and itl raise fav"). Answers a real gap flagged
+// but deliberately left unbuilt in the 9 Sep Ask Out phrase-widening pass
+// (Build_Log_Addendum_RumorSystemExpansion_09Sep2026.md): "you're cute" and
+// its siblings used to fall into Ask Out's own full accept/reject roll
+// against the 50-Favorability threshold (data/romance.ts's resolveAskOut) —
+// the same mechanical weight as literally proposing a relationship, and a
+// real risk of a -8 Favorability hit below that threshold rather than the
+// harmless compliment it reads as. Flirt is the softer tier that pass
+// named as missing: same flat, guaranteed-positive shape as Praise/Gift
+// above, just its own tone and content, so an NPC doesn't respond to
+// "you're cute" with a line about their combat performance (Praise's own
+// lines, reused, would have read exactly that way). chatIntent.ts moved the
+// casual-compliment phrasing ("you're cute," "flirt with you," "i like
+// you," etc.) off Ask Out's own list and onto this one; the literal
+// proposal phrasing ("ask her out," "be my girlfriend," "will you go out
+// with me," "i love you") stayed on Ask Out exactly as it was — Maxime's
+// own split, confirmed via AskUserQuestion rather than guessed.
+//
+// FLIRT_FAVORABILITY_DELTA sits above Praise's flat +4 (costs a little more
+// nerve to say than "good job") and well below Ask Out's accepted +15
+// (which also starts an actual relationship — Flirt never does that, on
+// purpose, that's the whole point of the softer tier). Placeholder under
+// this file's own "not sim-tuned" caveat, same as every other number here.
+export const FLIRT_FAVORABILITY_DELTA = 6;
+
+// Three lines per catalyst rather than Praise/Gift's one flat line each —
+// Maxime's own call, made when asked whether this verb should get its own
+// content or just borrow Praise's ("At least 27 new line"). Same array-and-
+// pickOne shape CO_CONFIDE_LINES/CO_CALLOUT_LINES below already use, picked
+// at random per use so spamming the same phrase at the same NPC doesn't
+// just echo one static reply back forever the way Praise/Gift/Congratulate/
+// Send-Off's flat Record<Catalyst, string> banks would.
+export const FLIRT_LINES: Record<Catalyst, string[]> = {
+  wolf: [
+    "Careful. Keep saying things like that and I'll start walking you back to quarters personally.",
+    "Cute goes further with me than you'd think. Don't let it go to your head.",
+    "Noted. And appreciated more than I probably let on.",
+  ],
+  dog: [
+    "You can't just say that and walk away, you know.",
+    "...Okay, that got me. Say it again sometime.",
+    "I'm going to be smiling about that for the rest of the shift, so thanks.",
+  ],
+  cat: [
+    "Hm. Keep talking like that and I might actually start listening.",
+    "Flattery. I see what you're doing. It's working, a little.",
+    "Don't get used to me agreeing with you, but... yeah, I heard that.",
+  ],
+  crow: [
+    "Oh, we're doing THIS now? Fine by me, keep it coming.",
+    "Careful, I'll start showing up wherever you are on purpose.",
+    "Flattery gets you everywhere with me. Absolutely everywhere.",
+  ],
+  raven: [
+    "Noted, and — for what it's worth — received exactly the way you meant it.",
+    "That's a more direct approach than I expected from you. I don't mind it.",
+    "I don't say this often, so take it seriously: that landed.",
+  ],
+  bear: [
+    "...Huh. Didn't see that coming. ...Thanks.",
+    "Say that again and I might actually smile. Might.",
+    "Don't make a habit of it. ...Actually, do.",
+  ],
+  fox: [
+    "Careful now — compliments like that put you in my debt.",
+    "Oh, I like this game. Let's keep playing it.",
+    "Flirting with me is a bold financial decision. I approve.",
+  ],
+  rabbit: [
+    "You can't just say that to me and expect me to function normally after.",
+    "...That's really sweet. I mean it, that's really sweet.",
+    "Okay, now I'm blushing. Thanks for that, I think.",
+  ],
+  shark: [
+    "Noted. Don't expect a blush, but I heard you.",
+    "Cute. Doesn't change the mission. But cute.",
+    "That's a first from you. I'll allow it.",
+  ],
+};
+
+export function pickFlirtLine(catalyst: Catalyst): string {
+  return pickOne(FLIRT_LINES[catalyst]);
+}
+
 // ---- CO grotto stress relief (Confide) ----------------------------------
 // Antfarm Carrier Hub v1 §11.3 always named the grotto as "a Stress-relief
 // conversation partner once the grotto opens," and the Stress & Morale

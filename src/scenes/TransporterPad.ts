@@ -51,6 +51,8 @@ import { WEAPON_BRANCHES, type WeaponBranchId } from "../data/weaponBranches";
 import { equippedWeaponBranchesOf, mountsFor, frameDrawUsed, drawCapacityFor } from "../engine/frameSystems";
 import { showFrameOverlay } from "./shop/FramePanel";
 import { portraitAssetFor } from "../engine/portraits";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 // One muted, distinct hue per Path so a squad row scans quickly — new to
 // this file (see header comment: no portrait colour scheme existed
@@ -66,6 +68,33 @@ export const PATH_COLORS: Record<Path, number> = {
   tank: 0x8a7a5f,
   reeps: 0x5c8a5a,
   munti: 0x3a8a8a,
+};
+
+/**
+ * Shape-by-Path pass, 12 Sep 2026 (Maxime: "the circle with the npc name
+ * that move, can we change their shape to match the individual npc combat
+ * specialty, so its easy to see. thats my tank guy, thats a meeps thats a
+ * reeps"). Colour alone stopped being enough once a whole crowd of NPCs is
+ * walking around Hub.ts's floor at once — this is the second, silhouette-
+ * level cue layered on top of PATH_COLORS above, same "read a squad row at
+ * a glance" goal that file's own header describes for colour.
+ */
+export type AvatarShape = "circle" | "square" | "diamond" | "triangle" | "hexagon";
+
+// First-pass mapping, not a locked design decision — square (tank) for
+// something blunt and blocky, matching the melee/interdict-pin "wall" role
+// (data/units.ts's own header); diamond (reeps) reading as a reticle for
+// the ranged/sensor role; triangle (meeps) as a forward-pointing arrow for
+// the melee/ambush role; hexagon (munti) as the deliberate odd-shape-out,
+// since Munti is the one Path here that isn't a combat role at all
+// (support/medic). Swap any of these freely if one misreads once it's
+// actually on screen — nothing downstream cares which shape means which
+// Path, only that drawAvatarShape (below) can draw whatever this says.
+export const PATH_SHAPES: Record<Path, AvatarShape> = {
+  tank: "square",
+  reeps: "diamond",
+  meeps: "triangle",
+  munti: "hexagon",
 };
 
 /**
@@ -193,16 +222,27 @@ export interface PilotAvatar {
   /** Add/position this — holds everything (hit circle plus portrait image or initials text). */
   container: Phaser.GameObjects.Container;
   /**
-   * The real underlying circle. Always created (even when a portrait
+   * The real underlying shape. Always created (even when a portrait
    * covers it — its fill is alpha 0 in that case, its stroke ring stays
    * visible on top of the image). Exists so a caller that needs a real
    * interactive hit-target (Hub's NPCs — see Hub.ts's own npc.circle
    * .setInteractive()/.disableInteractive() call sites) has one, exactly
    * as before this pass, rather than trying to make a Container itself
-   * interactive (Containers need an explicit hit area; a Circle already
+   * interactive (Containers need an explicit hit area; a Shape already
    * has the right one built in).
+   *
+   * Widened from Arc to the shared Shape base, 12 Sep 2026 (shape-by-Path
+   * pass) — Hub.ts's own NPCs are the one caller that now passes a `shape`
+   * argument (PATH_SHAPES above) instead of taking the default circle, so
+   * this can be a Rectangle/Triangle/Polygon just as easily as an Arc.
+   * Checked by hand against every hitCircle/npc.circle call site in the
+   * codebase before this change: none of them ever call anything but the
+   * common Shape/GameObject API (.setInteractive, .disableInteractive,
+   * .setStrokeStyle) on this field, so the widening is a pure no-op for
+   * every existing caller — Transporter Pad, RosterPanel, MemorialPanel,
+   * Debrief all keep getting a plain circle, byte-for-byte, unchanged.
    */
-  hitCircle: Phaser.GameObjects.Arc;
+  hitCircle: Phaser.GameObjects.Shape;
 }
 
 /**
@@ -242,6 +282,15 @@ export interface PilotAvatar {
  * itself. Defaults false, so every existing call site (Transporter Pad,
  * RosterPanel, MemorialPanel, Debrief) is byte-for-byte unaffected — this
  * is a pure no-op for all of them.
+ *
+ * `shape`, 12 Sep 2026 (shape-by-Path pass) — same deal, defaults to
+ * "circle" so every existing call site draws exactly what it always drew.
+ * Hub.ts's own NPC loop is the only caller that passes PATH_SHAPES[path]
+ * instead, and only ever combined with forcePlaceholder: true, so the
+ * hasPortrait branch below never actually sees a non-circle shape today —
+ * still built to do the right thing if that ever changes (a shaped ring
+ * drawn on top of a square portrait image, alpha-0 fill, same as the
+ * circle case always has).
  */
 export function drawPilotAvatar(
   scene: Phaser.Scene,
@@ -252,12 +301,13 @@ export function drawPilotAvatar(
   displayName: string,
   fallbackColor: number,
   stroke: { color: number; width: number; alpha: number } = { color: 0xffffff, width: 2, alpha: 0.25 },
-  forcePlaceholder = false
+  forcePlaceholder = false,
+  shape: AvatarShape = "circle"
 ): PilotAvatar {
   const asset = portraitAssetFor(pilotId);
   const hasPortrait = !forcePlaceholder && !!asset && scene.textures.exists(asset.key);
 
-  const hitCircle = scene.add.circle(0, 0, radius, fallbackColor, hasPortrait ? 0 : 1).setStrokeStyle(stroke.width, stroke.color, stroke.alpha);
+  const hitCircle = drawAvatarShape(scene, shape, radius, fallbackColor, hasPortrait ? 0 : 1).setStrokeStyle(stroke.width, stroke.color, stroke.alpha);
 
   const children: Phaser.GameObjects.GameObject[] = [];
   if (hasPortrait) {
@@ -271,6 +321,48 @@ export function drawPilotAvatar(
   }
   const container = scene.add.container(x, y, children);
   return { container, hitCircle };
+}
+
+/**
+ * Split out of drawPilotAvatar itself, 12 Sep 2026 (shape-by-Path pass) —
+ * one factory call per shape, every one of them sized and centred the
+ * same way the original plain circle always was: a bounding box ~2*radius
+ * square, centred on this container's own local (0,0). That's what keeps
+ * swapping the shape from silently shifting anything else drawn around it
+ * in the caller (the initials text, the stroke ring, the portrait image on
+ * the one caller that could combine shape with a real portrait — none
+ * does today, see drawPilotAvatar's own header). Points for the polygon-
+ * based shapes (diamond, hexagon) are hand-computed to be symmetric about
+ * (0,0) on both axes for the same reason — Phaser centres a Shape's
+ * bounding box on its position, not its point-set's centroid, and for an
+ * asymmetric point-set those two aren't the same spot.
+ */
+function drawAvatarShape(scene: Phaser.Scene, shape: AvatarShape, radius: number, fillColor: number, fillAlpha: number): Phaser.GameObjects.Shape {
+  switch (shape) {
+    case "square":
+      return scene.add.rectangle(0, 0, radius * 2, radius * 2, fillColor, fillAlpha);
+    case "diamond":
+      return scene.add.polygon(0, 0, [0, -radius, radius, 0, 0, radius, -radius, 0], fillColor, fillAlpha);
+    case "triangle":
+      // Apex up, base corners at the same distance from centre as the
+      // apex on both axes (bbox exactly [-radius, radius] x [-radius,
+      // radius]) rather than a "true" equilateral triangle's own vertex
+      // spacing — an equilateral triangle's bounding-box centre and its
+      // centroid aren't the same point, and it's the bounding-box centre
+      // Phaser actually centres on this shape's (0,0), not the centroid.
+      return scene.add.triangle(0, 0, 0, -radius, -radius, radius, radius, radius, fillColor, fillAlpha);
+    case "hexagon": {
+      const points: number[] = [];
+      for (let k = 0; k < 6; k++) {
+        const angle = (Math.PI / 3) * k;
+        points.push(radius * Math.cos(angle), radius * Math.sin(angle));
+      }
+      return scene.add.polygon(0, 0, points, fillColor, fillAlpha);
+    }
+    case "circle":
+    default:
+      return scene.add.circle(0, 0, radius, fillColor, fillAlpha);
+  }
 }
 
 /**
@@ -348,6 +440,12 @@ export class TransporterPad extends Phaser.Scene {
   /** Which page of the deploy list is showing. Only meaningful once the roster outgrows one page — see PAD_MIN_PITCH. */
   private padPage = 0;
   private launchLayer!: Phaser.GameObjects.Container;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Plain scene class, no competing scene-wide hover system — one shared
+  // instance covers the header link, every pad row, the pager, the lance
+  // quick-pick, and BEAM DOWN.
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("TransporterPad");
@@ -360,6 +458,7 @@ export class TransporterPad extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0c0f12");
+    this.hoverTip = new HoverTip(this);
 
     // State loads BEFORE the header now (5 Sep 2026, B6) — the header reads
     // the company's name out of it, so the old order (header first, state at
@@ -388,11 +487,22 @@ export class TransporterPad extends Phaser.Scene {
       .text(480, 78, `deploying to: ${this.missionDef.displayName}`, { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
 
+    const missionSelectTip = [
+      "< Mission Select",
+      "",
+      ...wrapTipText(
+        "Bails out to the mission list. Nothing on this screen is saved until BEAM DOWN — any weapon-branch cycle or Frame panel change you've made here is lost if you leave this way.",
+        42
+      ),
+    ];
     this.add
       .rectangle(835, 20, 200, 26, 0x1a2028)
       .setStrokeStyle(1, 0x3a4552)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.scene.start("MapSelect"));
+      .on("pointerdown", () => this.scene.start("MapSelect"))
+      .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(missionSelectTip, pointer.x, pointer.y))
+      .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(missionSelectTip, pointer.x, pointer.y))
+      .on("pointerout", () => this.hoverTip.hide());
     this.add.text(835, 20, "< mission select", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
 
     // (The campaign state load that used to sit here was hoisted to the top
@@ -542,7 +652,7 @@ export class TransporterPad extends Phaser.Scene {
    */
   private drawSquadPager(pageCount: number, rowsPerPage: number, cardLeft: number, cardW: number, usableBottom: number) {
     const y = usableBottom + PAD_PAGER_ROW_H / 2;
-    const mk = (x: number, label: string, enabled: boolean, onClick: () => void) => {
+    const mk = (x: number, label: string, enabled: boolean, onClick: () => void, tooltip: string[]) => {
       const btn = this.add
         .rectangle(x, y, 90, 24, enabled ? 0x2e5c7a : 0x1a2028, 1)
         .setStrokeStyle(1, enabled ? 0x4a7a9a : 0x3a4552);
@@ -552,16 +662,37 @@ export class TransporterPad extends Phaser.Scene {
           .text(x, y, label, { fontFamily: "monospace", fontSize: "11px", color: enabled ? "#ffffff" : "#5a6472" })
           .setOrigin(0.5),
       );
-      if (enabled) btn.setInteractive({ useHandCursor: true }).on("pointerdown", onClick);
+      // Hover wired regardless of enabled state — "why can't I click this"
+      // (already on the first/last page) is exactly the moment a tooltip
+      // earns its keep, same reasoning as every disabled control this pass
+      // has covered elsewhere.
+      btn
+        .setInteractive({ useHandCursor: enabled })
+        .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(tooltip, pointer.x, pointer.y))
+        .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(tooltip, pointer.x, pointer.y))
+        .on("pointerout", () => this.hoverTip.hide());
+      if (enabled) btn.on("pointerdown", onClick);
     };
-    mk(cardLeft + 80, "< PREV", this.padPage > 0, () => {
-      this.padPage -= 1;
-      this.redrawSquadList();
-    });
-    mk(cardLeft + cardW - 80, "NEXT >", this.padPage < pageCount - 1, () => {
-      this.padPage += 1;
-      this.redrawSquadList();
-    });
+    mk(
+      cardLeft + 80,
+      "< PREV",
+      this.padPage > 0,
+      () => {
+        this.padPage -= 1;
+        this.redrawSquadList();
+      },
+      ["Previous Page", "", ...wrapTipText("Shows the previous page of the roster. Selections aren't affected by which page is showing.", 42)]
+    );
+    mk(
+      cardLeft + cardW - 80,
+      "NEXT >",
+      this.padPage < pageCount - 1,
+      () => {
+        this.padPage += 1;
+        this.redrawSquadList();
+      },
+      ["Next Page", "", ...wrapTipText("Shows the next page of the roster. Selections aren't affected by which page is showing.", 42)]
+    );
     // The count of who is deployed belongs here, not only under BEAM DOWN:
     // once the roster pages, the player can be looking at a page where none
     // of their picks are visible, and "5/5 selected" three hundred pixels
@@ -651,7 +782,17 @@ export class TransporterPad extends Phaser.Scene {
         .setAlpha(rowAlpha);
       this.squadLayer.add(card);
       if (this.showPicker) {
-        card.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.toggle(pilotId));
+        const padTip = [
+          `PAD ${String(i + 1).padStart(2, "0")} — ${pilot.displayName}`,
+          "",
+          ...wrapTipText(isIn ? "In the deploying squad. Click to bench this pilot." : "On the bench. Click to add to the deploying squad, if there's room under the cap.", 42),
+        ];
+        card
+          .setInteractive({ useHandCursor: true })
+          .on("pointerdown", () => this.toggle(pilotId))
+          .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(padTip, pointer.x, pointer.y))
+          .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(padTip, pointer.x, pointer.y))
+          .on("pointerout", () => this.hoverTip.hide());
       }
 
       // Pad glyph: a stroked ring with four short tick marks (a landing
@@ -732,7 +873,22 @@ export class TransporterPad extends Phaser.Scene {
           .setAlpha(rowAlpha);
         this.squadLayer.add(trackText);
         if (owned.length > 0) {
-          trackText.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.cycleWeaponBranch(pilotId));
+          const weaponTip = [
+            "Cycle Weapon",
+            "",
+            ...wrapTipText(
+              mountsFor(pilot) > 1
+                ? "Opens the full Frame panel instead — a two-mount frame needs a real picker, not a wheel."
+                : "Cycles this pilot's equipped weapon branch: none → first owned → next owned → ... → none again.",
+              42
+            ),
+          ];
+          trackText
+            .setInteractive({ useHandCursor: true })
+            .on("pointerdown", () => this.cycleWeaponBranch(pilotId))
+            .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(weaponTip, pointer.x, pointer.y))
+            .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(weaponTip, pointer.x, pointer.y))
+            .on("pointerout", () => this.hoverTip.hide());
         }
         // Frame Systems Layer (6 Sep 2026) — the door into the Frame panel
         // from the pad, appended after the track line the same way the
@@ -748,7 +904,22 @@ export class TransporterPad extends Phaser.Scene {
             })
             .setAlpha(rowAlpha)
             .setInteractive({ useHandCursor: true })
-            .on("pointerdown", () => this.openFramePanel(pilotId));
+            .on("pointerdown", () => this.openFramePanel(pilotId))
+            .on("pointerover", (pointer: Phaser.Input.Pointer) =>
+              this.hoverTip.show(
+                ["Frame Panel", "", ...wrapTipText("Mounts, systems, and refit for this pilot. Every change applies immediately — nothing here needs a separate save.", 42)],
+                pointer.x,
+                pointer.y
+              )
+            )
+            .on("pointermove", (pointer: Phaser.Input.Pointer) =>
+              this.hoverTip.show(
+                ["Frame Panel", "", ...wrapTipText("Mounts, systems, and refit for this pilot. Every change applies immediately — nothing here needs a separate save.", 42)],
+                pointer.x,
+                pointer.y
+              )
+            )
+            .on("pointerout", () => this.hoverTip.hide());
           this.squadLayer.add(frameLink);
         }
       }
@@ -805,6 +976,11 @@ export class TransporterPad extends Phaser.Scene {
         .text(x, 20, `[ ${lanceDisplayName(lance)} ]`, { fontFamily: "monospace", fontSize: "10px", color: members.length ? "#c8b273" : "#3a4552" })
         .setOrigin(0, 0.5);
       if (members.length) {
+        const lanceTip = [
+          `Fill from ${lanceDisplayName(lance)}`,
+          "",
+          ...wrapTipText(`Sets the deploy squad to ${lanceDisplayName(lance)}'s current roster (capped at ${this.deployCap}). You can still toggle individual pads afterward.`, 42),
+        ];
         label.setInteractive({ useHandCursor: true });
         label.on("pointerdown", () => {
           // Cap at deployCap rather than assuming the lance fits: a lance is
@@ -814,6 +990,9 @@ export class TransporterPad extends Phaser.Scene {
           this.redrawSquadList();
           this.redrawLaunchSection();
         });
+        label.on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(lanceTip, pointer.x, pointer.y));
+        label.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(lanceTip, pointer.x, pointer.y));
+        label.on("pointerout", () => this.hoverTip.hide());
       }
       x += label.width + 8;
     }
@@ -836,9 +1015,30 @@ export class TransporterPad extends Phaser.Scene {
     this.launchLayer.add(label);
 
     if (launchCheck.ok) {
+      // No separate disabled-state tooltip below — the always-visible
+      // reasonText under this button already states the live, specific
+      // block reason (cap warning or launchCheck.reason) plainly; a static
+      // hover tooltip here would just duplicate it. Same "already
+      // self-explanatory via an always-visible line" exemption this pass's
+      // own doc already uses for Hub.ts's Rec Room dismiss backgrounds.
+      const launchTip = [
+        "Beam Down",
+        "",
+        ...wrapTipText(
+          "Launches the mission with this squad. Starts the mission's own attempt clock the instant you click, saved immediately — there's no resuming a mission left mid-fight.",
+          42
+        ),
+      ];
       btn.setInteractive({ useHandCursor: true });
-      btn.on("pointerover", () => btn.setFillStyle(0x3a6f92, 1));
-      btn.on("pointerout", () => btn.setFillStyle(0x2e5c7a, 1));
+      btn.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+        btn.setFillStyle(0x3a6f92, 1);
+        this.hoverTip.show(launchTip, pointer.x, pointer.y);
+      });
+      btn.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(launchTip, pointer.x, pointer.y));
+      btn.on("pointerout", () => {
+        btn.setFillStyle(0x2e5c7a, 1);
+        this.hoverTip.hide();
+      });
       // Threads the player's real selection through — see scenes/Battle.ts's
       // resolveDeployRoster() for how selectedPilotIds becomes the actual
       // DeployRosterEntry[] Mission deploys.

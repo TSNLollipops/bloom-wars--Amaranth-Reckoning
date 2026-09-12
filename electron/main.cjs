@@ -78,11 +78,11 @@ function createWindow() {
   // the big comment above for why.
   win.loadURL("app://bloomwars/index.html");
 
-  // TEMPORARY, 10 Sep 2026 — auto-opens DevTools every launch while tracking
-  // down the "main menu buttons don't respond" bug. Remove this line once
-  // that's confirmed fixed; the Ctrl+Shift+I shortcut below stays either
-  // way, so DevTools is still reachable on demand without this auto-open.
-  win.webContents.openDevTools({ mode: "detach" });
+  // The 10 Sep 2026 auto-open-DevTools-every-launch debug line lived here
+  // temporarily while tracking down the "main menu buttons don't respond"
+  // bug. Removed, 11 Sep 2026, per the EA Dev-Cleanup Checklist — a real
+  // release build should never pop a detached DevTools window on launch.
+  // Ctrl+Shift+I (registered below) still opens it on demand.
 
   return win;
 }

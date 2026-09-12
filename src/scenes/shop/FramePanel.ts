@@ -64,6 +64,15 @@ import {
   type FrameSystemId,
 } from "../../data/frameSystems";
 import { makeShopButton } from "./ShopPanel";
+// "Clickable = tooltip," 11 Sep 2026 standing rule (claude/Bloom_Wars_
+// Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md). This file
+// is a standalone function, not a scene class, same situation MenuOverlay.ts
+// was in — but simpler here, since showFrameOverlay already has exactly one
+// close() choke point every exit runs through, so one HoverTip created
+// alongside layer/backdropLayer and destroyed inside that same close()
+// covers the whole panel's lifetime, no per-lifetime split needed.
+import { HoverTip } from "../ui/HoverTip";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 const PANEL_L = 130;
 const PANEL_R = 830;
@@ -125,12 +134,16 @@ export function showFrameOverlay(scene: Phaser.Scene, state: CampaignState, pilo
   }
   const layer = scene.add.container(0, 0).setDepth(depth + 1).setScrollFactor(0);
   for (const cam of cams.slice(1)) cam.ignore(layer);
+  // "Clickable = tooltip," 11 Sep 2026 — one HoverTip for this panel's
+  // whole lifetime, torn down in close() alongside layer/backdropLayer.
+  const hoverTip = new HoverTip(scene);
   let closed = false;
   const close = () => {
     if (closed) return;
     closed = true;
     layer.destroy();
     backdropLayer.destroy();
+    hoverTip.destroy();
     opts.onClose?.();
   };
 
@@ -176,12 +189,16 @@ export function showFrameOverlay(scene: Phaser.Scene, state: CampaignState, pilo
       10,
       C_MID
     );
+    const closeTooltip = ["Close", "", ...wrapTipText("Closes this panel. Every mount/system/refit change here already took effect — closing doesn't undo anything.", 42)];
     const closeBtn = scene.add
       .text(PANEL_R - 16, y, "[ close ]", { fontFamily: "monospace", fontSize: "11px", color: C_DIM })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0);
     closeBtn.on("pointerdown", close);
+    closeBtn.on("pointerover", (pointer: Phaser.Input.Pointer) => hoverTip.show(closeTooltip, pointer.x, pointer.y));
+    closeBtn.on("pointermove", (pointer: Phaser.Input.Pointer) => hoverTip.show(closeTooltip, pointer.x, pointer.y));
+    closeBtn.on("pointerout", () => hoverTip.hide());
     layer.add(closeBtn);
     y += 16;
     if (message) text(PANEL_L + 16, y, message, 9, messageColor);
@@ -214,10 +231,16 @@ export function showFrameOverlay(scene: Phaser.Scene, state: CampaignState, pilo
         const idx = mounts.indexOf(id);
         const label = idx >= 0 ? `M${idx + 1}: ${def.displayName}` : `MOUNT ${def.displayName}`;
         const w = 150;
+        // "Clickable = tooltip," 11 Sep 2026 — reuses this branch's own
+        // existing `description` field verbatim, same as ShopPanel.ts's
+        // weapon-branch BUY/EQUIP tooltips do, rather than writing new copy
+        // that could drift from it.
+        const mountAction = idx >= 0 ? "Mounted — click to unmount. Stays owned either way, just not carried into your next mission while unmounted." : "Click to mount into an open weapon slot.";
+        const mountTooltip = [def.displayName, "", ...wrapTipText(`${def.description} ${mountAction}`, 42)];
         makeShopButton(scene, layer, bx + w / 2, y + ROW_H / 2, w, 18, label, true, () => {
           if (idx >= 0) act(() => unequipWeaponBranch(state, pilotId, id), `${def.displayName} unmounted.`);
           else act(() => equipWeaponBranch(state, pilotId, id), `${def.displayName} mounted.`);
-        });
+        }, mountTooltip, hoverTip);
         bx += w + 6;
         if (bx + w > PANEL_R - 16) {
           bx = PANEL_L + 28;
@@ -255,26 +278,41 @@ export function showFrameOverlay(scene: Phaser.Scene, state: CampaignState, pilo
       let label: string;
       let enabled: boolean;
       let onClick: () => void;
+      // "Clickable = tooltip," 11 Sep 2026 — every branch below states the
+      // actual reason a greyed-out button is greyed out (free Draw
+      // remaining, or salvage progress), read straight off this same
+      // function's own `avail`/`free`/`effectiveDraw` locals rather than
+      // guessed, per this doc's own non-negotiable verify-before-writing
+      // rule.
+      let tooltip: string[];
       if (isInstalled) {
         label = "INSTALLED";
         enabled = true;
         onClick = () => act(() => unequipFrameSystem(state, pilotId, id), `${def.displayName} removed from the frame.`);
+        tooltip = [def.displayName, "", ...wrapTipText(`${def.description} Installed, using ${effectiveDraw} of your ${drawCap} Draw. Click to uninstall — you keep owning it, just not carried into your next mission.`, 42)];
       } else if (owned.has(id)) {
         const free = drawCap - draw;
         label = `INSTALL (${effectiveDraw} Draw)`;
         enabled = effectiveDraw <= free;
         onClick = () => act(() => equipFrameSystem(state, pilotId, id), `${def.displayName} installed.`);
+        tooltip = enabled
+          ? [def.displayName, "", ...wrapTipText(`${def.description} Costs ${effectiveDraw} Draw to install — you have ${free} free.`, 42)]
+          : [def.displayName, "", ...wrapTipText(`${def.description} Needs ${effectiveDraw} Draw to install, only ${free} free right now. Uninstall something else first, or wait for a higher Draw budget.`, 42)];
       } else if (avail.salvageLocked) {
         const l = avail.salvageLocked;
         label = `LOCKED ${l.have}/${l.needed}`;
         enabled = false;
         onClick = () => {};
+        tooltip = [def.displayName, "", ...wrapTipText(`${def.description} Salvaged from ${l.archetypeName} kills — ${l.have}/${l.needed} logged so far. Nothing to buy here; keep fighting them.`, 42)];
       } else {
         label = `BUY (${avail.cost})`;
         enabled = avail.affordable;
         onClick = () => act(() => purchaseFrameSystem(state, pilotId, id), `${def.displayName} bought — install it when there's Draw to spare.`);
+        tooltip = enabled
+          ? [def.displayName, "", ...wrapTipText(`${def.description} Costs ${avail.cost} personal pts to buy.`, 42)]
+          : [def.displayName, "", ...wrapTipText(`${def.description} Costs ${avail.cost} personal pts — not enough right now.`, 42)];
       }
-      makeShopButton(scene, layer, bx, rowY + ROW_H / 2, bw, 18, label, enabled, onClick);
+      makeShopButton(scene, layer, bx, rowY + ROW_H / 2, bw, 18, label, enabled, onClick, tooltip, hoverTip);
       const nameColor = isInstalled ? C_GOOD : owned.has(id) ? C_TEXT : avail.salvageLocked ? C_LOCK : C_MID;
       const drawNote = def.salvage && effectiveDraw !== def.draw ? `[${def.draw}+1 Draw]` : `[${def.draw} Draw]`;
       text(PANEL_L + 28 + bw + 10, rowY + 3, `${def.displayName} ${drawNote}`, 10, nameColor);
@@ -324,9 +362,16 @@ export function showFrameOverlay(scene: Phaser.Scene, state: CampaignState, pilo
       for (const id of path ? FRAME_REFITS_BY_PATH[path] ?? [] : []) {
         const def = FRAME_REFITS[id];
         const w = 150;
-        makeShopButton(scene, layer, bx + w / 2, y + ROW_H / 2, w, 20, `REFIT: ${def.displayName}`, entry.personalPoints >= FRAME_REFIT_COST, () => {
+        const canAffordRefit = entry.personalPoints >= FRAME_REFIT_COST;
+        // "Clickable = tooltip," 11 Sep 2026 — restates the same "permanent,
+        // no swap, no refund" warning the header line above already gives,
+        // right at the click itself rather than only above the whole row.
+        const refitTooltip = canAffordRefit
+          ? [def.displayName, "", ...wrapTipText(`${def.description} Permanent — no swap, no refund once bought. Costs ${FRAME_REFIT_COST} pts.`, 42)]
+          : [def.displayName, "", ...wrapTipText(`${def.description} Costs ${FRAME_REFIT_COST} pts, permanent once bought — not enough personal points right now.`, 42)];
+        makeShopButton(scene, layer, bx + w / 2, y + ROW_H / 2, w, 20, `REFIT: ${def.displayName}`, canAffordRefit, () => {
           act(() => purchaseFrameRefit(state, pilotId, id), `${def.displayName} — refit complete. Permanent.`);
-        });
+        }, refitTooltip, hoverTip);
         layer.add(
           scene.add
             .text(bx + w + 8, y + 2, def.description, { fontFamily: "monospace", fontSize: "8px", color: C_DIM, wordWrap: { width: 170 } })

@@ -29,9 +29,17 @@ import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry
 // engine/hoverTipLayout.ts. The CONTENT is hoverLines() below, unchanged
 // and already shipped; this only moves where it's drawn.
 import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 import { VITAL_SIGNS_WARN_FRACTION } from "../data/carrierModules";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { pageActionBar, advancePage, moreButtonLabel } from "../engine/actionBarPaging";
+// Item-info tooltip pass, 11 Sep 2026 (playtest note: "found by accident
+// that one of his units could heal — nothing told him that going in").
+// WEAPON_BRANCHES.description already exists for every branch (it's the
+// same text the shop's own tooltip pass, same night, put on the BUY/EQUIP
+// buttons) — this reuses it on the unit's own inspect card, see
+// loadoutLines() below.
+import { WEAPON_BRANCHES } from "../data/weaponBranches";
 
 const TILE_COLORS: Record<TileType, number> = {
   plain: 0x3a4636,
@@ -255,6 +263,166 @@ interface ActionOption {
   run: () => void;
 }
 
+// Action-bar ability tooltips, 11 Sep 2026 (same playtest note as the
+// WEAPON_BRANCHES import above: "found by accident that one of his units
+// could heal"). Keyed by the option's own label with any "×N" charge count
+// stripped off (stripActionChargeSuffix below) — a charge count changes
+// mission to mission, the rule text under it never does, and keying on the
+// live number would mean writing "SWEEP ×1" and "SWEEP ×2" as two separate
+// entries for no reason.
+//
+// Every line here is transcribed from data/abilities.ts's own design
+// comments (the authoritative cost/effect text for each ability, verified
+// against engine/mission.ts's actual canX()/verb bodies where the two could
+// have drifted — see the Missile/Maser Lance entries below) or from
+// data/weaponBranches.ts's own description field where a verb is a weapon
+// branch rather than a kit ability. Nothing here is invented flavor text —
+// this project's own rule (Bloom_Wars_Combat_Worry_Lines_v1.md) is that
+// Claude doesn't write character voice, and rules text isn't voice, but it
+// still isn't a place to guess.
+//
+// Coverage note, updated 12 Sep 2026: this table originally covered only
+// the base/universal kit (the ten verbs below). BEACON is now folded in
+// here too (its label carries a live "×N" count stripped by
+// stripActionChargeSuffix below, same as SWEEP/FIRE/MISSILE above, and it
+// has no rank — company-wide equipment, not a Heirloom ability — so a
+// flat string is the right shape for it same as everything else in this
+// table). The 16 Heirloom-exclusive SIGNATURE verbs (IRON WORD, TRIAGE,
+// PANOPTES, OVEREXTEND, OATHKEEPER, ICHIGEKI, SURTR, FIREBREAK, DRAFT,
+// ZANRETSU, SURE FOOT, MIGAWARI, LAST RITES, SIMULACRUM, STATIC, GJALLAR)
+// deliberately do NOT live in this table — they rank up (rank1 vs rank5
+// text genuinely differs) and a flat string can't represent that. See
+// HEIRLOOM_ABILITY_ID_BY_LABEL and heirloomAbilityTooltipBody() below,
+// and actionSlotTooltipLines' own updated body, for how those are covered
+// instead: keyed by ability id, composed live off the wielding unit's own
+// heirloomAbilityRanks (BattleUnit's public field — the exact one
+// Mission's private heirloomRank() reads internally, see
+// engine/mission.ts's own heirloomRank()/canRequiemSeverance for that),
+// so a rank1 wielder and a rank5 wielder of the same kit see accurate,
+// different text rather than one guessed at.
+const BASE_ABILITY_TOOLTIPS: Record<string, string> = {
+  OVERWATCH: "Hold fire. Take one free shot at the first hostile that moves into your range and sight during the enemy phase. Costs your whole turn.",
+  AMBUSH: "Vanish from enemy sight for 3 of your own turns — full movement and attacks while hidden. Breaks the moment you attack; that shot deals double damage. Costs your whole turn. Refused with a hostile already adjacent.",
+  INTERDICT: "Until your next turn, any hostile that finishes a move within range and sight loses every remaining action — no damage dealt. Costs your whole turn. Unlimited uses.",
+  TAUNT: "Forces every hostile that can see you to target and root against you until your next turn — no closing distance, no retargeting, no defence bonus for you. Costs your whole turn.",
+  SCREEN: "You and allies within 1 tile vanish from enemy sight until their next turn. Breaks individually the moment any of you attacks. 1 action, doesn't end your turn. Once per mission.",
+  CLEAR: "Instead of attacking, clear every Bloom-fouled tile in range back to plain ground, including your own. 1 action, doesn't end your turn. No limit.",
+  SWEEP: "Reveals every living hostile in your vision (plus bonus) through walls and fog, for the rest of this turn and the enemy's next — including burrowed units, though it doesn't surface them. 1 action, doesn't end your turn.",
+  FIRE: "Off-board strike on any tile in range — hostiles only, no friendly fire, no counter. Shared charge pool across your squad. Pick a tile to fire; ends your turn once it lands.",
+  MISSILE: "Splash strike on any tile in range — hits every unit in the blast, friendlies included. Charges are per-unit. Pick a tile to fire; ends your turn once it lands.",
+  "MASER LANCE": "Fires a widening cone in one of 8 directions from where you stand — friendly-fire capable, splash isn't dodgable. Charges are per-unit. Pick a direction to fire; ends your turn once it lands.",
+  BEACON:
+    "Revives one downed, not-permanently-lost ally in range (adjacent, or reachable-then-adjacent) — full HP, back on the field immediately. Burns one of this mission's beacon placements, one crate (their own Fabricator spare part first, a company crate otherwise), and one Restock Room charge — waived entirely if a living Munti is anywhere on the field. Needs the Beacon Control system, Restock Room, and Generator all built, and only fires from whoever currently holds Beacon Control. 1 action, doesn't end your turn. Also costs a slice of this mission's payout at Debrief.",
+};
+
+/** Strips a trailing " ×N" charge count off an action-bar label, so "SWEEP ×2"/"SWEEP ×1" and "BEACON ×2"/"BEACON ×1" all key against the same BASE_ABILITY_TOOLTIPS entry. */
+function stripActionChargeSuffix(label: string): string {
+  return label.replace(/\s*×\d+$/, "");
+}
+
+/**
+ * Heirloom-exclusive signature-verb tooltips, 12 Sep 2026 — closes the
+ * coverage gap BASE_ABILITY_TOOLTIPS' own header used to flag. Action-bar
+ * label -> the ability's real id in data/heirlooms.ts, so
+ * heirloomAbilityTooltipBody() below can pull that unit's live rank
+ * (unit.heirloomAbilityRanks?.[id] ?? 1 — the exact same lookup
+ * engine/mission.ts's private heirloomRank() does, just read from the
+ * public field instead of through that private method) and pick the
+ * matching rank1/rank5 text instead of a single flat string.
+ */
+const HEIRLOOM_ABILITY_ID_BY_LABEL: Record<string, string> = {
+  "IRON WORD": "oath_iron_word",
+  TRIAGE: "lastword_field_triage",
+  PANOPTES: "farsight_signature",
+  OVEREXTEND: "ledger_overextended",
+  OATHKEEPER: "oath_oathkeeper",
+  ICHIGEKI: "deadfall_strike",
+  SURTR: "cinder_line_signature",
+  FIREBREAK: "cinder_firebreak",
+  DRAFT: "cinder_draft",
+  ZANRETSU: "cutting_room_charge",
+  "SURE FOOT": "cutting_room_sure_footing",
+  MIGAWARI: "lastword_signature",
+  "LAST RITES": "lastword_last_rites",
+  SIMULACRUM: "seal_borrowed_authority",
+  STATIC: "seal_ledgerhall_static",
+  GJALLAR: "requiem_severance",
+};
+
+/**
+ * Rank-aware tooltip body for one of the 16 Heirloom signature verbs above.
+ * Every rank1/rank5 fact transcribed from that ability's own entry in
+ * data/heirlooms.ts (id, rank1, rank5 fields — grep that file for the
+ * ability id to check any of these against the source directly), cost/
+ * turn-ending text cross-checked against this scene's own actionOptions
+ * builder just above (`endsTurn` per verb — every one of these is `false`
+ * except IRON WORD's `true`, so "costs the whole turn" is IRON WORD-only
+ * and every other line reads "1 action, doesn't end your turn"), and
+ * cooldownTurns values transcribed from the same heirlooms.ts entries.
+ * GJALLAR is the one deliberate exception to "N-turn cooldown": Requiem
+ * doesn't have one — SEVERANCE.maxCharge/chargePerTenHpDealt/
+ * chargePerTenHpTaken (data/abilities.ts) back a shared 0-100 charge meter
+ * instead, read live off `charge` (mission.getRequiemCharge(), the exact
+ * public accessor whose own doc comment says it exists "for
+ * scenes/Battle.ts's HUD meter and hover tip") so the tip explains why a
+ * greyed GJALLAR button is greyed — not charged yet vs. no action left —
+ * matching that button's own build-time comment ("the hover tip … is where
+ * the player learns which").
+ */
+function heirloomAbilityTooltipBody(abilityId: string, rank: number, charge: number): string {
+  const r5 = rank >= 5;
+  switch (abilityId) {
+    case "oath_iron_word":
+      return `Forces every hostile that can reach the wielder within radius ${r5 ? 3 : 2} to target it this turn. Costs the whole turn. 3-turn cooldown.`;
+    case "lastword_field_triage":
+      return `Repairs ${r5 ? "three" : "two"} allies within radius ${r5 ? 3 : 2} this turn instead of the usual one. 1 action, doesn't end your turn. 3-turn cooldown.`;
+    case "farsight_signature":
+      return `Reveals every hostile unit on the map, burrowed included, for ${r5 ? "2 turns" : "1 turn"}. 1 action, doesn't end your turn. 5-turn cooldown.`;
+    case "ledger_overextended":
+      return `Trades all defense for ${r5 ? "2 turns" : "1 turn"} — 0 DEF, +40% ATK. 1 action, doesn't end your turn. 2-turn cooldown.`;
+    case "oath_oathkeeper":
+      return r5
+        ? "Cannot be reduced below 1 HP for 3 turns. Every bit of damage that would have landed during that window hits all at once, halved, the instant it ends. 1 action, doesn't end your turn. 5-turn cooldown."
+        : "Cannot be reduced below 1 HP for 2 turns. Every bit of damage that would have landed during that window hits all at once, in full, the instant it ends. 1 action, doesn't end your turn. 5-turn cooldown.";
+    case "deadfall_strike":
+      return r5
+        ? "An unavoidable, uncounterable strike at double damage, any range. Reveals the wielder's exact position to every enemy, but the reveal is delayed a full turn instead of firing immediately — one free shot at real stealth per use. 1 action, doesn't end your turn. 5-turn cooldown."
+        : "An unavoidable, uncounterable strike at double damage, any range — reveals the wielder's exact position to every enemy for the rest of the turn the instant it lands. 1 action, doesn't end your turn. 5-turn cooldown.";
+    case "cinder_line_signature":
+      return `Sets a chosen line of up to 5 tiles burning for ${r5 ? "4 turns" : "3 turns"} — 15 damage/turn to anything standing on it, hostile or friendly, no exception on the tiles themselves. 1 action, doesn't end your turn. 5-turn cooldown.`;
+    case "cinder_firebreak":
+      return r5
+        ? "Instantly extinguishes one of the wielder's own active Surtr lines, and deals that line's entire remaining total damage to every hostile currently standing on it, all at once. 1 action, doesn't end your turn. 1-turn cooldown."
+        : "Instantly extinguishes one of the wielder's own active Surtr lines. 1 action, doesn't end your turn. 1-turn cooldown.";
+    case "cinder_draft":
+      return `Allies moving through a friendly Surtr line take no burn damage from it for ${r5 ? "2 turns" : "1 turn"}. 1 action, doesn't end your turn. 3-turn cooldown.`;
+    case "cutting_room_charge":
+      return r5
+        ? "Moves through and strikes every enemy in a straight line, ignoring terrain cost, ending adjacent to the last one hit. Full commitment — can't be called off partway through. Damage no longer falls off against the 3rd+ target hit. 1 action, doesn't end your turn. 4-turn cooldown."
+        : "Moves through and strikes every enemy in a straight line, ignoring terrain cost, ending adjacent to the last one hit. Full commitment — can't be called off partway through. Damage falls off against the 3rd+ target hit. 1 action, doesn't end your turn. 4-turn cooldown.";
+    case "cutting_room_sure_footing":
+      return `Immune to knockback and forced movement for ${r5 ? "2 turns" : "1 turn"}. 1 action, doesn't end your turn. 2-turn cooldown.`;
+    case "lastword_signature":
+      return `Fully restores one downed ally mid-mission, no spare part spent — but permanently lowers the wielder's own max HP by ${r5 ? "5%" : "10%"} for the rest of the campaign, every single use. 1 action, doesn't end your turn. 6-turn cooldown.`;
+    case "lastword_last_rites":
+      return r5
+        ? "A downed ally not yet lost to permadeath gets one final action this turn, fully healed first — then goes back down again afterward as normal; this doesn't save them permanently. 1 action, doesn't end your turn. 5-turn cooldown."
+        : "A downed ally not yet lost to permadeath gets one final action this turn before actually going down. 1 action, doesn't end your turn. 5-turn cooldown.";
+    case "seal_borrowed_authority":
+      return r5
+        ? "Next attack copies a random on-hit effect drawn from any Bloom archetype or House Amaranth unit fought this campaign — reroll the draw once before committing. 1 action, doesn't end your turn. 5-turn cooldown."
+        : "Next attack copies a random on-hit effect drawn from any Bloom archetype or House Amaranth unit fought this campaign. 1 action, doesn't end your turn. 5-turn cooldown.";
+    case "seal_ledgerhall_static":
+      return r5
+        ? "Jams the target's single strongest available ability specifically, no longer random, for 2 turns. 1 action, doesn't end your turn. 4-turn cooldown."
+        : "Jams one random enemy ability for 2 turns. 1 action, doesn't end your turn. 4-turn cooldown.";
+    case "requiem_severance":
+      return `A fixed 8-tile line strike, ignoring terrain, hitting every unit on it — friend and foe alike, no exception. 80 damage, bypasses the normal full-HP damage cap (only matters against Bloom, whose Vitality it checks directly instead of going through Endurance). Needs the squad's own shared charge meter full (built from damage dealt AND taken) — currently ${charge}/100. Resets to 0 on use. Does not rank up.`;
+    default:
+      return "";
+  }
+}
+
 export class Battle extends Phaser.Scene {
   private mission!: Mission;
   private tileSize = 32;
@@ -420,6 +588,13 @@ export class Battle extends Phaser.Scene {
   private actionPage = 0;
   private slotOptions: (ActionOption | null)[] = [];
   private moreSlotIndex = -1;
+  // Action-bar tooltip pass, 11 Sep 2026 — which slot (0-5) the pointer is
+  // currently over, or null. Read fresh from slotOptions at hover time
+  // (actionSlotTooltipLines below) rather than captured once, because
+  // drawActionBar() relabels these same six button objects instead of
+  // recreating them (see actionSlots' own field comment) — the option bound
+  // to slot i changes under the pointer without it ever leaving the button.
+  private hoveredActionSlot: number | null = null;
   /** Whose kit the bar is currently paged over. A change resets to page 1 — a player selecting a new unit should never land on that unit's page 2. */
   private actionBarUnitId: string | null = null;
   // Legibility pass, 1 Sep 2026 (claude/Bloom_Wars_First_Game_Dev_Feature_
@@ -949,7 +1124,25 @@ export class Battle extends Phaser.Scene {
       const btn = this.add
         .rectangle(p.x, p.y, ACTION_SLOT_W, ACTION_SLOT_H, 0x2e5c7a)
         .setInteractive({ useHandCursor: true })
-        .on("pointerdown", () => this.runActionSlot(i));
+        .on("pointerdown", () => this.runActionSlot(i))
+        // Action-bar tooltip pass, 11 Sep 2026 — attached once, here, at
+        // create() time, same as pointerdown just above; NOT re-attached by
+        // drawActionBar() every relabel, since these are the same six
+        // Rectangle objects for the scene's whole lifetime (see this loop's
+        // own header comment on actionSlots being a per-create() reset).
+        // The index `i` is the only thing captured — hoveredActionSlot just
+        // records which slot, and actionSlotTooltipLines reads
+        // this.slotOptions[i] live, so the tooltip always matches whatever
+        // verb is CURRENTLY bound to this slot, not whatever was bound when
+        // the pointer first arrived.
+        .on("pointerover", () => {
+          this.hoveredActionSlot = i;
+          this.updateHoverTip();
+        })
+        .on("pointerout", () => {
+          if (this.hoveredActionSlot === i) this.hoveredActionSlot = null;
+          this.updateHoverTip();
+        });
       btn.setStrokeStyle(1, 0x4a7a9a);
       // 10px, down from the 4-slot grid's 11px (25 Aug 2026, fire support's
       // 3x2 layout) — narrower 70px buttons need the extra margin so
@@ -996,6 +1189,13 @@ export class Battle extends Phaser.Scene {
     this.forecastLabels = [];
     this.endTurnPrompt = null;
     this.hoverTile = null;
+    // Same reset, same reason (action-bar tooltip pass, 11 Sep 2026): a
+    // scene restart rebuilds actionSlots' six buttons from scratch just
+    // below, so a hoveredActionSlot left over from the previous mission's
+    // last frame would point at a slot whose new button never got its own
+    // pointerover yet — harmless once the pointer actually moves, but wrong
+    // for however long the tip sat still first.
+    this.hoveredActionSlot = null;
     // Rebuilt per create() like every other display object here — a scene
     // restart destroys the old one with the display list, so holding a
     // stale reference across missions would draw into a dead scene.
@@ -3628,7 +3828,51 @@ export class Battle extends Phaser.Scene {
       this.hoverTip.hide();
       return;
     }
+    // Action-bar tooltip pass, 11 Sep 2026 — an action-bar button sits
+    // outside the board grid, so pixelToTile() under it reads as "no tile
+    // hovered" and hoverLines() below would return nothing (or, worse,
+    // whatever tile the pointer last crossed on its way there). Checked
+    // first and returns early so the two hover systems never fight over
+    // the same box; see hoveredActionSlot's own field comment.
+    if (this.hoveredActionSlot !== null) {
+      const lines = this.actionSlotTooltipLines(this.hoveredActionSlot);
+      if (lines) this.hoverTip.show(lines, this.pointerX, this.pointerY);
+      else this.hoverTip.hide();
+      return;
+    }
     this.hoverTip.show(this.hoverLines(), this.pointerX, this.pointerY);
+  }
+
+  /**
+   * Tooltip content for action-bar slot `index`, or null to show nothing
+   * (an empty slot, the MORE page-turn button, or a verb outside
+   * BASE_ABILITY_TOOLTIPS' deliberate base-kit-only coverage — see that
+   * const's own header). Reads this.slotOptions live rather than a value
+   * captured at pointerover time, for the same reason hoveredActionSlot
+   * itself does: the option bound to a slot can change while the pointer
+   * never leaves the button (a fresh drawActionBar() mid-hover, e.g. after
+   * a MORE click or a new unit selection under a stationary mouse).
+   */
+  private actionSlotTooltipLines(index: number): string[] | null {
+    const option = this.slotOptions[index];
+    if (!option) return null;
+    const key = stripActionChargeSuffix(option.label);
+    const body = BASE_ABILITY_TOOLTIPS[key];
+    if (body) return [option.label, "", ...wrapTipText(body, 42)];
+    // Heirloom-exclusive signature verbs, 12 Sep 2026 — not in
+    // BASE_ABILITY_TOOLTIPS (see that const's own header for why), looked
+    // up here instead against the CURRENT wielder's own live rank so
+    // rank1 and rank5 text is never mixed up. actionBarUnitId, not
+    // selectedUnitId — see that field's own comment for why it's the
+    // correct source of "whose kit is this bar showing right now."
+    const heirloomId = HEIRLOOM_ABILITY_ID_BY_LABEL[key];
+    if (!heirloomId) return null;
+    const unit = this.actionBarUnitId ? this.mission.unitById(this.actionBarUnitId) : undefined;
+    if (!unit) return null;
+    const rank = unit.heirloomAbilityRanks?.[heirloomId] ?? 1;
+    const heirloomBody = heirloomAbilityTooltipBody(heirloomId, rank, this.mission.getRequiemCharge());
+    if (!heirloomBody) return null;
+    return [option.label, "", ...wrapTipText(heirloomBody, 42)];
   }
 
   /** The living unit under the pointer, if any — hostiles only when the player side can currently see them (fog of war). */
@@ -3832,7 +4076,46 @@ export class Battle extends Phaser.Scene {
       if (fx.length) out.push(`Status: ${fx.join(", ")}`);
       const burning = this.surtrLineAt(hovered.pos);
       if (burning) out.push(`Standing on a Surtr line — ${burning.damagePerTurn} dmg at the next tick`);
+      out.push(...this.loadoutLines(hovered));
     }
+    return out;
+  }
+
+  /**
+   * "What can this unit do that isn't a button" — equipped weapon branches
+   * and mek-track passives, straight off BattleUnit's own precomputed
+   * fields (baked once at deploy time by engine/units.ts from
+   * data/weaponBranches.ts / data/meks.ts's MEK_TRACK_EFFECTS — nothing
+   * here is re-derived or guessed at). This is the direct answer to the 11
+   * Sep playtest note: "found by accident that one of his units could
+   * heal — nothing told him that going in." Player units only — hostile
+   * meks resolve through a bare archetype with no pilot/mek pairing
+   * (Canon Pass §A.2's own note on arch_<path>_bipedal), so none of these
+   * fields are ever set on them.
+   */
+  private loadoutLines(u: BattleUnit): string[] {
+    if (u.side !== "player") return [];
+    const out: string[] = [];
+    const weapons = (u.weaponBranchIds ?? []).map((id) => WEAPON_BRANCHES[id]?.displayName).filter((n): n is string => !!n);
+    if (weapons.length) out.push(`Weapons: ${weapons.join(", ")}`);
+    if (u.stationaryHeal) out.push(`Self-repairs while stationary: ${u.stationaryHeal}/turn`);
+    if (u.repairOutputMult && u.repairOutputMult !== 1) out.push(`Repairs allies at ×${u.repairOutputMult}`);
+    // effectPotency scales the DURATION/DISTANCE of an on-hit effect this
+    // unit inflicts through a weapon branch (acid, knockback, stun) — see
+    // units.ts's own field comment. Not a generic "abilities are stronger"
+    // multiplier, so this says exactly that rather than the vaguer phrasing
+    // this line had before Maxime's fabricator-tooltip request (11 Sep,
+    // round 2) caught the same imprecision in ShopPanel.ts's own
+    // secondary-track tooltip and it got fixed there first.
+    if (u.effectPotency && u.effectPotency !== 1) out.push(`On-hit effects (acid/knockback/stun) run ×${u.effectPotency} longer/further`);
+    if (u.initiative) out.push(`+${u.initiative} initiative`);
+    if (u.detectsBurrowedRadius) out.push(`Detects burrowed units within ${u.detectsBurrowedRadius}`);
+    // !== undefined, not a truthy check: units.ts bakes 0 (has the
+    // Fabricator track, no parts left) and undefined (no Fabricator track
+    // at all) as two different facts on purpose — see its own field
+    // comment — and this should say so too rather than collapsing "empty"
+    // into "doesn't have one."
+    if (u.fabricatorPartsRemaining !== undefined) out.push(`${u.fabricatorPartsRemaining} spare part(s) banked for Beacon Control`);
     return out;
   }
 

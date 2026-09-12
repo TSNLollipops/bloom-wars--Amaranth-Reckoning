@@ -17,6 +17,18 @@
 import Phaser from "phaser";
 import { saveCampaignState, type CampaignState } from "../engine/campaignState";
 import { makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
+// "Clickable = tooltip," 11 Sep 2026 standing rule (claude/Bloom_Wars_
+// Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md). This file
+// is plain functions, not a scene class, so there's no `this.hoverTip` to
+// reuse the way ShopPanel.ts/Options.ts do — each of the two entry points
+// below (the persistent MENU button, and the fresh-each-open overlay) owns
+// a HoverTip scoped to its own lifetime instead. The MENU button's instance
+// lives as long as the host scene does (same as every other GameObject it
+// touches); the overlay's own instance is destroyed alongside its layer on
+// every close, matching this file's existing "create fresh, destroy fresh"
+// idiom rather than leaking one HoverTip per open.
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 /**
  * Adds a small "MENU" corner button to `scene` at (cx, cy), sized (w, h).
@@ -45,9 +57,10 @@ export function addMenuOverlayButton(
   // else once the player wandered into the new open floor. A no-op for the
   // other three scenes, whose cameras never move.
   const layer = scene.add.container(0, 0).setScrollFactor(0);
+  const menuHoverTip = new HoverTip(scene);
   makeShopButton(scene, layer, cx, cy, w, h, "MENU", true, () => {
     showMenuOverlay(scene, getState);
-  });
+  }, ["Menu", "", ...wrapTipText("Save, Options, the field manual, or return to the title screen.", 42)], menuHoverTip);
   return layer;
 }
 
@@ -124,24 +137,35 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   let y = 230;
   const rowGap = 55;
 
+  // "Clickable = tooltip," 11 Sep 2026 — this overlay's own HoverTip, torn
+  // down alongside `layer` on every close (closeOverlay() below) rather
+  // than left to leak: showMenuOverlay runs fresh every time MENU is
+  // pressed, so a player who opens/closes it repeatedly in one Hub session
+  // would otherwise pile up one orphaned HoverTip per open.
+  const hoverTip = new HoverTip(scene);
+  const closeOverlay = () => {
+    layer.destroy();
+    hoverTip.destroy();
+  };
+
   // SAVE... — only offered for a non-Ironman campaign, same gate Hangar.ts
   // and Debrief.ts's own SAVE AS buttons already use (an Ironman save has
   // no manual slots to write to at all — §6/§7's own rule).
   if (state && state.ironman === false) {
     makeShopButton(scene, layer, 480, y, 260, 36, "SAVE...", true, () => {
-      layer.destroy();
+      closeOverlay();
       // showSaveAsOverlay draws its own full-screen backdrop+panel — no
       // double-backdrop risk, but this overlay's own layer is torn down
       // first so nothing stale is left listening underneath it.
       showSaveAsOverlay(scene, state);
-    });
+    }, ["Save...", "", ...wrapTipText("Saves your current progress to a named slot, so LOAD GAME on the title screen can bring it back later.", 42)], hoverTip);
     y += rowGap;
   }
 
   makeShopButton(scene, layer, 480, y, 260, 36, "OPTIONS", true, () => {
-    layer.destroy();
+    closeOverlay();
     scene.scene.start("Options", { returnScene: scene.scene.key });
-  });
+  }, ["Options", "", ...wrapTipText("Tutorial hints, statistics, audio, and display size. Brings you right back here.", 42)], hoverTip);
   y += rowGap;
 
   // Forgotten Plans Audit, 1 Sep 2026 — the field-manual codex, reachable
@@ -155,9 +179,9 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   // (Hangar has no CampaignState shaped like this), which Codex.ts's own
   // hasWardenSave check already treats as "no save."
   makeShopButton(scene, layer, 480, y, 260, 36, "HOW TO PLAY", true, () => {
-    layer.destroy();
+    closeOverlay();
     scene.scene.start("Codex", { returnScene: scene.scene.key, campaignState: state });
-  });
+  }, ["How To Play", "", ...wrapTipText("The field manual — Personnel, Bestiary, and World entries, live from your current save.", 42)], hoverTip);
   y += rowGap;
 
   makeShopButton(scene, layer, 480, y, 260, 36, "RETURN TO MAIN MENU", true, () => {
@@ -166,14 +190,14 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
     // BACK TO MISSION SELECT button already uses, not continuous
     // autosave-on-mutation.
     if (state) saveCampaignState(state);
-    layer.destroy();
+    closeOverlay();
     scene.scene.start("MainMenu");
-  });
+  }, ["Return To Main Menu", "", ...wrapTipText("Saves your current progress first, then leaves for the title screen. Nothing is lost.", 42)], hoverTip);
   y += rowGap;
 
   makeShopButton(scene, layer, 480, y, 260, 36, "CLOSE", true, () => {
-    layer.destroy();
-  });
+    closeOverlay();
+  }, ["Close", "", ...wrapTipText("Dismisses this menu — nothing here changes anything until you pick one of the options above.", 42)], hoverTip);
 
   // Same reasoning as the panel/title ignore-call above, swept once at the
   // end for every button makeShopButton just added (SAVE.../OPTIONS/CODEX/

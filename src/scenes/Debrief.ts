@@ -37,6 +37,7 @@ import {
   applyLastWordSignatureCosts,
   recordFoughtOnHitEffectKinds,
   recordHostileKills,
+  recordMissionWin,
   companyNameOf,
   lanceRoster,
   MAX_LANCE_SIZE,
@@ -71,6 +72,8 @@ import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
 import { showCharacterCreatorOverlay } from "./shop/CharacterCreatorOverlay";
 import { addMenuOverlayButton } from "./MenuOverlay";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 // B4 (portrait wiring), 5 Sep 2026 — see drawEarningsPanel's own comment on
 // why this one genuinely needed a row-height rework rather than a drop-in
 // swap: the panel never had a placeholder circle, and its old 15px rows had
@@ -147,6 +150,11 @@ export class Debrief extends Phaser.Scene {
   private viewportBottom = 0;
   private shop!: ShopPanel;
   private footerLayer!: Phaser.GameObjects.Container;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Covers only this scene's own footer buttons — the embedded ShopPanel
+  // instance already has its own tooltips, done 11 Sep 2026.
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("Debrief");
@@ -158,6 +166,7 @@ export class Debrief extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0c0f12");
+    this.hoverTip = new HoverTip(this);
 
     // ---- 1. Load campaign state ------------------------------------------
     this.state = loadCampaignState() ?? createWardenCampaignState();
@@ -287,6 +296,16 @@ export class Debrief extends Phaser.Scene {
       outcome: this.mission.outcome === "win" ? "win" : "loss",
       announced: false,
     };
+
+    // ---- 1c-ii. Mission-order gating, 12 Sep 2026 (Maxime: "make the
+    // mission in the campaign gated on completing the previous mission
+    // 1st") — records a real win for scenes/MapSelect.ts's own unlock
+    // check (engine/campaignState.ts's isMissionUnlocked) to read back next
+    // time the player opens Mission Select. Win only, same "only a win
+    // counts" reading the Second/Third Lance gates a few lines below
+    // already use for their own beats — a loss here does nothing at all,
+    // not even for a mission the player has already unlocked normally.
+    if (this.mission.outcome === "win") recordMissionWin(this.state, this.mission.mission.id);
 
     // ---- 2. Apply this mission's earnings --------------------------------
     this.earnings = computeMissionEarnings(this.mission);
@@ -518,9 +537,21 @@ export class Debrief extends Phaser.Scene {
         .setOrigin(0, 0.5)
     );
     if (this.state.ironman === false) {
-      makeShopButton(this, this.footerLayer, CARD_L + 280, 604, 140, 30, "SAVE AS...", true, () => {
-        showSaveAsOverlay(this, this.state, (slot) => this.flashSavedMessage(slot));
-      });
+      makeShopButton(
+        this,
+        this.footerLayer,
+        CARD_L + 280,
+        604,
+        140,
+        30,
+        "SAVE AS...",
+        true,
+        () => {
+          showSaveAsOverlay(this, this.state, (slot) => this.flashSavedMessage(slot));
+        },
+        ["Save As...", "", ...wrapTipText("Opens the save-slot picker — saves this campaign, with this mission's results already applied, to a slot of your choosing.", 42)],
+        this.hoverTip
+      );
     }
     // Routing fix, 28 Aug 2026 (Maxime: "dont forget to debried at
     // arrangement of content"). Used to land straight back on MapSelect's
@@ -547,13 +578,37 @@ export class Debrief extends Phaser.Scene {
     // conditional SAVE AS... spans 240-380, RETURN TO BASE spans 710-930 —
     // so a 210px button centered at 560 (455-665) clears both, including
     // when SAVE AS... is present (non-Ironman saves only).
-    makeShopButton(this, this.footerLayer, 560, 604, 210, 30, "COPY MISSION LOG", true, () => this.openMissionLogPanel());
-    makeShopButton(this, this.footerLayer, CARD_R - 110, 604, 220, 34, "RETURN TO BASE", true, () => {
-      saveCampaignState(this.state);
-      // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
-      // campaignState.ts): a House Amaranth save has no Hub to send it to.
-      this.scene.start(baseSceneKeyFor(this.state));
-    });
+    makeShopButton(
+      this,
+      this.footerLayer,
+      560,
+      604,
+      210,
+      30,
+      "COPY MISSION LOG",
+      true,
+      () => this.openMissionLogPanel(),
+      ["Copy Mission Log", "", ...wrapTipText("Copies this mission's full turn-by-turn log to your clipboard — handy for sharing or bug reports.", 42)],
+      this.hoverTip
+    );
+    makeShopButton(
+      this,
+      this.footerLayer,
+      CARD_R - 110,
+      604,
+      220,
+      34,
+      "RETURN TO BASE",
+      true,
+      () => {
+        saveCampaignState(this.state);
+        // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
+        // campaignState.ts): a House Amaranth save has no Hub to send it to.
+        this.scene.start(baseSceneKeyFor(this.state));
+      },
+      ["Return to Base", "", ...wrapTipText("Saves your campaign and returns to base — your Hub, or the Campaign Shop for a House Amaranth save with no Hub of its own.", 42)],
+      this.hoverTip
+    );
   }
 
   /**

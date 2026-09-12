@@ -111,6 +111,10 @@ export const VERB_DAY_COST: Record<VerbId, number> = {
   talk: 0,
   gift: 0,
   praise: 0,
+  // flirt, 12 Sep 2026 — same shape as praise (a flat, no-risk compliment,
+  // no room, no activity), and the whole point of splitting it out of
+  // askOut was to NOT carry that verb's weight, calendar cost included.
+  flirt: 0,
   insult: 0,
   apology: 0,
   congratulate: 0,

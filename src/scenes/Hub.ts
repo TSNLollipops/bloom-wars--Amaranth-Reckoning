@@ -81,7 +81,7 @@
 // part of this pass, exactly the audit this paragraph once predicted would
 // be needed if a scrolling camera ever shipped.
 import Phaser from "phaser";
-import { PATH_COLORS, pilotInitials, drawPilotAvatar } from "./TransporterPad";
+import { PATH_COLORS, PATH_SHAPES, pilotInitials, drawPilotAvatar } from "./TransporterPad";
 import {
   pickLineForMessage,
   pickMusterDeclineLine,
@@ -156,6 +156,8 @@ import {
   CONGRATULATE_FAVORABILITY_DELTA,
   CONGRATULATE_MORALE_DELTA,
   pickCongratulateLine,
+  FLIRT_FAVORABILITY_DELTA,
+  pickFlirtLine,
   SEND_OFF_FAVORABILITY_DELTA,
   SEND_OFF_STRESS_DELTA,
   pickSendOffLine,
@@ -240,6 +242,10 @@ import {
   ensureRecRoomState,
   lanceOfMekIn,
   lanceOfPilotIn,
+  areTutorialHintsEnabled,
+  hasSeenHubHint,
+  markHubHintSeen,
+  type HubHintId,
 } from "../engine/campaignState";
 // Rec Room Standings & NPC Learning, slice 3 (3 Sep 2026) — the player's own
 // finished sessions are now recorded on the same board the crew sit on.
@@ -264,7 +270,7 @@ import { Panel } from "./ui/Panel";
 // lives there rather than on CampaignState directly, and
 // ui/MissionBriefingPanel.ts's own header for the panel itself.
 import { MissionBriefingPanel } from "./ui/MissionBriefingPanel";
-import type { CampaignMission, Species } from "../data/types";
+import type { CampaignMission, Path, Species } from "../data/types";
 // Calendar economy, 2 Sep 2026 — the Hub is one of the two scenes whose real
 // elapsed time feeds the campaign calendar (Battle.ts is the other). Maxime:
 // "time spent in the hub and time spent on mission run on the same ckock."
@@ -1591,7 +1597,13 @@ type HubNpc = {
   y: number;
   ambient: AmbientPilotState;
   favorability: number; // persisted via CampaignState — see the file header's 26 Aug 2026 correction and campaignState.ts section 11
-  circle: Phaser.GameObjects.Arc;
+  // Widened Arc -> Shape, 12 Sep 2026 (shape-by-Path pass, see
+  // TransporterPad.ts's PilotAvatar.hitCircle for the full reasoning) —
+  // every combat pilot NPC below now gets PATH_SHAPES[path] instead of
+  // always a circle; nothing here ever calls anything Arc-specific on
+  // this field (only .setInteractive()/.disableInteractive(), the shared
+  // Shape/GameObject API), so the widening changes nothing else.
+  circle: Phaser.GameObjects.Shape;
   root: Phaser.GameObjects.Container;
   favLabel: Phaser.GameObjects.Text;
   bubbleContainer: Phaser.GameObjects.Container;
@@ -1830,11 +1842,32 @@ export class Hub extends Phaser.Scene {
   private keys!: { w: Phaser.Input.Keyboard.Key; a: Phaser.Input.Keyboard.Key; s: Phaser.Input.Keyboard.Key; d: Phaser.Input.Keyboard.Key };
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private interactPrompt!: Phaser.GameObjects.Text;
+  // Hub Hints & Orientation, 11 Sep 2026 — the one on-screen banner slot
+  // showHubHint() (below, near openWorkshop) reuses for whichever of the 6
+  // one-shot hints just fired; destroyed and replaced (never stacked) if a
+  // second one fires while the first is still showing, and auto-clears
+  // itself a few seconds after showing either way. See showHubHint()'s own
+  // header comment for the full design reasoning.
+  private hubHintBanner: Phaser.GameObjects.Container | null = null;
   // Cursor tip, 2 Sep 2026 — see scenes/ui/HoverTip.ts. Nullable rather
   // than definite-assigned because updateHoverTip() is reachable from the
   // update() loop, which can tick before create() finishes on a scene
   // restart (the same first-tick hazard buildNpcs' own comment describes).
   private hoverTip: HoverTip | null = null;
+  // Tooltip Coverage Standing Rule, 12 Sep 2026
+  // (Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md)
+  // — true while the pointer is over a raw interactive element wired
+  // through wireHoverTip() below, whether that's inside an open overlay
+  // (Workshop/Vault/Rec Room) or the always-visible footer BACK button.
+  // Both cases fight the scene-wide pointermove handler's own
+  // updateHoverTip(), which either hides the tip (an overlay is open) or
+  // overwrites it with room/NPC content (hubHoverLines()) on every single
+  // pointer move — this flag is what lets a wired element's own
+  // pointerover/pointerout claim the tip instead, the same "two hover
+  // systems, one arbitration flag" shape Battle.ts's own hoveredActionSlot
+  // already uses for its tile-hover conflict. See updateHoverTip() and
+  // wireHoverTip() for the actual mechanism.
+  private overlayHoverActive = false;
   private pointerX = 0;
   private pointerY = 0;
   // Carrier Scale-Up Plan v1, Phase 1, 2 Sep 2026 — pointerX/Y above are raw
@@ -2019,6 +2052,15 @@ export class Hub extends Phaser.Scene {
   private hangarShop!: ShopPanel;
   private hangarShopOutline!: Phaser.GameObjects.Graphics;
   private hangarShopLabel!: Phaser.GameObjects.Text;
+  // Crew Records had a working console (isAtCrewRecords/openRosterPanel)
+  // with no floor marker and no interact-prompt line of its own — every
+  // OTHER console in this room (Roster & Gear, Workshop, Vault, Archive)
+  // gets both. Caught 11 Sep 2026 going looking for why Maxime couldn't
+  // find the lance-reassignment feature he'd already asked for and gotten
+  // (RosterPanel.ts, 9 Sep): the feature worked, it was just invisible on
+  // screen. See drawCrewRecordsPoint below.
+  private crewRecordsOutline!: Phaser.GameObjects.Graphics;
+  private crewRecordsLabel!: Phaser.GameObjects.Text;
 
   // Comms log — see CHAT_LOG_* constants' own header for the full design
   // reasoning. Always-visible (not a toggled overlay like the four above).
@@ -2395,6 +2437,7 @@ export class Hub extends Phaser.Scene {
     this.drawMusterPoint();
     this.drawRecroomTable();
     this.drawHangarShopPoint();
+    this.drawCrewRecordsPoint();
     this.drawWorkshopBenchPoint();
     this.drawVaultPlinthPoint();
     this.drawArchiveTablePoint();
@@ -2448,6 +2491,25 @@ export class Hub extends Phaser.Scene {
     // if it meant the latter. Widened 140 -> 165 to keep the longer label
     // clear of makeShopButton's own wordWrap at this font size.
     makeShopButton(this, footer, 95, 604, 165, 32, this.f.profile.backButtonLabel, true, () => this.scene.start("Hangar"));
+    // Tooltip Coverage pass, 12 Sep 2026 — not passed as makeShopButton's
+    // own trailing tooltip/hoverTip params on purpose: that built-in wiring
+    // calls hoverTip.show() directly with no way to also flip
+    // overlayHoverActive, so the scene-wide pointermove handler would
+    // immediately overwrite it with room/NPC content on the very next
+    // pixel of mouse movement. wireHoverTip() below is what actually
+    // arbitrates that. footer.list[0] is the bg rectangle makeShopButton
+    // just built (layer.add([bg, txt]) — see that function's own body) —
+    // reaching in by index rather than by a returned reference since the
+    // function returns void; footer had nothing in it before this one call,
+    // so index 0 is exactly this button, not a guess.
+    this.wireHoverTip(footer.list[0] as Phaser.GameObjects.GameObject, [
+      "LEAVE THE HUB",
+      "",
+      ...wrapTipText(
+        "Opens the separate Campaign Shop screen — an older, simpler gear and roster screen from before the Hub existed. Your progress here is already saved; nothing is lost by going there.",
+        42,
+      ),
+    ]);
 
     // Explicit per-key binding rather than addKeys("W,A,S,D") — that batch
     // form keys its returned object by the exact string tokens passed in
@@ -2492,10 +2554,16 @@ export class Hub extends Phaser.Scene {
     this.buildPokerOverlay();
     this.buildDartsOverlay();
     this.buildHistoryOverlay();
-    this.standingsPanel = new StandingsPanel(this, ROOM_BOUNDS, () => this.closeStandings());
-    this.missionBriefingPanel = new MissionBriefingPanel(this, ROOM_BOUNDS, () => this.closeMissionBriefing());
-    this.memorialPanel = new MemorialPanel(this, ROOM_BOUNDS, () => this.closeMemorial());
-    this.rosterPanel = new RosterPanel(this, ROOM_BOUNDS, () => this.closeRosterPanel(), () => this.onLanceAssignmentChanged());
+    this.standingsPanel = new StandingsPanel(this, ROOM_BOUNDS, () => this.closeStandings(), (obj, lines) => this.wireHoverTip(obj, lines));
+    this.missionBriefingPanel = new MissionBriefingPanel(this, ROOM_BOUNDS, () => this.closeMissionBriefing(), (obj, lines) => this.wireHoverTip(obj, lines));
+    this.memorialPanel = new MemorialPanel(this, ROOM_BOUNDS, () => this.closeMemorial(), (obj, lines) => this.wireHoverTip(obj, lines));
+    this.rosterPanel = new RosterPanel(
+      this,
+      ROOM_BOUNDS,
+      () => this.closeRosterPanel(),
+      () => this.onLanceAssignmentChanged(),
+      (obj, lines) => this.wireHoverTip(obj, lines)
+    );
     this.buildHighlightsOverlay();
     this.buildHangarShopOverlay();
     this.buildWorkshopOverlay();
@@ -2928,14 +2996,18 @@ export class Hub extends Phaser.Scene {
     }
 
     // Gift/Praise/Insult/Apology/Congratulate/Send-Off, 2 Sep 2026 — the
-    // crew-interaction brainstorm pass ("add it all they are good"). Same
-    // precedence slot as every real verb above (a genuine request beats
-    // build/debrief/history/highlights/small-talk/the generic shrug), and
-    // deliberately NOT room-gated the way Share a Drink/the minigames/Ask
-    // Out are — nothing about complimenting, insulting, apologizing to, or
-    // sending off a crewmate is tied to one specific room's furniture, so
-    // resolveChatTarget's ordinary deck-wide candidate pool applies exactly
-    // as it already does for Talk/History/Highlights.
+    // crew-interaction brainstorm pass ("add it all they are good"). Flirt
+    // joined this group 12 Sep 2026 — same precedence slot, same shape
+    // (flirtWithNpc's own header has the full reasoning for why it's
+    // grouped here rather than with askOut above, despite the thematic
+    // overlap). Same precedence slot as every real verb above (a genuine
+    // request beats build/debrief/history/highlights/small-talk/the
+    // generic shrug), and deliberately NOT room-gated the way Share a
+    // Drink/the minigames/Ask Out are — nothing about complimenting,
+    // flirting, insulting, apologizing to, or sending off a crewmate is
+    // tied to one specific room's furniture, so resolveChatTarget's
+    // ordinary deck-wide candidate pool applies exactly as it already does
+    // for Talk/History/Highlights.
     if (verbId === "gift") {
       const target = this.resolveChatTarget(trimmed);
       if (!target) {
@@ -2952,6 +3024,15 @@ export class Hub extends Phaser.Scene {
         return;
       }
       this.praiseNpc(target);
+      return;
+    }
+    if (verbId === "flirt") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to hear that.");
+        return;
+      }
+      this.flirtWithNpc(target);
       return;
     }
     if (verbId === "insult") {
@@ -3667,6 +3748,47 @@ export class Hub extends Phaser.Scene {
     this.persistNpcSocial(npc);
   }
 
+  // Flirt, 12 Sep 2026 (Maxime: "Allow cute to be a flirt word... I could
+  // say you are cute to a npc and itl raise fav") — the softer tier
+  // chatIntent.ts's own askOut comment used to flag as missing: "you're
+  // cute" no longer rolls a full Ask Out attempt (real accept/reject
+  // against the 50-Favorability threshold, resolveAskOut below); it's a
+  // flat, guaranteed-positive nudge, same mechanical shape as praiseNpc
+  // just above. Grouped with Gift/Praise/etc in submitChat's dispatch
+  // (not with askOut, despite the thematic overlap) for exactly that
+  // reason — this verb never touches inRelationship, never has a
+  // rejection branch, never starts a real relationship. The literal
+  // proposal phrasing ("ask her out," "will you go out with me") still
+  // goes through askOut() below completely unchanged.
+  //
+  // The one thing this DOES share with askOut(): the same romanceable
+  // species check (romance.ts's isRomanceableSpecies/ROMANCE_CAPPED_
+  // SPECIES — Hiopi/Carabil capped at close-friend). Maxime's own call via
+  // AskUserQuestion: flirting is romantic in nature, so it should respect
+  // the same cap Ask Out does, unlike Praise, which works on literally
+  // anyone. A capped NPC gets the same CLOSE_FRIEND_ONLY_LINES redirect
+  // askOut() already uses for the identical case — same tone already
+  // written for exactly this situation, not new content.
+  private flirtWithNpc(npc: HubNpc) {
+    const now = this.time.now;
+    if (!npc.romanceable) {
+      const line = CLOSE_FRIEND_ONLY_LINES[Math.floor(Math.random() * CLOSE_FRIEND_ONLY_LINES.length)];
+      this.showBubble(npc, line, now);
+      this.holdForPlayerTalk(npc);
+      npc.socialLog = npc.socialLog ?? [];
+      this.logVerbAndCharge(npc, { verb: "flirt", line, at: Date.now() });
+      this.persistNpcSocial(npc);
+      return;
+    }
+    npc.favorability += FLIRT_FAVORABILITY_DELTA;
+    const line = pickFlirtLine(npc.ambient.catalyst);
+    this.showBubble(npc, line, now);
+    this.holdForPlayerTalk(npc);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "flirt", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
   // Insult, 2 Sep 2026 — Praise/Insult/Apology Proposal v1 §3, the
   // escalation ladder. Tier 2 (INSULT_TIER2_COUNT lifetime insults against
   // this specific pilot) registers a real hot topic and bumps this pilot's
@@ -4143,8 +4265,85 @@ export class Hub extends Phaser.Scene {
       this,
       { left: ROOM_BOUNDS.left, right: ROOM_BOUNDS.right, top: ROOM_BOUNDS.top, bottom: ROOM_BOUNDS.bottom },
       () => this.closeWorkshop(),
-      { title: "THE WORKSHOP — CARRIER UPGRADE MODULES" }
+      {
+        title: "THE WORKSHOP — CARRIER UPGRADE MODULES",
+        showTooltip: (obj, lines) => this.wireHoverTip(obj, lines),
+        closeTooltipBody: "Back to the Hub floor. Anything you've bought here is already applied — there's no separate save step.",
+      }
     );
+  }
+
+  /**
+   * Hub Hints & Orientation (`Bloom_Wars_Hub_Hints_And_Orientation_Scoping_
+   * v1_11Sep2026.md`), built 11 Sep 2026 per Maxime's own answers to that
+   * doc's §3: shape = contextual (each hint below fires on its own real
+   * first-time trigger, not a forced 0-to-5 order — see HubHintId's own
+   * comment in campaignState.ts for why that's a flat set rather than a
+   * step counter), coverage = everything in that doc's §1 list plus Vault/
+   * Archive/Rec Room, and it shares TUTORIAL_HINTS_ENABLED_KEY's own
+   * Options toggle (areTutorialHintsEnabled() below) rather than getting a
+   * second switch.
+   *
+   * Deliberately reactive at every call site (fires right as the real
+   * action happens — opening Roster & Gear, walking into Talk range, etc.)
+   * rather than proactive. The scoping doc's own §2 sketched the Roster &
+   * Gear hint as shown on Hub entry and dismissed once the player reaches
+   * that room instead; simplified here to "shown once actually reached,"
+   * since that needed no extra per-frame proximity watch and nothing that
+   * could leak across a scene restart — at the real cost of not pointing a
+   * player toward that room before they'd find it on their own. Worth
+   * revisiting after an actual playtest rather than assumed to be enough.
+   *
+   * One shared banner, not a queue: if a second hint fires while the first
+   * is still showing (unlikely — these are spread-out, rare first-time
+   * actions — but not impossible back to back), the new one simply
+   * replaces the old rather than waiting behind it.
+   */
+  private showHubHint(id: HubHintId, lines: string[]) {
+    if (!areTutorialHintsEnabled() || hasSeenHubHint(id)) return;
+    markHubHintSeen(id);
+    this.hubHintBanner?.destroy();
+    const width = 700;
+    const text = this.add
+      .text(0, 0, lines.join("\n"), {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: TEXT_MAIN,
+        align: "center",
+        wordWrap: { width: width - 28 },
+      })
+      .setOrigin(0.5);
+    const bg = this.add.rectangle(0, 0, width, text.height + 20, 0x141a20, 0.92).setStrokeStyle(1, 0x4a7a9a);
+    const banner = this.add.container(480, 78, [bg, text]).setScrollFactor(0).setDepth(HUB_HUD_DEPTH);
+    this.hubHintBanner = banner;
+    this.time.delayedCall(7000, () => {
+      if (this.hubHintBanner === banner) this.hubHintBanner = null;
+      banner.destroy();
+    });
+  }
+
+  /**
+   * Wraps the four hints (roster/vault/archive/rec_room) whose OWN trigger
+   * opens something that would otherwise cover this banner before the
+   * player ever saw it: Roster & Gear, the Vault, and every Rec Room game
+   * render their overlay at depth 60 (see hangarShopOverlay/pegOverlay/
+   * pokerOverlay/dartsOverlay above), the Archive is a whole separate
+   * scene brought to the top of the draw order — either way, well above
+   * this scene's own pinned depth-20 HUD text. First time ever (hints on,
+   * this id not yet seen): show the banner against the plain Hub, hold
+   * `after` for one beat so it's actually readable, then run it. Every
+   * later call — this session or any future one — runs `after`
+   * immediately, no added delay. crew_talk doesn't need this wrapper: an
+   * NPC speech bubble doesn't cover the top of the screen the way a
+   * full panel or a whole other scene does.
+   */
+  private gateFirstHubHint(id: HubHintId, lines: string[], after: () => void) {
+    if (areTutorialHintsEnabled() && !hasSeenHubHint(id)) {
+      this.showHubHint(id, lines);
+      this.time.delayedCall(900, after);
+      return;
+    }
+    after();
   }
 
   private openWorkshop() {
@@ -4219,6 +4418,15 @@ export class Hub extends Phaser.Scene {
         // batch happened to exist when it ran.
         row.setInteractive({ useHandCursor: true }).setScrollFactor(0);
         row.on("pointerdown", () => this.buyCarrierModule(id));
+        // Tooltip Coverage pass, 12 Sep 2026 — rebuilt fresh every
+        // renderWorkshop() call same as the row itself (see this loop's own
+        // header comment on why), so this can just read def/points straight
+        // out of the closure instead of needing any dynamic-update path.
+        this.wireHoverTip(row, [
+          "INSTALL",
+          "",
+          ...wrapTipText(`Spends ${def.cost} Company points to permanently install ${def.displayName} on the carrier. Ship-wide, not tied to one pilot.`, 42),
+        ]);
       }
       add(row);
       add(
@@ -4305,18 +4513,28 @@ export class Hub extends Phaser.Scene {
       {
         title: "THE VAULT — HOUSE OFFERS & STANDING",
         scrollable: true,
+        showTooltip: (obj, lines) => this.wireHoverTip(obj, lines),
+        closeTooltipBody: "Back to the Hub floor. Anything you've claimed or spent here is already applied — there's no separate save step.",
         // B3 — the way into the roll of pilots lost. Same reasoning as
         // before this pass: built in the fixed header row opposite the
         // close button, not in renderVault's own rebuilt content stack, so
         // it neither grows on every render nor ever scrolls off. See
         // MemorialPanel's own header for the button it opens.
         extraHeader: (bounds, add) => {
+          // Was bounds.top + 20 — the exact same row as the title text
+          // above (bounds.left+18, bounds.top+20 in Panel.ts), so the two
+          // overlapped letter-on-letter. Caught live, 10 Sep 2026 (Maxime,
+          // screenshot). Panel.ts now reserves a second row for this when
+          // extraHeader is set (see its own headerExtra comment); this
+          // moves down into that row.
           const memorialBtn = this.add
-            .text(bounds.left + 20, bounds.top + 20, "[ the roll — pilots lost ]", { fontFamily: "monospace", fontSize: "11px", color: "#c17a6a" })
+            .text(bounds.left + 20, bounds.top + 34, "[ the roll — pilots lost ]", { fontFamily: "monospace", fontSize: "11px", color: "#c17a6a" })
             .setOrigin(0, 0.5)
             .setInteractive({ useHandCursor: true })
             .setScrollFactor(0);
           memorialBtn.on("pointerdown", () => this.openMemorial());
+          // Tooltip Coverage pass, 12 Sep 2026.
+          this.wireHoverTip(memorialBtn, ["THE ROLL", "", ...wrapTipText("Every pilot your company has lost this campaign, one by one.", 42)]);
           add(memorialBtn);
         },
       }
@@ -4336,6 +4554,17 @@ export class Hub extends Phaser.Scene {
   }
 
   private openVault() {
+    // Hub Hints & Orientation, 11 Sep 2026 — same "the panel this opens
+    // would cover the hint instantly" fix as openHangarShop() above; see
+    // gateFirstHubHint's own header.
+    this.gateFirstHubHint(
+      "vault",
+      ["THE VAULT", "Tracks your standing with Heirloom-bonded houses and their offers — a slower, separate track from ordinary recruiting."],
+      () => this.finishOpenVault()
+    );
+  }
+
+  private finishOpenVault() {
     this.vaultOpen = true;
     this.vaultPanel.open(); // walking up fresh always starts at the top of the list — Panel.open() resets scroll to 0 itself
     this.renderVault();
@@ -4349,6 +4578,18 @@ export class Hub extends Phaser.Scene {
    * the game to return this way — Archive.leave() resumes this one by key.
    */
   private openArchive() {
+    // Hub Hints & Orientation, 11 Sep 2026 — the Archive scene gets
+    // bringToTop'd over the whole canvas a few lines below, which would
+    // cover the hint instantly; see gateFirstHubHint's own header for the
+    // one-beat hold that fixes it.
+    this.gateFirstHubHint(
+      "archive",
+      ["THE ARCHIVE", "Your reference library — personnel dossiers, service records, and the wider world lore, all in one place."],
+      () => this.finishOpenArchive()
+    );
+  }
+
+  private finishOpenArchive() {
     this.scene.launch("Archive", { state: this.campaignState, returnScene: this.scene.key });
     // bringToTop is NOT optional here, and its absence is invisible until you
     // look at the screen. A PAUSED Phaser scene still RENDERS — pause only
@@ -4416,7 +4657,12 @@ export class Hub extends Phaser.Scene {
     const add = (obj: Phaser.GameObjects.GameObject) => this.vaultPanel.add(obj);
 
     const state = this.campaignState;
-    let y = ROOM_BOUNDS.top + 46;
+    // Was ROOM_BOUNDS.top + 46 — matched Panel's old contentTop, but the
+    // title/extraHeader overlap fix (see buildVaultOverlay's extraHeader
+    // callback) pushed the Vault panel's real content well down by 16px.
+    // Content drawn above the new contentTop gets cut by the scroll mask,
+    // not just visually crowded, so this has to track that number exactly.
+    let y = ROOM_BOUNDS.top + 62;
 
     // The dedication, Phase 4 — guaranteed, not probabilistic (see
     // checkVaultDedication's own header comment on why this can't be a
@@ -4518,6 +4764,14 @@ export class Hub extends Phaser.Scene {
             // are — rebuilt per render, so it has to happen at creation.
             row.setInteractive({ useHandCursor: true }).setScrollFactor(0);
             row.on("pointerdown", () => this.recruitFromVault(heirloomId));
+            // Tooltip Coverage pass, 12 Sep 2026 — cost/picksLeft read
+            // straight from this render pass's own closure, same
+            // no-dynamic-update-needed reasoning as the Workshop row above.
+            this.wireHoverTip(row, [
+              "RECRUIT",
+              "",
+              ...wrapTipText(`Spends ${cost} Company points and one of your ${picksLeft} remaining Heirloom picks (${HEIRLOOM_RECRUIT_BUDGET} total this campaign). Can't be undone.`, 42),
+            ]);
           }
           add(row);
           // CLUSTERING FIX, 2 Sep 2026 — Maxime, screenshot: a long pilot
@@ -4593,6 +4847,14 @@ export class Hub extends Phaser.Scene {
             .setInteractive({ useHandCursor: true })
             .setScrollFactor(0);
           toggleBtn.on("pointerdown", () => (isFielded ? this.unfieldFromVault() : this.fieldFromVault(heirloomId)));
+          // Tooltip Coverage pass, 12 Sep 2026 — branches on isFielded same
+          // as toggleLabel itself just above, rebuilt fresh every render.
+          this.wireHoverTip(
+            toggleBtn,
+            isFielded
+              ? ["UNFIELD", "", ...wrapTipText(`Stops bringing ${def.displayName} on missions, freeing the one active Heirloom slot for another.`, 42)]
+              : ["FIELD", "", ...wrapTipText(`Brings ${def.displayName} on your next mission with ${holderName}. Only one Heirloom can be fielded at a time.`, 42)],
+          );
           add(toggleBtn);
         }
         y += 18;
@@ -4628,6 +4890,15 @@ export class Hub extends Phaser.Scene {
               .setInteractive({ useHandCursor: true })
               .setScrollFactor(0);
             buyBtn.on("pointerdown", () => this.rankUpFromVault(heirloomId, ability.id, holderId!));
+            // Tooltip Coverage pass, 12 Sep 2026 — PERSONAL points called
+            // out explicitly since this is the one purchase path in this
+            // whole panel that spends the pilot's own pool rather than the
+            // Company one every other row on this screen spends.
+            this.wireHoverTip(buyBtn, [
+              "RANK UP",
+              "",
+              ...wrapTipText(`Spends ${nextCost} of ${holderName}'s personal points (not Company points) to raise ${ability.displayName} to rank ${rank + 1}/${HEIRLOOM_MAX_ABILITY_RANK}.`, 42),
+            ]);
             add(buyBtn);
           }
           y += 14;
@@ -4759,6 +5030,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeHistory());
+    this.wireHoverTip(closeBtn, ["CLOSE", "", "Back to the Hub floor."]);
     this.historyOverlay.add(closeBtn);
   }
 
@@ -4824,6 +5096,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeHighlights());
+    this.wireHoverTip(closeBtn, ["CLOSE", "", "Back to the Hub floor."]);
     this.highlightsOverlay.add(closeBtn);
   }
 
@@ -4872,6 +5145,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeHangarShop());
+    this.wireHoverTip(closeBtn, ["CLOSE", "", "Back to the Hub floor. Anything bought here is already saved."]);
     this.hangarShopOverlay.add(closeBtn);
 
     // Not added into hangarShopOverlay — ShopPanel owns and clears its own
@@ -4881,17 +5155,43 @@ export class Hub extends Phaser.Scene {
     // ShopPanel's own top-level display objects, toggled via the new
     // setVisible() method this pass added to that class, is the smaller
     // change against a shared file two other scenes also depend on.
-    this.hangarShop = new ShopPanel(this, this.campaignState, 56, 590, () => {
-      // Tier 4, 30 Aug 2026 — ShopPanel's existing callers (Debrief.ts,
-      // Hangar.ts) only ever save on their own footer's "leave" button,
-      // not after every purchase. This Hub already saves immediately
-      // after every state-mutating interaction elsewhere in this file
-      // (persistNpcSocial's own header covers the "why") — matched here
-      // rather than adopting the more lax convention, so a purchase made
-      // from the Hub survives a crash/reload the same way everything
-      // else the Hub touches already does.
-      saveCampaignState(this.campaignState);
-    });
+    this.hangarShop = new ShopPanel(
+      this,
+      this.campaignState,
+      56,
+      590,
+      () => {
+        // Tier 4, 30 Aug 2026 — ShopPanel's existing callers (Debrief.ts,
+        // Hangar.ts) only ever save on their own footer's "leave" button,
+        // not after every purchase. This Hub already saves immediately
+        // after every state-mutating interaction elsewhere in this file
+        // (persistNpcSocial's own header covers the "why") — matched here
+        // rather than adopting the more lax convention, so a purchase made
+        // from the Hub survives a crash/reload the same way everything
+        // else the Hub touches already does.
+        saveCampaignState(this.campaignState);
+      },
+      // "[ move lance ]" jump, 11 Sep 2026 — Maxime asked for an obvious
+      // way to move a pilot between lances right here on Roster & Gear.
+      // The actual mechanic already lives in RosterPanel (Crew Records,
+      // 9 Sep) — click-to-carry, Codex-styled, already solid — and this
+      // card is already the densest, most overlap-prone one in the file
+      // (see drawPilotRow's own Convert-to-company/Weapon-Branch comments
+      // for that history first-hand). Rebuilding a second picker inside
+      // it risked exactly the class of bug this file keeps a paper trail
+      // of, for no real gain. So this reuses the existing, proven UI
+      // instead of duplicating it: close this shop, open Crew Records
+      // already showing the pilot's current lance, and pick them straight
+      // up — one click here gets you a pilot ready to drop onto a lance
+      // tab there, rather than a second lance-picker to build and trust
+      // blind.
+      (pilotId) => {
+        this.closeHangarShop();
+        this.openRosterPanel();
+        this.rosterPanel.setTab(RosterPanel.lanceOf(this.campaignState, pilotId));
+        this.rosterPanel.pickForSwap(pilotId);
+      }
+    );
     this.hangarShop.setVisible(false);
     // Washed-out-panel hotfix (30 Aug 2026, Maxime's own screenshot).
     // ShopPanel's own two containers default to depth 0 (fine for
@@ -4982,6 +5282,18 @@ export class Hub extends Phaser.Scene {
   }
 
   private openHangarShop() {
+    // Hub Hints & Orientation, 11 Sep 2026 — hangarShopOverlay renders at
+    // depth 60, above this scene's own depth-20 HUD text, so the hint has
+    // to show BEFORE the shop actually opens over it — see
+    // gateFirstHubHint's own header.
+    this.gateFirstHubHint(
+      "roster",
+      ["ROSTER & GEAR", "This is where mission-to-mission progress actually happens — gear tiers, weapon branches, and recruiting new pilots.", "Full rules reference: MENU (top corner) → HOW TO PLAY."],
+      () => this.finishOpenHangarShop()
+    );
+  }
+
+  private finishOpenHangarShop() {
     this.hangarShopOpen = true;
     this.hangarShopOverlay.setVisible(true);
     this.hangarShop.setVisible(true);
@@ -5116,6 +5428,13 @@ export class Hub extends Phaser.Scene {
       const p = pegDotPixel(id);
       const zone = this.add.circle(p.x, p.y, PEG_ZONE_RADIUS, 0xffffff, 0).setInteractive({ useHandCursor: true }).setScrollFactor(0);
       zone.on("pointerdown", () => this.onPegDotClicked(id));
+      // Tooltip Coverage pass, 12 Sep 2026 — one generic line for all 9 dots
+      // rather than 9 near-identical ones; the status text above the board
+      // already says exactly what a click on ANY dot does at this moment
+      // (opening move vs. continuing a line vs. answering a Shield), so
+      // duplicating that per-dot would just be stale the instant the turn
+      // changes.
+      this.wireHoverTip(zone, ["PEG", "", "Click a dot to start or continue a line. Follow the status text above, or press [ ? ] for the full rules."]);
       this.pegOverlay.add(zone);
     }
 
@@ -5124,6 +5443,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closePegBoard());
+    this.wireHoverTip(closeBtn, ["LEAVE", "", "Ends this game with no result — no Favorability change either way."]);
     this.pegOverlay.add(closeBtn);
 
     const helpBtn = this.add
@@ -5131,6 +5451,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     helpBtn.on("pointerdown", () => this.togglePegHelp());
+    this.wireHoverTip(helpBtn, ["RULES", "", "Full peg board rules — Reach and Knot explained."]);
     this.pegOverlay.add(helpBtn);
 
     this.pegHelpOverlay = this.buildRulesHelpPanel(PEG_BOARD_RULES_TEXT, () => this.closePegHelp());
@@ -5148,6 +5469,17 @@ export class Hub extends Phaser.Scene {
   }
 
   private startPegBoard(npc: HubNpc) {
+    // Hub Hints & Orientation, 11 Sep 2026 — pegOverlay renders at depth
+    // 60, above this scene's own depth-20 HUD text; see gateFirstHubHint's
+    // own header for why the hint has to show before the game opens over it.
+    this.gateFirstHubHint(
+      "rec_room",
+      ["REC ROOM GAMES", "Peg board, poker, and darts aren't just a distraction — a win gives real Stress relief and builds Favorability with whoever you played."],
+      () => this.finishStartPegBoard(npc)
+    );
+  }
+
+  private finishStartPegBoard(npc: HubNpc) {
     this.pegOpponent = npc;
     this.pegGame = createPegGame();
     this.pegFirstClick = null;
@@ -5384,12 +5716,23 @@ export class Hub extends Phaser.Scene {
       if (legal.raise) this.onPokerAction({ type: "raise", to: legal.raise.maxTo });
       else if (legal.call) this.onPokerAction({ type: "call" }); // stack is already <= a call — this IS the all-in
     });
+    // Tooltip Coverage pass, 12 Sep 2026 — static text on all four rather
+    // than re-wiring per renderPoker() call: the button LABELS already
+    // change live (CHECK vs CALL n, RAISE TO n) via setText in renderPoker,
+    // but what each button actually DOES doesn't need a live number to
+    // explain, so one wireHoverTip() call per button at construction covers
+    // it for the button's whole lifetime.
+    this.wireHoverTip(this.pokerFoldBtn, ["FOLD", "", "Give up this hand. You lose whatever's already in the pot, but risk nothing more this hand."]);
+    this.wireHoverTip(this.pokerCheckCallBtn, ["CHECK / CALL", "", "Check for free if nobody's bet yet, or call to match the current bet — whichever applies right now."]);
+    this.wireHoverTip(this.pokerRaiseBtn, ["RAISE", "", "Raises to the minimum next bet, forcing everyone still in to match it or fold."]);
+    this.wireHoverTip(this.pokerAllInBtn, ["ALL-IN", "", "Pushes your entire remaining stack into the pot."]);
 
     const closeBtn = this.add
       .text(ROOM_BOUNDS.right - 20, ROOM_BOUNDS.top + 20, "[ leave — Esc ]", { fontFamily: "monospace", fontSize: "11px", color: TEXT_DIM })
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closePoker());
+    this.wireHoverTip(closeBtn, ["LEAVE", "", "Ends this sitting — no Favorability change either way. Chips reset next time you sit down."]);
     this.pokerOverlay.add(closeBtn);
 
     const helpBtn = this.add
@@ -5397,6 +5740,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     helpBtn.on("pointerdown", () => this.togglePokerHelp());
+    this.wireHoverTip(helpBtn, ["RULES", "", "Full Texas Hold'em rules and hand rankings."]);
     this.pokerOverlay.add(helpBtn);
 
     this.pokerHelpOverlay = this.buildRulesHelpPanel(POKER_RULES_TEXT, () => this.closePokerHelp());
@@ -5414,6 +5758,16 @@ export class Hub extends Phaser.Scene {
   }
 
   private startPoker(npc: HubNpc) {
+    // Hub Hints & Orientation, 11 Sep 2026 — see startPegBoard's own comment
+    // just above (same overlay depth, same fix).
+    this.gateFirstHubHint(
+      "rec_room",
+      ["REC ROOM GAMES", "Peg board, poker, and darts aren't just a distraction — a win gives real Stress relief and builds Favorability with whoever you played."],
+      () => this.finishStartPoker(npc)
+    );
+  }
+
+  private finishStartPoker(npc: HubNpc) {
     this.pokerOpponent = npc;
     this.pokerGame = createHoldemGame();
     this.pokerFinalLine = "";
@@ -5655,6 +6009,7 @@ export class Hub extends Phaser.Scene {
     // this one), so this button is built the same way inline instead.
     this.dartsThrowBtn = this.add.text(480, DARTS_THROW_BUTTON_Y, "[ THROW ]", { fontFamily: "monospace", fontSize: "13px", color: ACCENT }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
     this.dartsThrowBtn.on("pointerdown", () => this.onDartsThrow());
+    this.wireHoverTip(this.dartsThrowBtn, ["THROW", "", "Locks in your aim wherever the meter marker sits right now. Time it for the center for the best zones."]);
     this.dartsOverlay.add(this.dartsThrowBtn);
 
     const closeBtn = this.add
@@ -5662,6 +6017,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     closeBtn.on("pointerdown", () => this.closeDarts());
+    this.wireHoverTip(closeBtn, ["LEAVE", "", "Ends this match — no Favorability change either way."]);
     this.dartsOverlay.add(closeBtn);
 
     const helpBtn = this.add
@@ -5669,6 +6025,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true }).setScrollFactor(0);
     helpBtn.on("pointerdown", () => this.toggleDartsHelp());
+    this.wireHoverTip(helpBtn, ["RULES", "", "Full darts rules and scoring zones."]);
     this.dartsOverlay.add(helpBtn);
 
     this.dartsHelpOverlay = this.buildRulesHelpPanel(DARTS_RULES_TEXT, () => this.closeDartsHelp());
@@ -5731,6 +6088,16 @@ export class Hub extends Phaser.Scene {
   }
 
   private startDarts(npc: HubNpc) {
+    // Hub Hints & Orientation, 11 Sep 2026 — see startPegBoard's own comment
+    // above (same overlay depth, same fix).
+    this.gateFirstHubHint(
+      "rec_room",
+      ["REC ROOM GAMES", "Peg board, poker, and darts aren't just a distraction — a win gives real Stress relief and builds Favorability with whoever you played."],
+      () => this.finishStartDarts(npc)
+    );
+  }
+
+  private finishStartDarts(npc: HubNpc) {
     this.dartsOpponent = npc;
     this.dartsGame = createDartsGame();
     this.dartsFinalLine = "";
@@ -6313,6 +6680,33 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
+  // 11 Sep 2026 — same dashed-outline treatment as drawHangarShopPoint just
+  // above, at CREW_RECORDS_POINT instead. This point already worked
+  // (isAtCrewRecords/openRosterPanel, B2, 5 Sep 2026) but had no floor
+  // marker of its own, unlike every other walk-up console in this file —
+  // the actual reason it read as missing rather than just unmarked.
+  private drawCrewRecordsPoint() {
+    const w = 90;
+    const h = 46;
+    const x = this.f.points.crewRecords.x - w / 2;
+    const y = this.f.points.crewRecords.y - h / 2;
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x6b7d8a, 0.7);
+    const dash = 6;
+    for (let dx = 0; dx < w; dx += dash * 2) {
+      g.lineBetween(x + dx, y, x + Math.min(dx + dash, w), y);
+      g.lineBetween(x + dx, y + h, x + Math.min(dx + dash, w), y + h);
+    }
+    for (let dy = 0; dy < h; dy += dash * 2) {
+      g.lineBetween(x, y + dy, x, y + Math.min(dy + dash, h));
+      g.lineBetween(x + w, y + dy, x + w, y + Math.min(dy + dash, h));
+    }
+    this.crewRecordsOutline = g;
+    this.crewRecordsLabel = this.add
+      .text(this.f.points.crewRecords.x, this.f.points.crewRecords.y, "CREW\nRECORDS", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a", align: "center" })
+      .setOrigin(0.5);
+  }
+
   // 2 Sep 2026 — the Workshop bench, same dashed-outline treatment
   // drawMusterPoint/drawHangarShopPoint above already established for
   // "a real console you walk up to." Third use of this shape, so the
@@ -6629,22 +7023,40 @@ export class Hub extends Phaser.Scene {
       const pilot = pilotEntry.pilot;
       const displayName = pilot.displayName;
       const initials = pilotInitials(displayName);
-      const color = PATH_COLORS[(pilot.archetypeId.includes("tank") ? "tank" : pilot.archetypeId.includes("reeps") ? "reeps" : "meeps") as keyof typeof PATH_COLORS];
-      // pickInitialNpcSpot's own header covers the collision-rejection —
-      // reads this.npcs live, so it correctly avoids whoever this same
-      // loop has already placed, not just the three seated pilots.
-      const room: RoomId = namedSeed ? this.f.profile.spawnRoom : roomChoices[Math.floor(Math.random() * roomChoices.length)];
-      const pos = namedSeed ? positions[this.f.profile.regulars.indexOf(namedSeed)] : this.pickInitialNpcSpot(room, this.npcs);
-      // Real, data-driven romanceable — see HubNpc's own comment for why
-      // this used to be a hand-set boolean and isn't anymore. `pilot` is
-      // always defined now (30 Aug 2026 hotfix above), so the only miss
-      // left is archetypeId not resolving in UNIT_ARCHETYPES — falls back
-      // to true (open) rather than throwing if that ever happens.
+      // Real, data-driven romanceable/Path — see HubNpc's own comment for
+      // why romanceable used to be a hand-set boolean and isn't anymore.
+      // `pilot` is always defined now (30 Aug 2026 hotfix above), so the
+      // only miss left is archetypeId not resolving in UNIT_ARCHETYPES —
+      // falls back to true/meeps (open/default) rather than throwing if
+      // that ever happens. Hoisted above color/shape, 12 Sep 2026 (shape-
+      // by-Path pass), since both now need it — used to only get computed
+      // below, after color's own separate (and, for Path purposes, buggy —
+      // see comment there) inline check.
       const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
       const romanceable = archetype ? isRomanceableSpecies(archetype.species) : true;
       // Same fallback reasoning as romanceable just above — "human" only
       // if archetypeId somehow doesn't resolve, which shouldn't happen.
       const species: Species = archetype ? archetype.species : "human";
+      // Path resolved via the archetype lookup just above, not the old
+      // inline `archetypeId.includes("tank")/("reeps")` string-sniff this
+      // replaced — that check only ever tested for "tank" and "reeps",
+      // falling through to "meeps" every other time, Munti pilots
+      // included, so every Munti NPC on this floor has always shown up
+      // meeps-teal. Shape pass, 12 Sep 2026 (Maxime: "the circle with the
+      // npc name that move, can we change their shape to match the
+      // individual npc combat specialty, so its easy to see. thats my
+      // tank guy, thats a meeps thats a reeps") — needed a real Path here
+      // anyway for the new PATH_SHAPES lookup, so the colour miss above
+      // got fixed as a side effect of that, not a separate deliberate
+      // change.
+      const pilotPath: Path = archetype?.path ?? "meeps";
+      const color = PATH_COLORS[pilotPath];
+      const shape = PATH_SHAPES[pilotPath];
+      // pickInitialNpcSpot's own header covers the collision-rejection —
+      // reads this.npcs live, so it correctly avoids whoever this same
+      // loop has already placed, not just the three seated pilots.
+      const room: RoomId = namedSeed ? this.f.profile.spawnRoom : roomChoices[Math.floor(Math.random() * roomChoices.length)];
+      const pos = namedSeed ? positions[this.f.profile.regulars.indexOf(namedSeed)] : this.pickInitialNpcSpot(room, this.npcs);
 
       // 26 Aug 2026 — Favorability/Stress/Morale/socialLog/inRelationship
       // now come from CampaignState, not straight off the seed. First time
@@ -6723,7 +7135,7 @@ export class Hub extends Phaser.Scene {
       // drawPilotAvatar's own header, TransporterPad.ts). Only this floor;
       // Transporter Pad/Roster/Memorial/Debrief keep showing this same
       // pilot's real portrait unchanged.
-      const avatar = drawPilotAvatar(this, 0, 0, NPC_R, pilotId, displayName, color, undefined, true);
+      const avatar = drawPilotAvatar(this, 0, 0, NPC_R, pilotId, displayName, color, undefined, true, shape);
       const circle = avatar.hitCircle;
       const nameTag = this.add
         .text(0, NPC_R + 12, displayName.split("—")[0].trim(), { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM })
@@ -7577,6 +7989,15 @@ export class Hub extends Phaser.Scene {
       if (npc.ambient.worried) out.push("Worried about someone on mission");
       if (npc.inRelationship) out.push("In a relationship");
       if (npc.targetX !== undefined) out.push("(walking)");
+      // Tooltip Coverage pass, 12 Sep 2026 — the one line this whole block
+      // was missing: everything above says who they are, nothing said this
+      // is a clickable at all. Appended here rather than wired through
+      // wireHoverTip() like every other clickable in this pass, since NPCs
+      // already have their own bespoke hover content (hubHoverLines(),
+      // this method) running through the scene-wide handler with no
+      // overlay in the way — a second, competing hover system would be
+      // solving a problem that doesn't exist here.
+      out.push("", "Click to talk");
       return out;
     }
 
@@ -7652,6 +8073,14 @@ export class Hub extends Phaser.Scene {
   /** Push the current hover content into the cursor tip, or hide it. */
   private updateHoverTip(): void {
     if (!this.hoverTip) return;
+    // Tooltip Coverage pass, 12 Sep 2026 — a wireHoverTip()-wired element
+    // (an overlay button, or the footer BACK button) is currently showing
+    // its own tip. Checked first, unconditionally, before anyOverlayOpen()
+    // below: this scene-wide handler fires on every pointer move regardless
+    // of what's under the cursor, so without this it would immediately hide
+    // or overwrite whatever that element's own pointerover just showed.
+    // See overlayHoverActive's own field comment.
+    if (this.overlayHoverActive) return;
     // Any overlay open (chat, a minigame, the shop) owns the screen — a tip
     // about whatever is underneath it would be pointing at something the
     // player can't currently interact with.
@@ -7660,6 +8089,30 @@ export class Hub extends Phaser.Scene {
       return;
     }
     this.hoverTip.show(this.hubHoverLines(), this.pointerX, this.pointerY);
+  }
+
+  /**
+   * Wires a raw interactive object to this scene's shared cursor tip —
+   * Tooltip Coverage Standing Rule, 12 Sep 2026. Every overlay-internal
+   * tooltip in this file (Workshop, Vault, the three Rec Room games) and
+   * the footer BACK button go through this one place rather than
+   * hand-rolling the same three listeners per button (the pattern the
+   * checklist doc itself documents as "established," minus the
+   * overlayHoverActive bookkeeping ShopPanel.ts's own copy of this pattern
+   * doesn't need — it has no competing scene-wide hover system).
+   */
+  private wireHoverTip(obj: Phaser.GameObjects.GameObject, lines: string[]): void {
+    obj.on("pointerover", (p: Phaser.Input.Pointer) => {
+      this.overlayHoverActive = true;
+      this.hoverTip?.show(lines, p.x, p.y);
+    });
+    obj.on("pointermove", (p: Phaser.Input.Pointer) => {
+      this.hoverTip?.show(lines, p.x, p.y);
+    });
+    obj.on("pointerout", () => {
+      this.overlayHoverActive = false;
+      this.hoverTip?.hide();
+    });
   }
 
   private logVerbAndCharge(npc: HubNpc, entry: SocialLogEntry): void {
@@ -9598,6 +10051,7 @@ export class Hub extends Phaser.Scene {
     if (door) this.interactPrompt.setText(`E — enter ${door.label}`);
     else if (this.isAtBay()) this.interactPrompt.setText("E — deploy");
     else if (this.isAtHangarShop()) this.interactPrompt.setText("E — roster & gear");
+    else if (this.isAtCrewRecords()) this.interactPrompt.setText("E — crew records");
     else if (this.isAtWorkshopBench()) this.interactPrompt.setText("E — carrier modules");
     else if (this.isAtVaultPlinth()) this.interactPrompt.setText("E — the vault");
     else if (this.isAtArchiveTable()) this.interactPrompt.setText("E — the archive");
@@ -9777,6 +10231,10 @@ export class Hub extends Phaser.Scene {
     // isAtHangarShop's own comment).
     this.hangarShopOutline.setVisible(onLowerDeck);
     this.hangarShopLabel.setVisible(onLowerDeck);
+    // Crew Records, 11 Sep 2026 — same whole-deck visibility as the
+    // Roster & Gear marker just above; see drawCrewRecordsPoint's header.
+    this.crewRecordsOutline.setVisible(onLowerDeck);
+    this.crewRecordsLabel.setVisible(onLowerDeck);
     // The Rec Room table, 30 Aug 2026 — same whole-deck visibility as the
     // bay/shop markers just above.
     this.recroomTableOutline.setVisible(onLowerDeck);
@@ -9834,6 +10292,19 @@ export class Hub extends Phaser.Scene {
   // as CAMPAIGN SHOP -> MapSelect already does elsewhere; no new mission-
   // choice logic lives here.
   private deploy() {
+    // Hub Hints & Orientation, 11 Sep 2026 — deploy() ends in scene.start()
+    // a few lines below, which tears down every game object in this scene
+    // immediately (not a "sleep" — a real stop), so a banner shown here
+    // would be destroyed before a single frame of it ever rendered without
+    // gateFirstHubHint's own one-beat hold. See that method's own header.
+    this.gateFirstHubHint(
+      "bay",
+      ["THE BAY", "Your deploy point — this sends you to pick your next mission. Whatever you set up in Roster & Gear before this moment is what heads out with you."],
+      () => this.finishDeploy()
+    );
+  }
+
+  private finishDeploy() {
     // 27 Aug 2026 — the muster's real "done" case (see HubNpc.mustered's
     // header). Also resets musterActive: this Hub scene instance is reused
     // (Phaser doesn't recreate the class on scene.start), so without this
@@ -9882,6 +10353,16 @@ export class Hub extends Phaser.Scene {
 
   private speak() {
     const now = this.time.now;
+    // Hub Hints & Orientation, 11 Sep 2026 — fired on "someone is actually
+    // in range to talk to," checked once here rather than inside the loop
+    // below: that loop's own branches (stage promotions, rank greetings,
+    // Gate 0's engagement roll, etc.) can legitimately produce NO bubble at
+    // all on a given press, but the player still successfully walked up
+    // and talked to someone for real, which is the moment this hint is
+    // actually about.
+    if (this.npcs.some((npc) => this.sameDeck(npc.room, this.currentRoomId) && Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y) <= TALK_RADIUS)) {
+      this.showHubHint("crew_talk", ["TALKING TO YOUR CREW", "This isn't flavor text — it's a real system. Every conversation moves Favorability, Stress, and Morale, and can grow into an actual relationship over time."]);
+    }
     for (const npc of this.npcs) {
       if (!this.sameDeck(npc.room, this.currentRoomId)) continue;
       const dist = Phaser.Math.Distance.Between(this.playerX, this.playerY, npc.x, npc.y);

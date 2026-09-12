@@ -20,6 +20,8 @@
 import Phaser from "phaser";
 import { makeShopButton } from "../shop/ShopPanel";
 import { getTesterNotes, setTesterNotes } from "../../engine/testerNotes";
+import { HoverTip } from "./HoverTip";
+import { wrapTipText } from "../../engine/hoverTipLayout";
 
 /**
  * Shows the editable Tester Notes panel over the current scene.
@@ -71,6 +73,12 @@ export function showNotesPanel(scene: Phaser.Scene, onClose: () => void): Phaser
 
   const closeLayer = scene.add.container(0, 0);
   const panel = scene.add.container(0, 0, [bg, title, subtitle, area, copyStatus, closeLayer]);
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // A standalone function like MenuOverlay.ts/FramePanel.ts, but with a
+  // single close() every exit path already runs through — one HoverTip,
+  // destroyed there, same shape FramePanel.ts settled on.
+  const hoverTip = new HoverTip(scene);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -84,6 +92,7 @@ export function showNotesPanel(scene: Phaser.Scene, onClose: () => void): Phaser
     el.removeEventListener("input", onInput);
     document.removeEventListener("keydown", onKeyDown);
     panel.destroy(true);
+    hoverTip.destroy();
     onClose();
   }
 
@@ -107,7 +116,31 @@ export function showNotesPanel(scene: Phaser.Scene, onClose: () => void): Phaser
     }
   };
 
-  makeShopButton(scene, closeLayer, 350, 556, 260, 30, "COPY TO CLIPBOARD", true, doCopy);
-  makeShopButton(scene, closeLayer, 630, 556, 220, 30, "CLOSE (or press Esc)", true, close);
+  makeShopButton(
+    scene,
+    closeLayer,
+    350,
+    556,
+    260,
+    30,
+    "COPY TO CLIPBOARD",
+    true,
+    doCopy,
+    ["Copy to Clipboard", "", ...wrapTipText("Copies everything currently in the box above, exactly as typed.", 42)],
+    hoverTip
+  );
+  makeShopButton(
+    scene,
+    closeLayer,
+    630,
+    556,
+    220,
+    30,
+    "CLOSE (or press Esc)",
+    true,
+    close,
+    ["Close", "", ...wrapTipText("Closes Tester Notes. Every keystroke already saved as you typed it — there's nothing to lose by closing.", 42)],
+    hoverTip
+  );
   return panel;
 }

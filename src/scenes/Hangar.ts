@@ -29,6 +29,8 @@ import Phaser from "phaser";
 import { createWardenCampaignState, loadCampaignState, saveCampaignState, baseSceneKeyFor, type CampaignState } from "../engine/campaignState";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
@@ -38,6 +40,11 @@ export class Hangar extends Phaser.Scene {
   private state!: CampaignState;
   private shop!: ShopPanel;
   private footerLayer!: Phaser.GameObjects.Container;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Covers only this scene's own footer buttons — the embedded ShopPanel
+  // instance already has its own tooltips, done 11 Sep 2026.
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("Hangar");
@@ -45,6 +52,7 @@ export class Hangar extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0c0f12");
+    this.hoverTip = new HoverTip(this);
 
     this.state = loadCampaignState() ?? createWardenCampaignState();
 
@@ -77,14 +85,38 @@ export class Hangar extends Phaser.Scene {
     // at all, per that doc's own "only reachable when the live campaign for
     // that side is non-Ironman" rule.
     if (this.state.ironman === false) {
-      makeShopButton(this, this.footerLayer, CARD_L + 280, 604, 140, 30, "SAVE AS...", true, () => {
-        showSaveAsOverlay(this, this.state, (slot) => this.flashSavedMessage(slot));
-      });
+      makeShopButton(
+        this,
+        this.footerLayer,
+        CARD_L + 280,
+        604,
+        140,
+        30,
+        "SAVE AS...",
+        true,
+        () => {
+          showSaveAsOverlay(this, this.state, (slot) => this.flashSavedMessage(slot));
+        },
+        ["Save As...", "", ...wrapTipText("Opens the save-slot picker — saves your campaign, including anything just bought here, to a slot of your choosing.", 42)],
+        this.hoverTip
+      );
     }
-    makeShopButton(this, this.footerLayer, CARD_R - 130, 604, 260, 34, "BACK TO MISSION SELECT", true, () => {
-      saveCampaignState(this.state);
-      this.scene.start("MapSelect");
-    });
+    makeShopButton(
+      this,
+      this.footerLayer,
+      CARD_R - 130,
+      604,
+      260,
+      34,
+      "BACK TO MISSION SELECT",
+      true,
+      () => {
+        saveCampaignState(this.state);
+        this.scene.start("MapSelect");
+      },
+      ["Back to Mission Select", "", ...wrapTipText("Saves your campaign and returns to the mission list.", 42)],
+      this.hoverTip
+    );
     // Entry point for the Hub scene prototype (Walkable Hub Build Plan
     // Phase 1, 25 Aug 2026). Own row, above the balance/back-button row —
     // sharing that row would overlap the "Company Points" label, which
@@ -126,10 +158,22 @@ export class Hangar extends Phaser.Scene {
     // button, and it goes to THAT side's hub.
     const hubKey = baseSceneKeyFor(this.state);
     if (hubKey !== "Hangar") {
-      makeShopButton(this, this.footerLayer, 525, 604, 260, 30, "WALKABLE HUB (PROTOTYPE)", true, () => {
-        saveCampaignState(this.state);
-        this.scene.start(hubKey);
-      });
+      makeShopButton(
+        this,
+        this.footerLayer,
+        525,
+        604,
+        260,
+        30,
+        "WALKABLE HUB (PROTOTYPE)",
+        true,
+        () => {
+          saveCampaignState(this.state);
+          this.scene.start(hubKey);
+        },
+        ["Walkable Hub", "", ...wrapTipText("Saves your campaign and enters the walkable Hub for this side — the same shop, just a different way to reach it.", 42)],
+        this.hoverTip
+      );
     }
   }
 

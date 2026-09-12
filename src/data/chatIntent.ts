@@ -176,25 +176,36 @@ const VERB_REQUEST_KEYWORDS: Partial<Record<VerbId, string[]>> = {
   // CHAT_FALLBACK_LINES shrug instead of ever reaching resolveAskOut at
   // all. The original list was literal-request phrasing only ("ask her
   // out," "date me") — nothing here covered an actual flirt line, which is
-  // the more natural way a player would try this. These are still
-  // whole-phrase keywords, same "not exhaustive by design, grows from
-  // playtesting" philosophy as the original list — not a rewrite of the
-  // approach, just more of the same kind of entry. Deliberate, flagged
-  // consequence: a bare compliment like "you're cute" now rolls a REAL
-  // Ask Out attempt (full accept/reject against Favorability), the exact
-  // same mechanical weight as "ask her out" — there's no separate, softer
-  // "flirt" tier today, so recognizing the phrase at all means it costs
-  // the same as the direct version. "i love you" is included on the same
-  // logic even though "love" is also an EMOTION_KEYWORDS word — Hub.ts's
-  // submitChat checks detectVerbRequest before interpretPlayerChat (see
-  // this file's own header), so the targeted Ask Out reading always wins,
-  // same precedence the Praise/Insult/Apology graduation already relies on.
+  // the more natural way a player would try this. Whole-phrase keywords,
+  // same "not exhaustive by design, grows from playtesting" philosophy as
+  // the original list.
+  //
+  // Split 12 Sep 2026 (Maxime: "Allow cute to be a flirt word... itl raise
+  // fav") — corrects exactly the "deliberate, flagged consequence" this
+  // comment used to describe here: for one session, "you're cute" really
+  // did roll a full Ask Out attempt (accept/reject against the 50-
+  // Favorability threshold, same weight as "ask her out"), which meant it
+  // could cost a real -8 Favorability below that line rather than reading
+  // as the harmless compliment it looks like. The casual-compliment half
+  // of the 9 Sep widening moved to its own `flirt` entry below — a real
+  // verb now (data/verbs.ts, data/socialActions.ts), flat guaranteed
+  // Favorability, no accept/reject, no relationship change. What stays
+  // here is only the literal proposal phrasing — confirmed via
+  // AskUserQuestion, not assumed. "i love you" stays on this list on the
+  // same logic the original comment gave: "love" is also an
+  // EMOTION_KEYWORDS word, but detectVerbRequest is checked before
+  // interpretPlayerChat (see this file's own header), so the targeted Ask
+  // Out reading still always wins.
   askOut: [
     "ask out", "ask her out", "ask him out", "ask them out", "date me", "go on a date", "date you",
-    "flirt with you", "i like you", "i have feelings for you", "you're cute", "youre cute",
-    "you're pretty", "you're gorgeous", "you're hot", "be my girlfriend", "be my boyfriend",
+    "i have feelings for you", "be my girlfriend", "be my boyfriend",
     "be mine", "i'm into you", "im into you", "go out with me", "will you go out with me", "i love you",
   ],
+  // flirt, 12 Sep 2026 — the softer tier split out of askOut above. Same
+  // "not exhaustive, grows from playtesting" shape as every list in this
+  // file; add more casual compliments here as they come up in actual play,
+  // same way askOut's own list grew.
+  flirt: ["flirt with you", "i like you", "you're cute", "youre cute", "you're pretty", "you're gorgeous", "you're hot"],
   gift: ["gift", "give a gift", "brought you something", "got you something", "here's a gift"],
   praise: ["well done", "great job", "good work", "proud of you", "you did great", "you're doing great", "nice job"],
   insult: ["stupid", "idiot", "useless", "worthless", "pathetic", "screw you", "shut up"],

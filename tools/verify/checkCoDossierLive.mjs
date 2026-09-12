@@ -52,7 +52,6 @@ check(read.some((t) => t.includes("Carabil")), "still carries his authored bio u
 await page.screenshot({ path: new URL("./coDossier_warden.png", import.meta.url).pathname });
 
 // --- House Amaranth: Verinis, no relationship this time.
-const haSave = JSON.parse(readFileSync(new URL("./mekArchiveSave.json", import.meta.url).pathname, "utf8"));
 // mekArchiveSave.json is a Warden save; build a minimal House Amaranth
 // stand-in isn't available here, so instead just re-check the facility
 // fork directly against the live game's own House Amaranth starting state.

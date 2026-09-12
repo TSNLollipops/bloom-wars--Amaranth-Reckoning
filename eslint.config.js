@@ -19,6 +19,28 @@ export default tseslint.config(
   },
   ...tseslint.configs.recommended,
   {
+    // Codebase convention: a leading underscore marks a parameter kept on
+    // purpose but not read by the current body — e.g. activeLanceIds(_state)
+    // in campaignState.ts, kept so every existing call site (and a future
+    // carrier type that might need it) still has it, even though today's
+    // body doesn't read it. Without this, the rule can't tell "kept on
+    // purpose, see the doc comment" from "forgot to remove it."
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+    },
+  },
+  {
+    // .cjs is Node's own "force CommonJS regardless of package.json's type
+    // field" signal — see electron/main.cjs's own header comment for why
+    // that file is .cjs at all. require() there isn't a style lapse this
+    // rule should flag, it's the entire reason the extension is .cjs
+    // instead of .ts in the first place.
+    files: ["**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
     files: ["src/engine/**/*.ts", "src/data/**/*.ts", "src/sim/**/*.ts"],
     ...noPhaserImport,
   },

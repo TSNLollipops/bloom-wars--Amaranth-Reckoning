@@ -45,6 +45,8 @@ import {
 } from "../engine/archiveDossier";
 import { type CampaignPilotEntry, type CampaignState } from "../engine/campaignState";
 import { pilotServiceRecords, type PilotServiceRecord } from "../engine/statsStore";
+import { HoverTip } from "./ui/HoverTip";
+import { wrapTipText } from "../engine/hoverTipLayout";
 
 const PAL = {
   bg: 0x0a0d10,
@@ -121,6 +123,10 @@ export class Archive extends Phaser.Scene {
   private readMask!: Phaser.Display.Masks.GeometryMask;
   private listHeight = 0;
   private readHeight = 0;
+  // Tooltip pass, 12 Sep 2026 (standing rule — see
+  // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
+  // Plain scene class, no competing scene-wide hover system.
+  private hoverTip!: HoverTip;
 
   constructor() {
     super("Archive");
@@ -146,6 +152,7 @@ export class Archive extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(PAL.bg);
+    this.hoverTip = new HoverTip(this);
     this.drawChrome();
 
     this.railLayer = this.add.container(0, 0);
@@ -200,13 +207,21 @@ export class Archive extends Phaser.Scene {
       this.add.rectangle(p.x + p.w / 2, p.y + p.h / 2, p.w, p.h, PAL.panel, 1).setStrokeStyle(1, PAL.panelBorder);
     }
 
+    const backTip = ["Leave the Console", "", ...wrapTipText("Resumes the Hub or Records table exactly as you left it. Nothing on this console changes your campaign — it's read-only.", 42)];
     const back = this.add
       .text(W / 2, 616, "ESC — LEAVE THE CONSOLE", { fontFamily: MONO, fontSize: "10px", color: PAL.muted })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     back.on("pointerup", () => this.leave());
-    back.on("pointerover", () => back.setColor(PAL.text));
-    back.on("pointerout", () => back.setColor(PAL.muted));
+    back.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+      back.setColor(PAL.text);
+      this.hoverTip.show(backTip, pointer.x, pointer.y);
+    });
+    back.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(backTip, pointer.x, pointer.y));
+    back.on("pointerout", () => {
+      back.setColor(PAL.muted);
+      this.hoverTip.hide();
+    });
   }
 
   private leave() {
@@ -250,6 +265,10 @@ export class Archive extends Phaser.Scene {
           this.renderList();
           this.renderReader();
         });
+        const railTip = [`${forFacility(shelf.label, this.fac)} — ${sec.label}`, "", ...wrapTipText("Shows this section's documents in the middle pane.", 42)];
+        bg.on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(railTip, pointer.x, pointer.y));
+        bg.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(railTip, pointer.x, pointer.y));
+        bg.on("pointerout", () => this.hoverTip.hide());
         this.railLayer.add(bg);
         this.railLayer.add(
           this.add.text(RAIL.x + 10, y + 3, sec.label.toUpperCase(), {
@@ -364,6 +383,21 @@ export class Archive extends Phaser.Scene {
           this.renderList();
           this.renderReader();
         });
+        // No hover wired for a locked row: the always-visible "unlocks
+        // after mission N" line right under it (below) already states the
+        // disabled reason — a duplicate tooltip would just repeat it.
+        const rowBody =
+          item.kind === "pilot"
+            ? "Opens this pilot's dossier — service record, standing, and biography."
+            : item.kind === "mek"
+              ? "Opens this Mek's own file."
+              : item.kind === "co"
+                ? "Opens the CO's dossier."
+                : `${item.entry.kind.toUpperCase()} — opens in the reader pane.`;
+        const rowTip = [label, "", ...wrapTipText(rowBody, 42)];
+        row.on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(rowTip, pointer.x, pointer.y));
+        row.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(rowTip, pointer.x, pointer.y));
+        row.on("pointerout", () => this.hoverTip.hide());
       }
       this.listLayer.add(row);
       if (on) this.listLayer.add(this.add.rectangle(LIST.x + 2, y + 13, 3, 26, this.fac === "warden" ? PAL.brassHex : PAL.roseHex));

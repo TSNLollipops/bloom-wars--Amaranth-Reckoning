@@ -81,6 +81,15 @@
 // flagged, not silently decided, since tightening it to Berths once NPCs
 // actually inhabit that room (piece three, autonomous roaming) is a real
 // follow-up worth doing on purpose rather than by accident.
+//
+// flirt, 12 Sep 2026 — the softer tier askOut's own comment above says
+// nothing about, because it didn't exist yet when that was written. Same
+// flat-delta shape as gift/praise/insult/apology/congratulate/sendOff
+// below (a real outcome resolved here, in Hub.ts, off a fixed
+// FLIRT_FAVORABILITY_DELTA — no dynamic accept/reject the way askOut has),
+// not askOut's shape, despite the thematic overlap. data/socialActions.ts's
+// own header has the full reasoning and the exact phrase split against
+// askOut's keyword list (data/chatIntent.ts).
 // angerBlowup / breakdown, 28 Aug 2026 — Groups 3-5 batch rebuild (see
 // data/angerBlowup.ts and data/breakdown.ts for the real math and content
 // these two ids stand for). Not player-initiated the way every verb above
@@ -129,6 +138,7 @@ export type VerbId =
   | "poker"
   | "fletchers"
   | "askOut"
+  | "flirt"
   | "angerBlowup"
   | "breakdown"
   | "spar"
@@ -201,6 +211,7 @@ export const VERBS: Record<VerbId, VerbDef> = {
   poker: { id: "poker", label: "Poker", broadcast: false },
   fletchers: { id: "fletchers", label: "Fletchers", broadcast: false },
   askOut: { id: "askOut", label: "Ask Out", broadcast: false },
+  flirt: { id: "flirt", label: "Flirt", broadcast: false },
   // broadcast: false for both — these are a pair-scoped event (Blowup) and
   // a single-pilot event (Breakdown), never a room-wide announcement the
   // way Talk is.
