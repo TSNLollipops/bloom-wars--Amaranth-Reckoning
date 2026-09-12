@@ -12,6 +12,7 @@ import Phaser from "phaser";
 import { CAMPAIGNS, WARDEN_MISSION_CHAIN, HOUSE_AMARANTH_MISSION_CHAIN } from "../data/allCampaigns";
 import type { CampaignMission } from "../data/types";
 import { baseSceneKeyFor, loadCampaignState, isMissionUnlocked } from "../engine/campaignState";
+import { isMissionDemoLocked, DEMO_LOCK_MESSAGE } from "../data/demoCap";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 import { TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
@@ -268,11 +269,21 @@ export class MapSelect extends Phaser.Scene {
 
     campaign.missions.forEach((mission, i) => {
       const y = listTop + i * CARD_SPACING;
-      const unlocked = !state || isMissionUnlocked(state, chain, mission.id);
-      // Only meaningful when `!unlocked` — isMissionUnlocked's own contract
-      // guarantees a locked mission is never the chain's own first entry,
-      // so chainIndex > 0 always holds here; requiredMission is only read
-      // inside the `!unlocked` branches below.
+      // Demo mission cap, 12 Sep 2026 (Business Plan v1 §2b/§13, decision
+      // 1) — checked ALONGSIDE the progression lock above, not instead of
+      // it: a card is playable only when both allow it. In every non-demo
+      // build (the normal browser build, Electron, `npm test`) isDemoLocked
+      // is always false, so this changes nothing there — see data/demoCap.ts.
+      const progressionUnlocked = !state || isMissionUnlocked(state, chain, mission.id);
+      const demoLocked = isMissionDemoLocked(campaign.id, chain, mission.id);
+      const unlocked = progressionUnlocked && !demoLocked;
+      // Only meaningful in the progression-lock branch below (`!unlocked &&
+      // !demoLocked`) — isMissionUnlocked's own contract guarantees a
+      // progression-locked mission is never its chain's own first entry, so
+      // chainIndex > 0 always holds THERE. A demo-locked House Amaranth
+      // mission can freely be chainIndex 0 (its own chain's first mission),
+      // but requiredMission is never read in that case — the demoLocked
+      // branch in briefText/cardTip below is checked first.
       const chainIndex = chain.findIndex((m) => m.id === mission.id);
       const requiredMission = chainIndex > 0 ? chain[chainIndex - 1] : undefined;
 
@@ -284,6 +295,9 @@ export class MapSelect extends Phaser.Scene {
       // the "can't touch this yet" read instead — same "hover always
       // wired, click gated separately" shape this doc's own tooltip
       // checklist already documents for a disabled Recruit-row candidate.
+      // One shared "locked" visual for both reasons (progression or demo)
+      // — no new third look invented for the demo case, per the Business
+      // Plan's own "one flag, one panel... not a new system" framing.
       const card = this.add
         .rectangle(480, y, 860, CARD_HEIGHT, unlocked ? 0x1a2028 : 0x14181c, 1)
         .setStrokeStyle(1, PANEL_CARD_BORDER)
@@ -303,12 +317,20 @@ export class MapSelect extends Phaser.Scene {
       // Locked cards swap the briefing line for the lock reason itself —
       // stating a mission's real briefing text right under a card you
       // can't yet open reads as a spoiler for nothing gained; the lock
-      // reason is the actually-useful line in that state instead.
-      const briefText = unlocked ? mission.briefing : `LOCKED — win "${requiredMission?.displayName ?? ""}" first.`;
+      // reason is the actually-useful line in that state instead. Demo
+      // lock is checked first: a demo-locked card explains itself the same
+      // way regardless of what progression would otherwise say.
+      const briefText = unlocked
+        ? mission.briefing
+        : demoLocked
+          ? DEMO_LOCK_MESSAGE
+          : `LOCKED — win "${requiredMission?.displayName ?? ""}" first.`;
       const brief = this.add.text(140, y + 6, briefText, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM, wordWrap: { width: 700 } });
       const cardTip = unlocked
         ? [mission.displayName, "", ...wrapTipText("Opens the squad review (BEAM DOWN) screen for this mission — not straight into combat.", 42)]
-        : [mission.displayName, "", ...wrapTipText(`Locked — win "${requiredMission?.displayName ?? ""}" first. Once it's won, this card unlocks on its own.`, 42)];
+        : demoLocked
+          ? [mission.displayName, "", ...wrapTipText(DEMO_LOCK_MESSAGE, 42)]
+          : [mission.displayName, "", ...wrapTipText(`Locked — win "${requiredMission?.displayName ?? ""}" first. Once it's won, this card unlocks on its own.`, 42)];
       card.on("pointerover", (pointer: Phaser.Input.Pointer) => {
         if (unlocked) {
           card.setFillStyle(0x1f2b36, 1);

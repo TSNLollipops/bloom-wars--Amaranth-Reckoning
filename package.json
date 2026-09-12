@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:demo": "node tools/lint-spoiler.mjs && node tools/lint-cast-collision.mjs && tsc && vite build --mode demo",
     "preview": "vite preview",
     "electron:build": "npm run build && electron-builder",
     "sim": "tsx src/sim/run.ts",
