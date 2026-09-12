@@ -21,7 +21,8 @@
     "pretest": "node tools/lint-spoiler.mjs && node tools/lint-cast-collision.mjs",
     "prebuild": "node tools/lint-spoiler.mjs && node tools/lint-cast-collision.mjs",
     "sim:recroom": "tsx src/sim/runRecRoomSim.ts",
-    "sim:economy": "tsx src/sim/runFrameSystemsEconomySim.ts"
+    "sim:economy": "tsx src/sim/runFrameSystemsEconomySim.ts",
+    "sim:brain": "tsx src/sim/runBrainSim.ts"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

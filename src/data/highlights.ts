@@ -71,6 +71,7 @@
 import type { SocialLogEntry, VerbId } from "./verbs";
 import { VERBS } from "./verbs";
 import type { Stage } from "./ambientLines";
+import { MEMORY_KIND_LABEL, type MemoryEntry } from "./memories";
 
 export interface HighlightMilestone {
   verb: VerbId;
@@ -146,4 +147,37 @@ export function buildStagePromotionMilestones(stagePromotedAt: Partial<Record<St
   }
   milestones.sort((a, b) => a.at - b.at);
   return milestones;
+}
+
+// Memory milestones, 12 Sep 2026 (Emotional Brain build plan §3d) — the
+// third sibling. A memory with a mission on it (data/memories.ts) is a
+// dated moment by construction: `at` is the Debrief's own clock, the
+// mission is where it happened. Hub-side memories (a blowup, a breakdown,
+// a gift) are dated too but already have a verb milestone or a status
+// line of their own, so this keeps to the mission ones, which had no
+// place on the reel at all before. Every entry, not only the loudest:
+// the reel is a record, salience is for the dossier's "Carries" block.
+// `names` resolves a pilot id to a display name and is supplied by the
+// caller (Hub.ts), since this module never reads CampaignState.
+export interface MemoryMilestone {
+  kind: MemoryEntry["kind"];
+  label: string; // "Lost a squadmate (Bosk)", "Went down and was restocked"
+  missionName: string;
+  at: number;
+}
+
+export function buildMemoryMilestones(
+  memories: readonly MemoryEntry[] | undefined,
+  names: (pilotId: string) => string | undefined,
+  missionName: (missionId: string) => string | undefined,
+): MemoryMilestone[] {
+  const out: MemoryMilestone[] = [];
+  for (const m of memories ?? []) {
+    if (!m.missionId) continue;
+    const about = m.about.map((id) => names(id)).filter((n): n is string => !!n);
+    const label = about.length ? `${MEMORY_KIND_LABEL[m.kind]} (${about.join(", ")})` : MEMORY_KIND_LABEL[m.kind];
+    out.push({ kind: m.kind, label, missionName: missionName(m.missionId) ?? m.missionId, at: m.at });
+  }
+  out.sort((a, b) => a.at - b.at);
+  return out;
 }

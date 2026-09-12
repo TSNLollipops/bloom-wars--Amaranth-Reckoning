@@ -45,6 +45,9 @@ import { type FacilityProfile, mekCatalystFor } from "./facility";
 import { WARDEN_FACILITY } from "./facilityWarden";
 import { HOUSE_AMARANTH_FACILITY } from "./facilityHouseAmaranth";
 import { type PilotServiceRecord } from "./statsStore";
+import { currentDay } from "./calendarClock";
+import { topMemories, MEMORY_KIND_LABEL, type MemoryEntry } from "../data/memories";
+import { ALL_MISSIONS_BY_ID } from "../data/allCampaigns";
 
 /** One row of the live block. `tone` is a rendering hint, not a rule. */
 export interface ArchiveLiveLine {
@@ -219,6 +222,27 @@ function formatIntakeLine(background: PilotBackground): string {
   return `Intake: ${sectorMidSentence}, ${background.planet}. ${textureSentenceCase}. ${background.academy}.`;
 }
 
+/**
+ * The "Carries" block, 12 Sep 2026 (Emotional Brain build plan §3d): the
+ * pilot's three loudest memories today (data/memories.ts topMemories),
+ * rendered as record lines. "Lost M.Sgt. Bosk, The Fallow Line, day 31."
+ * This is the file describing the pilot, not the pilot speaking, so it is
+ * system text; Archive prose rule applies (no em dashes, no semicolons,
+ * enforced by archiveDossier.test.ts). A pilot with nothing on the ledger
+ * gets no Carries lines at all rather than a placeholder: an empty ledger
+ * is a fresh recruit, and that reads honestly on its own.
+ */
+export function carriesFor(state: CampaignState, memories: readonly MemoryEntry[] | undefined): ArchiveLiveLine[] {
+  const today = currentDay(state);
+  const top = topMemories(memories, today, 3);
+  return top.map((m, i) => {
+    const about = m.about.map((id) => state.pilots[id]?.pilot.displayName.split("—")[0].trim()).filter((n): n is string => !!n);
+    const where = m.missionId ? ALL_MISSIONS_BY_ID[m.missionId]?.displayName ?? m.missionId : "aboard";
+    const value = `${MEMORY_KIND_LABEL[m.kind]}${about.length ? ` (${about.join(", ")})` : ""}. ${where}, day ${m.day}.`;
+    return { label: i === 0 ? "Carries" : "", value, tone: m.kind === "lost_squadmate" ? "warn" : "muted" };
+  });
+}
+
 function recordLine(rec: PilotServiceRecord | undefined): ArchiveLiveLine {
   if (!rec || rec.missionsFlown === 0) {
     return { label: "Record", value: "No missions flown.", tone: "muted" };
@@ -315,6 +339,7 @@ export function buildArchiveDossier(
       lines.push({ label: "Deployment", value: "Refusing.", tone: "warn" });
     }
     lines.push(...relationsFor(state, entry));
+    lines.push(...carriesFor(state, social.memories));
   }
 
   lines.push({ label: "Points", value: String(entry.personalPoints) });

@@ -1,0 +1,825 @@
+=== Emotional Brain harness: 10 seeds × 12 missions, tier hard, 3 Hub days between missions, care 3/day ===
+(care=3 is NOT a game mechanic: it stands in for the player's own relief verbs in the Hub. --care=0 shows the raw engine.)
+
+--- seed 1 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +9, Morale +1.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress +1, Morale +12.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +16, Morale -9.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12.
+M03 day  11  Amaranth I.3 — The Low Ground COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M04 day  14  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  17  Amaranth I.5 — Foraging Party LOSS (ATTEMPT 2)  LOST: Spec. Junia Petrov
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M06 day  22  Amaranth I.6 — House Colors  WIN  LOST: Spec. Tobias Okonkwo
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -7.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M07 day  27  Amaranth I.7 — Sporewatch Ridge LOSS  LOST: Pvt. Noor Ashgrove, Cpl. Priya Anand — “Farsight”
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.
+M08 day  32  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  35  Amaranth I.9 — Cut Off       COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M10 day  38  Amaranth I.10 — The Amaranth Betrayal COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M11 day  41  Amaranth I.11 — The Long Walk Back LOSS  LOST: Cpl. Bastien Adeyemi, Pvt. Tegan Iyari — “Foxfire”
+M12 day  46  Amaranth I.12 — The Fallow Line WIN (ATTEMPT 2)  LOST: Spec. Selin Mbeki
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 39
+      Morale 76
+      Lean: love  (drift love 0.03, fear 0, anger 0, sadness 0)
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_1, day 1, salience 0.1
+      Carries: Went down, mission_amaranth_1, day 1, salience 0.09
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 43 > 50 > 39 > 46 > 53
+      Morale 73 > 64 > 52 > 45 > 33
+      Lean: love  (drift love 0.15, fear 0.02, anger 0.07, sadness 0.11)
+      Carries: Lost a squadmate (Cpl. Priya Anand — “Farsight”), mission_amaranth_7, day 27, salience 0.38
+      Carries: Lost a squadmate (Pvt. Noor Ashgrove), mission_amaranth_7, day 27, salience 0.38
+      Carries: Lost a squadmate (Spec. Tobias Okonkwo), mission_amaranth_6, day 22, salience 0.31
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 89 > 96
+      Morale 58 > 46 > 34 > 22
+      Lean: fear  (drift love 0, fear 0.14, anger 0, sadness 0)
+      Carries: Lost a squadmate (Spec. Tobias Okonkwo), mission_amaranth_6, day 22, salience 0.31
+      Carries: Lost a squadmate (Spec. Junia Petrov), mission_amaranth_5, day 17, salience 0.25
+      Carries: Went down and was restocked, mission_amaranth_6, day 22, salience 0.24
+    Spec. Corin Lask — “Patch”
+      Stress 11
+      Morale 82
+      Lean: love  (drift love 0.02, fear 0, anger 0, sadness 0)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Held overwatch for the squad, mission_amaranth_1, day 1, salience 0.05
+
+  Bonds:
+    anand & bosk             40 ->   33   missions +1, grief 0, hub -8
+    anand & iyari           -25 ->   -5   missions 0, grief -8, hub +28
+    anand & recruit_1         6 ->   18   missions 0, grief 0, hub +18
+    anand & recruit_3         6 ->    6   missions 0, grief 0, hub +6
+    bosk & iyari              5 ->    9   missions +3, grief 0, hub +1
+    iyari & recruit_1         6 ->    4   missions 0, grief 0, hub +4
+    iyari & recruit_2         6 ->    6   missions 0, grief 0, hub +6
+    iyari & recruit_3         6 ->    6   missions 0, grief 0, hub +6
+    iyari & recruit_4         1 ->   37   missions 0, grief 0, hub +37
+  Final day 51. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 2 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +4.
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +2, Morale +10.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +3, Morale +7.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12.
+M03 day  11  Amaranth I.3 — The Low Ground COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M04 day  14  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  17  Amaranth I.5 — Foraging Party LOSS (ATTEMPT 2)
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +7, Morale -1.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +8, Morale -5.
+      Pvt. Noor Valdis: took it heavily. Stress +6, Morale -8.
+M06 day  22  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  25  Amaranth I.7 — Sporewatch Ridge LOSS
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +9, Morale -7.
+      Pvt. Noor Valdis: took it angry. Stress +7, Morale -2.
+M08 day  30  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  33  Amaranth I.9 — Cut Off       WIN (ATTEMPT 3)  LOST: Pvt. Noor Valdis
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -8.
+M10 day  38  Amaranth I.10 — The Amaranth Betrayal WIN
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -3, Morale +9.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress -3, Morale +9.
+      Cpl. Kwame Sarkis: took it shaken. Stress -1, Morale +6.
+M11 day  43  Amaranth I.11 — The Long Walk Back LOSS  LOST: Cpl. Kwame Sarkis, Pvt. Tegan Iyari — “Foxfire”
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M12 day  48  Amaranth I.12 — The Fallow Line WIN  LOST: Pvt. Tobias Vantry
+      Cpl. Priya Anand — “Farsight”: took it heavily. Stress +13, Morale -12.
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 40
+      Morale 79
+      Lean: love  (drift love 0.03, fear 0, anger 0, sadness 0)
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_1, day 1, salience 0.1
+      Carries: Went down, mission_amaranth_1, day 1, salience 0.08
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 42 > 49 > 29 > 27 > 25 > 13
+      Morale 78 > 67 > 66 > 57 > 45 > 54
+      Lean: love  (drift love 0.13, fear 0.11, anger 0.04, sadness 0.05)
+      Carries: Lost a squadmate (Pvt. Noor Valdis), mission_amaranth_9, day 33, salience 0.44
+      Carries: Went down and was restocked, mission_amaranth_9, day 33, salience 0.35
+      Carries: Went down, mission_amaranth_9, day 33, salience 0.31
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 81 > 72 > 70 > 58 > 65 > 69
+      Morale 58 > 46 > 41 > 34 > 26 > 35 > 23 > 11
+      Lean: fear  (drift love 0.09, fear 0.32, anger 0.09, sadness 0.26)
+      Carries: Lost a squadmate (Pvt. Tobias Vantry), mission_amaranth_12, day 48, salience 0.82
+      Carries: Lost a squadmate (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_11, day 43, salience 0.66
+      Carries: Lost a squadmate (Cpl. Kwame Sarkis), mission_amaranth_11, day 43, salience 0.66
+    Spec. Corin Lask — “Patch”
+      Stress 13
+      Morale 77
+      Lean: love  (drift love 0, fear 0, anger 0, sadness 0.02)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Held overwatch for the squad, mission_amaranth_1, day 1, salience 0.05
+    Pvt. Noor Valdis
+      Stress 6 > 7
+      Morale 62 > 60
+      Lean: anger  (drift love 0, fear 0, anger 0.04, sadness 0.01)
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_7, day 25, salience 0.16
+      Carries: Came back from a loss, mission_amaranth_7, day 25, salience 0.11
+      Carries: Patched a squadmate up, mission_amaranth_7, day 25, salience 0.1
+    Cpl. Kwame Sarkis
+      Stress 0
+      Morale 76
+      Lean: anger  (drift love 0, fear 0.03, anger 0, sadness 0)
+      Carries: Took the kill, mission_amaranth_10, day 38, salience 0.16
+      Carries: Came back from a win, mission_amaranth_10, day 38, salience 0.11
+
+  Bonds:
+    anand & bosk             40 ->   41   missions +1, grief 0, hub 0
+    anand & iyari           -25 ->    2   missions -1, grief +4, hub +24
+    anand & recruit_1         1 ->   16   missions -3, grief 0, hub +19
+    anand & recruit_2         2 ->    3   missions +1, grief 0, hub +2
+    anand & recruit_3         6 ->   18   missions 0, grief 0, hub +18
+    anand & recruit_4         6 ->    4   missions 0, grief 0, hub +4
+    bosk & iyari              5 ->    5   missions 0, grief 0, hub 0
+    iyari & lask              6 ->    6   missions 0, grief 0, hub +6
+    iyari & recruit_1         6 ->   51   missions -1, grief 0, hub +52
+    iyari & recruit_2         1 ->    7   missions 0, grief 0, hub +7
+  Final day 53. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 3 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +4, Morale +6.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress +1, Morale +12.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress +16, Morale -4.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress 0, Morale +6.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress 0, Morale +6.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress -1, Morale +12.
+M03 day  11  Amaranth I.3 — The Low Ground WIN (ATTEMPT 6)
+      M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress -1, Morale +9.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -2.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress 0, Morale +6.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress 0, Morale +6.
+M04 day  16  Amaranth I.4 — Tunnel Rats   WIN (ATTEMPT 3)
+      M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress +16, Morale -4.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +4, Morale +7.
+      Cpl. Priya Anand — “Farsight”: took it angry. Stress +12, Morale +5.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress 0, Morale 0.
+M05 day  21  Amaranth I.5 — Foraging Party LOSS  LOST: Spec. Corin Lask — “Patch”
+      M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress +16, Morale -12.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M06 day  26  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  29  Amaranth I.7 — Sporewatch Ridge LOSS  LOST: Pvt. Saoirse Oyelaran, Cpl. Priya Anand — “Farsight”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +16, Morale -12.
+M08 day  34  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  37  Amaranth I.9 — Cut Off       WIN  LOST: Spec. Runa Okorie
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.
+M10 day  42  Amaranth I.10 — The Amaranth Betrayal COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M11 day  45  Amaranth I.11 — The Long Walk Back LOSS  LOST: Pvt. Tobias Delacroix, Pvt. Tegan Iyari — “Foxfire”
+M12 day  50  Amaranth I.12 — The Fallow Line WIN  LOST: Cpl. Dmitri Delacroix
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 44 > 51 > 41 > 48 > 55
+      Morale 67 > 63 > 72 > 68 > 56
+      Lean: fear  (drift love 0, fear 0.1, anger 0.02, sadness 0.02)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_5, day 21, salience 0.25
+      Carries: Went down and was restocked, mission_amaranth_5, day 21, salience 0.2
+      Carries: Went down, mission_amaranth_5, day 21, salience 0.17
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 44 > 35 > 42 > 37 > 44 > 42 > 40
+      Morale 74 > 80 > 78 > 85 > 73 > 61 > 50
+      Lean: love  (drift love 0.16, fear 0.08, anger 0.05, sadness 0.2)
+      Carries: Lost a squadmate (Spec. Runa Okorie), mission_amaranth_9, day 37, salience 0.48
+      Carries: Went down and was restocked, mission_amaranth_9, day 37, salience 0.38
+      Carries: Lost a squadmate (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_7, day 29, salience 0.35
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 85 > 76 > 79 > 86
+      Morale 58 > 64 > 70 > 75 > 63
+      Lean: fear  (drift love 0, fear 0.1, anger 0.06, sadness 0)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_5, day 21, salience 0.25
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_4, day 16, salience 0.16
+      Carries: Went down, mission_amaranth_4, day 16, salience 0.14
+    Spec. Corin Lask — “Patch”
+      Stress 11 > 1 > 0 > 0
+      Morale 82 > 94 > 100 > 100
+      Lean: love  (drift love 0.08, fear 0, anger 0, sadness 0)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_4, day 16, salience 0.1
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_4, day 16, salience 0.1
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_3, day 11, salience 0.08
+
+  Bonds:
+    anand & bosk             40 ->   22   missions -8, grief -8, hub -2
+    anand & iyari           -25 ->  -39   missions -7, grief -12, hub +5
+    anand & lask              1 ->   21   missions +2, grief 0, hub +19
+    anand & recruit_1         1 ->    1   missions 0, grief 0, hub +1
+    bosk & iyari              5 ->  -11   missions -5, grief -12, hub +1
+    bosk & lask               6 ->   13   missions +1, grief 0, hub +12
+    iyari & lask              6 ->    7   missions +1, grief 0, hub +6
+    iyari & recruit_1         6 ->    6   missions 0, grief 0, hub +6
+    iyari & recruit_2         6 ->   21   missions 0, grief 0, hub +21
+    iyari & recruit_3         6 ->   21   missions 0, grief 0, hub +21
+  Final day 55. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 4 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +3, Morale +7.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12.
+M03 day  11  Amaranth I.3 — The Low Ground COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M04 day  14  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  17  Amaranth I.5 — Foraging Party LOSS
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +10, Morale -5.
+      Cpl. Runa Adeyemi: took it shaken. Stress +9, Morale -7.
+M06 day  22  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  25  Amaranth I.7 — Sporewatch Ridge LOSS (ATTEMPT 4)  LOST: Cpl. Runa Adeyemi
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M08 day  30  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  33  Amaranth I.9 — Cut Off       WIN  LOST: Cpl. Vera Marchetti, Pvt. Tegan Iyari — “Foxfire”
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M10 day  38  Amaranth I.10 — The Amaranth Betrayal WIN  LOST: Spec. Dmitri Brennan
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M11 day  43  Amaranth I.11 — The Long Walk Back LOSS  LOST: Pvt. Vera Rahal, Cpl. Priya Anand — “Farsight”
+M12 day  48  Amaranth I.12 — The Fallow Line WIN  LOST: Cpl. Noor Rahal
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 44
+      Morale 67
+      Lean: sadness  (drift love 0, fear 0, anger 0, sadness 0.03)
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_1, day 1, salience 0.1
+      Carries: Went down, mission_amaranth_1, day 1, salience 0.08
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 43 > 50 > 39 > 37
+      Morale 73 > 61 > 52 > 40
+      Lean: love  (drift love 0.1, fear 0, anger 0, sadness 0.06)
+      Carries: Lost a squadmate (Cpl. Runa Adeyemi), mission_amaranth_7, day 25, salience 0.32
+      Carries: Went down and was restocked (Cpl. Runa Adeyemi), mission_amaranth_5, day 17, salience 0.18
+      Carries: Went down, mission_amaranth_5, day 17, salience 0.16
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 83 > 81 > 79 > 86
+      Morale 58 > 46 > 41 > 29 > 17 > 5
+      Lean: fear  (drift love 0.04, fear 0.28, anger 0, sadness 0.11)
+      Carries: Lost a squadmate (Spec. Dmitri Brennan), mission_amaranth_10, day 38, salience 0.54
+      Carries: Lost a squadmate (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_9, day 33, salience 0.44
+      Carries: Lost a squadmate (Cpl. Vera Marchetti), mission_amaranth_9, day 33, salience 0.44
+    Spec. Corin Lask — “Patch”
+      Stress 13
+      Morale 77
+      Lean: love  (drift love 0, fear 0, anger 0, sadness 0.02)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Held overwatch for the squad, mission_amaranth_1, day 1, salience 0.05
+    Cpl. Runa Adeyemi
+      Stress 9
+      Morale 63
+      Lean: anger  (drift love 0, fear 0.02, anger 0, sadness 0)
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_5, day 17, salience 0.12
+      Carries: Came back from a loss, mission_amaranth_5, day 17, salience 0.08
+
+  Bonds:
+    anand & bosk             40 ->   40   missions 0, grief 0, hub 0
+    anand & iyari           -25 ->   25   missions +1, grief +20, hub +29
+    anand & lask              6 ->    7   missions 0, grief 0, hub +7
+    anand & recruit_1         6 ->   10   missions -2, grief 0, hub +12
+    anand & recruit_2         6 ->   12   missions 0, grief 0, hub +12
+    anand & recruit_3         6 ->   12   missions 0, grief 0, hub +12
+    anand & recruit_4         1 ->    8   missions 0, grief 0, hub +8
+    bosk & iyari              5 ->    7   missions +2, grief 0, hub 0
+    bosk & lask               1 ->    1   missions 0, grief 0, hub +1
+    iyari & recruit_1         6 ->   12   missions +1, grief 0, hub +11
+    iyari & recruit_2        -8 ->   -2   missions 0, grief 0, hub -2
+  Final day 53. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 5 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +12, Morale +4.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +12, Morale +3.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +5, Morale +7.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12.
+M03 day  11  Amaranth I.3 — The Low Ground WIN (ATTEMPT 6)
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +8, Morale +4.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress 0, Morale +8.
+      Cpl. Runa Lindahl: took it heavily. Stress 0, Morale +7.
+M04 day  16  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  19  Amaranth I.5 — Foraging Party LOSS
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +8, Morale -6.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +8, Morale -5.
+      Cpl. Runa Lindahl: took it angry. Stress +5, Morale -5.
+M06 day  24  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  27  Amaranth I.7 — Sporewatch Ridge LOSS
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +9, Morale -1.
+      Cpl. Priya Anand — “Farsight”: took it angry. Stress +16, Morale -11.
+      Cpl. Runa Lindahl: took it shaken. Stress +10, Morale -5.
+M08 day  32  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  35  Amaranth I.9 — Cut Off       WIN  LOST: Cpl. Runa Lindahl, Cpl. Priya Anand — “Farsight”, Pvt. Tegan Iyari — “Foxfire”
+M10 day  40  Amaranth I.10 — The Amaranth Betrayal WIN  LOST: Pvt. Bastien Novak
+M11 day  45  Amaranth I.11 — The Long Walk Back LOSS  LOST: Cpl. Sena Mbeki
+M12 day  50  Amaranth I.12 — The Fallow Line WIN (ATTEMPT 6)  LOST: Spec. Tobias Ferrow
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 42
+      Morale 79
+      Lean: love  (drift love 0.03, fear 0, anger 0, sadness 0)
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_1, day 1, salience 0.09
+      Carries: Went down, mission_amaranth_1, day 1, salience 0.08
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_1, day 1, salience 0.06
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 52 > 59 > 58 > 48 > 39
+      Morale 71 > 60 > 64 > 58 > 57
+      Lean: love  (drift love 0.06, fear 0, anger 0.05, sadness 0.02)
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_7, day 27, salience 0.16
+      Carries: Lost a squadmate (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_2, day 6, salience 0.14
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_2, day 6, salience 0.14
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 91 > 81 > 79
+      Morale 58 > 46 > 54 > 49 > 38
+      Lean: love  (drift love 0, fear 0.08, anger 0.07, sadness 0)
+      Carries: Went down and was restocked (Cpl. Runa Lindahl), mission_amaranth_7, day 27, salience 0.26
+      Carries: Went down, mission_amaranth_7, day 27, salience 0.22
+      Carries: Lost a squadmate (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_2, day 6, salience 0.14
+    Spec. Corin Lask — “Patch”
+      Stress 15
+      Morale 77
+      Lean: love  (drift love 0, fear 0, anger 0, sadness 0.02)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+    Cpl. Runa Lindahl
+      Stress 1 > 5 > 10
+      Morale 77 > 72 > 67
+      Lean: anger  (drift love 0, fear 0.04, anger 0.01, sadness 0.03)
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_7, day 27, salience 0.16
+      Carries: Came back from a loss, mission_amaranth_7, day 27, salience 0.11
+      Carries: Patched a squadmate up, mission_amaranth_7, day 27, salience 0.11
+
+  Bonds:
+    anand & bosk             40 ->   41   missions +1, grief 0, hub 0
+    anand & iyari           -25 ->   -9   missions -2, grief -8, hub +26
+    anand & recruit_1         6 ->    9   missions -6, grief 0, hub +15
+    bosk & iyari              5 ->   15   missions +4, grief 0, hub +6
+    iyari & recruit_1         6 ->   15   missions -1, grief 0, hub +16
+  Final day 55. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 6 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +4, Morale +7.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it angry. Stress +1, Morale +12.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12.
+M03 day  11  Amaranth I.3 — The Low Ground WIN
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress -1, Morale +5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -2, Morale +8.
+      Cpl. Ilse Fairweather: took it heavily. Stress -1, Morale +6.
+M04 day  16  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  19  Amaranth I.5 — Foraging Party LOSS
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +10, Morale -4.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +8, Morale -5.
+      Cpl. Ilse Fairweather: took it heavily. Stress +6, Morale -8.
+M06 day  24  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  27  Amaranth I.7 — Sporewatch Ridge LOSS (ATTEMPT 3)
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +8, Morale -6.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +7, Morale -7.
+      Cpl. Ilse Fairweather: took it angry. Stress +5, Morale -2.
+M08 day  32  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  35  Amaranth I.9 — Cut Off       WIN  LOST: Cpl. Ilse Fairweather
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +15, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress +9, Morale -2.
+M10 day  40  Amaranth I.10 — The Amaranth Betrayal WIN  LOST: Pvt. Cassian Valdis
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +13, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it heavily. Stress +14, Morale -11.
+M11 day  45  Amaranth I.11 — The Long Walk Back LOSS  LOST: Pvt. Ayla Okorie, Cpl. Priya Anand — “Farsight”, Pvt. Tegan Iyari — “Foxfire”
+M12 day  50  Amaranth I.12 — The Fallow Line WIN  LOST: Cpl. Ayla Fairweather
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 44
+      Morale 67
+      Lean: sadness  (drift love 0, fear 0, anger 0, sadness 0.02)
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_1, day 1, salience 0.09
+      Carries: Went down, mission_amaranth_1, day 1, salience 0.08
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 44 > 51 > 41 > 33 > 23 > 20 > 24
+      Morale 75 > 64 > 69 > 65 > 59 > 47 > 35
+      Lean: love  (drift love 0.07, fear 0.1, anger 0.01, sadness 0.09)
+      Carries: Lost a squadmate (Pvt. Cassian Valdis), mission_amaranth_10, day 40, salience 0.54
+      Carries: Lost a squadmate (Cpl. Ilse Fairweather), mission_amaranth_9, day 35, salience 0.44
+      Carries: Took the kill, mission_amaranth_10, day 40, salience 0.16
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 89 > 79 > 68 > 59 > 64
+      Morale 58 > 46 > 54 > 49 > 42 > 40 > 29
+      Lean: fear  (drift love 0.03, fear 0.14, anger 0, sadness 0.13)
+      Carries: Lost a squadmate (Pvt. Cassian Valdis), mission_amaranth_10, day 40, salience 0.54
+      Carries: Lost a squadmate (Cpl. Ilse Fairweather), mission_amaranth_9, day 35, salience 0.44
+      Carries: Held overwatch for the squad, mission_amaranth_10, day 40, salience 0.16
+    Spec. Corin Lask — “Patch”
+      Stress 11
+      Morale 82
+      Lean: love  (drift love 0, fear 0, anger 0.02, sadness 0)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Held overwatch for the squad, mission_amaranth_1, day 1, salience 0.05
+    Cpl. Ilse Fairweather
+      Stress 0 > 6 > 5
+      Morale 76 > 68 > 66
+      Lean: sadness  (drift love 0, fear 0, anger 0.02, sadness 0.02)
+      Carries: Came back from a loss, mission_amaranth_7, day 27, salience 0.11
+      Carries: Patched a squadmate up, mission_amaranth_7, day 27, salience 0.11
+      Carries: Came back from a loss, mission_amaranth_5, day 19, salience 0.08
+
+  Bonds:
+    anand & bosk             40 ->   46   missions 0, grief 0, hub +6
+    anand & iyari           -25 ->    2   missions -4, grief -4, hub +35
+    anand & lask              6 ->    6   missions 0, grief 0, hub +6
+    anand & recruit_1        -8 ->   -6   missions -3, grief 0, hub -3
+    anand & recruit_2         6 ->    6   missions 0, grief 0, hub +6
+    bosk & iyari              5 ->    5   missions 0, grief 0, hub 0
+    iyari & recruit_1         6 ->   40   missions +1, grief 0, hub +39
+    iyari & recruit_2         6 ->    6   missions 0, grief 0, hub +6
+  Final day 55. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 7 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +1, Morale +10.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it angry. Stress +1, Morale +12.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12.
+M03 day  11  Amaranth I.3 — The Low Ground WIN (ATTEMPT 2)
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -1, Morale +12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -2, Morale +8.
+      Cpl. Bastien Oyelaran: took it angry. Stress -1, Morale +12.
+M04 day  16  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  19  Amaranth I.5 — Foraging Party LOSS (ATTEMPT 2)
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +10, Morale -5.
+      Cpl. Bastien Oyelaran: took it heavily. Stress +8, Morale -8.
+M06 day  24  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  27  Amaranth I.7 — Sporewatch Ridge LOSS (ATTEMPT 3)
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress +6, Morale -5.
+      Cpl. Bastien Oyelaran: took it warmly. Stress +6, Morale -3.
+M08 day  32  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  35  Amaranth I.9 — Cut Off       WIN  LOST: Cpl. Bastien Oyelaran
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +10, Morale -1.
+      Cpl. Priya Anand — “Farsight”: took it angry. Stress +10, Morale 0.
+M10 day  40  Amaranth I.10 — The Amaranth Betrayal WIN
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -3, Morale +9.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.
+      Pvt. Dmitri Cortez: took it angry. Stress -1, Morale +12.
+M11 day  45  Amaranth I.11 — The Long Walk Back LOSS  LOST: Pvt. Dmitri Cortez, Cpl. Priya Anand — “Farsight”, Pvt. Tegan Iyari — “Foxfire”
+M12 day  50  Amaranth I.12 — The Fallow Line WIN (ATTEMPT 2)  LOST: Pvt. Renzo Halden
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 44
+      Morale 67
+      Lean: sadness  (drift love 0, fear 0, anger 0, sadness 0.02)
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_1, day 1, salience 0.09
+      Carries: Went down, mission_amaranth_1, day 1, salience 0.08
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 41 > 48 > 38 > 36 > 34 > 26 > 14
+      Morale 78 > 67 > 79 > 70 > 61 > 60 > 69
+      Lean: love  (drift love 0.25, fear 0, anger 0.01, sadness 0.01)
+      Carries: Lost a squadmate (Cpl. Bastien Oyelaran), mission_amaranth_9, day 35, salience 0.44
+      Carries: Went down and was restocked (Cpl. Bastien Oyelaran), mission_amaranth_7, day 27, salience 0.26
+      Carries: Went down, mission_amaranth_7, day 27, salience 0.22
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 89 > 81 > 69 > 61 > 49
+      Morale 58 > 46 > 54 > 49 > 44 > 44 > 50
+      Lean: love  (drift love 0.03, fear 0.12, anger 0.03, sadness 0.05)
+      Carries: Lost a squadmate (Cpl. Bastien Oyelaran), mission_amaranth_9, day 35, salience 0.44
+      Carries: Took the kill, mission_amaranth_10, day 40, salience 0.16
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_7, day 27, salience 0.16
+    Spec. Corin Lask — “Patch”
+      Stress 11
+      Morale 82
+      Lean: love  (drift love 0, fear 0, anger 0.02, sadness 0)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Held overwatch for the squad, mission_amaranth_1, day 1, salience 0.05
+    Cpl. Bastien Oyelaran
+      Stress 0 > 8 > 6
+      Morale 82 > 74 > 71
+      Lean: love  (drift love 0.04, fear 0, anger 0.02, sadness 0.02)
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_7, day 27, salience 0.16
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_5, day 19, salience 0.12
+      Carries: Came back from a loss, mission_amaranth_7, day 27, salience 0.11
+    Pvt. Dmitri Cortez
+      Stress 0
+      Morale 82
+      Lean: anger  (drift love 0, fear 0, anger 0.06, sadness 0)
+      Carries: Patched a squadmate up, mission_amaranth_10, day 40, salience 0.17
+      Carries: Took the kill, mission_amaranth_10, day 40, salience 0.16
+      Carries: Came back from a win, mission_amaranth_10, day 40, salience 0.11
+
+  Bonds:
+    anand & bosk             40 ->   40   missions 0, grief 0, hub 0
+    anand & iyari           -25 ->   33   missions +4, grief +16, hub +38
+    anand & lask             -8 ->   -8   missions 0, grief 0, hub -8
+    anand & recruit_1         6 ->   17   missions +1, grief 0, hub +16
+    anand & recruit_2         6 ->    5   missions -3, grief 0, hub +8
+    bosk & iyari              5 ->    8   missions +3, grief 0, hub 0
+    bosk & lask               1 ->    1   missions 0, grief 0, hub +1
+    iyari & lask              2 ->    2   missions 0, grief 0, hub +2
+    iyari & recruit_1         6 ->   47   missions +3, grief 0, hub +44
+  Final day 55. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 8 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +4.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +2, Morale +7.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN (ATTEMPT 2)
+      M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress -4, Morale +4.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -4, Morale +6.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -4, Morale +4.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress -3, Morale +12.
+M03 day  11  Amaranth I.3 — The Low Ground WIN (ATTEMPT 4)
+      M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress -3, Morale +9.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -2, Morale +12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress 0, Morale +7.
+M04 day  16  Amaranth I.4 — Tunnel Rats   WIN (ATTEMPT 5)
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +2.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +2, Morale +4.
+M05 day  21  Amaranth I.5 — Foraging Party LOSS
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +16, Morale -12.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it angry. Stress +8, Morale -5.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress +8, Morale -3.
+M06 day  26  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  29  Amaranth I.7 — Sporewatch Ridge WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress -3, Morale +6.
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -2, Morale +9.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress 0, Morale +3.
+M08 day  34  Amaranth I.8 — The Choir Sings WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +4.
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +13, Morale +4.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress 0, Morale +12.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +3, Morale 0.
+M09 day  39  Amaranth I.9 — Cut Off       WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +2.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +15, Morale -8.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress 0, Morale +9.
+      Spec. Corin Lask — “Patch”: took it heavily. Stress +2, Morale 0.
+M10 day  44  Amaranth I.10 — The Amaranth Betrayal WIN  LOST: Spec. Corin Lask — “Patch”
+      M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +16, Morale -10.
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +14, Morale 0.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress +16, Morale -9.
+M11 day  49  Amaranth I.11 — The Long Walk Back LOSS  LOST: Pvt. Saoirse Valdis, Cpl. Priya Anand — “Farsight”, Pvt. Tegan Iyari — “Foxfire”, M.Sgt. Halvard Bosk — “Anvil”
+M12 day  54  Amaranth I.12 — The Fallow Line WIN (ATTEMPT 2)  LOST: Pvt. Sena Oyelaran
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 40 > 27 > 15 > 16 > 23 > 2 > 10 > 11 > 18
+      Morale 79 > 83 > 92 > 94 > 82 > 88 > 92 > 94 > 84
+      Lean: love  (drift love 0.28, fear 0.02, anger 0.16, sadness 0)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_10, day 44, salience 0.54
+      Carries: Went down and was restocked, mission_amaranth_10, day 44, salience 0.43
+      Carries: Went down, mission_amaranth_10, day 44, salience 0.38
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 43 > 30 > 19 > 13 > 20 > 0 > 13 > 19 > 24
+      Morale 73 > 79 > 91 > 96 > 84 > 93 > 97 > 89 > 89
+      Lean: anger  (drift love 0.01, fear 0.07, anger 0.22, sadness 0.2)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_10, day 44, salience 0.54
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_9, day 39, salience 0.35
+      Carries: Went down, mission_amaranth_9, day 39, salience 0.31
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 81 > 69 > 76 > 75 > 54 > 45 > 36 > 43
+      Morale 58 > 62 > 68 > 66 > 61 > 67 > 79 > 88 > 79
+      Lean: love  (drift love 0.28, fear 0.15, anger 0.03, sadness 0)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_10, day 44, salience 0.54
+      Carries: Went down and was restocked, mission_amaranth_10, day 44, salience 0.43
+      Carries: Went down, mission_amaranth_10, day 44, salience 0.38
+    Spec. Corin Lask — “Patch”
+      Stress 12 > 0 > 0 > 2 > 8 > 0 > 3 > 2
+      Morale 77 > 89 > 96 > 100 > 97 > 100 > 100 > 100
+      Lean: love  (drift love 0.04, fear 0, anger 0, sadness 0.22)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_9, day 39, salience 0.22
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_9, day 39, salience 0.22
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_8, day 34, salience 0.18
+
+  Bonds:
+    anand & bosk             40 ->   56   missions +3, grief +4, hub +9
+    anand & iyari           -25 ->  -15   missions +1, grief -8, hub +17
+    anand & lask              1 ->   19   missions +6, grief 0, hub +13
+    bosk & iyari              5 ->   33   missions +10, grief +4, hub +14
+    bosk & lask               1 ->   20   missions +13, grief 0, hub +7
+    iyari & lask              1 ->   19   missions +5, grief 0, hub +14
+  Final day 59. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 9 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +12, Morale +5.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it shaken. Stress +4, Morale +9.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN  LOST: Spec. Corin Lask — “Patch”
+      M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +16, Morale -7.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +10, Morale -5.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -8.
+M03 day  11  Amaranth I.3 — The Low Ground COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M04 day  14  Amaranth I.4 — Tunnel Rats   COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M05 day  17  Amaranth I.5 — Foraging Party LOSS (ATTEMPT 2)  LOST: Pvt. Ngozi Cortez, M.Sgt. Halvard Bosk — “Anvil”, Pvt. Tegan Iyari — “Foxfire”
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+M06 day  22  Amaranth I.6 — House Colors  COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M07 day  25  Amaranth I.7 — Sporewatch Ridge LOSS (ATTEMPT 2)
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.
+      Cpl. Ayla Brennan: took it shaken. Stress +9, Morale -7.
+M08 day  30  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  33  Amaranth I.9 — Cut Off       WIN
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +14, Morale -6.
+      Cpl. Ayla Brennan: took it warmly. Stress 0, Morale +12.
+M10 day  38  Amaranth I.10 — The Amaranth Betrayal WIN
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -4.
+      Cpl. Ayla Brennan: took it warmly. Stress 0, Morale +12.
+M11 day  43  Amaranth I.11 — The Long Walk Back LOSS  LOST: Cpl. Ayla Brennan, Cpl. Priya Anand — “Farsight”
+M12 day  48  Amaranth I.12 — The Fallow Line WIN  LOST: Spec. Neve Sandoval
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 42 > 49
+      Morale 80 > 73
+      Lean: anger  (drift love 0, fear 0, anger 0.05, sadness 0.01)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_2, day 6, salience 0.15
+      Carries: Went down and was restocked, mission_amaranth_2, day 6, salience 0.12
+      Carries: Went down, mission_amaranth_2, day 6, salience 0.1
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 43 > 44
+      Morale 73 > 68
+      Lean: love  (drift love 0.01, fear 0, anger 0, sadness 0.03)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_2, day 6, salience 0.15
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_2, day 6, salience 0.07
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 100 > 89 > 87 > 83 > 90
+      Morale 58 > 50 > 38 > 26 > 20 > 16
+      Lean: fear  (drift love 0, fear 0.28, anger 0, sadness 0)
+      Carries: Went down and was restocked (Cpl. Ayla Brennan), mission_amaranth_10, day 38, salience 0.43
+      Carries: Went down, mission_amaranth_10, day 38, salience 0.38
+      Carries: Went down and was restocked (Cpl. Ayla Brennan), mission_amaranth_9, day 33, salience 0.35
+    Spec. Corin Lask — “Patch”
+      Stress 14
+      Morale 79
+      Lean: love  (drift love 0, fear 0.02, anger 0, sadness 0)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_1, day 1, salience 0.06
+      Carries: Held overwatch for the squad, mission_amaranth_1, day 1, salience 0.05
+    Cpl. Ayla Brennan
+      Stress 9 > 0 > 0
+      Morale 63 > 75 > 87
+      Lean: sadness  (drift love 0.16, fear 0.03, anger 0, sadness 0)
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_10, day 38, salience 0.27
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_9, day 33, salience 0.22
+      Carries: Patched a squadmate up, mission_amaranth_10, day 38, salience 0.18
+
+  Bonds:
+    anand & bosk             40 ->   41   missions -3, grief 0, hub +4
+    anand & iyari           -25 ->  -13   missions 0, grief 0, hub +12
+    anand & recruit_2         1 ->   45   missions 0, grief 0, hub +45
+    bosk & iyari              5 ->   18   missions -1, grief +8, hub +6
+    bosk & lask               6 ->   12   missions 0, grief 0, hub +12
+    bosk & recruit_1          1 ->    1   missions 0, grief 0, hub +1
+    iyari & lask              1 ->    1   missions 0, grief 0, hub +1
+    iyari & recruit_1         6 ->    6   missions 0, grief 0, hub +6
+  Final day 53. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+--- seed 10 ---
+M01 day   1  Amaranth I.1 — Muster        WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +15, Morale -6.
+      Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +1, Morale +10.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress +1, Morale +12.
+M02 day   6  Amaranth I.2 — Wire and Mud  WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress -4, Morale +3.
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -4, Morale +6.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -4, Morale +4.
+      Spec. Corin Lask — “Patch”: took it shaken. Stress -2, Morale +8.
+M03 day  11  Amaranth I.3 — The Low Ground WIN (ATTEMPT 6)
+      M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress -2, Morale +8.
+      Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -1, Morale +12.
+      Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.
+      Spec. Corin Lask — “Patch”: took it shaken. Stress 0, Morale +8.
+M04 day  16  Amaranth I.4 — Tunnel Rats   WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +2.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +4, Morale +4.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress +10, Morale +4.
+      Spec. Corin Lask — “Patch”: took it warmly. Stress 0, Morale +2.
+M05 day  21  Amaranth I.5 — Foraging Party LOSS  LOST: Spec. Corin Lask — “Patch”
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +16, Morale -12.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.
+      Cpl. Priya Anand — “Farsight”: took it warmly. Stress +16, Morale -12.
+M06 day  26  Amaranth I.6 — House Colors  WIN (ATTEMPT 3)  LOST: Spec. Junia Valdis, Cpl. Priya Anand — “Farsight”
+      M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +16, Morale -12.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.
+M07 day  31  Amaranth I.7 — Sporewatch Ridge LOSS
+      M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +8, Morale -8.
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.
+      Spec. Junia Petrov: took it heavily. Stress +8, Morale -7.
+M08 day  36  Amaranth I.8 — The Choir Sings COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M09 day  39  Amaranth I.9 — Cut Off       WIN
+      M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress -2, Morale +9.
+      Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -5.
+      Spec. Junia Petrov: took it warmly. Stress 0, Morale +9.
+M10 day  44  Amaranth I.10 — The Amaranth Betrayal COMMANDER_DOWN AFTER 6 ATTEMPTS (EVERY ATTEMPT VOIDED, NO DEBRIEF)
+M11 day  47  Amaranth I.11 — The Long Walk Back LOSS  LOST: Spec. Junia Petrov, M.Sgt. Halvard Bosk — “Anvil”
+      Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.
+M12 day  52  Amaranth I.12 — The Fallow Line WIN  LOST: Pvt. Idris Nakamura, Pvt. Tegan Iyari — “Foxfire”
+
+  Pilots after the run:
+    M.Sgt. Halvard Bosk — “Anvil”
+      Stress 45 > 32 > 21 > 22 > 29 > 36 > 35 > 15
+      Morale 69 > 72 > 80 > 82 > 70 > 58 > 50 > 59
+      Lean: love  (drift love 0.15, fear 0.04, anger 0.08, sadness 0.11)
+      Carries: Lost a squadmate (Cpl. Priya Anand — “Farsight”), mission_amaranth_6, day 26, salience 0.28
+      Carries: Lost a squadmate (Spec. Junia Valdis), mission_amaranth_6, day 26, salience 0.28
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_9, day 39, salience 0.24
+    Pvt. Tegan Iyari — “Foxfire”
+      Stress 41 > 28 > 18 > 13 > 20 > 27 > 34 > 32 > 30
+      Morale 78 > 84 > 96 > 100 > 88 > 76 > 64 > 59 > 47
+      Lean: sadness  (drift love 0.04, fear 0.22, anger 0.01, sadness 0.36)
+      Carries: Lost a squadmate (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_11, day 47, salience 0.66
+      Carries: Lost a squadmate (Spec. Junia Petrov), mission_amaranth_11, day 47, salience 0.66
+      Carries: Went down and was restocked, mission_amaranth_11, day 47, salience 0.53
+    Cpl. Priya Anand — “Farsight”
+      Stress 94 > 81 > 69 > 70 > 77
+      Morale 58 > 62 > 68 > 72 > 60
+      Lean: love  (drift love 0.09, fear 0.03, anger 0, sadness 0)
+      Carries: Lost a squadmate (Spec. Corin Lask — “Patch”), mission_amaranth_5, day 21, salience 0.23
+      Carries: Went down and was restocked (Spec. Corin Lask — “Patch”), mission_amaranth_4, day 16, salience 0.15
+      Carries: Went down, mission_amaranth_4, day 16, salience 0.13
+    Spec. Corin Lask — “Patch”
+      Stress 11 > 0 > 0 > 0
+      Morale 82 > 90 > 98 > 100
+      Lean: love  (drift love 0.05, fear 0.02, anger 0, sadness 0)
+      Carries: Watched a squadmate fall (M.Sgt. Halvard Bosk — “Anvil”), mission_amaranth_4, day 16, salience 0.09
+      Carries: Watched a squadmate fall (Cpl. Priya Anand — “Farsight”), mission_amaranth_4, day 16, salience 0.09
+      Carries: Patched a squadmate up, mission_amaranth_4, day 16, salience 0.06
+    Spec. Junia Petrov
+      Stress 9 > 0
+      Morale 63 > 72
+      Lean: love  (drift love 0.06, fear 0, anger 0, sadness 0.05)
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_9, day 39, salience 0.24
+      Carries: Watched a squadmate fall (Pvt. Tegan Iyari — “Foxfire”), mission_amaranth_7, day 31, salience 0.17
+      Carries: Patched a squadmate up, mission_amaranth_9, day 39, salience 0.16
+
+  Bonds:
+    anand & bosk             40 ->   66   missions +2, grief +12, hub +12
+    anand & iyari           -25 ->  -13   missions -4, grief +16, hub 0
+    anand & lask             -8 ->   -8   missions 0, grief 0, hub -8
+    anand & recruit_1         6 ->    6   missions 0, grief 0, hub +6
+    bosk & iyari              5 ->   57   missions +3, grief +12, hub +37
+    bosk & lask               1 ->    3   missions +2, grief 0, hub +1
+    bosk & recruit_2          6 ->   29   missions +6, grief 0, hub +23
+    iyari & lask              1 ->    8   missions +1, grief 0, hub +7
+    iyari & recruit_2         1 ->    8   missions +1, grief 0, hub +7
+    iyari & recruit_3         6 ->   12   missions 0, grief 0, hub +12
+  Final day 57. Panicked at some point: Cpl. Priya Anand — “Farsight”.
+
+=== Checks across all seeds ===
+Legibility 1, nobody who started below the panic line is pinned at Stress 100 before mission 8: OK
+  (excluded, already over the line at seed: Cpl. Priya Anand — “Farsight”)
+Legibility 2, largest ordinary-mission pair shift ≤ 8: OK (4)
+Info, share of campaigns where at least one pilot crossed the panic line: 100%
+Surprise 1, distinct closest pairs across 10 seeds: 4 (pilot_iyari::pilot_recruit_4, pilot_iyari::pilot_recruit_1, pilot_anand::pilot_bosk, pilot_anand::pilot_recruit_2)
+Surprise 2, distinct "what each pilot carries loudest" profiles: 9 of 10
+Info, distinct win/loss sequences: 6 of 10
+Surprise: OK. Different campaigns produce different crews.
+JSON written to tools/verify/brainSim_10seeds_12Sep2026.json

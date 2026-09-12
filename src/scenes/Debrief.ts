@@ -66,6 +66,7 @@ import { resolveRequiemEarlyEquip } from "../engine/heirlooms";
 // at the finale as a shareable stat" the v2 proposal's own §7 named.
 import { applyMissionCompletionDayCost, formatDayLabel } from "../engine/calendarClock";
 import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatalyst";
+import { runDebriefCatalyst, debriefTakeLine, type DebriefCatalystResult } from "../engine/debriefCatalyst";
 import { recordHumanMissionSummary, activeRosterSize, currentGameVersion } from "../engine/telemetry";
 import { summaryMvp, type MissionSummary } from "../engine/missionSummary";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
@@ -124,6 +125,12 @@ export class Debrief extends Phaser.Scene {
   // permanentLosses (see the step 1b/1d comments below for why it's an
   // array, not a single result). Empty on a mission with no true losses.
   private griefResults: GriefCatalystResult[] = [];
+  // Emotional Brain write-back, 12 Sep 2026 (claude/Bloom_Wars_Emotional_
+  // Brain_Build_Plan_v1_12Sep2026.md §3b) — what every deployed survivor
+  // took away from this mission: their echo, the Stress/Morale movement,
+  // the memories written, and the ordinary-mission bond shifts. Set once in
+  // create() step 1b-ii-b, drawn by drawTakeCallout below.
+  private takeResult: DebriefCatalystResult | null = null;
   // Generalized bonus-objective pass (24 Aug 2026) — the company-pool
   // points from whichever bonusObjective kind this mission carried (0 for
   // a mission with none, or one that didn't resolve to "succeeded"). See
@@ -228,6 +235,26 @@ export class Debrief extends Phaser.Scene {
     for (const loss of this.mission.permanentLosses) {
       this.griefResults.push(runGriefCatalyst(this.state, this.mission.deployedPilotIds, loss.pilotId));
     }
+
+    // ---- 1b-ii-b. Emotional Brain write-back (12 Sep 2026) ---------------
+    // The combat bridge, for real: Mission.combatWorries (what each pilot
+    // did, classified turn by turn since 10 Sep) finally reaches the
+    // persisted crew. Runs AFTER the status flips (survivors only) and AFTER
+    // Grief Catalyst (so a mourner's `lost_squadmate` memory carries the
+    // echo they actually mourned with, and so the ordinary-mission pair
+    // shift knows to stand down on a mission where grief already moved the
+    // pairs at ×4). Writes Stress/Morale, memories and drift straight onto
+    // CampaignState; the RETURN TO BASE save below persists all of it. See
+    // engine/debriefCatalyst.ts's header for the whole design and every
+    // tunable.
+    this.takeResult = runDebriefCatalyst(this.state, {
+      missionId: this.mission.mission.id,
+      outcome: this.mission.outcome === "win" ? "win" : "loss",
+      deployedPilotIds: this.mission.deployedPilotIds,
+      combatWorries: this.mission.combatWorries,
+      permanentlyLostPilotIds: this.mission.permanentLosses.map((l) => l.pilotId),
+      griefResults: this.griefResults,
+    });
 
     // ---- 1b-iii. lastword_signature's own permanent cost (Vault Phase 2, --
     // slice 5, 3 Sep 2026) — Mission.signatureHpCosts (engine/mission.ts)
@@ -485,6 +512,7 @@ export class Debrief extends Phaser.Scene {
 
     let cursorY = this.drawEarningsPanel(58);
     cursorY = this.drawGriefCallout(cursorY + 8);
+    cursorY = this.drawTakeCallout(cursorY + 8);
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
     cursorY = this.drawCallsignCallout(cursorY + 8);
@@ -825,6 +853,51 @@ export class Debrief extends Phaser.Scene {
     // between calls, so the running +8 this loop uses between multiple
     // loss-blocks needs stripping off the very last one before returning.
     return y === top ? top : y - 8;
+  }
+
+  /**
+   * Emotional Brain write-back reveal (12 Sep 2026) — one line per deployed
+   * survivor, "Anand: took it shaken. Stress +12, Morale -6.", plus the
+   * ordinary-mission bond shifts in the same small print the Grief callout
+   * uses for its own. System text, not character voice (the pilot is not
+   * speaking; the screen is reporting), which is why it needs no lines from
+   * Maxime. Same muted panel idiom as drawGriefCallout directly above, so a
+   * mission with a loss reads as two quiet blocks in a row rather than one
+   * loud one. No-op when nobody but the MC deployed.
+   */
+  private drawTakeCallout(top: number): number {
+    const result = this.takeResult;
+    if (!result || !result.pilots.length) return top;
+    const lineH = 14;
+    const headerH = 18;
+    const height = headerH + result.pilots.length * lineH + result.bondShifts.length * lineH + 10;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1b1922, 1).setStrokeStyle(1, 0x4a4258);
+    this.add.text(CARD_L + 16, top + 8, "WHAT THEY TOOK FROM IT", {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#a99bc4",
+    });
+    let rowY = top + 8 + headerH;
+    for (const take of result.pilots) {
+      this.add.text(CARD_L + 16, rowY, debriefTakeLine(take), {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: take.stressAfter >= 70 ? "#e0a070" : "#c8bfd6",
+      });
+      rowY += lineH;
+    }
+    for (const shift of result.bondShifts) {
+      const nameA = this.state.pilots[shift.pilotIdA]?.pilot.displayName ?? shift.pilotIdA;
+      const nameB = this.state.pilots[shift.pilotIdB]?.pilot.displayName ?? shift.pilotIdB;
+      const sign = shift.delta >= 0 ? "+" : "";
+      this.add.text(CARD_L + 16, rowY, `${nameA} and ${nameB}: Bond ${sign}${shift.delta}`, {
+        fontFamily: "monospace",
+        fontSize: "9px",
+        color: "#6b7a8a",
+      });
+      rowY += lineH;
+    }
+    return top + height;
   }
 
   /**

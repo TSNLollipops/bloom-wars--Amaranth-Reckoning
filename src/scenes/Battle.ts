@@ -33,6 +33,23 @@ import { wrapTipText } from "../engine/hoverTipLayout";
 import { VITAL_SIGNS_WARN_FRACTION } from "../data/carrierModules";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { pageActionBar, advancePage, moreButtonLabel } from "../engine/actionBarPaging";
+import { computeBattleLayout, COLUMN_W, GUTTER, type BattleLayoutResult } from "../engine/battleLayout";
+import { resolveMissionChat, type ChatCandidate, type CommsCommand } from "../engine/missionChat";
+import { resolveSocialVerb, type SocialVerb } from "../engine/socialVerbResolution";
+import { ensureHubSocialState, queuePendingHotTopic, companyNameOf } from "../engine/campaignState";
+import { currentDay } from "../engine/calendarClock";
+import { WARDEN_FACILITY } from "../engine/facilityWarden";
+import { HOUSE_AMARANTH_FACILITY } from "../engine/facilityHouseAmaranth";
+import { catalystForPilot } from "../data/npcSeed";
+import { isRomanceableSpecies } from "../data/romance";
+import { stageFromTier } from "../data/ambientLines";
+import { pickGreetingLine, pickFarewellLine, pickAdviceLine, pickBanterLine } from "../data/smallTalk";
+import { pickCatalystReaction } from "../data/catalystProfile";
+import { CHAT_FALLBACK_LINES, COMMAND_HELP_LINES, unknownCommandLine } from "../data/chatIntent";
+import { loudestWorry } from "../data/worries";
+import { pickCombatWorryLine } from "../data/combatWorryLines";
+import { addPlayerNote } from "../data/playerNotes";
+import { showFieldNotesPanel } from "./ui/FieldNotesPanel";
 // Item-info tooltip pass, 11 Sep 2026 (playtest note: "found by accident
 // that one of his units could heal — nothing told him that going in").
 // WEAPON_BRANCHES.description already exists for every branch (it's the
@@ -182,14 +199,80 @@ const LOG_CHARS_PER_LINE = 38;
 // move. Kept as a fixed pool of Phaser objects rather than created/
 // destroyed per selection, so nothing leaks and render() stays a pure
 // refresh.
+// Battle HUD relayout, 12 Sep 2026 (Mission Chat / Player Notes / Battle
+// HUD Relayout Plan v1, Workstream 3 — engine/battleLayout.ts holds the
+// rects). This whole panel — HUD text, log, back button, the action bar,
+// END TURN, the hotkey legend — used to be pinned to the canvas's right-
+// hand side at x=720..950; it now lives in the LEFT column, and every x
+// below is relative to that column's own left edge (battleLayout's
+// leftColumn.x, 8px) rather than absolute. The y values are exactly what
+// they always were: this is the plan's own "straight relocation, not a
+// redesign" — an x-translation of one rigid block, so every fitLines
+// budget and wrap width the panel was tuned to still holds. The old
+// absolute x's are recoverable as 720 + offset (757 = 720 + 37, 835 = 720
+// + 115, 913 = 720 + 193).
 const ACTION_SLOTS: Coord[] = [
-  { x: 757, y: 524 },
-  { x: 835, y: 524 },
-  { x: 913, y: 524 },
-  { x: 757, y: 560 },
-  { x: 835, y: 560 },
-  { x: 913, y: 560 },
+  { x: 37, y: 524 },
+  { x: 115, y: 524 },
+  { x: 193, y: 524 },
+  { x: 37, y: 560 },
+  { x: 115, y: 560 },
+  { x: 193, y: 560 },
 ];
+/** The centre-x of the back button, END TURN and the legend, relative to the left column's left edge (was absolute 835 on the old right panel). */
+const PANEL_CENTER_OFFSET = 115;
+/** Vertical extent of the control cluster (action bar, END TURN, legend) that stays put even with the left column collapsed — see Battle.leftOpen's own comment. */
+const CONTROL_STRIP_TOP = 505;
+
+// The comms column's own vertical budget (the right column, x from
+// battleLayout's rightColumn). Chosen to mirror the left column: header at
+// the same y as the back button, log down to just above the DOM input,
+// input at END TURN's own row, hint on the legend's row. The panel is
+// 230px wide so it genuinely is a copy of the Hub's chat box (same width,
+// so the same font size and line-fitting behaviour transfer) — at 11px
+// and full height it holds roughly 25 lines to the Hub's 12, which the
+// plan flags as worth doing the Hub's own version over later.
+const COMMS_HEADER_Y = 20;
+const COMMS_LOG_TOP = 40;
+const COMMS_LOG_BOTTOM = 556;
+const COMMS_INPUT_Y = 586;
+const COMMS_HINT_Y = 618;
+const COMMS_INSET = 8;
+/** Memory bound only, same idea as Hub.ts's CHAT_LOG_MAX_STORED — the fit below is the display bound. */
+const COMMS_MAX_STORED = 80;
+// Wrapped-line metrics for the comms log at 11px monospace with 3px line
+// spacing in a 214px content width: ~6.6px/char → 32 chars, 14px per line.
+// Same estimate-then-budget idiom as the mission log's own
+// LOG_CHARS_PER_LINE/LOG_LINE_H, for the same reason — see renderCommsLog.
+const COMMS_LINE_H = 14;
+const COMMS_CHARS_PER_LINE = 32;
+
+// Every key this scene captures (preventDefault) — ONE list, read by
+// create()'s addCapture, openComms's removeCapture and closeComms's
+// addCapture. Hub.ts's hubCaptureKeys exists for a bug that actually
+// shipped there: three hand-typed literals drifted, so a key create()
+// captured was never released while the chat box had focus, and the
+// letter got preventDefault'd straight out of the input ("hello" typed
+// as "ello"). Battle binds more keys than the Hub did, so the same shape
+// is the only safe one: there is no way for the release list to
+// disagree with the capture list.
+function battleCaptureKeys(): string {
+  return "SPACE,TAB,ESC,ONE,TWO,THREE,FOUR,FIVE,SIX,OPEN_BRACKET,CLOSED_BRACKET,T";
+}
+
+/**
+ * The short tag a comms line is filed under — the callsign when the
+ * display name carries one ("Cpl. Priya Anand — “Farsight”" → Farsight),
+ * else the surname. Same job as Hub.ts's initials tag on the OVERHEARD
+ * log, sized for a 230px column rather than a 100px one.
+ */
+function commsSpeakerTag(displayName: string): string {
+  const callsign = displayName.match(/[“"]([^”"]+)[”"]/);
+  if (callsign) return callsign[1];
+  const namePart = displayName.split("—")[0].trim();
+  const words = namePart.split(/\s+/).filter((w) => !/[.\d]/.test(w));
+  return words[words.length - 1] ?? namePart;
+}
 const ACTION_SLOT_W = 70;
 const ACTION_SLOT_H = 30;
 /** Left inset where an action label starts, leaving the hotkey digit its own column. See the label's creation site in create(). */
@@ -709,6 +792,50 @@ export class Battle extends Phaser.Scene {
   private maserLanceDirectionTargets: Coord[] = [];
   private endTurnPrompt: Phaser.GameObjects.Container | null = null;
 
+  // Battle HUD relayout, 12 Sep 2026 — see engine/battleLayout.ts's own
+  // header for the arrangement. `[` toggles the left column (unit info /
+  // briefing and the mission log), `]` toggles the right one (comms). Both
+  // closed hands the whole 1042px width to the board — the honest answer
+  // to wanting a chat box AND a readable field on a fixed 1074x640 canvas.
+  //
+  // What a collapsed LEFT column does NOT hide: the action bar, END TURN
+  // and the hotkey legend. They stay at the exact same screen spot (the
+  // column is at x=8 whether open or closed — collapsing hides its text
+  // and lets the board grow underneath), drawn over the board's bottom-
+  // left corner. Hiding them would strand a mouse-only player mid-turn
+  // (1-6/Space still work, but nothing on screen would say so), and the
+  // Hub's own precedent is that a hidden panel never takes a verb with it.
+  // handleBoardClick/pointermove ignore that strip so a click on END TURN
+  // can never also read as a board click on the tile underneath — see
+  // isInsideControlStrip. Reset per create() like every other per-mission
+  // field here (the scene instance is reused across launches).
+  private leftOpen = true;
+  private rightOpen = true;
+  private layout!: BattleLayoutResult;
+  private backBtn!: Phaser.GameObjects.Rectangle;
+  private backLabel!: Phaser.GameObjects.Text;
+  private endTurnBtn!: Phaser.GameObjects.Rectangle;
+  private endTurnLabel!: Phaser.GameObjects.Text;
+  private legendText!: Phaser.GameObjects.Text;
+  // The comms column (right) — Workstream 3 builds the panel, Workstream 4
+  // wires what typing into it does. commsInput is a real DOM <input>, the
+  // exact approach Hub.ts's buildChatBox uses (a Phaser DOMElement needs
+  // main.ts's dom:{createContainer:true}, already on). Hidden until T.
+  private commsBg!: Phaser.GameObjects.Rectangle;
+  private commsHeader!: Phaser.GameObjects.Text;
+  private commsLogText!: Phaser.GameObjects.Text;
+  private commsMask!: Phaser.GameObjects.Graphics;
+  private commsHint!: Phaser.GameObjects.Text;
+  private commsInput!: Phaser.GameObjects.DOMElement;
+  private commsOpen = false;
+  private commsLog: { speaker: string; line: string }[] = [];
+  /** How many mission-log entries have already been scanned for "(dialogue)" lines to mirror into the comms log. */
+  private commsMirroredLogLength = 0;
+  /** Diminishing returns on repeats (engine/socialVerbResolution.ts's header): `${verb}:${pilotId}` → uses so far this mission. Reset per create(). */
+  private socialVerbUses: Record<string, number> = {};
+  /** The in-mission Field Notes overlay (":notes" with no text) — one at a time; T is ignored while it's up. */
+  private fieldNotesPanel: Phaser.GameObjects.Container | null = null;
+
   constructor() {
     super("Battle");
   }
@@ -914,14 +1041,32 @@ export class Battle extends Phaser.Scene {
     this.missionWinStingPlayed = false;
 
     const m = this.mission.map;
-    this.tileSize = Math.max(16, Math.min(Math.floor(700 / m.width), Math.floor(560 / m.height)));
+    // Battle HUD relayout, 12 Sep 2026 — tile size and board origin come
+    // from engine/battleLayout.ts now (the old inline formula, max(16,
+    // min(floor(700/w), floor(560/h))) with the board at (16, 60), is
+    // exactly what that module returns for a collapsed left column — see
+    // its BOARD_LEFT_NO_COLUMN). Both columns start open; `[`/`]` below
+    // re-run this through applyLayout().
+    this.leftOpen = true;
+    this.rightOpen = true;
+    this.layout = computeBattleLayout({ canvasW: this.cameras.main.width, canvasH: this.cameras.main.height, mapW: m.width, mapH: m.height, leftOpen: true, rightOpen: true });
+    this.tileSize = this.layout.tileSize;
+    this.boardX = this.layout.boardX;
+    this.boardY = this.layout.boardY;
+    if (this.layout.mapScrolls) {
+      // Never true for any real map (battleLayout.test.ts loops over all of
+      // them) — a scrolling board isn't built, so say so rather than
+      // silently drawing off the edge.
+      console.warn(`Battle: map ${m.id} (${m.width}x${m.height}) does not fit the viewport at MIN_TILE; the board will overflow the column.`);
+    }
+    const colX = this.layout.leftColumn?.x ?? GUTTER;
 
     this.gfx = this.add.graphics();
-    this.hudText = this.add.text(720, HUD_TOP, "", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", wordWrap: { width: 230 } });
+    this.hudText = this.add.text(colX, HUD_TOP, "", { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", wordWrap: { width: COLUMN_W } });
     // Log starts below the HUD block. Nudged down from 300 when overwatch
     // added two more possible HUD lines — at 300 a selected overwatching
     // unit's status wrote straight over the top of the log.
-    this.logText = this.add.text(720, LOG_TOP, "", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: 230 } });
+    this.logText = this.add.text(colX, LOG_TOP, "", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6", wordWrap: { width: COLUMN_W } });
 
     // Mission 1 tutorial hints — see the field comments for the state
     // machine. Scoped to Mission 1 by mission id (Muster is the doc's own
@@ -980,7 +1125,7 @@ export class Battle extends Phaser.Scene {
       this.confirmEndTurn();
     };
     const endTurnBtn = this.add
-      .rectangle(835, 600, 200, 32, 0x2e5c7a)
+      .rectangle(colX + PANEL_CENTER_OFFSET, 600, 200, 32, 0x2e5c7a)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => {
         // Audio (A6) — mouse click gets the UI-click sting the same way
@@ -992,7 +1137,8 @@ export class Battle extends Phaser.Scene {
         playSfx(this, "click");
         doEndTurn();
       });
-    this.add.text(835, 600, "END TURN  [space]", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+    this.endTurnBtn = endTurnBtn;
+    this.endTurnLabel = this.add.text(colX + PANEL_CENTER_OFFSET, 600, "END TURN  [space]", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     endTurnBtn.setStrokeStyle(1, 0x4a7a9a);
     // [tab] next mech hint, same idea as "[space]" on the button above it —
     // a static label rather than a Mission 1 tutorial-flow hint (see
@@ -1005,8 +1151,13 @@ export class Battle extends Phaser.Scene {
     // Deliberately one line and abbreviated: the action digits already
     // print on their own buttons (drawActionBar), so this only has to
     // cover the bindings with nothing on screen to hang them off.
-    this.add
-      .text(835, 618, "[tab] next  [1-6] action  [esc] cancel", { fontFamily: "monospace", fontSize: "10px", color: "#8fb3c9" })
+    // 12 Sep 2026 — unchanged text on purpose: a first pass added "[t] talk
+    // [ ] cols" here and the line overran the 230px column (caught in the
+    // relayout's own screenshot, not by any test). The new bindings are
+    // advertised where they live instead — T and the column toggles on the
+    // comms column's own header and hint, and all of them under :help.
+    this.legendText = this.add
+      .text(colX + PANEL_CENTER_OFFSET, 618, "[tab] next  [1-6] action  [esc] cancel", { fontFamily: "monospace", fontSize: "10px", color: "#8fb3c9" })
       .setOrigin(0.5);
 
     // Spacebar end-turn (XCOM's own binding — Maxime reached for it before
@@ -1019,7 +1170,10 @@ export class Battle extends Phaser.Scene {
     // addCapture stops the browser's own default (page scrolls on Space)
     // from firing alongside the game's own handler — otherwise every end
     // turn also jumps the page.
-    this.input.keyboard?.addCapture("SPACE");
+    // One capture list, one helper, every call site (create here, openComms
+    // and closeComms below) — see battleCaptureKeys' own header for the
+    // Hub bug this shape exists to prevent.
+    this.input.keyboard?.addCapture(battleCaptureKeys());
     this.input.keyboard?.off("keydown-SPACE");
     // Enemy-phase playback (9 Sep 2026): SPACE while the hostile phase is
     // playing back means "skip to the end," not "end turn" — the turn is
@@ -1076,7 +1230,6 @@ export class Battle extends Phaser.Scene {
       this.recomputeSelectionHighlights(next.instanceId);
       this.render();
     };
-    this.input.keyboard?.addCapture("TAB");
     this.input.keyboard?.off("keydown-TAB");
     this.input.keyboard?.on("keydown-TAB", (event: KeyboardEvent) => {
       cycleSelectableUnit(event.shiftKey ? -1 : 1);
@@ -1120,7 +1273,7 @@ export class Battle extends Phaser.Scene {
     // "current create() call owns this from scratch" treatment.
     this.actionSlots = [];
     for (let i = 0; i < ACTION_SLOTS.length; i++) {
-      const p = ACTION_SLOTS[i];
+      const p = { x: colX + ACTION_SLOTS[i].x, y: ACTION_SLOTS[i].y };
       const btn = this.add
         .rectangle(p.x, p.y, ACTION_SLOT_W, ACTION_SLOT_H, 0x2e5c7a)
         .setInteractive({ useHandCursor: true })
@@ -1174,13 +1327,12 @@ export class Battle extends Phaser.Scene {
       this.actionSlots.push({ btn, label, key });
     }
 
-    const backBtn = this.add
-      .rectangle(835, 20, 200, 26, 0x1a2028)
+    this.backBtn = this.add
+      .rectangle(colX + PANEL_CENTER_OFFSET, 20, 200, 26, 0x1a2028)
       .setStrokeStyle(1, 0x3a4552)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.scene.start("MapSelect"));
-    this.add.text(835, 20, "< mission select", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
-    void backBtn;
+    this.backLabel = this.add.text(colX + PANEL_CENTER_OFFSET, 20, "< mission select", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
 
     this.overlay = this.add.container(0, 0).setVisible(false);
     // Per-create() resets for the legibility-pass fields (see their field
@@ -1206,6 +1358,12 @@ export class Battle extends Phaser.Scene {
     // over the canvas on that click. Left-click keeps its existing path.
     this.input.mouse?.disableContextMenu();
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      // A click on the control strip (action bar / END TURN / legend) is
+      // handled by those buttons' own pointerdown handlers; with the left
+      // column collapsed the board runs underneath that strip, and without
+      // this guard the same click would ALSO land as a tile click. See
+      // leftOpen's own comment.
+      if (this.isInsideControlStrip(p.x, p.y)) return;
       if (p.rightButtonDown()) this.cancelCurrent();
       else this.handleBoardClick(p.x, p.y);
     });
@@ -1221,7 +1379,7 @@ export class Battle extends Phaser.Scene {
       // point of it being at the cursor rather than in the side panel.
       this.pointerX = p.x;
       this.pointerY = p.y;
-      const tile = this.pixelToTile(p.x, p.y);
+      const tile = this.isInsideControlStrip(p.x, p.y) ? null : this.pixelToTile(p.x, p.y);
       const same = (tile === null && this.hoverTile === null) || (tile !== null && this.hoverTile !== null && tile.x === this.hoverTile.x && tile.y === this.hoverTile.y);
       if (same) {
         // Same tile: content can't have changed, so this is a cheap
@@ -1236,7 +1394,6 @@ export class Battle extends Phaser.Scene {
     // Esc: close the end-turn prompt, else cancel an armed strike, else
     // deselect — the same escalation cancelCurrent() applies to right-click.
     // Explicit off() first for the same scene-reuse reason SPACE/TAB have.
-    this.input.keyboard?.addCapture("ESC");
     this.input.keyboard?.off("keydown-ESC");
     this.input.keyboard?.on("keydown-ESC", () => this.cancelCurrent());
 
@@ -1254,12 +1411,524 @@ export class Battle extends Phaser.Scene {
     // end up firing an action once per mission played this session), and
     // addCapture() so the browser never steals the key.
     const digits = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"];
-    this.input.keyboard?.addCapture(digits.join(","));
     digits.forEach((name, i) => {
       this.input.keyboard?.off(`keydown-${name}`);
       this.input.keyboard?.on(`keydown-${name}`, () => this.runActionSlot(i));
     });
 
+    // Column toggles, 12 Sep 2026 — see leftOpen's own comment. Same
+    // off()-before-on() as every binding above.
+    this.input.keyboard?.off("keydown-OPEN_BRACKET");
+    this.input.keyboard?.on("keydown-OPEN_BRACKET", () => {
+      this.leftOpen = !this.leftOpen;
+      this.applyLayout();
+    });
+    this.input.keyboard?.off("keydown-CLOSED_BRACKET");
+    this.input.keyboard?.on("keydown-CLOSED_BRACKET", () => {
+      this.rightOpen = !this.rightOpen;
+      this.applyLayout();
+    });
+
+    // The comms column (Workstream 3: the panel; Workstream 4: what typing
+    // does). Built after everything else so it draws above the board.
+    this.commsLog = [];
+    this.commsMirroredLogLength = 0;
+    this.commsOpen = false;
+    this.socialVerbUses = {};
+    this.fieldNotesPanel = null;
+    this.buildCommsColumn();
+    this.input.keyboard?.off("keydown-T");
+    // Explicit preventDefault, and it is load-bearing: Phaser emits this
+    // handler BEFORE it checks its own capture list (KeyboardManager's
+    // onKeyDown emits MANAGER_PROCESS first, then preventDefault's captured
+    // keys), and openComms() releases the whole capture list synchronously
+    // — so by the time Phaser looks, T is no longer captured, the browser's
+    // default action runs, and the "t" that opened the box lands in it as
+    // its first character. Caught by the live Playwright pass (every typed
+    // line arrived as "t:help", "twell done"), not by any unit test. The
+    // Hub never hit this because it polls its T key from update(), a frame
+    // after the keystroke has already come and gone.
+    this.input.keyboard?.on("keydown-T", (event: KeyboardEvent) => {
+      event.preventDefault();
+      this.openComms();
+    });
+
+    this.applyLayout();
+  }
+
+  // ---- The comms column (Workstream 3 — the panel; Workstream 4 — what
+  // typing into it does) ---------------------------------------------
+
+  private buildCommsColumn() {
+    this.commsBg = this.add.rectangle(0, 0, COLUMN_W, this.cameras.main.height - 16, 0x1a2028, 0.9).setStrokeStyle(1, 0x3a4552).setOrigin(0, 0);
+    this.commsHeader = this.add.text(0, COMMS_HEADER_Y, "COMMS   ( [ and ] hide the columns )", { fontFamily: "monospace", fontSize: "9px", color: "#8a97a6" }).setOrigin(0.5);
+    this.commsLogText = this.add
+      .text(0, COMMS_LOG_TOP + 4, "", { fontFamily: "monospace", fontSize: "11px", color: "#e8e2d4", wordWrap: { width: COLUMN_W - COMMS_INSET * 2 }, lineSpacing: 3 })
+      .setOrigin(0, 0);
+    // A geometry mask is the real overflow guarantee (same idiom as Hub.ts's
+    // buildChatLogPanel and MapSelect's list): the log is bottom-anchored in
+    // renderCommsLog so the newest line is always visible and older ones
+    // clip cleanly at the panel's top edge instead of spilling over the
+    // header. Created with this.make (never on the display list), so it
+    // isn't drawn — it only clips.
+    this.commsMask = this.make.graphics({});
+    this.commsLogText.setMask(this.commsMask.createGeometryMask());
+    this.commsHint = this.add.text(0, COMMS_HINT_Y, "[t] talk  [enter] send  [esc] close  :help", { fontFamily: "monospace", fontSize: "9px", color: "#8fb3c9" }).setOrigin(0.5);
+    // The typed input — a real DOM <input>, exactly Hub.ts's buildChatBox
+    // approach (see that method's own header for why Enter/Escape are read
+    // as native DOM keydown events on the node and why stopPropagation is
+    // load-bearing: it's what keeps a typed "1" or Space from ALSO
+    // reaching Phaser's window-level keyboard listener and firing an
+    // action slot or END TURN mid-sentence — Phaser's plugin listens on
+    // window, in the bubble phase, and a stopped event never gets there).
+    this.commsInput = this.add
+      .dom(0, COMMS_INPUT_Y, "input", "width: 200px; padding: 6px 8px; font-family: monospace; font-size: 13px; background: #1a2028; color: #e8e2d4; border: 1px solid #4a7a9a; outline: none;")
+      .setOrigin(0.5)
+      .setVisible(false);
+    const node = this.commsInput.node as HTMLInputElement;
+    node.placeholder = "Say something — Enter to send, Esc to cancel";
+    node.maxLength = 120;
+    node.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        this.submitComms(node.value);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        this.closeComms();
+      }
+      e.stopPropagation();
+    });
+    this.renderCommsLog();
+  }
+
+  /** Position (or hide) every comms object for the current layout — called from applyLayout only. */
+  private layoutCommsColumn() {
+    const col = this.layout.rightColumn;
+    const visible = !!col;
+    const x = col?.x ?? this.cameras.main.width - GUTTER - COLUMN_W;
+    this.commsBg.setPosition(x, 8).setVisible(visible);
+    this.commsHeader.setPosition(x + COLUMN_W / 2, COMMS_HEADER_Y).setVisible(visible);
+    this.commsLogText.setX(x + COMMS_INSET).setVisible(visible);
+    this.commsMask.clear();
+    this.commsMask.fillStyle(0xffffff, 1);
+    this.commsMask.fillRect(x, COMMS_LOG_TOP, COLUMN_W, COMMS_LOG_BOTTOM - COMMS_LOG_TOP);
+    this.commsHint.setPosition(x + COLUMN_W / 2, COMMS_HINT_Y).setVisible(visible);
+    this.commsInput.setPosition(x + COLUMN_W / 2, COMMS_INPUT_Y);
+    // Collapsing the column while typing closes the box — the input has
+    // nowhere to be.
+    if (!visible && this.commsOpen) this.closeComms();
+    this.renderCommsLog();
+  }
+
+  /**
+   * One funnel every comms line goes through — the player's own typed
+   * text ("YOU"), a pilot's reply (their callsign tag), a hostile mech's
+   * channel, or a "SYS" line the game itself says (a command result, a
+   * refusal). Same shape as Hub.ts's logChatLine.
+   */
+  private logCommsLine(speaker: string, line: string) {
+    this.commsLog.push({ speaker, line });
+    if (this.commsLog.length > COMMS_MAX_STORED) this.commsLog.shift();
+    this.renderCommsLog();
+  }
+
+  /**
+   * Scripted mission-event dialogue and the combat-worry lines both land in
+   * the mission log as "(dialogue) <name>: <line>" (engine/mission.ts);
+   * they're radio traffic, so the comms column shows them too — once each,
+   * tracked by how far into the log this has already read. The mission log
+   * keeps them as well: it's the tactical record, this is the channel.
+   */
+  private mirrorDialogueIntoComms() {
+    const log = this.mission.log;
+    for (let i = this.commsMirroredLogLength; i < log.length; i++) {
+      const entry = log[i];
+      if (!entry.startsWith("(dialogue) ")) continue;
+      const body = entry.slice("(dialogue) ".length);
+      const colon = body.indexOf(": ");
+      if (colon === -1) this.commsLog.push({ speaker: "—", line: body });
+      else this.commsLog.push({ speaker: commsSpeakerTag(body.slice(0, colon)), line: body.slice(colon + 2) });
+      if (this.commsLog.length > COMMS_MAX_STORED) this.commsLog.shift();
+    }
+    this.commsMirroredLogLength = log.length;
+    this.renderCommsLog();
+  }
+
+  private renderCommsLog() {
+    if (!this.commsLogText) return;
+    // Only as many of the NEWEST entries as fit the panel, budgeted in
+    // wrapped lines exactly the way drawHud fits the mission log (newest
+    // last, so the tail is fitted in reverse and flipped back). The mask is
+    // the hard clip; this is what keeps the Text object's own canvas
+    // texture panel-sized instead of growing with the whole stored log —
+    // measured in the live pass: rendering all 80 stored entries as one
+    // 2800px-tall texture under a stencil mask dragged the sandbox's
+    // software-rendered frame rate from 22 to 5 fps by itself.
+    const room = COMMS_LOG_BOTTOM - COMMS_LOG_TOP - 8;
+    const shown = this.fitLines(
+      [...this.commsLog].reverse().map((e) => `${e.speaker}: ${e.line}`),
+      0,
+      room,
+      COMMS_LINE_H,
+      COMMS_CHARS_PER_LINE
+    ).reverse();
+    const text = this.commsLog.length === 0 ? "Channel open. Press T to talk — a selected pilot hears you, or name one with :t." : shown.join("\n");
+    this.commsLogText.setText(text);
+    // Bottom-anchor if the estimate undercounted a wrap: the newest line
+    // stays at the bottom edge and the mask clips the top, never the tail.
+    const h = this.commsLogText.height;
+    this.commsLogText.setY(h > room ? COMMS_LOG_BOTTOM - 4 - h : COMMS_LOG_TOP + 4);
+  }
+
+  private openComms() {
+    if (this.commsOpen) return;
+    if (this.fieldNotesPanel) return; // the notebook owns the screen — Esc closes it first
+    if (!this.rightOpen) {
+      // T with the column collapsed reopens it first — the box needs a home.
+      this.rightOpen = true;
+      this.applyLayout();
+    }
+    if (this.mission.outcome !== "ongoing") return;
+    this.commsOpen = true;
+    this.input.keyboard?.removeCapture(battleCaptureKeys());
+    const node = this.commsInput.node as HTMLInputElement;
+    node.value = "";
+    // Direct node display + focus, not just setVisible — Phaser's DOMElement
+    // applies setVisible on its next update pass, so a same-tick focus()
+    // would hit display:none and silently no-op (Hub.ts's openChat found
+    // this the hard way).
+    node.style.display = "block";
+    this.commsInput.setVisible(true);
+    node.focus();
+  }
+
+  private closeComms() {
+    this.commsOpen = false;
+    const node = this.commsInput.node as HTMLInputElement;
+    node.blur();
+    node.value = "";
+    node.style.display = "none";
+    this.commsInput.setVisible(false);
+    this.input.keyboard?.addCapture(battleCaptureKeys());
+  }
+
+  /**
+   * What typing into the comms box does. Workstream 3 ships the namespace
+   * half (commands); Workstream 4 fills in the routing below it.
+   */
+  private submitComms(raw: string) {
+    this.closeComms();
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    this.logCommsLine("YOU", trimmed);
+    this.routeMissionChat(trimmed);
+  }
+
+  /** Every living unit on the board as the router sees it — friendlies always "visible," hostiles by the same fog-of-war query the board draws from. */
+  private chatCandidates(): ChatCandidate[] {
+    const visible = this.mission.playerVisibleHostileIds();
+    return this.mission.livingUnits().map((u) => ({
+      id: u.instanceId,
+      pilotId: u.pilotId,
+      displayName: u.displayName,
+      side: u.side,
+      kind: u.kind,
+      able: !u.downed && !u.npcIncapacitated && !u.isCivilian,
+      visible: u.side === "player" ? true : visible.has(u.instanceId),
+    }));
+  }
+
+  /**
+   * The Battle half of the colon-command namespace and the whole of
+   * mission chat's dispatch (engine/missionChat.ts decides who and what;
+   * this does it). Every outcome the player can't see on the board lands
+   * in the comms column as a SYS line — a refusal, a command result — so
+   * typing never silently does nothing.
+   *
+   * Nothing here blocks: a line is resolved synchronously in the same tick
+   * Enter was pressed, the board keeps animating, the enemy phase keeps
+   * playing back. The 12-hour sortie clock is real-world time and is not
+   * a factor.
+   */
+  private routeMissionChat(raw: string) {
+    const route = resolveMissionChat(raw, { candidates: this.chatCandidates(), selectedId: this.selectedUnitId });
+    switch (route.kind) {
+      case "refused":
+        if (route.reason) this.logCommsLine("SYS", route.reason);
+        return;
+      case "command":
+        this.runCommsCommand(route.command);
+        return;
+      case "verb":
+        this.applyMissionSocialVerb(route.target, route.verb);
+        return;
+      case "smallTalk":
+        for (const t of route.targets) this.replySmallTalk(t, route.smallTalk);
+        return;
+      case "chatter":
+        this.replyChatter(route.targets, route.text);
+        return;
+      case "hostile":
+        this.addressHostile(route.target, route.text);
+        return;
+    }
+  }
+
+  private runCommsCommand(command: CommsCommand) {
+    switch (command.kind) {
+      case "help":
+        for (const line of COMMAND_HELP_LINES) this.logCommsLine("SYS", line);
+        return;
+      case "unknown":
+        this.logCommsLine("SYS", unknownCommandLine(command.name));
+        return;
+      case "notes": {
+        if (!command.text) {
+          // In place, never scene.start("Codex"): leaving Battle and coming
+          // back restarts the mission. See FieldNotesPanel.ts's header.
+          if (this.fieldNotesPanel) return;
+          this.hoverTip?.hide();
+          this.fieldNotesPanel = showFieldNotesPanel(this, () => {
+            this.fieldNotesPanel = null;
+            this.updateHoverTip();
+          });
+          return;
+        }
+        const state = loadCampaignState();
+        const result = addPlayerNote(command.text, {
+          scene: "battle",
+          campaignId: state?.campaignId,
+          campaignLabel: state ? `${companyNameOf(state)}, Day ${currentDay(state)}` : undefined,
+          missionId: this.mission.mission.id,
+          missionName: this.mission.mission.displayName,
+          turn: this.mission.turn,
+        });
+        this.logCommsLine("SYS", result.ok ? `Noted (${result.count} in the notebook). :notes opens it.` : result.reason);
+        return;
+      }
+    }
+  }
+
+  /**
+   * One of the seven social verbs at one deployed pilot — the same
+   * mechanics the Hub runs (engine/socialVerbResolution.ts), against the
+   * same persisted social state, saved straight back. What differs from
+   * the Hub, and why:
+   *   - The subject is built from the campaign roster rather than a walking
+   *     HubNpc: catalyst via catalystForPilot (the same call Hub.ts's
+   *     buildNpcs makes, background included), romanceable via the
+   *     archetype's species, the seed from the facility's own regulars
+   *     list (or the Hub's generic {0, 10, 70}) — so a pilot who has never
+   *     been spoken to aboard starts from exactly the numbers the Hub
+   *     would have given them.
+   *   - Diminishing returns on repeats within this mission (socialVerbUses).
+   *   - A Tier-2 "insulted" topic goes to CampaignState.pendingHotTopics
+   *     for the Hub to pick up; a Tier-3 standoff sets refusesDeployment
+   *     right away and the CO call-out waits for the next Hub visit — the
+   *     plan's own §5c, and exactly how it already behaves aboard. No
+   *     Battle-side removal path: a refusing pilot finishes the mission
+   *     they're in.
+   *   - No calendar charge (the mission's own real-time clock is already
+   *     running), no Send-Off blessing mid-mission — the blessing is
+   *     consumed on the NEXT launch by resolveDeployRoster, and writing it
+   *     from inside a mission would hand a free bonus to a mission the
+   *     player is already flying. The favor and stress relief still land.
+   */
+  private applyMissionSocialVerb(target: ChatCandidate, verb: SocialVerb) {
+    const state = loadCampaignState();
+    const pilotId = target.pilotId;
+    if (!state || !pilotId) {
+      this.logCommsLine("SYS", "No campaign loaded — nothing to remember this by.");
+      return;
+    }
+    const entry = state.pilots[pilotId];
+    const pilot = entry?.pilot ?? findPilot(pilotId);
+    if (!pilot) {
+      this.logCommsLine("SYS", `${target.displayName} isn't on the roster.`);
+      return;
+    }
+    const facility = state.pilots["pilot_marrow"] ? HOUSE_AMARANTH_FACILITY : WARDEN_FACILITY;
+    const regular = facility.regulars.find((r) => r.pilotId === pilotId);
+    const archetype = UNIT_ARCHETYPES[pilot.archetypeId];
+    const key = `${verb}:${pilotId}`;
+    const repeatIndex = this.socialVerbUses[key] ?? 0;
+    const result = resolveSocialVerb(
+      state,
+      {
+        pilotId,
+        displayName: pilot.displayName,
+        catalyst: catalystForPilot(pilotId, pilot.background),
+        romanceable: archetype ? isRomanceableSpecies(archetype.species) : true,
+        seed: regular ? { favorability: regular.favorability, stress: regular.stress, morale: regular.morale } : { favorability: 0, stress: 10, morale: 70 },
+      },
+      verb,
+      { hotTopics: state.pendingHotTopics ?? [], now: Date.now(), repeatIndex }
+    );
+    this.socialVerbUses[key] = repeatIndex + 1;
+    if (result.hotTopic) queuePendingHotTopic(state, result.hotTopic);
+    if (result.logged) saveCampaignState(state);
+    this.logCommsLine(commsSpeakerTag(target.displayName), result.line);
+    if (result.refusesDeploymentSet) {
+      // The plan's own named mid-mission beat: a squadmate who has,
+      // mechanically, decided they're done with the player, still standing
+      // next to them for the rest of the fight. A colder reaction line for
+      // this exact moment is Maxime's to write (§5f); until then the
+      // mechanic is stated plainly rather than voiced.
+      this.logCommsLine("SYS", `${target.displayName.split("—")[0].trim()} won't fly with you after this. That's a conversation for the CO, back aboard.`);
+    }
+  }
+
+  /**
+   * The five small-talk kinds, per pilot. Greeting/farewell/advice/banter
+   * answer in the pilot's own catalyst voice from data/smallTalk.ts, the
+   * same banks the Hub uses. A worry check-in mid-mission answers with the
+   * pilot's loudest live COMBAT worry — one of Maxime's own combat-log
+   * lines (data/combatWorryLines.ts, 11 Sep 2026) — because that's what's
+   * actually on their mind out here; the Hub's reflective LINE_BANK was
+   * checked on 10 Sep and doesn't read right mid-firefight. A pilot with
+   * nothing live on their mind gets the shared shrug rather than a line
+   * from the wrong register.
+   */
+  private replySmallTalk(target: ChatCandidate, smallTalk: "worry_checkin" | "greeting" | "farewell" | "advice" | "banter") {
+    const catalyst = this.catalystFor(target);
+    let line: string | undefined;
+    if (smallTalk === "greeting") line = pickGreetingLine(catalyst);
+    else if (smallTalk === "farewell") line = pickFarewellLine(catalyst);
+    else if (smallTalk === "advice") line = pickAdviceLine(catalyst);
+    else if (smallTalk === "banter") line = pickBanterLine(catalyst);
+    else {
+      const worry = target.pilotId ? loudestWorry(this.mission.combatWorries[target.pilotId] ?? [], Date.now()) : undefined;
+      line = worry ? pickCombatWorryLine(worry.source) : undefined;
+    }
+    this.logCommsLine(commsSpeakerTag(target.displayName), line ?? CHAT_FALLBACK_LINES[Math.floor(Math.random() * CHAT_FALLBACK_LINES.length)]);
+  }
+
+  /**
+   * Anything that isn't a verb or small talk — the same tail Hub.ts's
+   * showCatalystOrFallback runs: a catalyst-dictionary hit answers in that
+   * pilot's own voice, everyone else shares ONE shrug line (picked once per
+   * submit, so a squad of misses doesn't read as five different shrugs).
+   */
+  private replyChatter(targets: ChatCandidate[], text: string) {
+    const shrug = CHAT_FALLBACK_LINES[Math.floor(Math.random() * CHAT_FALLBACK_LINES.length)];
+    let anyHit = false;
+    for (const t of targets) {
+      const reaction = t.pilotId ? pickCatalystReaction(this.ambientStateFor(t), t.pilotId, text) : null;
+      if (reaction) {
+        anyHit = true;
+        this.logCommsLine(commsSpeakerTag(t.displayName), reaction.line);
+      }
+    }
+    if (!anyHit) {
+      // One shrug for the channel, not one per pilot — a broadcast that
+      // nobody understood is one moment, not a chorus.
+      const who = targets.length === 1 ? commsSpeakerTag(targets[0].displayName) : "squad";
+      this.logCommsLine(who, shrug);
+    }
+  }
+
+  /**
+   * A line to a visible, human-crewed hostile (never the Bloom — the
+   * router refuses those). Logged on the Mission for the plan's flagged
+   * post-mission gossip follow-up; no mechanical effect, no reply — there
+   * is no enemy-side morale system, and the hostile taunt/reply banks are
+   * a content job that hasn't been briefed (§5f), not a line for this
+   * pass to invent. The comms column says so plainly instead of pretending.
+   */
+  private addressHostile(target: ChatCandidate, text: string) {
+    const unit = this.mission.unitById(target.id);
+    this.mission.hostileChatLog.push({
+      targetInstanceId: target.id,
+      targetName: target.displayName,
+      archetypeId: unit?.archetypeId ?? "",
+      text,
+      turn: this.mission.turn,
+    });
+    this.logCommsLine("SYS", `Channel to ${target.displayName} is open. They heard you. No reply on this frequency yet.`);
+  }
+
+  private catalystFor(target: ChatCandidate): ReturnType<typeof catalystForPilot> {
+    const pilotId = target.pilotId ?? "";
+    const state = loadCampaignState();
+    const pilot = state?.pilots[pilotId]?.pilot ?? findPilot(pilotId);
+    return catalystForPilot(pilotId, pilot?.background);
+  }
+
+  /** The same AmbientPilotState shape Hub.ts hands the catalyst dictionary — built from the roster and the persisted social numbers. */
+  private ambientStateFor(target: ChatCandidate): Parameters<typeof pickCatalystReaction>[0] {
+    const pilotId = target.pilotId ?? "";
+    const state = loadCampaignState();
+    const pilot = state?.pilots[pilotId]?.pilot ?? findPilot(pilotId);
+    const social = state ? ensureHubSocialState(state, pilotId, { favorability: 0, stress: 10, morale: 70 }) : undefined;
+    return {
+      catalyst: catalystForPilot(pilotId, pilot?.background),
+      stage: pilot?.tier ? stageFromTier(pilot.tier) : "green",
+      stress: social?.stress ?? 10,
+      morale: social?.morale ?? 70,
+      drunk: !!social?.drunkUntil && social.drunkUntil > Date.now(),
+    };
+  }
+
+  /**
+   * The rectangle the action bar, END TURN and the legend occupy — the one
+   * region of the left column that stays interactive even when the column
+   * is collapsed and the board runs underneath it. Board-click and hover
+   * both skip it. Also the back button's strip along the top (the board
+   * starts at BOARD_TOP so they can't overlap, but the guard costs nothing
+   * and keeps the rule in one place).
+   */
+  private isInsideControlStrip(px: number, py: number): boolean {
+    const colX = this.layout.leftColumn?.x ?? GUTTER;
+    if (px < colX || px > colX + COLUMN_W) return false;
+    return py >= CONTROL_STRIP_TOP || py <= 34;
+  }
+
+  /**
+   * Re-run engine/battleLayout.ts for the current column state and move
+   * every panel object to its place. The board's own origin/tile size
+   * change with it, so this ends in a full render(). Everything positioned
+   * here is positioned ONLY here (create() calls this last) — one place to
+   * read when something's in the wrong spot.
+   */
+  private applyLayout() {
+    const m = this.mission.map;
+    this.layout = computeBattleLayout({ canvasW: this.cameras.main.width, canvasH: this.cameras.main.height, mapW: m.width, mapH: m.height, leftOpen: this.leftOpen, rightOpen: this.rightOpen });
+    this.tileSize = this.layout.tileSize;
+    this.boardX = this.layout.boardX;
+    this.boardY = this.layout.boardY;
+
+    // Left column: text hides with the column; the control strip and the
+    // back button stay (see leftOpen's own comment).
+    const colX = this.layout.leftColumn?.x ?? GUTTER;
+    this.hudText.setPosition(colX, HUD_TOP).setVisible(this.leftOpen);
+    this.logText.setPosition(colX, LOG_TOP).setVisible(this.leftOpen);
+    this.backBtn.setPosition(colX + PANEL_CENTER_OFFSET, 20);
+    this.backLabel.setPosition(colX + PANEL_CENTER_OFFSET, 20);
+    this.endTurnBtn.setPosition(colX + PANEL_CENTER_OFFSET, 600);
+    this.endTurnLabel.setPosition(colX + PANEL_CENTER_OFFSET, 600);
+    this.legendText.setPosition(colX + PANEL_CENTER_OFFSET, 618);
+    for (let i = 0; i < this.actionSlots.length; i++) {
+      const slot = this.actionSlots[i];
+      const p = ACTION_SLOTS[i];
+      slot.btn.setPosition(colX + p.x, p.y);
+      slot.label.setPosition(colX + p.x - ACTION_SLOT_W / 2 + ACTION_LABEL_GUTTER, p.y);
+      slot.key.setPosition(colX + p.x - ACTION_SLOT_W / 2 + 5, p.y);
+    }
+
+    // Tutorial hint line rides the board's own bottom edge.
+    const boardBottom = this.boardY + m.height * this.tileSize;
+    this.tutorialText.setPosition(this.boardX + (m.width * this.tileSize) / 2, boardBottom + 14);
+    this.tutorialText.setWordWrapWidth(m.width * this.tileSize);
+
+    this.layoutCommsColumn();
+
+    // A prompt centred on the old board would float over the wrong spot —
+    // rebuild it against the new geometry if one is open.
+    if (this.endTurnPrompt) {
+      const pending = this.unitsWithActionsLeft();
+      this.closeEndTurnPrompt();
+      if (pending.length > 0) this.openEndTurnPrompt(pending);
+    }
     this.render();
   }
 
@@ -2495,6 +3164,7 @@ export class Battle extends Phaser.Scene {
   }
 
   private render() {
+    this.mirrorDialogueIntoComms();
     // Audio (A6) — see permanentLossesSeen's own field comment.
     if (this.mission.permanentLosses.length > this.permanentLossesSeen) {
       this.permanentLossesSeen = this.mission.permanentLosses.length;
@@ -3825,6 +4495,13 @@ export class Battle extends Phaser.Scene {
   private updateHoverTip(): void {
     if (!this.hoverTip) return;
     if (this.mission.outcome !== "ongoing") {
+      this.hoverTip.hide();
+      return;
+    }
+    // The Field Notes overlay owns the screen while it's up; the board tip
+    // (drawn at HoverTip's own high depth) would otherwise float over it —
+    // caught in the overlay's own screenshot, 12 Sep 2026.
+    if (this.fieldNotesPanel) {
       this.hoverTip.hide();
       return;
     }

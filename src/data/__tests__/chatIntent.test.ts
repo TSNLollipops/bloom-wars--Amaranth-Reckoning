@@ -26,6 +26,9 @@ import {
   detectRemovePilotIntent,
   detectMoveItRequest,
   extractNamedTarget,
+  detectCommand,
+  unknownCommandLine,
+  COMMAND_HELP_LINES,
 } from "../chatIntent";
 
 describe("interpretPlayerChat — muster recognition", () => {
@@ -664,5 +667,66 @@ describe("mentionsCoByAlias — CO name-addressing, 2 Sep 2026 (playtest tally i
   it("returns false for empty or whitespace-only input", () => {
     expect(mentionsCoByAlias("")).toBe(false);
     expect(mentionsCoByAlias("   ")).toBe(false);
+  });
+});
+
+// ---- The colon-command namespace (Workstream 1, 12 Sep 2026) ----------
+describe("detectCommand — the colon-command namespace", () => {
+  it("returns null for ordinary text, so the keyword chain runs exactly as before", () => {
+    expect(detectCommand("well done bosk")).toBeNull();
+    expect(detectCommand("hello")).toBeNull();
+    expect(detectCommand("")).toBeNull();
+    expect(detectCommand("   ")).toBeNull();
+  });
+
+  it("does not treat a colon that isn't LEADING as a command (a sentence with a colon in it is still talk)", () => {
+    expect(detectCommand("listen: hold the line")).toBeNull();
+  });
+
+  it("parses :help (and its short forms)", () => {
+    expect(detectCommand(":help")).toEqual({ kind: "help" });
+    expect(detectCommand(":HELP")).toEqual({ kind: "help" });
+    expect(detectCommand(":h")).toEqual({ kind: "help" });
+    expect(detectCommand(":?")).toEqual({ kind: "help" });
+  });
+
+  it("parses :notes with text as a write, keeping the text verbatim (case and inner spacing intact)", () => {
+    expect(detectCommand(":notes Splitfang burrows on turn 3")).toEqual({ kind: "notes", text: "Splitfang burrows on turn 3" });
+    expect(detectCommand("  :notes   two  spaces inside  ")).toEqual({ kind: "notes", text: "two  spaces inside" });
+    expect(detectCommand(":note quick one")).toEqual({ kind: "notes", text: "quick one" });
+  });
+
+  it("parses a bare :notes as 'open the notebook' (empty text)", () => {
+    expect(detectCommand(":notes")).toEqual({ kind: "notes", text: "" });
+    expect(detectCommand(":notes   ")).toEqual({ kind: "notes", text: "" });
+  });
+
+  it("parses :t <name> <text> into a target word and the rest", () => {
+    expect(detectCommand(":t bosk hold that line")).toEqual({ kind: "talk", targetName: "bosk", text: "hold that line" });
+    expect(detectCommand(":talk Anand nice shot")).toEqual({ kind: "talk", targetName: "Anand", text: "nice shot" });
+  });
+
+  it("parses a :t with a name but no text as talk with empty text — the caller shows usage, it doesn't guess", () => {
+    expect(detectCommand(":t bosk")).toEqual({ kind: "talk", targetName: "bosk", text: "" });
+    expect(detectCommand(":t")).toEqual({ kind: "talk", targetName: "", text: "" });
+  });
+
+  it("returns 'unknown' for any other command word — and NEVER null, so a typo can't fall through to keyword matching", () => {
+    // The exact bug the namespace exists to prevent: ":notse hold the line"
+    // must not become small talk to the nearest pilot.
+    expect(detectCommand(":notse hold the line")).toEqual({ kind: "unknown", name: "notse" });
+    expect(detectCommand(":muster")).toEqual({ kind: "unknown", name: "muster" });
+    expect(detectCommand(":")).toEqual({ kind: "unknown", name: "" });
+  });
+
+  it("unknownCommandLine names the bad command and points at :help", () => {
+    expect(unknownCommandLine("notse")).toContain(":notse");
+    expect(unknownCommandLine("notse")).toContain(":help");
+    expect(unknownCommandLine("")).toContain(":help");
+  });
+
+  it("the help text covers every command the parser accepts", () => {
+    const joined = COMMAND_HELP_LINES.join("\n");
+    for (const cmd of [":notes", ":t", ":help"]) expect(joined).toContain(cmd);
   });
 });

@@ -26,7 +26,8 @@
 // changed — this is a port of a working formula, not a redesign") — do not
 // retune these here.
 import type { CampaignState } from "./campaignState";
-import { ensureHubSocialState, ensureNpcSocialState } from "./campaignState";
+import { ensureNpcSocialState } from "./campaignState";
+import { socialStateFor } from "./memoryLedger";
 import { pairKey } from "../data/npcBonds";
 import { pickAmbientLine, stageFromTier, type AmbientPilotState, type Echo } from "../data/ambientLines";
 import { catalystForPilot, NPC_BOND_SEED } from "../data/npcSeed";
@@ -75,7 +76,15 @@ export interface GriefCatalystResult {
  * `deployedPilotIds` is Mission.deployedPilotIds — the full mission squad,
  * not filtered by this function's caller.
  */
-export function runGriefCatalyst(state: CampaignState, deployedPilotIds: readonly string[], lostPilotId: string): GriefCatalystResult {
+export function runGriefCatalyst(
+  state: CampaignState,
+  deployedPilotIds: readonly string[],
+  lostPilotId: string,
+  // Emotional Brain Phase 0, 12 Sep 2026 — an optional seeded rng so a
+  // headless campaign (sim/runBrainSim.ts) replays the same grief from the
+  // same seed. Debrief.ts passes nothing and gets Math.random, as before.
+  rng: () => number = Math.random,
+): GriefCatalystResult {
   const mourners = deployedPilotIds.filter((id) => {
     if (id === lostPilotId) return false;
     const entry = state.pilots[id];
@@ -91,7 +100,13 @@ export function runGriefCatalyst(state: CampaignState, deployedPilotIds: readonl
     const entry = state.pilots[pilotId];
     if (!entry) continue; // defensive only — deployedPilotIds always names real CampaignPilotEntry ids in practice; see ensureHubSocialState's own fail-open for the matching instinct elsewhere in this file.
 
-    const social = ensureHubSocialState(state, pilotId, { favorability: 0, stress: 0, morale: 0 });
+    // Emotional Brain, 12 Sep 2026 — was ensureHubSocialState(..., {0, 0, 0}),
+    // which on a loss before the first Hub visit seeded a survivor at
+    // Morale 0 for good (buildNpcs() never re-seeds). socialStateFor uses
+    // the facility's own regular seeds or the Hub's generic triple, so it
+    // no longer matters which screen meets a pilot first. See
+    // engine/memoryLedger.ts's header.
+    const social = socialStateFor(state, pilotId);
     const stillDrunk = !!social.drunkUntil && social.drunkUntil > Date.now(); // same pattern as scenes/Hub.ts's buildNpcs()
 
     const ambient: AmbientPilotState = {
@@ -107,7 +122,7 @@ export function runGriefCatalyst(state: CampaignState, deployedPilotIds: readonl
       // means "crew left behind in the Hub worrying about someone out on a
       // mission" — these pilots WERE the mission, not the ones left behind.
     };
-    const { line, pick } = pickAmbientLine(ambient);
+    const { line, pick } = pickAmbientLine(ambient, rng);
     echoByPilot[pilotId] = pick.echo;
     mournerLines.push({ pilotId, displayName: entry.pilot.displayName, line, echo: pick.echo });
   }

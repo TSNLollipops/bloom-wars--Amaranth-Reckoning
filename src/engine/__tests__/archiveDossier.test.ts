@@ -464,3 +464,44 @@ describe("the CO's own dossier", () => {
     expect(d.lines.find((l) => l.label === "Standing")).toBeUndefined();
   });
 });
+
+// The "Carries" block — 12 Sep 2026 (Emotional Brain build plan §3d).
+import { carriesFor } from "../archiveDossier";
+import { recordMemory } from "../memoryLedger";
+
+describe("the Carries block", () => {
+  it("is absent for a pilot with nothing on the ledger", () => {
+    const s = warden();
+    const d = buildArchiveDossier(s, entryOf(s, "pilot_lask"));
+    expect(d.lines.some((l) => l.label === "Carries")).toBe(false);
+    expect(carriesFor(s, undefined)).toEqual([]);
+  });
+
+  it("shows the three loudest memories as record lines, loss first and flagged", () => {
+    const s = warden();
+    s.calendarDay = 40;
+    recordMemory(s, "pilot_anand", { kind: "got_the_kill", echo: "anger", missionId: "mission_amaranth_3", now: 1, today: 12 });
+    recordMemory(s, "pilot_anand", { kind: "lost_squadmate", echo: "sadness", about: ["pilot_bosk"], missionId: "mission_amaranth_12", now: 2, today: 31 });
+    recordMemory(s, "pilot_anand", { kind: "saw_fall", echo: "fear", about: ["pilot_iyari"], missionId: "mission_amaranth_5", now: 3, today: 20 });
+    recordMemory(s, "pilot_anand", { kind: "was_gifted", echo: "love", now: 4, today: 38 });
+    const d = buildArchiveDossier(s, entryOf(s, "pilot_anand"));
+    const carries = d.lines.filter((l) => l.label === "Carries" || (l.label === "" && l.value.includes(", day ")));
+    expect(carries).toHaveLength(3);
+    expect(carries[0].label).toBe("Carries");
+    expect(carries[0].value).toBe("Lost a squadmate (M.Sgt. Halvard Bosk). Amaranth I.12 — The Fallow Line, day 31.");
+    expect(carries[0].tone).toBe("warn");
+    expect(carries[1].label).toBe("");
+    expect(carries.some((l) => l.value.startsWith("Was given a gift by their commander. aboard, day 38."))).toBe(true);
+    expect(carries.some((l) => l.value.startsWith("Took the kill"))).toBe(false); // the quietest of four, cut by the top-3
+  });
+
+  it("follows the Archive prose rule: no em dashes or semicolons in the record text itself", () => {
+    const s = warden();
+    recordMemory(s, "pilot_anand", { kind: "was_pulled_out", echo: "fear", about: ["pilot_lask"], missionId: "mission_amaranth_2", now: 1, today: 5 });
+    for (const l of carriesFor(s, s.pilots["pilot_anand"].social?.memories)) {
+      // Mission display names carry their own em dash ("Amaranth I.2 — Wire and Mud"), which is the campaign data's, not this block's.
+      const own = l.value.replace(/Amaranth I\.\d+ — [^,]+/, "");
+      expect(own).not.toMatch(/[—;]/);
+    }
+  });
+});

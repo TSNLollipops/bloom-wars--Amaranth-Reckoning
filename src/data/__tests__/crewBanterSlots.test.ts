@@ -337,3 +337,22 @@ describe("resolveSlotText — two-fact lines (slotType2)", () => {
     expect(resolveSlotText(line, { rivalName: "Iyari", lostMuntiName: "Barasj" })).toBe("Iyari took it harder than most, after Barasj.");
   });
 });
+
+// FALLEN / SAVIOR — 12 Sep 2026 (Emotional Brain build plan §3d). Both
+// resolve off the speaker's own ledger, never the roster; Hub.ts's
+// buildSlotContext fills them from data/memories.ts topMemories. No
+// SLOTTED_LINES entry uses either yet (the lines are Maxime's to write),
+// so the resolver is what these pin.
+describe("resolveSlotText — FALLEN and SAVIOR", () => {
+  it("FALLEN resolves when fallenName is present and falls back when it is not", () => {
+    const line = makeLine({ slotType: "FALLEN", slotted: "I still hear {FALLEN} on the channel." });
+    expect(resolveSlotText(line, { fallenName: "Bosk" })).toBe("I still hear Bosk on the channel.");
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+
+  it("SAVIOR resolves when saviorName is present and falls back when it is not", () => {
+    const line = makeLine({ slotType: "SAVIOR", slotted: "{SAVIOR} got to me. I don't forget that." });
+    expect(resolveSlotText(line, { saviorName: "Lask" })).toBe("Lask got to me. I don't forget that.");
+    expect(resolveSlotText(line, {})).toBeUndefined();
+  });
+});

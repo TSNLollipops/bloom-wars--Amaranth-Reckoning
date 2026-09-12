@@ -367,6 +367,40 @@ sweep with a red self-test means nothing.
   `hub_ha_ss2.png`, `hub_ha_yard.png`) for the eyeball pass.
   `captureHubDecks.mjs` was scoped the same day to the live scene's own
   decks (`hub.f.deckOrder`) — `DECK_LAYOUTS` now holds both facilities'.
+- `checkMissionChat.mjs` — 12 Sep 2026. Mission Chat / Player Notes / Battle
+  HUD Relayout Plan v1, all four workstreams, live. Boots against
+  `missionchat_save.json` (`genMissionChatSave.ts` — the Act I five plus every
+  authored 2nd/3rd Lance candidate recruited through the real
+  `recruitIntoLance()`, 15 pilots, the three regulars' social state primed
+  from the Warden seed so favour deltas have a real "before"). Screenshots
+  the relayout on Muster (20x12, 5 pilots) and the two dimension extremes
+  (36x14 Falling Back to Meridian, 30x19 Tunnel Rats, 15 pilots each) with
+  both columns open, then `[`/`]` collapsed, measuring the live board and
+  panel rects against each other and the action-bar labels against their
+  buttons; clicks the control strip with the board underneath to prove a
+  button click never doubles as a tile click. Then drives the REAL comms
+  box (T, text, Enter): `:help`, an unknown command stopping dead, a
+  greeting broadcast to all five, a verb with no target refused, a real
+  tile click to select Bosk then "well done" (+4 persisted, reply tagged
+  with his callsign), the same praise again (+2 — diminishing returns),
+  real "1", "2", "3", Space keypresses INSIDE the box (no action slot fires,
+  the turn doesn't end), `:t farsight` by callsign, `:t <a Bloom>` refused,
+  `:notes <text>` stamped with mission/turn, a bare `:notes` opening the
+  in-mission overlay in place (Battle stays active) and Esc closing it,
+  Space ending the turn again once the box is closed (capture list
+  restored), 14 long lines to overflow the log (bottom-anchored under the
+  mask), a `(dialogue)` mission-log line mirrored into COMMS, then the Hub's
+  own `:notes` opening the Codex on FIELD NOTES with a real arm-then-confirm
+  DELETE. The two bugs this run caught before shipping: Phaser emits
+  `keydown-T` BEFORE applying its own capture list, so the T that opened the
+  box leaked into it as its first character (fixed with an explicit
+  preventDefault in the handler); and a first-pass hotkey legend overran the
+  230px column, visible only in the screenshot. Writes
+  `missionchat_report.json` and eight `missionchat_*.png`. Uses
+  `keyboard.insertText` for message bodies: at this sandbox's ~5fps Battle
+  frame rate a per-character `keyboard.type` costs ~400ms a character
+  (measured), which is the harness, not the game — the one place per-key
+  delivery is the point (the digit/Space leak test) presses real keys.
 
 ## A note on speed in the cloud sandbox
 
@@ -454,3 +488,23 @@ what this first pass covered and what's still owed.
   Finally opens the panel from the Transporter Pad's own `[ frame ]` link.
   Writes `frame_panel_*.png`. Regenerate `frame_save.json` with
   `npx tsx tools/verify/genFrameSave.ts` first.
+
+- `genBrainSave.ts` + `checkBrainArchive.mjs` + `checkBrainDebrief.mjs` —
+  12 Sep 2026, the Emotional Brain (`claude/Bloom_Wars_Emotional_Brain_
+  Build_Plan_v1_12Sep2026.md`). `genBrainSave.ts` runs the REAL Debrief
+  write-back (`engine/debriefCatalyst.ts`) twice against a fresh Warden
+  save, a win with a downing and a loss with Bosk permanently lost, so the
+  save carries real memories, drift and moved Stress/Morale, never
+  hand-written ones. `checkBrainArchive.mjs` opens the Archive on that save
+  and asserts the pilot dossier's "Carries" block (three loudest memories
+  as dated record lines, the loss flagged), that a struck pilot and the MC
+  get none, then screenshots `brainArchive_anand.png` /
+  `brainArchive_lask.png`. `checkBrainDebrief.mjs` starts a REAL Battle on
+  Mission 1, places a few combat worries on the live Mission the exact
+  shape `mission.ts`'s `pushCombatWorry` writes, sets the outcome, uses
+  Battle's own hand-off into Debrief, asserts the "WHAT THEY TOOK FROM IT"
+  block and that RETURN TO BASE's save carries the new memories, Morale and
+  drift; screenshots `brainDebrief_win.png`. Both filter Phaser's
+  asset-decode noise when `public/` is absent from a mirror. The bot-side
+  view is `npm run sim:brain` (`src/sim/runBrainSim.ts`); its 10-seed
+  printout for the build is `brainSim_10seeds_12Sep2026.txt` (+ `.json`).

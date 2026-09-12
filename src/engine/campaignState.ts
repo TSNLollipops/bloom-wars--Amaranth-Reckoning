@@ -67,6 +67,9 @@ import {
 } from "../data/campaignHouseAmaranth";
 import { findPilot } from "../data/pilotRegistry";
 import type { SocialLogEntry } from "../data/verbs";
+import type { HotTopic } from "../data/hotTopics";
+import type { MemoryEntry } from "../data/memories";
+import type { EchoWeights } from "../data/echoLean";
 import type { CarrierModuleId } from "../data/carrierModules";
 import type { HeirloomCampaignState } from "./heirlooms";
 import type { BattleUnit, OnHitEffectKind } from "./units";
@@ -401,6 +404,19 @@ export interface CampaignState {
   // save written before today, created on first write, so nothing needs
   // migrating. Keyed by the same pilotId the Hub's own NPC records use.
   npcSocialStates?: Record<string, HubPilotSocialState>;
+  // Hot topics raised somewhere the Hub isn't, 12 Sep 2026 (Mission Chat
+  // plan, Workstream 4). The Hub's hot topics are a scene-local list
+  // (Hub.ts's this.hotTopics), rebuilt on every visit from one-shot flags
+  // (muntiLossAnnounced, lastMissionEcho.announced, ...). Mission chat can
+  // produce one from inside a Battle — an Insult reaching Tier 2 registers
+  // the "insulted" topic exactly as it would aboard — with no Hub to push
+  // into. This is the mailbox: Battle appends, the Hub drains it into its
+  // live list on the next create() (drainPendingHotTopics) and clears it.
+  // Same optional/lazy shape as the two fields above it: absent on every
+  // older save, nothing to migrate. Also the natural landing spot for the
+  // plan's flagged follow-up (what was said to a named human hostile,
+  // surfaced post-mission as gossip) — not built, just already has a place.
+  pendingHotTopics?: HotTopic[];
   // Rec Room Standings & NPC Learning, slice 2 (3 Sep 2026) — every
   // pilot's win/loss record at the three Rec Room minigames, plus the
   // player's own under PLAYER_RECORD_ID. Optional and lazily created by
@@ -2765,6 +2781,27 @@ export interface HubPilotSocialState {
   // order (this one's new, 2 Sep 2026, added down here since it's part of
   // the same Insult-ladder cluster as the two fields just above it).
   coCalloutGiven?: boolean;
+  // Emotional Brain, 12 Sep 2026 (claude/Bloom_Wars_Emotional_Brain_Build_
+  // Plan_v1_12Sep2026.md). Three optional, additive fields, so every save
+  // that predates them loads unchanged and gets them on first write.
+  //
+  // memories — the Ledger (data/memories.ts): what this pilot carries.
+  // Written by engine/debriefCatalyst.ts at Debrief (combat) and by
+  // scenes/Hub.ts at the real Hub events (blowup, breakdown, the verbs
+  // that leave a mark). Capped at MEMORY_CAP, weakest evicted. Read by the
+  // Archive dossier's "Carries" block, the Highlights reel, the recall
+  // slots, and echoDrift's own nudges.
+  memories?: MemoryEntry[];
+  // echoDrift — the pilot's own lean on top of their archetype's
+  // (data/echoLean.ts): love/fear/anger/sadness, each 0..ECHO_DRIFT_CAP,
+  // nudged by every memory written, relaxed toward zero as in-game days
+  // pass. Undefined reads as all-zero (the archetype's base row alone).
+  echoDrift?: EchoWeights;
+  // echoDriftDay — the in-game calendar day echoDrift was last relaxed,
+  // so the next writer knows how many days to relax it by. Undefined
+  // means "never relaxed yet": the first writer stamps today and relaxes
+  // nothing.
+  echoDriftDay?: number;
 }
 
 /**
@@ -2812,6 +2849,18 @@ export function ensureHubSocialState(
     entry.social = { favorability: seed.favorability, stress: seed.stress, morale: seed.morale, inRelationship: false, socialLog: [] };
   }
   return entry.social;
+}
+
+/** Queue a hot topic for the Hub to pick up on its next visit — see CampaignState.pendingHotTopics. */
+export function queuePendingHotTopic(state: CampaignState, topic: HotTopic): void {
+  (state.pendingHotTopics ??= []).push(topic);
+}
+
+/** Take every queued topic (oldest first) and clear the mailbox. Empty on any save that never had one. */
+export function drainPendingHotTopics(state: CampaignState): HotTopic[] {
+  const out = state.pendingHotTopics ?? [];
+  state.pendingHotTopics = undefined;
+  return out;
 }
 
 // ---- 12. Persistent NPC-to-NPC social state — pairwise bonds and

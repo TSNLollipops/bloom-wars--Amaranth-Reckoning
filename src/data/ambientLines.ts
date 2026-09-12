@@ -144,6 +144,12 @@ export type AmbientPilotState = {
   // echo/reason by source or catalyst without changing this field's shape
   // again — pickSoloEcho below just reads .intensity and .source for now.
   topWorry?: WorryEntry;
+  // Emotional Brain Phase 3, 12 Sep 2026 — the pilot's effective echo lean
+  // (archetype base + their own persisted drift, data/echoLean.ts's
+  // effectiveEchoLean). Optional: absent means "uniform idle pick," which is
+  // exactly what every call site did before this field existed. Hub.ts's
+  // buildNpcs() and engine/debriefCatalyst.ts are the two real writers.
+  echoLean?: Record<Echo, number>;
 };
 
 export type EchoPick = { echo: Echo; reason: string };
@@ -174,19 +180,52 @@ export type EchoPick = { echo: Echo; reason: string };
 // the entry's own source id ("mission_pilot_missing" today) instead of the
 // hardcoded string "worried," so a second real source (step 3's combat
 // bridge) shows up distinctly here without this function changing again.
-export function pickSoloEcho(pilot: AmbientPilotState): EchoPick {
-  if (pilot.drunk) return { echo: Math.random() < 0.5 ? "love" : "anger", reason: "drunk" };
+//
+// Emotional Brain Phase 0, 12 Sep 2026 — both functions below now take an
+// optional `rng` (defaulting to Math.random, so every existing Hub.ts /
+// socialSim.ts call site is behavior-identical). engine/griefCatalyst.ts,
+// engine/debriefCatalyst.ts and sim/runBrainSim.ts pass a seeded one so a
+// campaign's emotional outcomes replay from a seed, same "everything random
+// goes through this.rng" rule mission.ts already lives by.
+//
+// Emotional Brain Phase 3, 12 Sep 2026 — the idle fallback (the last line
+// of pickSoloEcho) is no longer a flat four-way coin flip. It is a weighted
+// draw from the pilot's archetype lean plus their own persisted drift
+// (data/echoLean.ts) when the caller supplies them via `pilot.echoLean`;
+// with no lean supplied (every pre-existing call site, this file's own
+// tests) it stays the uniform pick it always was. The acute overrides above
+// it (drunk, panic, worry, low morale) keep priority exactly as before.
+export function pickSoloEcho(pilot: AmbientPilotState, rng: () => number = Math.random): EchoPick {
+  if (pilot.drunk) return { echo: rng() < 0.5 ? "love" : "anger", reason: "drunk" };
   if (pilot.stress >= STRESS_PANIC_THRESHOLD) return { echo: "fear", reason: "panicking" };
-  if (pilot.topWorry && Math.random() < pilot.topWorry.intensity) return { echo: "fear", reason: pilot.topWorry.source };
+  if (pilot.topWorry && rng() < pilot.topWorry.intensity) return { echo: "fear", reason: pilot.topWorry.source };
   if (pilot.morale <= MORALE_PANIC_THRESHOLD) return { echo: "sadness", reason: "low morale" };
+  if (pilot.echoLean) return { echo: pickWeightedEcho(pilot.echoLean, rng), reason: "lean" };
   const pool: Echo[] = ["love", "fear", "anger", "sadness"];
-  return { echo: pool[Math.floor(Math.random() * pool.length)], reason: "idle" };
+  return { echo: pool[Math.floor(rng() * pool.length)], reason: "idle" };
 }
 
-export function pickAmbientLine(pilot: AmbientPilotState): { line: string; pick: EchoPick } {
-  const pick = pickSoloEcho(pilot);
+// Weighted draw over the four echoes. Non-positive or NaN weights count as
+// zero; an all-zero vector falls back to a uniform pick rather than
+// dividing by zero. Kept here (not in data/echoLean.ts) so this file has no
+// new import and the Hub's hot path stays a single function call.
+export function pickWeightedEcho(weights: Record<Echo, number>, rng: () => number = Math.random): Echo {
+  const order: Echo[] = ["love", "fear", "anger", "sadness"];
+  const w = order.map((e) => (Number.isFinite(weights[e]) && weights[e] > 0 ? weights[e] : 0));
+  const total = w[0] + w[1] + w[2] + w[3];
+  if (total <= 0) return order[Math.floor(rng() * order.length)];
+  let roll = rng() * total;
+  for (let i = 0; i < order.length; i++) {
+    roll -= w[i];
+    if (roll < 0) return order[i];
+  }
+  return order[order.length - 1];
+}
+
+export function pickAmbientLine(pilot: AmbientPilotState, rng: () => number = Math.random): { line: string; pick: EchoPick } {
+  const pick = pickSoloEcho(pilot, rng);
   const bank = LINE_BANK[pilot.catalyst][pick.echo][pilot.stage];
-  return { line: bank[Math.floor(Math.random() * bank.length)], pick };
+  return { line: bank[Math.floor(rng() * bank.length)], pick };
 }
 
 // ---- General "word travels through the hub" messages, 25 Aug 2026 -------

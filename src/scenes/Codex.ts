@@ -33,6 +33,8 @@ import Phaser from "phaser";
 import { makeShopButton } from "./shop/ShopPanel";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { renderFieldNotesList } from "./ui/FieldNotesPanel";
+import { buildNotesRows, loadPlayerNotes, notesPageCount } from "../data/playerNotes";
 
 
 // ---- Palette — the game's existing UI chrome colors (panel/card/border/
@@ -274,6 +276,15 @@ const SECTIONS: CodexSection[] = [
   { id: "objectives", num: "07", title: "Objectives", dek: "Seven objective types. Four cannot be lost on the clock. Three can.", pageCount: 2 },
   { id: "roster", num: "08", title: "Paths, Chassis and Mek Tracks", dek: "The three things that decide what a mech does before you buy it a single piece of gear.", pageCount: 1 },
   { id: "missions", num: "09", title: "Reading a Briefing", dek: "The briefing panel is the only place that names the win condition. Read the turn number correctly.", pageCount: 2 },
+  // Field Notes, 12 Sep 2026 (Mission Chat / Player Notes / Battle HUD
+  // Relayout Plan v1, Workstream 1). The one section here that is player-
+  // AUTHORED rather than transcribed from HOW_TO_PLAY.html — but it belongs
+  // in this scene, not the Archive: the Archive is in-fiction lore and
+  // personnel, and a field note is the player's own knowledge (it survives
+  // permadeath and a lost campaign by design), which is exactly this
+  // scene's "out-of-fiction, needs no save" register. pageCount is a
+  // placeholder; renderSection sizes the real one from the notebook.
+  { id: "notes", num: "10", title: "Field Notes", dek: "Your own notebook. Written from the chat box with :notes <text>, aboard or mid-mission, and kept across every campaign.", pageCount: 1 },
 ];
 
 export class Codex extends Phaser.Scene {
@@ -306,9 +317,12 @@ export class Codex extends Phaser.Scene {
   // the Hub. Left in the call signature rather than chased through two call
   // sites, so this can be re-typed rather than re-plumbed if it ever needs
   // the save again.
-  init(data: { returnScene?: string }) {
+  init(data: { returnScene?: string; section?: string }) {
     this.returnScene = data.returnScene ?? "MainMenu";
-    this.sectionIndex = 0;
+    // ":notes" typed with no text (Hub.ts's submitChat) opens straight onto
+    // FIELD NOTES; anything else, or nothing, lands on section 01 as before.
+    const wanted = data.section ? SECTIONS.findIndex((sec) => sec.id === data.section) : -1;
+    this.sectionIndex = wanted === -1 ? 0 : wanted;
     this.page = 0;
   }
 
@@ -422,6 +436,11 @@ export class Codex extends Phaser.Scene {
     this.navLayer = this.add.container(0, 0);
 
     const sec = SECTIONS[this.sectionIndex];
+    // FIELD NOTES' page count is the notebook's, not a static number — read
+    // it fresh every render so a deletion re-sizes the nav (and clamps the
+    // page) without any separate bookkeeping.
+    const pageCount = sec.id === "notes" ? notesPageCount(buildNotesRows(loadPlayerNotes())) : sec.pageCount;
+    if (this.page > pageCount - 1) this.page = pageCount - 1;
     const titleTxt = this.add
       .text(this.contentX + 24, this.contentY + 16, `SEC. ${sec.num} — ${sec.title.toUpperCase()}`, { fontFamily: "monospace", fontSize: "15px", color: PAL.accent })
       .setOrigin(0, 0);
@@ -436,7 +455,7 @@ export class Codex extends Phaser.Scene {
     this.contentLayer.add([titleTxt, dekTxt]);
 
     const bodyTop = this.contentY + 64;
-    const bodyBottom = this.contentY + this.contentH - (sec.pageCount > 1 ? 34 : 14);
+    const bodyBottom = this.contentY + this.contentH - (pageCount > 1 ? 34 : 14);
     const bodyX = this.contentX + 24;
     const bodyW = this.contentW - 48;
     const bodyH = bodyBottom - bodyTop;
@@ -451,12 +470,25 @@ export class Codex extends Phaser.Scene {
       case "objectives": this.renderObjectives(bodyX, bodyTop, bodyW, bodyH); break;
       case "roster": this.renderRoster(bodyX, bodyTop, bodyW, bodyH); break;
       case "missions": this.renderMissions(bodyX, bodyTop, bodyW, bodyH); break;
+      case "notes":
+        renderFieldNotesList({
+          scene: this,
+          layer: this.contentLayer,
+          hoverTip: this.hoverTip,
+          x: bodyX,
+          y: bodyTop,
+          w: bodyW,
+          h: bodyH,
+          page: this.page,
+          onChanged: () => this.renderSection(),
+        });
+        break;
     }
 
     // Every section left in this scene is out-of-fiction help with no save
     // requirement, so page nav is purely "does this one have more than one
     // page." The needsSave branch went with the lore sections.
-    if (sec.pageCount > 1) this.drawPageNav(sec.pageCount);
+    if (pageCount > 1) this.drawPageNav(pageCount);
   }
 
 

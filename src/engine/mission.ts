@@ -695,6 +695,19 @@ export class Mission {
    */
   combatWorries: Record<string, WorryEntry[]> = {};
   /**
+   * Mission chat, 12 Sep 2026 (Mission Chat plan, Workstream 4 §5b) —
+   * every line the player addressed to a human-crewed hostile this mission,
+   * in order. There is no morale system on the enemy side, so saying
+   * something to one does nothing mechanically; what IS cheap, because the
+   * gossip infrastructure exists, is remembering what was said to whom so a
+   * later pass can surface it post-mission as a hot topic ("the Colonel
+   * spent Wellroot taunting a House Lancer"). That follow-up is flagged in
+   * the plan, not built; this is its landing spot. Mission-scoped like
+   * combatWorries above — Debrief reads it if it ever wants to, nothing
+   * persists it today.
+   */
+  hostileChatLog: { targetInstanceId: string; targetName: string; archetypeId: string; text: string; turn: number }[] = [];
+  /**
    * Combat-log Worry Lines, wired 11 Sep 2026 — which pilotIds have
    * already had one of Maxime's lines (data/combatWorryLines.ts) surface
    * in the log this mission. The throttle rule (claude/
@@ -2224,7 +2237,7 @@ export class Mission {
     if (this.combatWorryLineShown[pilotId]) return;
     const loudest = loudestWorry(this.combatWorries[pilotId] ?? [], now);
     if (loudest?.source !== source) return;
-    const line = pickCombatWorryLine(source);
+    const line = pickCombatWorryLine(source, this.rng);
     if (!line) return;
     this.combatWorryLineShown[pilotId] = true;
     const speaker = this.units.find((u) => u.pilotId === pilotId);

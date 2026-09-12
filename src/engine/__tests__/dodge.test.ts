@@ -83,7 +83,12 @@ describe("Mission.attack — dodge wiring end-to-end", () => {
     expect(outcome!.defenderDodged).toBe(true);
     expect(outcome!.damage).toBe(0);
     expect(meeps.currentHp).toBe(hpBefore);
-    expect(mission.log.at(-1)).toContain("DODGED (Meeps)");
+    // Not `log.at(-1)` any more: since the combat-log worry lines shipped
+    // (11 Sep 2026, data/combatWorryLines.ts) a dodge can be followed in
+    // the log by the defender's own "(dialogue) ..." reaction line, which
+    // is correct behaviour, not a regression. The assertion is that the
+    // dodge itself was logged.
+    expect(mission.log.some((l) => l.includes("DODGED (Meeps)"))).toBe(true);
   });
 
   it("a forced high Math.random() roll never dodges", () => {

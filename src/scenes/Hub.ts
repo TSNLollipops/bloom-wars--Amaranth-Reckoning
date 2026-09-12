@@ -131,6 +131,10 @@ import {
   detectMoveItRequest,
   extractNamedTarget,
   CHAT_FALLBACK_LINES,
+  detectCommand,
+  unknownCommandLine,
+  COMMAND_HELP_LINES,
+  type ChatCommand,
   type BuildRequest,
   type KnownUnbuildableId,
   type BuildableBayId,
@@ -141,26 +145,8 @@ import {
 // header for the full provenance; every function/constant below is used
 // exactly once, in this scene's own new handler methods further down.
 import {
-  GIFT_FAVORABILITY_DELTA,
-  pickGiftLine,
-  PRAISE_FAVORABILITY_DELTA,
-  pickPraiseLine,
-  INSULT_FAVORABILITY_DELTA,
-  pickInsultLine,
-  APOLOGY_FAVORABILITY_DELTA,
-  pickApologyLine,
-  INSULT_TIER2_COUNT,
-  INSULT_TIER2_STRESS_BUMP,
-  INSULT_TIER3_COUNT,
-  INSULT_TIER3_FAVORABILITY_CEILING,
-  CONGRATULATE_FAVORABILITY_DELTA,
-  CONGRATULATE_MORALE_DELTA,
-  pickCongratulateLine,
-  FLIRT_FAVORABILITY_DELTA,
-  pickFlirtLine,
-  SEND_OFF_FAVORABILITY_DELTA,
-  SEND_OFF_STRESS_DELTA,
-  pickSendOffLine,
+  // The seven social verbs' own constants and line picks moved to
+  // engine/socialVerbResolution.ts, 12 Sep 2026 — see applySocialVerb.
   MC_STRESS_DEFAULT,
   CONFIDE_STRESS_DELTA,
   pickCoConfideLine,
@@ -173,7 +159,7 @@ import { pickGreetingLine, pickFarewellLine, pickAdviceLine, pickBanterLine, pic
 import { pickCatalystReaction, pickAmbientLineWithBleed, findCatalystClash } from "../data/catalystProfile";
 import { pickSlottedVariant, resolveSlotText, type SlotContext } from "../data/crewBanterSlots";
 import { VERBS, type SocialLogEntry } from "../data/verbs";
-import { buildFirstMilestones, buildStagePromotionMilestones } from "../data/highlights";
+import { buildFirstMilestones, buildStagePromotionMilestones, buildMemoryMilestones } from "../data/highlights";
 import { pruneExpiredHotTopics, pickHotTopicForSpeaker, renderHotTopicLine, type HotTopic } from "../data/hotTopics";
 import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStageLine } from "../data/relationshipStage";
 import { pickFrictionLine } from "../data/friction";
@@ -245,8 +231,20 @@ import {
   areTutorialHintsEnabled,
   hasSeenHubHint,
   markHubHintSeen,
+  companyNameOf,
+  drainPendingHotTopics,
   type HubHintId,
 } from "../engine/campaignState";
+// Emotional Brain, 12 Sep 2026 (claude/Bloom_Wars_Emotional_Brain_Build_Plan_
+// v1_12Sep2026.md): recordMemory writes the Hub events a pilot carries
+// (a blowup, a breakdown, being asked out) into their persisted ledger;
+// effectiveEchoLean/settleDrift give every NPC on the floor their own
+// archetype lean plus drift, so pickSoloEcho's idle rung draws from who they
+// are and what they have been through instead of a flat coin flip.
+import { recordMemory, settleDrift } from "../engine/memoryLedger";
+import { topMemories } from "../data/memories";
+import { effectiveEchoLean } from "../data/echoLean";
+import { currentDay as calendarCurrentDay } from "../engine/calendarClock";
 // Rec Room Standings & NPC Learning, slice 3 (3 Sep 2026) — the player's own
 // finished sessions are now recorded on the same board the crew sit on.
 import { PLAYER_RECORD_ID, recordSession, skillFor, type RecGameId, type RecRoomState, type StandingsEntrant } from "../engine/recRoomRecord";
@@ -275,6 +273,8 @@ import type { CampaignMission, Path, Species } from "../data/types";
 // elapsed time feeds the campaign calendar (Battle.ts is the other). Maxime:
 // "time spent in the hub and time spent on mission run on the same ckock."
 import { tickCalendar, applyVerbDayCost, formatDayLabel, measureRealDelta, currentDay } from "../engine/calendarClock";
+import { addPlayerNote } from "../data/playerNotes";
+import { resolveSocialVerb, type SocialVerb } from "../engine/socialVerbResolution";
 import { catalystForPilot } from "../data/npcSeed";
 // Tier 3, 30 Aug 2026 (Consolidated Build Plan — Hub population driven by
 // the real roster) — buildNpcs()'s pilot lookup used to go straight
@@ -2910,6 +2910,17 @@ export class Hub extends Phaser.Scene {
     // NPCs' half of the conversation.
     this.logChatLine("YOU", trimmed);
 
+    // The colon-command namespace, 12 Sep 2026 (Mission Chat / Player Notes
+    // / Battle HUD Relayout Plan v1, Workstream 1) — checked FIRST, ahead of
+    // every keyword bucket below, and an unknown command STOPS here with an
+    // error line rather than falling through (see detectCommand's own
+    // header for the ":notse hold the line" bug this rule exists for).
+    const command = detectCommand(trimmed);
+    if (command) {
+      this.runChatCommand(command);
+      return;
+    }
+
     const verbId = detectVerbRequest(trimmed);
     if (verbId === "shareADrink") {
       if (this.currentRoomId !== "recroom") {
@@ -3320,6 +3331,97 @@ export class Hub extends Phaser.Scene {
     }
   }
 
+  // The colon-command namespace's Hub half, 12 Sep 2026. ":help" and an
+  // unknown command print into the OVERHEARD log under a SYS tag (not a
+  // bubble — nobody on the ship said it); ":notes <text>" writes a Field
+  // Note stamped with this save and day; a bare ":notes" opens the Codex on
+  // its FIELD NOTES section, same returnScene idiom MenuOverlay.ts's own
+  // Codex button already uses (the Hub reloads from the save on return,
+  // which is exactly what that path already does today); ":t <name>
+  // <text>" is targeted talk — the named crewmate, deck-wide, gets `text`
+  // routed to them specifically, no "nearest" fallback, since naming
+  // someone and getting whoever's closest is the failure this command
+  // exists to remove.
+  private runChatCommand(command: ChatCommand) {
+    switch (command.kind) {
+      case "help":
+        for (const line of COMMAND_HELP_LINES) this.logChatLine("SYS", line);
+        return;
+      case "unknown":
+        this.logChatLine("SYS", unknownCommandLine(command.name));
+        return;
+      case "notes": {
+        if (!command.text) {
+          this.scene.start("Codex", { returnScene: this.scene.key, section: "notes", campaignState: this.campaignState });
+          return;
+        }
+        const result = addPlayerNote(command.text, {
+          scene: "hub",
+          campaignId: this.campaignState.campaignId,
+          campaignLabel: `${companyNameOf(this.campaignState)}, Day ${currentDay(this.campaignState)}`,
+        });
+        this.logChatLine("SYS", result.ok ? `Noted (${result.count} in the notebook). :notes opens it.` : result.reason);
+        return;
+      }
+      case "talk": {
+        if (!command.targetName || !command.text) {
+          this.logChatLine("SYS", "Usage: :t <name> <what to say>");
+          return;
+        }
+        const candidates = this.npcs.filter((npc) => this.sameDeck(npc.room, this.currentRoomId));
+        const namedId = extractNamedTarget(command.targetName, candidates.map((n) => ({ pilotId: n.pilotId, displayName: n.displayName })));
+        const target = namedId ? candidates.find((n) => n.pilotId === namedId) : undefined;
+        if (!target) {
+          this.logChatLine("SYS", `Nobody called "${command.targetName}" on this deck.`);
+          return;
+        }
+        this.submitChatToTarget(target, command.text);
+        return;
+      }
+    }
+  }
+
+  // ":t"'s dispatch — the same precedence submitChat uses for ordinary
+  // text, minus every step that resolves a target (that's already decided),
+  // minus the CO-only requests and room-gated verbs (a named social verb or
+  // small talk is the whole point of addressing one person; "build me a
+  // sensor array" is still a walk-up-to-the-CO thing and still goes
+  // through submitChat's own gates). Deliberately reuses the exact handler
+  // each verb already has rather than a second copy of any of them.
+  private submitChatToTarget(npc: HubNpc, text: string) {
+    const verbId = detectVerbRequest(text);
+    switch (verbId) {
+      case "gift": this.giveGift(npc); return;
+      case "praise": this.praiseNpc(npc); return;
+      case "flirt": this.flirtWithNpc(npc); return;
+      case "insult": this.insultNpc(npc); return;
+      case "apology": this.apologizeToNpc(npc); return;
+      case "congratulate": this.congratulateNpc(npc); return;
+      case "sendOff": this.sendOffNpc(npc); return;
+      default: break;
+    }
+    const smallTalk = detectSmallTalk(text);
+    if (smallTalk) {
+      const isCo = npc.pilotId === CO_PILOT_ID;
+      if (isCo) this.markCoCheckedIn();
+      let line: string;
+      if (smallTalk === "greeting") line = isCo ? pickCoGreetingLine() : pickGreetingLine(npc.ambient.catalyst);
+      else if (smallTalk === "farewell") line = isCo ? pickCoFarewellLine() : pickFarewellLine(npc.ambient.catalyst);
+      else if (smallTalk === "worry_checkin") line = this.pickAmbientLineWithMemory(npc).line;
+      else if (smallTalk === "advice") line = isCo ? pickCoAdviceLine(npc.ambient.stress) : pickAdviceLine(npc.ambient.catalyst);
+      else line = pickBanterLine(npc.ambient.catalyst);
+      this.showBubble(npc, line, this.time.now);
+      this.holdForPlayerTalk(npc);
+      return;
+    }
+    // Same tail as showCatalystOrFallback, for one person: a catalyst-
+    // dictionary hit in their own voice, else the shared shrug.
+    const reaction = pickCatalystReaction(npc.ambient, npc.pilotId, text);
+    const line = reaction ? reaction.line : CHAT_FALLBACK_LINES[Math.floor(Math.random() * CHAT_FALLBACK_LINES.length)];
+    this.showBubble(npc, line, this.time.now);
+    this.holdForPlayerTalk(npc);
+  }
+
   // Verb framework's first real single-target verb, 26 Aug 2026 (see
   // data/verbs.ts's own header for the framework itself). "Nearest NPC
   // within range" stands in for real targeting since chat has no explicit
@@ -3629,7 +3731,20 @@ export class Hub extends Phaser.Scene {
     const promotedAt = speakerSocial?.stagePromotedAt;
     const stageMomentText = promotedAt?.command !== undefined ? "Command" : promotedAt?.blooded !== undefined ? "Blooded" : undefined;
 
-    return { squadmateName, missionName, speakerPath, speakerTier, rivalName, lostMuntiName, stageMomentText };
+    // {FALLEN} / {SAVIOR}, 12 Sep 2026 (Emotional Brain) — off this pilot's
+    // OWN ledger: the loudest `lost_squadmate` memory names who they saw go,
+    // the loudest `was_pulled_out` names the Munti who was still standing.
+    // Loudest today, not most recent, so an old wound that still weighs
+    // more than last week's beats it. Resolves only from real memories;
+    // no fallback to "any lost pilot on the roster" (that is {LOST}'s job).
+    const today = calendarCurrentDay(this.campaignState);
+    const ledger = speakerSocial?.memories;
+    const fallen = topMemories(ledger, today, ledger?.length ?? 0).find((m) => m.kind === "lost_squadmate" && m.about.length > 0);
+    const fallenName = fallen ? this.campaignState.pilots[fallen.about[0]]?.pilot.displayName.split("—")[0].trim() : undefined;
+    const pulled = topMemories(ledger, today, ledger?.length ?? 0).find((m) => m.kind === "was_pulled_out" && m.about.length > 0);
+    const saviorName = pulled ? this.campaignState.pilots[pulled.about[0]]?.pilot.displayName.split("—")[0].trim() : undefined;
+
+    return { squadmateName, missionName, speakerPath, speakerTier, rivalName, lostMuntiName, stageMomentText, fallenName, saviorName };
   }
 
   // Layers curated recall on top of pickAmbientLineWithBleed (roadmap #2):
@@ -3720,177 +3835,101 @@ export class Hub extends Phaser.Scene {
     this.persistNpcSocial(npc);
   }
 
-  // Gift, 2 Sep 2026 — fills the verb-framework slot data/verbs.ts's own
-  // header named and left empty since Phase 2 ("Rec Room Invite, Gift...
-  // wait on content"). No real inventory system exists to pick a SPECIFIC
-  // item from (see data/socialActions.ts's own header) — one generic
-  // gesture, a flat Favorability nudge, a catalyst-flavored reaction.
-  private giveGift(npc: HubNpc) {
-    npc.favorability += GIFT_FAVORABILITY_DELTA;
-    const line = pickGiftLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, this.time.now);
+  // Gift / Praise / Flirt / Insult / Apology / Congratulate / Send-Off —
+  // the seven single-target social verbs (2 Sep 2026; Flirt 12 Sep 2026).
+  // Their MECHANICS moved out of this file 12 Sep 2026 into
+  // engine/socialVerbResolution.ts (Mission Chat plan, Workstream 4 §5c) so
+  // the Battle scene can run the exact same verbs mid-mission without
+  // importing a scene file — see that module's header for what it does and
+  // deliberately doesn't do. Each method below is the same entry point
+  // submitChat always dispatched to; what's left here is only what's
+  // genuinely the Hub's: the bubble, the walk-hold, the calendar charge,
+  // the live hot-topic list, and persisting the NPC.
+  //
+  // Behaviour is unchanged verb for verb, checked against the pre-extraction
+  // bodies line by line: the same deltas, the same Insult ladder (Tier 2 →
+  // "insulted" topic + stress bump, Tier 3 → refusesDeployment, never
+  // cleared here), Congratulate's anti-farming "for what?" refusal (no log,
+  // no charge, no save — exactly as before), Flirt's close-friend-only
+  // redirect (logged and charged, as before), Send-Off's
+  // preMissionSendOff write. The Hub passes repeatIndex 0 always — the
+  // diminishing-returns rule is a mission-chat rule (see the module
+  // header), not a Hub one.
+  private applySocialVerb(npc: HubNpc, verb: SocialVerb) {
+    const result = resolveSocialVerb(
+      this.campaignState,
+      {
+        pilotId: npc.pilotId,
+        displayName: npc.displayName,
+        catalyst: npc.ambient.catalyst,
+        romanceable: npc.romanceable,
+        seed: { favorability: npc.favorability, stress: npc.ambient.stress, morale: npc.ambient.morale },
+      },
+      verb,
+      { hotTopics: this.hotTopics, now: Date.now() }
+    );
+    // The persisted object is the source of truth now; the NPC mirrors it.
+    npc.favorability = result.favorability;
+    npc.ambient = { ...npc.ambient, stress: result.stress, morale: result.morale };
+    // Keep the NPC's log the same array the save holds (an old save whose
+    // social entry predated socialLog gets one minted by the resolver).
+    npc.socialLog = ensureHubSocialState(this.campaignState, npc.pilotId, { favorability: npc.favorability, stress: npc.ambient.stress, morale: npc.ambient.morale }).socialLog;
+    if (result.hotTopic) this.hotTopics.push(result.hotTopic);
+    this.showBubble(npc, result.line, this.time.now);
     this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "gift", line, at: Date.now() });
+    if (!result.logged) return; // Congratulate's "for what?" — nothing happened, nothing to charge or save
+    if (applyVerbDayCost(this.campaignState, verb)) this.refreshCalendarReadout();
     this.persistNpcSocial(npc);
+    if (result.sendOff) {
+      // Hub-side payoff only this pass; the real in-Battle tactical bonus is
+      // consumed by Battle.ts's resolveDeployRoster on the next launch —
+      // see CampaignState.preMissionSendOff's own comment.
+      this.campaignState.preMissionSendOff = { pilotId: npc.pilotId, grantedAt: Date.now() };
+      saveCampaignState(this.campaignState);
+    }
   }
 
-  // Praise, 2 Sep 2026 — Praise/Insult/Apology Proposal v1. Flat
-  // Favorability delta across every catalyst (see socialActions.ts's own
-  // header for why only Insult/Apology get per-catalyst tables).
+  private giveGift(npc: HubNpc) {
+    this.applySocialVerb(npc, "gift");
+  }
+
   private praiseNpc(npc: HubNpc) {
-    npc.favorability += PRAISE_FAVORABILITY_DELTA;
-    const line = pickPraiseLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, this.time.now);
-    this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "praise", line, at: Date.now() });
-    this.persistNpcSocial(npc);
+    this.applySocialVerb(npc, "praise");
   }
 
   // Flirt, 12 Sep 2026 (Maxime: "Allow cute to be a flirt word... I could
-  // say you are cute to a npc and itl raise fav") — the softer tier
-  // chatIntent.ts's own askOut comment used to flag as missing: "you're
-  // cute" no longer rolls a full Ask Out attempt (real accept/reject
-  // against the 50-Favorability threshold, resolveAskOut below); it's a
-  // flat, guaranteed-positive nudge, same mechanical shape as praiseNpc
-  // just above. Grouped with Gift/Praise/etc in submitChat's dispatch
-  // (not with askOut, despite the thematic overlap) for exactly that
-  // reason — this verb never touches inRelationship, never has a
-  // rejection branch, never starts a real relationship. The literal
-  // proposal phrasing ("ask her out," "will you go out with me") still
-  // goes through askOut() below completely unchanged.
-  //
-  // The one thing this DOES share with askOut(): the same romanceable
-  // species check (romance.ts's isRomanceableSpecies/ROMANCE_CAPPED_
-  // SPECIES — Hiopi/Carabil capped at close-friend). Maxime's own call via
-  // AskUserQuestion: flirting is romantic in nature, so it should respect
-  // the same cap Ask Out does, unlike Praise, which works on literally
-  // anyone. A capped NPC gets the same CLOSE_FRIEND_ONLY_LINES redirect
-  // askOut() already uses for the identical case — same tone already
-  // written for exactly this situation, not new content.
+  // say you are cute to a npc and itl raise fav") — a flat, guaranteed-
+  // positive nudge, same mechanical shape as Praise; never touches
+  // inRelationship, never has a rejection branch, never starts a real
+  // relationship. The literal proposal phrasing ("ask her out") still goes
+  // through askOut() below completely unchanged. Shares Ask Out's
+  // romanceable-species cap (Hiopi/Carabil at close-friend) — Maxime's own
+  // call via AskUserQuestion: flirting is romantic in nature, so it should
+  // respect the same cap Ask Out does, unlike Praise, which works on
+  // literally anyone.
   private flirtWithNpc(npc: HubNpc) {
-    const now = this.time.now;
-    if (!npc.romanceable) {
-      const line = CLOSE_FRIEND_ONLY_LINES[Math.floor(Math.random() * CLOSE_FRIEND_ONLY_LINES.length)];
-      this.showBubble(npc, line, now);
-      this.holdForPlayerTalk(npc);
-      npc.socialLog = npc.socialLog ?? [];
-      this.logVerbAndCharge(npc, { verb: "flirt", line, at: Date.now() });
-      this.persistNpcSocial(npc);
-      return;
-    }
-    npc.favorability += FLIRT_FAVORABILITY_DELTA;
-    const line = pickFlirtLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, now);
-    this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "flirt", line, at: Date.now() });
-    this.persistNpcSocial(npc);
+    this.applySocialVerb(npc, "flirt");
   }
 
-  // Insult, 2 Sep 2026 — Praise/Insult/Apology Proposal v1 §3, the
-  // escalation ladder. Tier 2 (INSULT_TIER2_COUNT lifetime insults against
-  // this specific pilot) registers a real hot topic and bumps this pilot's
-  // Stress. Tier 3 (INSULT_TIER3_COUNT, with Favorability still at or below
-  // INSULT_TIER3_FAVORABILITY_CEILING — a pilot who's been genuinely
-  // apologized back up doesn't get blindsided) sets refusesDeployment,
-  // which TransporterPad.ts's roster filter reads immediately. Maxime's own
-  // resolution of §3a: "wont fly with you, player will have to ask co to
-  // remove them from ship" — this method only ever sets the flag, never
-  // clears it and never sets CampaignPilotEntry.status itself; only
-  // handleRemovePilotRequest below (a deliberate CO conversation) can
-  // resolve the standoff.
+  // Insult — Praise/Insult/Apology Proposal v1 §3, the escalation ladder.
+  // Maxime's own resolution of §3a: "wont fly with you, player will have to
+  // ask co to remove them from ship" — the resolver only ever SETS
+  // refusesDeployment, never clears it; only handleRemovePilotRequest below
+  // (a deliberate CO conversation) can resolve the standoff.
   private insultNpc(npc: HubNpc) {
-    const delta = INSULT_FAVORABILITY_DELTA[npc.ambient.catalyst];
-    npc.favorability += delta;
-    const social = ensureHubSocialState(this.campaignState, npc.pilotId, {
-      favorability: npc.favorability,
-      stress: npc.ambient.stress,
-      morale: npc.ambient.morale,
-    });
-    social.insultsGiven = (social.insultsGiven ?? 0) + 1;
-    const count = social.insultsGiven;
-    if (count === INSULT_TIER2_COUNT) {
-      this.hotTopics.push({
-        kind: "insulted",
-        aboutPilotId: npc.pilotId,
-        aboutName: npc.displayName.split("—")[0].trim(),
-        at: Date.now(),
-        mentionedBy: [],
-      });
-      npc.ambient = { ...npc.ambient, stress: Math.min(100, npc.ambient.stress + INSULT_TIER2_STRESS_BUMP) };
-    }
-    if (count >= INSULT_TIER3_COUNT && npc.favorability <= INSULT_TIER3_FAVORABILITY_CEILING && !social.refusesDeployment) {
-      social.refusesDeployment = true;
-    }
-    const line = pickInsultLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, this.time.now);
-    this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "insult", line, at: Date.now() });
-    this.persistNpcSocial(npc);
+    this.applySocialVerb(npc, "insult");
   }
 
-  // Apology, 2 Sep 2026 — Praise/Insult/Apology Proposal v1. Raises
-  // Favorability by a catalyst-flavored amount (see socialActions.ts's
-  // APOLOGY_FAVORABILITY_DELTA header for the per-catalyst forgiveness
-  // reasoning) but deliberately never touches insultsGiven or
-  // refusesDeployment — repairing standing isn't the same as the insults
-  // never having happened, and once Tier 3 is actually reached, Apology
-  // alone can never resolve it (see insultNpc's own comment).
   private apologizeToNpc(npc: HubNpc) {
-    const delta = APOLOGY_FAVORABILITY_DELTA[npc.ambient.catalyst];
-    npc.favorability += delta;
-    const line = pickApologyLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, this.time.now);
-    this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "apology", line, at: Date.now() });
-    this.persistNpcSocial(npc);
+    this.applySocialVerb(npc, "apology");
   }
 
-  // Congratulate, 2 Sep 2026 — the hot-topic-attendance half of this pass
-  // ("let the player actually respond to news instead of only overhearing
-  // it"). Only pays out against a real, still-live "promoted" HotTopic
-  // about THIS specific pilot — otherwise this could be farmed for free
-  // Favorability/Morale by saying the phrase to anyone at any time. The
-  // muntiLost half (condolences) is deliberately not built — see
-  // socialActions.ts's own header for why.
   private congratulateNpc(npc: HubNpc) {
-    const topic = this.hotTopics.find((t) => t.kind === "promoted" && t.aboutPilotId === npc.pilotId);
-    if (!topic) {
-      this.showBubble(npc, "Congrats for what?", this.time.now);
-      this.holdForPlayerTalk(npc);
-      return;
-    }
-    npc.favorability += CONGRATULATE_FAVORABILITY_DELTA;
-    npc.ambient = { ...npc.ambient, morale: Math.min(100, npc.ambient.morale + CONGRATULATE_MORALE_DELTA) };
-    const line = pickCongratulateLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, this.time.now);
-    this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "congratulate", line, at: Date.now() });
-    this.persistNpcSocial(npc);
+    this.applySocialVerb(npc, "congratulate");
   }
 
-  // Send-Off, 2 Sep 2026 — the pre-mission ritual. Hub-side payoff only
-  // this pass (Favorability + real Stress relief, same mechanism Share a
-  // Drink already uses); the real in-Battle tactical bonus is deliberately
-  // deferred pending a genuine combat_sim.py tuning pass — see
-  // CampaignState.preMissionSendOff's own comment. That field is set here,
-  // unconsumed, so the future pass has something real to read.
   private sendOffNpc(npc: HubNpc) {
-    npc.favorability += SEND_OFF_FAVORABILITY_DELTA;
-    npc.ambient = { ...npc.ambient, stress: Math.max(0, npc.ambient.stress + SEND_OFF_STRESS_DELTA) };
-    const line = pickSendOffLine(npc.ambient.catalyst);
-    this.showBubble(npc, line, this.time.now);
-    this.holdForPlayerTalk(npc);
-    npc.socialLog = npc.socialLog ?? [];
-    this.logVerbAndCharge(npc, { verb: "sendOff", line, at: Date.now() });
-    this.persistNpcSocial(npc);
-    this.campaignState.preMissionSendOff = { pilotId: npc.pilotId, grantedAt: Date.now() };
-    saveCampaignState(this.campaignState);
+    this.applySocialVerb(npc, "sendOff");
   }
 
   // Phase 3 piece two, 26 Aug 2026 — Ask Out. All the actual deciding
@@ -3941,6 +3980,9 @@ export class Hub extends Phaser.Scene {
       this.holdForPlayerTalk(npc);
       npc.socialLog = npc.socialLog ?? [];
       this.logVerbAndCharge(npc, { verb: "askOut", line, at: Date.now() });
+      // Emotional Brain, 12 Sep 2026 — carried as warmth. Written before
+      // persistNpcSocial so its save carries the memory too.
+      recordMemory(this.campaignState, npc.pilotId, { kind: "asked_out", echo: "love", witnesses: this.roomWitnesses(npc) });
       this.persistNpcSocial(npc);
       // Hot topics, first slice, 27 Aug 2026 — a new player-NPC
       // relationship is exactly the kind of news the rest of the crew
@@ -3986,6 +4028,9 @@ export class Hub extends Phaser.Scene {
     this.holdForPlayerTalk(npc);
     npc.socialLog = npc.socialLog ?? [];
     this.logVerbAndCharge(npc, { verb: "askOut", line: rejectLine, at: Date.now() });
+    // Emotional Brain, 12 Sep 2026 — a declined ask is still something she
+    // carries, and it reads as sadness, same echo her own line just used.
+    recordMemory(this.campaignState, npc.pilotId, { kind: "asked_out", echo: "sadness", witnesses: this.roomWitnesses(npc) });
     this.persistNpcSocial(npc);
 
     // Then, separately, word starts moving — same shape as startRumor()'s
@@ -5332,9 +5377,18 @@ export class Hub extends Phaser.Scene {
     const verbMilestones = buildFirstMilestones(npc.socialLog);
     const stageMilestones = buildStagePromotionMilestones(this.campaignState.pilots[npc.pilotId]?.social?.stagePromotedAt);
 
+    // Memory milestones, 12 Sep 2026 (Emotional Brain) — what this pilot
+    // carries from missions, dated, alongside the verb and Stage entries.
+    const memoryMilestones = buildMemoryMilestones(
+      this.campaignState.pilots[npc.pilotId]?.social?.memories,
+      (id) => this.campaignState.pilots[id]?.pilot.displayName.split("—")[0].trim(),
+      (missionId) => this.f.profile.missionsById[missionId]?.displayName,
+    );
+
     const reelEntries: { at: number; text: string }[] = [
       ...verbMilestones.map((m) => ({ at: m.at, text: `${m.label}: "${m.line}"` })),
       ...stageMilestones.map((m) => ({ at: m.at, text: m.label })),
+      ...memoryMilestones.map((m) => ({ at: m.at, text: `${m.label}, ${m.missionName}` })),
     ].sort((a, b) => a.at - b.at);
 
     const milestoneLines =
@@ -7094,7 +7148,15 @@ export class Hub extends Phaser.Scene {
       // falsy.
       const stage = pilot.tier ? stageFromTier(pilot.tier) : "green";
 
-      // Stage-promotion "graduation" reveal, 27 Aug 2026 — direct answer to
+      // Emotional Brain Phase 3, 12 Sep 2026 — this pilot's own lean: the
+      // archetype's base row plus whatever drift their memories have left,
+      // relaxed by the in-game days since it was last touched. Read once
+      // per Hub load (drift only moves at Debrief and at the Hub events
+      // that write a memory, all of which rebuild or persist through this
+      // same social object), and handed to pickSoloEcho through the
+      // ambient state below.
+      const echoDrift = settleDrift(social, calendarCurrentDay(this.campaignState));
+
       // Maxime asking whether a player would ever actually notice the
       // ranking path. detectStagePromotion (ambientLines.ts) compares this
       // pilot's last-acknowledged stage against the one just derived above;
@@ -7168,7 +7230,15 @@ export class Hub extends Phaser.Scene {
         // generated recruit carries one — so this changes nothing for
         // Bosk/Anand/Iyari/etc. and gives a shop recruit their real,
         // background-derived catalyst instead of the old hash pick.
-        ambient: { catalyst: catalystForPilot(pilotId, pilot.background), stage, stress: social.stress, morale: social.morale, drunk: stillDrunk, worried: isMissionWorrySignal(this.campaignState) },
+        ambient: {
+          catalyst: catalystForPilot(pilotId, pilot.background),
+          stage,
+          stress: social.stress,
+          morale: social.morale,
+          drunk: stillDrunk,
+          worried: isMissionWorrySignal(this.campaignState),
+          echoLean: effectiveEchoLean(catalystForPilot(pilotId, pilot.background), echoDrift),
+        },
         favorability: social.favorability,
         circle,
         root,
@@ -7677,6 +7747,20 @@ export class Hub extends Phaser.Scene {
     this.checkMekRetirement();
     this.checkHeirloomRecall();
     this.checkVaultDedication();
+    this.drainPendingHotTopics();
+  }
+
+  // Mission chat's mailbox, 12 Sep 2026 — topics raised inside a Battle
+  // (today: an Insult reaching Tier 2 mid-mission) land on
+  // CampaignState.pendingHotTopics because there's no live Hub list to
+  // push into from there; this moves them into this.hotTopics on arrival,
+  // same one-shot shape as the four checks above it, and saves the cleared
+  // mailbox at once so a reload can't re-deliver them.
+  private drainPendingHotTopics() {
+    const queued = drainPendingHotTopics(this.campaignState);
+    if (queued.length === 0) return;
+    for (const topic of queued) this.hotTopics.push(topic);
+    saveCampaignState(this.campaignState);
   }
 
   // Munti-loss hot topic, 27 Aug 2026 (roadmap #13). Deliberately NOT shaped
@@ -9444,6 +9528,15 @@ export class Hub extends Phaser.Scene {
   // and it's logged as a real socialLog entry so the Highlights reel and
   // any future curated-recall line can reference it by name, same as any
   // other verb.
+  /**
+   * Emotional Brain, 12 Sep 2026 — who was in the room when something
+   * happened to `npc`. Recorded on the memory now (data/memories.ts
+   * `witnesses`), acted on later (the audience gate, build plan §8).
+   */
+  private roomWitnesses(npc: HubNpc): string[] {
+    return this.npcs.filter((n) => n !== npc && n.room === npc.room).map((n) => n.pilotId);
+  }
+
   private runAngerBlowup(npcA: HubNpc, npcB: HubNpc, bond: number, key: string, now: number) {
     const exchange = pickAngerBlowupExchange();
     this.npcSocial.bonds[key] = bond + ANGER_BLOWUP_BOND_DELTA;
@@ -9481,6 +9574,12 @@ export class Hub extends Phaser.Scene {
     // actually said." Fixed here.
     npcA.socialLog?.push({ verb: "angerBlowup", line: `${exchange.lineA} / ${exchange.lineB}`, at: Date.now() });
     npcB.socialLog?.push({ verb: "angerBlowup", line: `${exchange.lineA} / ${exchange.lineB}`, at: Date.now() });
+    // Emotional Brain, 12 Sep 2026 — both of them carry it, each about the
+    // other, processed as anger. recordMemory persists straight onto the
+    // social state persistNpcSocial/saveCampaignState above already wrote.
+    recordMemory(this.campaignState, npcA.pilotId, { kind: "blowup", echo: "anger", about: [npcB.pilotId], witnesses: this.roomWitnesses(npcA) });
+    recordMemory(this.campaignState, npcB.pilotId, { kind: "blowup", echo: "anger", about: [npcA.pilotId], witnesses: this.roomWitnesses(npcB) });
+    saveCampaignState(this.campaignState);
 
     // NPC Conversation Lock Fix, 6 Sep 2026 — same fix as runNpcEncounter
     // above; this function always stages a real two-line exchange, so the
@@ -10023,6 +10122,16 @@ export class Hub extends Phaser.Scene {
     if (partner && partner !== "player") {
       partner.socialLog?.push({ verb: "breakdown", line, at: Date.now() });
     }
+    // Emotional Brain, 12 Sep 2026 — the breakdown is carried as a memory:
+    // slept off alone it stays sadness; worked through with someone (a
+    // spar, an intimate scene) it is remembered as warmth, about them.
+    recordMemory(this.campaignState, npc.pilotId, {
+      kind: "breakdown",
+      echo: partner ? "love" : "sadness",
+      about: partner && partner !== "player" ? [partner.pilotId] : [],
+      witnesses: this.roomWitnesses(npc),
+    });
+    saveCampaignState(this.campaignState);
 
     npc.breakdown = false;
     npc.breakdownSince = undefined;

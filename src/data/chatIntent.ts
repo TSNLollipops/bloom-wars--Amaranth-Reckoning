@@ -643,3 +643,94 @@ export function interpretPlayerChat(raw: string): HubMessage | null {
 // same reasoning as MUSTER_LINES being one shared bank rather than nine —
 // confusion isn't a personality beat worth writing per-catalyst for.
 export const CHAT_FALLBACK_LINES = ["Didn't catch that.", "...come again?", "Not sure what you mean.", "Come again?"];
+
+// ---- The colon-command namespace, 12 Sep 2026 (Mission Chat, Player Notes
+// and Battle HUD Relayout Plan v1, Workstream 1 — Maxime's "go" the same
+// day). ---------------------------------------------------------------
+//
+// Why a prefix and not another keyword bucket: the precedence chain above
+// already has two documented real collisions ("mission" inside a worry
+// check-in phrase, "worried" inside a fear-bucket phrase), each resolved by
+// hand-ordering the buckets. Every natural-language feature added makes
+// the next collision likelier and harder to see coming. A message that
+// starts with ":" is a COMMAND — parsed here, first, before every bucket
+// above — and never touches keyword matching at all.
+//
+// The one rule that matters most: an unknown command is an error and a
+// STOP, never a fall-through. ":notse hold the line" quietly becoming small
+// talk to the nearest pilot is the kind of bug that is infuriating to hit
+// and almost impossible to report, so "unknown" is a real, distinct
+// outcome the caller has to show, not a null the caller can shrug past.
+//
+// Pure — takes a string, returns a value — so it's directly unit-testable
+// (data/__tests__/chatIntent.test.ts), which none of the scene-level chat
+// handling is. Both Hub.ts's submitChat and Battle.ts's own mission-chat
+// submit call this before anything else.
+export type ChatCommand =
+  | { kind: "help" }
+  // text "" = no note text given: open the notebook instead of writing.
+  | { kind: "notes"; text: string }
+  // ":t <name> <text>" — targeted talk. targetName is the first word after
+  // the command, text is everything after that (may be empty, which the
+  // caller reports as usage, not as an error here — the shape is still
+  // well-formed enough to name who was meant).
+  | { kind: "talk"; targetName: string; text: string }
+  // A leading ":" with nothing recognizable after it. `name` is whatever
+  // the player typed as the command word, for the error message.
+  | { kind: "unknown"; name: string };
+
+/**
+ * ":help" / ":notes" / ":notes <text>" / ":t <name> <text>" / anything
+ * else starting with ":". Returns null for ordinary text (no leading
+ * colon), which is the caller's cue to run the keyword chain as usual.
+ * A bare ":" on its own is treated as unknown (name ""), not as ordinary
+ * text — the player reached for the command namespace and got nothing.
+ */
+export function detectCommand(raw: string): ChatCommand | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith(":")) return null;
+  const body = trimmed.slice(1).trim();
+  const firstSpace = body.search(/\s/);
+  const name = (firstSpace === -1 ? body : body.slice(0, firstSpace)).toLowerCase();
+  const rest = firstSpace === -1 ? "" : body.slice(firstSpace).trim();
+  switch (name) {
+    case "help":
+    case "h":
+    case "?":
+      return { kind: "help" };
+    case "notes":
+    case "note":
+    case "n":
+      return { kind: "notes", text: rest };
+    case "t":
+    case "talk":
+    case "tell": {
+      const space = rest.search(/\s/);
+      const targetName = space === -1 ? rest : rest.slice(0, space);
+      const text = space === -1 ? "" : rest.slice(space).trim();
+      return { kind: "talk", targetName, text };
+    }
+    default:
+      return { kind: "unknown", name };
+  }
+}
+
+/**
+ * What ":help" prints, one entry per line. Shared by both scenes so the
+ * list can never drift between the Hub and a mission — the Battle-only
+ * addressing rule is described in the same place rather than a second
+ * copy.
+ */
+export const COMMAND_HELP_LINES: readonly string[] = [
+  ":notes <text> — write a field note, tagged with where you are",
+  ":notes — open your field notes",
+  ":t <name> <text> — say something to one named pilot (or, in a mission, a visible hostile mech)",
+  ":help — this list",
+  "Anything without a leading colon is ordinary talk.",
+  "In a mission: T opens this box, [ and ] hide or show the side columns.",
+];
+
+/** The line shown for an unknown command — one shared string so both scenes say the same thing. */
+export function unknownCommandLine(name: string): string {
+  return name ? `Unknown command ":${name}". Type :help for the list.` : `A colon on its own isn't a command. Type :help for the list.`;
+}

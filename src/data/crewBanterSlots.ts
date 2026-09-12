@@ -78,7 +78,16 @@ const GEAR_TIER_NAMES: Record<Path, Record<Tier, string>> = {
 // engine/campaignEconomy.ts's purchaseTierUpgrade and
 // engine/campaignState.ts's HubPilotSocialState.stagePromotedAt for the
 // real timestamp this now reads.
-export type SlotType = "SQUADMATE" | "CLASS" | "LOADOUT" | "ENEMY" | "MISSION" | "ROOM" | "SHIP" | "RIVAL" | "LOST" | "STAGE_MOMENT";
+// FALLEN and SAVIOR, 12 Sep 2026 (Emotional Brain build plan §3d) — resolve
+// off the speaker's OWN ledger (data/memories.ts), not the roster: {FALLEN}
+// is a squadmate this pilot was deployed alongside when they were lost
+// (their loudest `lost_squadmate` memory), {SAVIOR} the Munti who was still
+// standing when this pilot went down and came back (`was_pulled_out`).
+// Where {LOST} names any fallen Munti on the roster, {FALLEN} names someone
+// THIS pilot actually saw go. No entries use either yet: the lines are
+// Maxime's to write, same delivery pattern as RIVAL/LOST and the CLASS/ROOM
+// batch. Until they exist the resolver simply has nothing to match.
+export type SlotType = "SQUADMATE" | "CLASS" | "LOADOUT" | "ENEMY" | "MISSION" | "ROOM" | "SHIP" | "RIVAL" | "LOST" | "STAGE_MOMENT" | "FALLEN" | "SAVIOR";
 
 export interface SlottedLine {
   catalyst: Catalyst;
@@ -160,6 +169,9 @@ export interface SlotContext {
   rivalName?: string;
   lostMuntiName?: string;
   stageMomentText?: string;
+  /** 12 Sep 2026 — from the speaker's own ledger, see SlotType's FALLEN/SAVIOR note. */
+  fallenName?: string;
+  saviorName?: string;
 }
 
 const CLASS_DISPLAY_NAMES: Record<Path, string> = { meeps: "Meeps", tank: "Tank", reeps: "Reeps", munti: "Munti" };
@@ -376,6 +388,10 @@ function resolveOneSlot(slotType: SlotType, text: string, context: SlotContext):
       return context.lostMuntiName ? text.replace("{LOST}", context.lostMuntiName) : undefined;
     case "STAGE_MOMENT":
       return context.stageMomentText ? text.replace("{STAGE_MOMENT}", context.stageMomentText) : undefined;
+    case "FALLEN":
+      return context.fallenName ? text.replace("{FALLEN}", context.fallenName) : undefined;
+    case "SAVIOR":
+      return context.saviorName ? text.replace("{SAVIOR}", context.saviorName) : undefined;
   }
 }
 

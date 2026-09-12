@@ -1,0 +1,731 @@
+{
+  "errors": [],
+  "scenes": {
+    "small": {
+      "map": {
+        "w": 20,
+        "h": 12,
+        "id": "map_amaranth_muster"
+      },
+      "tileSize": 29,
+      "boardX": 246,
+      "boardY": 60,
+      "boardRight": 826,
+      "boardBottom": 408,
+      "layout": {
+        "leftColumn": {
+          "x": 8,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "rightColumn": {
+          "x": 836,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "mapViewport": {
+          "x": 246,
+          "y": 60,
+          "w": 582,
+          "h": 560
+        },
+        "tileSize": 29,
+        "boardX": 246,
+        "boardY": 60,
+        "mapScrolls": false
+      },
+      "leftOpen": true,
+      "rightOpen": true,
+      "hud": {
+        "left": 8,
+        "right": 225,
+        "top": 40,
+        "bottom": 295,
+        "visible": true
+      },
+      "log": {
+        "left": 8,
+        "right": 8,
+        "top": 336,
+        "bottom": 349,
+        "visible": true
+      },
+      "comms": {
+        "left": 844,
+        "right": 1056,
+        "top": 44,
+        "bottom": 89,
+        "visible": true
+      },
+      "commsBg": {
+        "left": 836,
+        "right": 1066,
+        "visible": true
+      },
+      "endTurn": {
+        "x": 123,
+        "y": 600,
+        "left": 23,
+        "right": 223
+      },
+      "slots": [
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        }
+      ],
+      "inputDisplay": "none",
+      "commsOpen": false,
+      "commsLog": []
+    },
+    "wide": {
+      "map": {
+        "w": 36,
+        "h": 14,
+        "id": "map_amaranth_falling_back_to_meridian"
+      },
+      "tileSize": 16,
+      "boardX": 246,
+      "boardY": 60,
+      "boardRight": 822,
+      "boardBottom": 284,
+      "layout": {
+        "leftColumn": {
+          "x": 8,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "rightColumn": {
+          "x": 836,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "mapViewport": {
+          "x": 246,
+          "y": 60,
+          "w": 582,
+          "h": 560
+        },
+        "tileSize": 16,
+        "boardX": 246,
+        "boardY": 60,
+        "mapScrolls": false
+      },
+      "leftOpen": true,
+      "rightOpen": true,
+      "hud": {
+        "left": 8,
+        "right": 232,
+        "top": 40,
+        "bottom": 310,
+        "visible": true
+      },
+      "log": {
+        "left": 8,
+        "right": 231,
+        "top": 336,
+        "bottom": 388,
+        "visible": true
+      },
+      "comms": {
+        "left": 844,
+        "right": 1056,
+        "top": 44,
+        "bottom": 105,
+        "visible": true
+      },
+      "commsBg": {
+        "left": 836,
+        "right": 1066,
+        "visible": true
+      },
+      "endTurn": {
+        "x": 123,
+        "y": 600,
+        "left": 23,
+        "right": 223
+      },
+      "slots": [
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        }
+      ],
+      "inputDisplay": "none",
+      "commsOpen": false,
+      "commsLog": [
+        "Rourke: “This is Meridian's own line. We don't fall back from this one — there's nowhere behind it to fall back to.”"
+      ]
+    },
+    "wideLeftClosed": {
+      "map": {
+        "w": 36,
+        "h": 14,
+        "id": "map_amaranth_falling_back_to_meridian"
+      },
+      "tileSize": 22,
+      "boardX": 16,
+      "boardY": 60,
+      "boardRight": 808,
+      "boardBottom": 368,
+      "layout": {
+        "leftColumn": null,
+        "rightColumn": {
+          "x": 836,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "mapViewport": {
+          "x": 16,
+          "y": 60,
+          "w": 812,
+          "h": 560
+        },
+        "tileSize": 22,
+        "boardX": 16,
+        "boardY": 60,
+        "mapScrolls": false
+      },
+      "leftOpen": false,
+      "rightOpen": true,
+      "hud": {
+        "left": 8,
+        "right": 232,
+        "top": 40,
+        "bottom": 310,
+        "visible": false
+      },
+      "log": {
+        "left": 8,
+        "right": 231,
+        "top": 336,
+        "bottom": 388,
+        "visible": false
+      },
+      "comms": {
+        "left": 844,
+        "right": 1056,
+        "top": 44,
+        "bottom": 105,
+        "visible": true
+      },
+      "commsBg": {
+        "left": 836,
+        "right": 1066,
+        "visible": true
+      },
+      "endTurn": {
+        "x": 123,
+        "y": 600,
+        "left": 23,
+        "right": 223
+      },
+      "slots": [
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        }
+      ],
+      "inputDisplay": "none",
+      "commsOpen": false,
+      "commsLog": [
+        "Rourke: “This is Meridian's own line. We don't fall back from this one — there's nowhere behind it to fall back to.”"
+      ]
+    },
+    "wideBothClosed": {
+      "map": {
+        "w": 36,
+        "h": 14,
+        "id": "map_amaranth_falling_back_to_meridian"
+      },
+      "tileSize": 28,
+      "boardX": 16,
+      "boardY": 60,
+      "boardRight": 1024,
+      "boardBottom": 452,
+      "layout": {
+        "leftColumn": null,
+        "rightColumn": null,
+        "mapViewport": {
+          "x": 16,
+          "y": 60,
+          "w": 1042,
+          "h": 560
+        },
+        "tileSize": 28,
+        "boardX": 16,
+        "boardY": 60,
+        "mapScrolls": false
+      },
+      "leftOpen": false,
+      "rightOpen": false,
+      "hud": {
+        "left": 8,
+        "right": 232,
+        "top": 40,
+        "bottom": 310,
+        "visible": false
+      },
+      "log": {
+        "left": 8,
+        "right": 231,
+        "top": 336,
+        "bottom": 388,
+        "visible": false
+      },
+      "comms": {
+        "left": 844,
+        "right": 1056,
+        "top": 44,
+        "bottom": 105,
+        "visible": false
+      },
+      "commsBg": {
+        "left": 836,
+        "right": 1066,
+        "visible": false
+      },
+      "endTurn": {
+        "x": 123,
+        "y": 600,
+        "left": 23,
+        "right": 223
+      },
+      "slots": [
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        }
+      ],
+      "inputDisplay": "none",
+      "commsOpen": false,
+      "commsLog": [
+        "Rourke: “This is Meridian's own line. We don't fall back from this one — there's nowhere behind it to fall back to.”"
+      ]
+    },
+    "tall": {
+      "map": {
+        "w": 30,
+        "h": 19,
+        "id": "map_amaranth_tunnel_rats"
+      },
+      "tileSize": 19,
+      "boardX": 246,
+      "boardY": 60,
+      "boardRight": 816,
+      "boardBottom": 421,
+      "layout": {
+        "leftColumn": {
+          "x": 8,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "rightColumn": {
+          "x": 836,
+          "y": 0,
+          "w": 230,
+          "h": 640
+        },
+        "mapViewport": {
+          "x": 246,
+          "y": 60,
+          "w": 582,
+          "h": 560
+        },
+        "tileSize": 19,
+        "boardX": 246,
+        "boardY": 60,
+        "mapScrolls": false
+      },
+      "leftOpen": true,
+      "rightOpen": true,
+      "hud": {
+        "left": 8,
+        "right": 225,
+        "top": 40,
+        "bottom": 280,
+        "visible": true
+      },
+      "log": {
+        "left": 8,
+        "right": 8,
+        "top": 336,
+        "bottom": 349,
+        "visible": true
+      },
+      "comms": {
+        "left": 844,
+        "right": 1056,
+        "top": 44,
+        "bottom": 89,
+        "visible": true
+      },
+      "commsBg": {
+        "left": 836,
+        "right": 1066,
+        "visible": true
+      },
+      "endTurn": {
+        "x": 123,
+        "y": 600,
+        "left": 23,
+        "right": 223
+      },
+      "slots": [
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 10,
+          "btnRight": 80,
+          "labelLeft": 23,
+          "labelRight": 23,
+          "keyRight": 15
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 88,
+          "btnRight": 158,
+          "labelLeft": 101,
+          "labelRight": 101,
+          "keyRight": 93
+        },
+        {
+          "text": "",
+          "visible": false,
+          "btnLeft": 166,
+          "btnRight": 236,
+          "labelLeft": 179,
+          "labelRight": 179,
+          "keyRight": 171
+        }
+      ],
+      "inputDisplay": "none",
+      "commsOpen": false,
+      "commsLog": []
+    }
+  },
+  "chat": {
+    "help": [
+      "SYS: :notes <text> — write a field note, tagged with where you are",
+      "SYS: :notes — open your field notes",
+      "SYS: :t <name> <text> — say something to one named pilot (or, in a mission, a visible hostile mech)",
+      "SYS: :help — this list",
+      "SYS: Anything without a leading colon is ordinary talk.",
+      "SYS: In a mission: T opens this box, [ and ] hide or show the side columns."
+    ],
+    "unknown": [
+      "SYS: Unknown command \":notse\". Type :help for the list."
+    ],
+    "hello": [
+      "YOU: hello everyone",
+      "Lark: Oh. It's you.",
+      "Anvil: Ah — someone willing to actually listen for once.",
+      "Foxfire: Finally, someone worth talking to shows up.",
+      "Farsight: Good, the whole crew's closer to together now.",
+      "Patch: Hey. Who else is around today?"
+    ],
+    "praise": [
+      "YOU: well done",
+      "Anvil: Noted. Good to know the effort's actually visible."
+    ],
+    "boskFavor": {
+      "before": 35,
+      "after": 39
+    },
+    "boskFavorRepeat": 41,
+    "keyLeak": {
+      "actionsBefore": 2,
+      "actionsAfter": 2,
+      "turnBefore": 1,
+      "turnAfter": 1
+    },
+    "digitsLine": [
+      "YOU: 123 hold the line",
+      "Anvil: Didn't catch that."
+    ],
+    "tCallsign": {
+      "tail": [
+        "YOU: :t farsight well done",
+        "Farsight: Good to hear. Means more coming from someone who's actually in the fight with me."
+      ],
+      "anandBefore": 10,
+      "anandFav": 14
+    },
+    "bloomName": "Crawlmass",
+    "bloomRefusal": [
+      "SYS: The Bloom don't answer. Pick a pilot, or a hostile mech you can see."
+    ],
+    "mirrored": [
+      "Farsight: Mat's still warm. Whatever did this hasn't gone far."
+    ]
+  },
+  "notes": {
+    "write": [
+      "SYS: Noted (1 in the notebook). :notes opens it."
+    ],
+    "stored": [
+      {
+        "id": "1789234489679-1",
+        "text": "Splitfang burrows on turn 3",
+        "createdAt": 1789234489679,
+        "scene": "battle",
+        "campaignId": "fb4ca6b5-d615-4b53-be26-8f0be7298c7b",
+        "campaignLabel": "Warden Company, Day 1",
+        "missionId": "mission_amaranth_1",
+        "missionName": "Amaranth I.1 — Muster",
+        "turn": 1
+      }
+    ],
+    "overlay": {
+      "panel": true,
+      "battleActive": true
+    },
+    "codex": {
+      "active": true,
+      "sectionIndex": 9,
+      "returnScene": "Hub"
+    },
+    "afterDelete": 0
+  },
+  "geometry": {
+    "overflow": {
+      "commsTop": -21,
+      "commsBottom": 552,
+      "entries": 60
+    }
+  }
+}

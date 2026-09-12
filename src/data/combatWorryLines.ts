@@ -19,10 +19,15 @@
 // written. If any of that reads better changed, that's his call to make,
 // not a cleanup pass to assume.
 //
-// Selection: bank[Math.floor(Math.random() * bank.length)] — the same
-// random-pick idiom every LINE_BANK lookup in data/ambientLines.ts already
-// uses (pickSoloEcho, resolveMusterLine, etc.), not a new pattern
-// introduced for this.
+// Selection: bank[Math.floor(rng() * bank.length)], the same random-pick
+// idiom every LINE_BANK lookup in data/ambientLines.ts already uses
+// (pickSoloEcho, resolveMusterLine, etc.), not a new pattern introduced
+// for this. `rng` defaults to Math.random for scene callers; engine/
+// mission.ts passes its own seeded rng (Emotional Brain Phase 0, 12 Sep
+// 2026) so a seeded batch run replays the same dialogue line, which is
+// what tiers.test.ts's "seeded runs replay exactly" pins. This was the
+// real cause of those tests failing since 11 Sep, not ambientLines.ts as
+// first diagnosed: mission.ts never imports ambientLines at all.
 //
 // Surfaced through Battle's existing "(dialogue) ..." log-entry
 // convention — engine/mission.ts's `action.type === "dialogue"` path
@@ -66,8 +71,8 @@ const COMBAT_WORRY_LINES: Partial<Record<WorrySourceId, string[]>> = {
  * that ambientLines.ts's Hub bank doesn't fit this register, so there is
  * deliberately no fallback bank to reach for here either.
  */
-export function pickCombatWorryLine(source: WorrySourceId): string | undefined {
+export function pickCombatWorryLine(source: WorrySourceId, rng: () => number = Math.random): string | undefined {
   const bank = COMBAT_WORRY_LINES[source];
   if (!bank || bank.length === 0) return undefined;
-  return bank[Math.floor(Math.random() * bank.length)];
+  return bank[Math.floor(rng() * bank.length)];
 }

@@ -139,3 +139,40 @@ describe("buildStagePromotionMilestones", () => {
     expect(buildStagePromotionMilestones({ blooded: 0 })).toEqual([{ stage: "blooded", label: "Reached Blooded", at: 0 }]);
   });
 });
+
+// Memory milestones — 12 Sep 2026 (Emotional Brain build plan §3d).
+import { buildMemoryMilestones } from "../highlights";
+import type { MemoryEntry } from "../memories";
+
+describe("buildMemoryMilestones", () => {
+  const mem = (o: Partial<MemoryEntry>): MemoryEntry => ({ kind: "got_the_kill", at: 1, day: 1, about: [], witnesses: [], echo: "anger", weight: 0.3, ...o });
+  const names = (id: string) => ({ pilot_bosk: "M.Sgt. Halvard Bosk", pilot_lask: "Spec. Corin Lask" })[id];
+  const missions = (id: string) => ({ mission_amaranth_12: "The Fallow Line" })[id];
+
+  it("turns mission memories into dated, labelled entries in chronological order", () => {
+    const out = buildMemoryMilestones(
+      [
+        mem({ kind: "lost_squadmate", at: 300, day: 30, missionId: "mission_amaranth_12", about: ["pilot_bosk"] }),
+        mem({ kind: "was_pulled_out", at: 100, day: 10, missionId: "mission_amaranth_3", about: ["pilot_lask"] }),
+      ],
+      names,
+      missions,
+    );
+    expect(out.map((m) => m.at)).toEqual([100, 300]);
+    expect(out[0].label).toBe("Went down and was restocked (Spec. Corin Lask)");
+    expect(out[0].missionName).toBe("mission_amaranth_3"); // unknown id falls back to the raw id, never blank
+    expect(out[1].label).toBe("Lost a squadmate (M.Sgt. Halvard Bosk)");
+    expect(out[1].missionName).toBe("The Fallow Line");
+  });
+
+  it("skips Hub-side memories (no mission) and an unknown name in `about`", () => {
+    const out = buildMemoryMilestones([mem({ kind: "blowup", about: ["pilot_bosk"] }), mem({ kind: "saw_fall", missionId: "m", about: ["pilot_ghost"] })], names, missions);
+    expect(out).toHaveLength(1);
+    expect(out[0].label).toBe("Watched a squadmate fall");
+  });
+
+  it("an empty or missing ledger is an empty reel", () => {
+    expect(buildMemoryMilestones(undefined, names, missions)).toEqual([]);
+    expect(buildMemoryMilestones([], names, missions)).toEqual([]);
+  });
+});

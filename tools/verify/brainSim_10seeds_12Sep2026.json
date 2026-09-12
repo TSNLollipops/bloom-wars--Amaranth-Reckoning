@@ -1,0 +1,4995 @@
+[
+  {
+    "seed": 1,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +9, Morale +1.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress +1, Morale +12."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +16, Morale -9.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 14
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss (attempt 2)",
+        "losses": [
+          "Spec. Junia Petrov"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 17
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "win",
+        "losses": [
+          "Spec. Tobias Okonkwo"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -7.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 22
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Noor Ashgrove",
+          "Cpl. Priya Anand — “Farsight”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12."
+        ],
+        "day": 27
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 32
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 35
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 38
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Cpl. Bastien Adeyemi",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [],
+        "day": 41
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win (attempt 2)",
+        "losses": [
+          "Spec. Selin Mbeki"
+        ],
+        "takes": [],
+        "day": 46
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          39
+        ],
+        "morale": [
+          76
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          43,
+          50,
+          39,
+          46,
+          53
+        ],
+        "morale": [
+          73,
+          64,
+          52,
+          45,
+          33
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          89,
+          96
+        ],
+        "morale": [
+          58,
+          46,
+          34,
+          22
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          11
+        ],
+        "morale": [
+          82
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 33,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": -8
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 9,
+        "fromMissions": 3,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": -5,
+        "fromMissions": 0,
+        "fromGrief": -8,
+        "fromHub": 28
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 4,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 4
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 6,
+        "end": 18,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 18
+      },
+      "pilot_iyari::pilot_recruit_2": {
+        "key": "pilot_iyari::pilot_recruit_2",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_anand::pilot_recruit_3": {
+        "key": "pilot_anand::pilot_recruit_3",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_iyari::pilot_recruit_3": {
+        "key": "pilot_iyari::pilot_recruit_3",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_iyari::pilot_recruit_4": {
+        "key": "pilot_iyari::pilot_recruit_4",
+        "start": 1,
+        "end": 37,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 37
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.1,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Went down",
+          "salience": 0.09,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.38,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.38,
+          "about": [
+            "Pvt. Noor Ashgrove"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.31,
+          "about": [
+            "Spec. Tobias Okonkwo"
+          ],
+          "missionId": "mission_amaranth_6",
+          "day": 22
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.31,
+          "about": [
+            "Spec. Tobias Okonkwo"
+          ],
+          "missionId": "mission_amaranth_6",
+          "day": 22
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.25,
+          "about": [
+            "Spec. Junia Petrov"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 17
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.24,
+          "about": [],
+          "missionId": "mission_amaranth_6",
+          "day": 22
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.05,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.03,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.15,
+          "fear": 0.02,
+          "anger": 0.07,
+          "sadness": 0.11
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0,
+          "fear": 0.14,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.02,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 3,
+    "closestPair": "pilot_iyari::pilot_recruit_4",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "was_pulled_out",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall"
+    },
+    "finalDay": 51
+  },
+  {
+    "seed": 2,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +2, Morale +10.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +3, Morale +7."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 14
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss (attempt 2)",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +7, Morale -1.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +8, Morale -5.",
+          "Pvt. Noor Valdis: took it heavily. Stress +6, Morale -8."
+        ],
+        "day": 17
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 22
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +9, Morale -7.",
+          "Pvt. Noor Valdis: took it angry. Stress +7, Morale -2."
+        ],
+        "day": 25
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 30
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win (attempt 3)",
+        "losses": [
+          "Pvt. Noor Valdis"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -8."
+        ],
+        "day": 33
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -3, Morale +9.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress -3, Morale +9.",
+          "Cpl. Kwame Sarkis: took it shaken. Stress -1, Morale +6."
+        ],
+        "day": 38
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Cpl. Kwame Sarkis",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 43
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win",
+        "losses": [
+          "Pvt. Tobias Vantry"
+        ],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it heavily. Stress +13, Morale -12."
+        ],
+        "day": 48
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          40
+        ],
+        "morale": [
+          79
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          42,
+          49,
+          29,
+          27,
+          25,
+          13
+        ],
+        "morale": [
+          78,
+          67,
+          66,
+          57,
+          45,
+          54
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          81,
+          72,
+          70,
+          58,
+          65,
+          69
+        ],
+        "morale": [
+          58,
+          46,
+          41,
+          34,
+          26,
+          35,
+          23,
+          11
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          13
+        ],
+        "morale": [
+          77
+        ]
+      },
+      "pilot_recruit_1": {
+        "pilotId": "pilot_recruit_1",
+        "displayName": "Pvt. Noor Valdis",
+        "startedPanicking": false,
+        "stress": [
+          6,
+          7
+        ],
+        "morale": [
+          62,
+          60
+        ]
+      },
+      "pilot_recruit_2": {
+        "pilotId": "pilot_recruit_2",
+        "displayName": "Cpl. Kwame Sarkis",
+        "startedPanicking": false,
+        "stress": [
+          0
+        ],
+        "morale": [
+          76
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 41,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 5,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": 2,
+        "fromMissions": -1,
+        "fromGrief": 4,
+        "fromHub": 24
+      },
+      "pilot_iyari::pilot_lask": {
+        "key": "pilot_iyari::pilot_lask",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 1,
+        "end": 16,
+        "fromMissions": -3,
+        "fromGrief": 0,
+        "fromHub": 19
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 51,
+        "fromMissions": -1,
+        "fromGrief": 0,
+        "fromHub": 52
+      },
+      "pilot_anand::pilot_recruit_2": {
+        "key": "pilot_anand::pilot_recruit_2",
+        "start": 2,
+        "end": 3,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 2
+      },
+      "pilot_iyari::pilot_recruit_2": {
+        "key": "pilot_iyari::pilot_recruit_2",
+        "start": 1,
+        "end": 7,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 7
+      },
+      "pilot_anand::pilot_recruit_3": {
+        "key": "pilot_anand::pilot_recruit_3",
+        "start": 6,
+        "end": 18,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 18
+      },
+      "pilot_anand::pilot_recruit_4": {
+        "key": "pilot_anand::pilot_recruit_4",
+        "start": 6,
+        "end": 4,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 4
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.1,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Went down",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Pvt. Noor Valdis"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.35,
+          "about": [],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        },
+        {
+          "label": "Went down",
+          "salience": 0.31,
+          "about": [],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.82,
+          "about": [
+            "Pvt. Tobias Vantry"
+          ],
+          "missionId": "mission_amaranth_12",
+          "day": 48
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.66,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_11",
+          "day": 43
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.66,
+          "about": [
+            "Cpl. Kwame Sarkis"
+          ],
+          "missionId": "mission_amaranth_11",
+          "day": 43
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.05,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Noor Valdis": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.16,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 25
+        },
+        {
+          "label": "Came back from a loss",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 25
+        },
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.1,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 25
+        }
+      ],
+      "Cpl. Kwame Sarkis": [
+        {
+          "label": "Took the kill",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        },
+        {
+          "label": "Came back from a win",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.03,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.13,
+          "fear": 0.11,
+          "anger": 0.04,
+          "sadness": 0.05
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0.09,
+          "fear": 0.32,
+          "anger": 0.09,
+          "sadness": 0.26
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.02
+        }
+      },
+      "Pvt. Noor Valdis": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0.04,
+          "sadness": 0.01
+        }
+      },
+      "Cpl. Kwame Sarkis": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0,
+          "fear": 0.03,
+          "anger": 0,
+          "sadness": 0
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 4,
+    "closestPair": "pilot_iyari::pilot_recruit_1",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "was_pulled_out",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Pvt. Noor Valdis": "saw_fall",
+      "Cpl. Kwame Sarkis": "got_the_kill"
+    },
+    "finalDay": 53
+  },
+  {
+    "seed": 3,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +4, Morale +6.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress +1, Morale +12."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress +16, Morale -4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress 0, Morale +6.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress 0, Morale +6.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress -1, Morale +12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "win (attempt 6)",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress -1, Morale +9.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -2.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress 0, Morale +6.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress 0, Morale +6."
+        ],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "win (attempt 3)",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress +16, Morale -4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +4, Morale +7.",
+          "Cpl. Priya Anand — “Farsight”: took it angry. Stress +12, Morale +5.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress 0, Morale 0."
+        ],
+        "day": 16
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss",
+        "losses": [
+          "Spec. Corin Lask — “Patch”"
+        ],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress +16, Morale -12.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 21
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 26
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Saoirse Oyelaran",
+          "Cpl. Priya Anand — “Farsight”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +16, Morale -12."
+        ],
+        "day": 29
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 34
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [
+          "Spec. Runa Okorie"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11."
+        ],
+        "day": 37
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 42
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Tobias Delacroix",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [],
+        "day": 45
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Dmitri Delacroix"
+        ],
+        "takes": [],
+        "day": 50
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          44,
+          51,
+          41,
+          48,
+          55
+        ],
+        "morale": [
+          67,
+          63,
+          72,
+          68,
+          56
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          44,
+          35,
+          42,
+          37,
+          44,
+          42,
+          40
+        ],
+        "morale": [
+          74,
+          80,
+          78,
+          85,
+          73,
+          61,
+          50
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          85,
+          76,
+          79,
+          86
+        ],
+        "morale": [
+          58,
+          64,
+          70,
+          75,
+          63
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          11,
+          1,
+          0,
+          0
+        ],
+        "morale": [
+          82,
+          94,
+          100,
+          100
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 22,
+        "fromMissions": -8,
+        "fromGrief": -8,
+        "fromHub": -2
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": -11,
+        "fromMissions": -5,
+        "fromGrief": -12,
+        "fromHub": 1
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": -39,
+        "fromMissions": -7,
+        "fromGrief": -12,
+        "fromHub": 5
+      },
+      "pilot_anand::pilot_lask": {
+        "key": "pilot_anand::pilot_lask",
+        "start": 1,
+        "end": 21,
+        "fromMissions": 2,
+        "fromGrief": 0,
+        "fromHub": 19
+      },
+      "pilot_bosk::pilot_lask": {
+        "key": "pilot_bosk::pilot_lask",
+        "start": 6,
+        "end": 13,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 12
+      },
+      "pilot_iyari::pilot_lask": {
+        "key": "pilot_iyari::pilot_lask",
+        "start": 6,
+        "end": 7,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 1,
+        "end": 1,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_iyari::pilot_recruit_2": {
+        "key": "pilot_iyari::pilot_recruit_2",
+        "start": 6,
+        "end": 21,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 21
+      },
+      "pilot_iyari::pilot_recruit_3": {
+        "key": "pilot_iyari::pilot_recruit_3",
+        "start": 6,
+        "end": 21,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 21
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.25,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 21
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.2,
+          "about": [],
+          "missionId": "mission_amaranth_5",
+          "day": 21
+        },
+        {
+          "label": "Went down",
+          "salience": 0.17,
+          "about": [],
+          "missionId": "mission_amaranth_5",
+          "day": 21
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.48,
+          "about": [
+            "Spec. Runa Okorie"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 37
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.38,
+          "about": [],
+          "missionId": "mission_amaranth_9",
+          "day": 37
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.35,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 29
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.25,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 21
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.16,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        },
+        {
+          "label": "Went down",
+          "salience": 0.14,
+          "about": [],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.1,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.1,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.08,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_3",
+          "day": 11
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0,
+          "fear": 0.1,
+          "anger": 0.02,
+          "sadness": 0.02
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.16,
+          "fear": 0.08,
+          "anger": 0.05,
+          "sadness": 0.2
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0,
+          "fear": 0.1,
+          "anger": 0.06,
+          "sadness": 0
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.08,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 3,
+    "closestPair": "pilot_anand::pilot_bosk",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "lost_squadmate",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall"
+    },
+    "finalDay": 55
+  },
+  {
+    "seed": 4,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +3, Morale +7."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 14
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +10, Morale -5.",
+          "Cpl. Runa Adeyemi: took it shaken. Stress +9, Morale -7."
+        ],
+        "day": 17
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 22
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss (attempt 4)",
+        "losses": [
+          "Cpl. Runa Adeyemi"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 25
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 30
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Vera Marchetti",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 33
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [
+          "Spec. Dmitri Brennan"
+        ],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 38
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Vera Rahal",
+          "Cpl. Priya Anand — “Farsight”"
+        ],
+        "takes": [],
+        "day": 43
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Noor Rahal"
+        ],
+        "takes": [],
+        "day": 48
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          44
+        ],
+        "morale": [
+          67
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          43,
+          50,
+          39,
+          37
+        ],
+        "morale": [
+          73,
+          61,
+          52,
+          40
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          83,
+          81,
+          79,
+          86
+        ],
+        "morale": [
+          58,
+          46,
+          41,
+          29,
+          17,
+          5
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          13
+        ],
+        "morale": [
+          77
+        ]
+      },
+      "pilot_recruit_1": {
+        "pilotId": "pilot_recruit_1",
+        "displayName": "Cpl. Runa Adeyemi",
+        "startedPanicking": false,
+        "stress": [
+          9
+        ],
+        "morale": [
+          63
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 40,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 7,
+        "fromMissions": 2,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": 25,
+        "fromMissions": 1,
+        "fromGrief": 20,
+        "fromHub": 29
+      },
+      "pilot_anand::pilot_lask": {
+        "key": "pilot_anand::pilot_lask",
+        "start": 6,
+        "end": 7,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 7
+      },
+      "pilot_bosk::pilot_lask": {
+        "key": "pilot_bosk::pilot_lask",
+        "start": 1,
+        "end": 1,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 6,
+        "end": 10,
+        "fromMissions": -2,
+        "fromGrief": 0,
+        "fromHub": 12
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 12,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 11
+      },
+      "pilot_iyari::pilot_recruit_2": {
+        "key": "pilot_iyari::pilot_recruit_2",
+        "start": -8,
+        "end": -2,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": -2
+      },
+      "pilot_anand::pilot_recruit_2": {
+        "key": "pilot_anand::pilot_recruit_2",
+        "start": 6,
+        "end": 12,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 12
+      },
+      "pilot_anand::pilot_recruit_3": {
+        "key": "pilot_anand::pilot_recruit_3",
+        "start": 6,
+        "end": 12,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 12
+      },
+      "pilot_anand::pilot_recruit_4": {
+        "key": "pilot_anand::pilot_recruit_4",
+        "start": 1,
+        "end": 8,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 8
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.1,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Went down",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.32,
+          "about": [
+            "Cpl. Runa Adeyemi"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 25
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.18,
+          "about": [
+            "Cpl. Runa Adeyemi"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 17
+        },
+        {
+          "label": "Went down",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_5",
+          "day": 17
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.54,
+          "about": [
+            "Spec. Dmitri Brennan"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Cpl. Vera Marchetti"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.05,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Cpl. Runa Adeyemi": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.12,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 17
+        },
+        {
+          "label": "Came back from a loss",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_5",
+          "day": 17
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "sadness",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.03
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.1,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.06
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0.04,
+          "fear": 0.28,
+          "anger": 0,
+          "sadness": 0.11
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.02
+        }
+      },
+      "Cpl. Runa Adeyemi": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0,
+          "fear": 0.02,
+          "anger": 0,
+          "sadness": 0
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 2,
+    "closestPair": "pilot_anand::pilot_bosk",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "was_pulled_out",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Cpl. Runa Adeyemi": "saw_fall"
+    },
+    "finalDay": 53
+  },
+  {
+    "seed": 5,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +12, Morale +4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +12, Morale +3.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +5, Morale +7."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "win (attempt 6)",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +8, Morale +4.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress 0, Morale +8.",
+          "Cpl. Runa Lindahl: took it heavily. Stress 0, Morale +7."
+        ],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 16
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +8, Morale -6.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +8, Morale -5.",
+          "Cpl. Runa Lindahl: took it angry. Stress +5, Morale -5."
+        ],
+        "day": 19
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 24
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +9, Morale -1.",
+          "Cpl. Priya Anand — “Farsight”: took it angry. Stress +16, Morale -11.",
+          "Cpl. Runa Lindahl: took it shaken. Stress +10, Morale -5."
+        ],
+        "day": 27
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 32
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Runa Lindahl",
+          "Cpl. Priya Anand — “Farsight”",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [],
+        "day": 35
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [
+          "Pvt. Bastien Novak"
+        ],
+        "takes": [],
+        "day": 40
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Cpl. Sena Mbeki"
+        ],
+        "takes": [],
+        "day": 45
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win (attempt 6)",
+        "losses": [
+          "Spec. Tobias Ferrow"
+        ],
+        "takes": [],
+        "day": 50
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          42
+        ],
+        "morale": [
+          79
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          52,
+          59,
+          58,
+          48,
+          39
+        ],
+        "morale": [
+          71,
+          60,
+          64,
+          58,
+          57
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          91,
+          81,
+          79
+        ],
+        "morale": [
+          58,
+          46,
+          54,
+          49,
+          38
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          15
+        ],
+        "morale": [
+          77
+        ]
+      },
+      "pilot_recruit_1": {
+        "pilotId": "pilot_recruit_1",
+        "displayName": "Cpl. Runa Lindahl",
+        "startedPanicking": false,
+        "stress": [
+          1,
+          5,
+          10
+        ],
+        "morale": [
+          77,
+          72,
+          67
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 41,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 15,
+        "fromMissions": 4,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": -9,
+        "fromMissions": -2,
+        "fromGrief": -8,
+        "fromHub": 26
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 15,
+        "fromMissions": -1,
+        "fromGrief": 0,
+        "fromHub": 16
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 6,
+        "end": 9,
+        "fromMissions": -6,
+        "fromGrief": 0,
+        "fromHub": 15
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.09,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Went down",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.16,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.14,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.14,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.26,
+          "about": [
+            "Cpl. Runa Lindahl"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Went down",
+          "salience": 0.22,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.14,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Cpl. Runa Lindahl": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.16,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Came back from a loss",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.03,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.06,
+          "fear": 0,
+          "anger": 0.05,
+          "sadness": 0.02
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0.08,
+          "anger": 0.07,
+          "sadness": 0
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.02
+        }
+      },
+      "Cpl. Runa Lindahl": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0,
+          "fear": 0.04,
+          "anger": 0.01,
+          "sadness": 0.03
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 4,
+    "closestPair": "pilot_anand::pilot_bosk",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "was_pulled_out",
+      "Pvt. Tegan Iyari — “Foxfire”": "saw_fall",
+      "Cpl. Priya Anand — “Farsight”": "was_pulled_out",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Cpl. Runa Lindahl": "saw_fall"
+    },
+    "finalDay": 55
+  },
+  {
+    "seed": 6,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +4, Morale +7.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it angry. Stress +1, Morale +12."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress -1, Morale +5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -2, Morale +8.",
+          "Cpl. Ilse Fairweather: took it heavily. Stress -1, Morale +6."
+        ],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 16
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +10, Morale -4.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +8, Morale -5.",
+          "Cpl. Ilse Fairweather: took it heavily. Stress +6, Morale -8."
+        ],
+        "day": 19
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 24
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss (attempt 3)",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +8, Morale -6.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +7, Morale -7.",
+          "Cpl. Ilse Fairweather: took it angry. Stress +5, Morale -2."
+        ],
+        "day": 27
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 32
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Ilse Fairweather"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +15, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress +9, Morale -2."
+        ],
+        "day": 35
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [
+          "Pvt. Cassian Valdis"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +13, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it heavily. Stress +14, Morale -11."
+        ],
+        "day": 40
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Ayla Okorie",
+          "Cpl. Priya Anand — “Farsight”",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [],
+        "day": 45
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Ayla Fairweather"
+        ],
+        "takes": [],
+        "day": 50
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          44
+        ],
+        "morale": [
+          67
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          44,
+          51,
+          41,
+          33,
+          23,
+          20,
+          24
+        ],
+        "morale": [
+          75,
+          64,
+          69,
+          65,
+          59,
+          47,
+          35
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          89,
+          79,
+          68,
+          59,
+          64
+        ],
+        "morale": [
+          58,
+          46,
+          54,
+          49,
+          42,
+          40,
+          29
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          11
+        ],
+        "morale": [
+          82
+        ]
+      },
+      "pilot_recruit_1": {
+        "pilotId": "pilot_recruit_1",
+        "displayName": "Cpl. Ilse Fairweather",
+        "startedPanicking": false,
+        "stress": [
+          0,
+          6,
+          5
+        ],
+        "morale": [
+          76,
+          68,
+          66
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 46,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 5,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": 2,
+        "fromMissions": -4,
+        "fromGrief": -4,
+        "fromHub": 35
+      },
+      "pilot_anand::pilot_lask": {
+        "key": "pilot_anand::pilot_lask",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 40,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 39
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": -8,
+        "end": -6,
+        "fromMissions": -3,
+        "fromGrief": 0,
+        "fromHub": -3
+      },
+      "pilot_anand::pilot_recruit_2": {
+        "key": "pilot_anand::pilot_recruit_2",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_iyari::pilot_recruit_2": {
+        "key": "pilot_iyari::pilot_recruit_2",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.09,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Went down",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.54,
+          "about": [
+            "Pvt. Cassian Valdis"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Cpl. Ilse Fairweather"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 35
+        },
+        {
+          "label": "Took the kill",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.54,
+          "about": [
+            "Pvt. Cassian Valdis"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Cpl. Ilse Fairweather"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 35
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.05,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Cpl. Ilse Fairweather": [
+        {
+          "label": "Came back from a loss",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Came back from a loss",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_5",
+          "day": 19
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "sadness",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.02
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.07,
+          "fear": 0.1,
+          "anger": 0.01,
+          "sadness": 0.09
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0.03,
+          "fear": 0.14,
+          "anger": 0,
+          "sadness": 0.13
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0.02,
+          "sadness": 0
+        }
+      },
+      "Cpl. Ilse Fairweather": {
+        "dominant": "sadness",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0.02,
+          "sadness": 0.02
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 3,
+    "closestPair": "pilot_anand::pilot_bosk",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "was_pulled_out",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Cpl. Ilse Fairweather": "mission_lost"
+    },
+    "finalDay": 55
+  },
+  {
+    "seed": 7,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +14, Morale -8.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +1, Morale +10.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it angry. Stress +1, Morale +12."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -11.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "win (attempt 2)",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -1, Morale +12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -2, Morale +8.",
+          "Cpl. Bastien Oyelaran: took it angry. Stress -1, Morale +12."
+        ],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 16
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss (attempt 2)",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +10, Morale -5.",
+          "Cpl. Bastien Oyelaran: took it heavily. Stress +8, Morale -8."
+        ],
+        "day": 19
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 24
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss (attempt 3)",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +16, Morale -9.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress +6, Morale -5.",
+          "Cpl. Bastien Oyelaran: took it warmly. Stress +6, Morale -3."
+        ],
+        "day": 27
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 32
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [
+          "Cpl. Bastien Oyelaran"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +10, Morale -1.",
+          "Cpl. Priya Anand — “Farsight”: took it angry. Stress +10, Morale 0."
+        ],
+        "day": 35
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -3, Morale +9.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.",
+          "Pvt. Dmitri Cortez: took it angry. Stress -1, Morale +12."
+        ],
+        "day": 40
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Dmitri Cortez",
+          "Cpl. Priya Anand — “Farsight”",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [],
+        "day": 45
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win (attempt 2)",
+        "losses": [
+          "Pvt. Renzo Halden"
+        ],
+        "takes": [],
+        "day": 50
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          44
+        ],
+        "morale": [
+          67
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          41,
+          48,
+          38,
+          36,
+          34,
+          26,
+          14
+        ],
+        "morale": [
+          78,
+          67,
+          79,
+          70,
+          61,
+          60,
+          69
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          89,
+          81,
+          69,
+          61,
+          49
+        ],
+        "morale": [
+          58,
+          46,
+          54,
+          49,
+          44,
+          44,
+          50
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          11
+        ],
+        "morale": [
+          82
+        ]
+      },
+      "pilot_recruit_1": {
+        "pilotId": "pilot_recruit_1",
+        "displayName": "Cpl. Bastien Oyelaran",
+        "startedPanicking": false,
+        "stress": [
+          0,
+          8,
+          6
+        ],
+        "morale": [
+          82,
+          74,
+          71
+        ]
+      },
+      "pilot_recruit_2": {
+        "pilotId": "pilot_recruit_2",
+        "displayName": "Pvt. Dmitri Cortez",
+        "startedPanicking": false,
+        "stress": [
+          0
+        ],
+        "morale": [
+          82
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 40,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 8,
+        "fromMissions": 3,
+        "fromGrief": 0,
+        "fromHub": 0
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": 33,
+        "fromMissions": 4,
+        "fromGrief": 16,
+        "fromHub": 38
+      },
+      "pilot_bosk::pilot_lask": {
+        "key": "pilot_bosk::pilot_lask",
+        "start": 1,
+        "end": 1,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_iyari::pilot_lask": {
+        "key": "pilot_iyari::pilot_lask",
+        "start": 2,
+        "end": 2,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 2
+      },
+      "pilot_anand::pilot_lask": {
+        "key": "pilot_anand::pilot_lask",
+        "start": -8,
+        "end": -8,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": -8
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 6,
+        "end": 17,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 16
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 47,
+        "fromMissions": 3,
+        "fromGrief": 0,
+        "fromHub": 44
+      },
+      "pilot_anand::pilot_recruit_2": {
+        "key": "pilot_anand::pilot_recruit_2",
+        "start": 6,
+        "end": 5,
+        "fromMissions": -3,
+        "fromGrief": 0,
+        "fromHub": 8
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.09,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Went down",
+          "salience": 0.08,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Cpl. Bastien Oyelaran"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 35
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.26,
+          "about": [
+            "Cpl. Bastien Oyelaran"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Went down",
+          "salience": 0.22,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.44,
+          "about": [
+            "Cpl. Bastien Oyelaran"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 35
+        },
+        {
+          "label": "Took the kill",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.16,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.05,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Cpl. Bastien Oyelaran": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.16,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.12,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 19
+        },
+        {
+          "label": "Came back from a loss",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_7",
+          "day": 27
+        }
+      ],
+      "Pvt. Dmitri Cortez": [
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.17,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        },
+        {
+          "label": "Took the kill",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        },
+        {
+          "label": "Came back from a win",
+          "salience": 0.11,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 40
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "sadness",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.02
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.25,
+          "fear": 0,
+          "anger": 0.01,
+          "sadness": 0.01
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.03,
+          "fear": 0.12,
+          "anger": 0.03,
+          "sadness": 0.05
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0.02,
+          "sadness": 0
+        }
+      },
+      "Cpl. Bastien Oyelaran": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.04,
+          "fear": 0,
+          "anger": 0.02,
+          "sadness": 0.02
+        }
+      },
+      "Pvt. Dmitri Cortez": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0.06,
+          "sadness": 0
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 4,
+    "closestPair": "pilot_iyari::pilot_recruit_1",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "was_pulled_out",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Cpl. Bastien Oyelaran": "saw_fall",
+      "Pvt. Dmitri Cortez": "patched_someone"
+    },
+    "finalDay": 55
+  },
+  {
+    "seed": 8,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +2, Morale +7."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win (attempt 2)",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress -4, Morale +4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -4, Morale +6.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -4, Morale +4.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress -3, Morale +12."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "win (attempt 4)",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress -3, Morale +9.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress -2, Morale +12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress 0, Morale +7."
+        ],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "win (attempt 5)",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +2.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +2, Morale +4."
+        ],
+        "day": 16
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +16, Morale -12.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it angry. Stress +8, Morale -5.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress +8, Morale -3."
+        ],
+        "day": 21
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 26
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress -3, Morale +6.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -2, Morale +9.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress 0, Morale +3."
+        ],
+        "day": 29
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +4.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +13, Morale +4.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress 0, Morale +12.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +3, Morale 0."
+        ],
+        "day": 34
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +2.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +15, Morale -8.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress 0, Morale +9.",
+          "Spec. Corin Lask — “Patch”: took it heavily. Stress +2, Morale 0."
+        ],
+        "day": 39
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”"
+        ],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +16, Morale -10.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress +14, Morale 0.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress +16, Morale -9."
+        ],
+        "day": 44
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Pvt. Saoirse Valdis",
+          "Cpl. Priya Anand — “Farsight”",
+          "Pvt. Tegan Iyari — “Foxfire”",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [],
+        "day": 49
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win (attempt 2)",
+        "losses": [
+          "Pvt. Sena Oyelaran"
+        ],
+        "takes": [],
+        "day": 54
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          40,
+          27,
+          15,
+          16,
+          23,
+          2,
+          10,
+          11,
+          18
+        ],
+        "morale": [
+          79,
+          83,
+          92,
+          94,
+          82,
+          88,
+          92,
+          94,
+          84
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          43,
+          30,
+          19,
+          13,
+          20,
+          0,
+          13,
+          19,
+          24
+        ],
+        "morale": [
+          73,
+          79,
+          91,
+          96,
+          84,
+          93,
+          97,
+          89,
+          89
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          81,
+          69,
+          76,
+          75,
+          54,
+          45,
+          36,
+          43
+        ],
+        "morale": [
+          58,
+          62,
+          68,
+          66,
+          61,
+          67,
+          79,
+          88,
+          79
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          12,
+          0,
+          0,
+          2,
+          8,
+          0,
+          3,
+          2
+        ],
+        "morale": [
+          77,
+          89,
+          96,
+          100,
+          97,
+          100,
+          100,
+          100
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 56,
+        "fromMissions": 3,
+        "fromGrief": 4,
+        "fromHub": 9
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 33,
+        "fromMissions": 10,
+        "fromGrief": 4,
+        "fromHub": 14
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": -15,
+        "fromMissions": 1,
+        "fromGrief": -8,
+        "fromHub": 17
+      },
+      "pilot_bosk::pilot_lask": {
+        "key": "pilot_bosk::pilot_lask",
+        "start": 1,
+        "end": 20,
+        "fromMissions": 13,
+        "fromGrief": 0,
+        "fromHub": 7
+      },
+      "pilot_anand::pilot_lask": {
+        "key": "pilot_anand::pilot_lask",
+        "start": 1,
+        "end": 19,
+        "fromMissions": 6,
+        "fromGrief": 0,
+        "fromHub": 13
+      },
+      "pilot_iyari::pilot_lask": {
+        "key": "pilot_iyari::pilot_lask",
+        "start": 1,
+        "end": 19,
+        "fromMissions": 5,
+        "fromGrief": 0,
+        "fromHub": 14
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.54,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.43,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        },
+        {
+          "label": "Went down",
+          "salience": 0.38,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.54,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.35,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        },
+        {
+          "label": "Went down",
+          "salience": 0.31,
+          "about": [],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.54,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.43,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        },
+        {
+          "label": "Went down",
+          "salience": 0.38,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 44
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.22,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.22,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.18,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_8",
+          "day": 34
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.28,
+          "fear": 0.02,
+          "anger": 0.16,
+          "sadness": 0
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0.01,
+          "fear": 0.07,
+          "anger": 0.22,
+          "sadness": 0.2
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.28,
+          "fear": 0.15,
+          "anger": 0.03,
+          "sadness": 0
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.04,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.22
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 4,
+    "closestPair": "pilot_anand::pilot_bosk",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "lost_squadmate",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall"
+    },
+    "finalDay": 59
+  },
+  {
+    "seed": 9,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +12, Morale +5.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +3, Morale +5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it shaken. Stress +4, Morale +9."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [
+          "Spec. Corin Lask — “Patch”"
+        ],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +16, Morale -7.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +10, Morale -5.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +15, Morale -8."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 14
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss (attempt 2)",
+        "losses": [
+          "Pvt. Ngozi Cortez",
+          "M.Sgt. Halvard Bosk — “Anvil”",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 17
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 22
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss (attempt 2)",
+        "losses": [],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -12.",
+          "Cpl. Ayla Brennan: took it shaken. Stress +9, Morale -7."
+        ],
+        "day": 25
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 30
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +14, Morale -6.",
+          "Cpl. Ayla Brennan: took it warmly. Stress 0, Morale +12."
+        ],
+        "day": 33
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -4.",
+          "Cpl. Ayla Brennan: took it warmly. Stress 0, Morale +12."
+        ],
+        "day": 38
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Cpl. Ayla Brennan",
+          "Cpl. Priya Anand — “Farsight”"
+        ],
+        "takes": [],
+        "day": 43
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win",
+        "losses": [
+          "Spec. Neve Sandoval"
+        ],
+        "takes": [],
+        "day": 48
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          42,
+          49
+        ],
+        "morale": [
+          80,
+          73
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          43,
+          44
+        ],
+        "morale": [
+          73,
+          68
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          100,
+          89,
+          87,
+          83,
+          90
+        ],
+        "morale": [
+          58,
+          50,
+          38,
+          26,
+          20,
+          16
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          14
+        ],
+        "morale": [
+          79
+        ]
+      },
+      "pilot_recruit_2": {
+        "pilotId": "pilot_recruit_2",
+        "displayName": "Cpl. Ayla Brennan",
+        "startedPanicking": false,
+        "stress": [
+          9,
+          0,
+          0
+        ],
+        "morale": [
+          63,
+          75,
+          87
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 41,
+        "fromMissions": -3,
+        "fromGrief": 0,
+        "fromHub": 4
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 18,
+        "fromMissions": -1,
+        "fromGrief": 8,
+        "fromHub": 6
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": -13,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 12
+      },
+      "pilot_iyari::pilot_lask": {
+        "key": "pilot_iyari::pilot_lask",
+        "start": 1,
+        "end": 1,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_bosk::pilot_lask": {
+        "key": "pilot_bosk::pilot_lask",
+        "start": 6,
+        "end": 12,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 12
+      },
+      "pilot_iyari::pilot_recruit_1": {
+        "key": "pilot_iyari::pilot_recruit_1",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_bosk::pilot_recruit_1": {
+        "key": "pilot_bosk::pilot_recruit_1",
+        "start": 1,
+        "end": 1,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_anand::pilot_recruit_2": {
+        "key": "pilot_anand::pilot_recruit_2",
+        "start": 1,
+        "end": 45,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 45
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.15,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.12,
+          "about": [],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        },
+        {
+          "label": "Went down",
+          "salience": 0.1,
+          "about": [],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.15,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.07,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_2",
+          "day": 6
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.43,
+          "about": [
+            "Cpl. Ayla Brennan"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        },
+        {
+          "label": "Went down",
+          "salience": 0.38,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.35,
+          "about": [
+            "Cpl. Ayla Brennan"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.06,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        },
+        {
+          "label": "Held overwatch for the squad",
+          "salience": 0.05,
+          "about": [],
+          "missionId": "mission_amaranth_1",
+          "day": 1
+        }
+      ],
+      "Cpl. Ayla Brennan": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.27,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.22,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 33
+        },
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.18,
+          "about": [],
+          "missionId": "mission_amaranth_10",
+          "day": 38
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "anger",
+        "drift": {
+          "love": 0,
+          "fear": 0,
+          "anger": 0.05,
+          "sadness": 0.01
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.01,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.03
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "fear",
+        "drift": {
+          "love": 0,
+          "fear": 0.28,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0,
+          "fear": 0.02,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Cpl. Ayla Brennan": {
+        "dominant": "sadness",
+        "drift": {
+          "love": 0.16,
+          "fear": 0.03,
+          "anger": 0,
+          "sadness": 0
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 3,
+    "closestPair": "pilot_anand::pilot_recruit_2",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "lost_squadmate",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "was_pulled_out",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Cpl. Ayla Brennan": "saw_fall"
+    },
+    "finalDay": 53
+  },
+  {
+    "seed": 10,
+    "missions": [
+      {
+        "index": 1,
+        "missionId": "mission_amaranth_1",
+        "displayName": "Amaranth I.1 — Muster",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +15, Morale -6.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it warmly. Stress +1, Morale +10.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress +16, Morale -2.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress +1, Morale +12."
+        ],
+        "day": 1
+      },
+      {
+        "index": 2,
+        "missionId": "mission_amaranth_2",
+        "displayName": "Amaranth I.2 — Wire and Mud",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress -4, Morale +3.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -4, Morale +6.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -4, Morale +4.",
+          "Spec. Corin Lask — “Patch”: took it shaken. Stress -2, Morale +8."
+        ],
+        "day": 6
+      },
+      {
+        "index": 3,
+        "missionId": "mission_amaranth_3",
+        "displayName": "Amaranth I.3 — The Low Ground",
+        "outcome": "win (attempt 6)",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it shaken. Stress -2, Morale +8.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it angry. Stress -1, Morale +12.",
+          "Cpl. Priya Anand — “Farsight”: took it shaken. Stress -3, Morale +6.",
+          "Spec. Corin Lask — “Patch”: took it shaken. Stress 0, Morale +8."
+        ],
+        "day": 11
+      },
+      {
+        "index": 4,
+        "missionId": "mission_amaranth_4",
+        "displayName": "Amaranth I.4 — Tunnel Rats",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +10, Morale +2.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +4, Morale +4.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress +10, Morale +4.",
+          "Spec. Corin Lask — “Patch”: took it warmly. Stress 0, Morale +2."
+        ],
+        "day": 16
+      },
+      {
+        "index": 5,
+        "missionId": "mission_amaranth_5",
+        "displayName": "Amaranth I.5 — Foraging Party",
+        "outcome": "loss",
+        "losses": [
+          "Spec. Corin Lask — “Patch”"
+        ],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress +16, Morale -12.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12.",
+          "Cpl. Priya Anand — “Farsight”: took it warmly. Stress +16, Morale -12."
+        ],
+        "day": 21
+      },
+      {
+        "index": 6,
+        "missionId": "mission_amaranth_6",
+        "displayName": "Amaranth I.6 — House Colors",
+        "outcome": "win (attempt 3)",
+        "losses": [
+          "Spec. Junia Valdis",
+          "Cpl. Priya Anand — “Farsight”"
+        ],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it angry. Stress +16, Morale -12.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -12."
+        ],
+        "day": 26
+      },
+      {
+        "index": 7,
+        "missionId": "mission_amaranth_7",
+        "displayName": "Amaranth I.7 — Sporewatch Ridge",
+        "outcome": "loss",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it heavily. Stress +8, Morale -8.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12.",
+          "Spec. Junia Petrov: took it heavily. Stress +8, Morale -7."
+        ],
+        "day": 31
+      },
+      {
+        "index": 8,
+        "missionId": "mission_amaranth_8",
+        "displayName": "Amaranth I.8 — The Choir Sings",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 36
+      },
+      {
+        "index": 9,
+        "missionId": "mission_amaranth_9",
+        "displayName": "Amaranth I.9 — Cut Off",
+        "outcome": "win",
+        "losses": [],
+        "takes": [
+          "M.Sgt. Halvard Bosk — “Anvil”: took it warmly. Stress -2, Morale +9.",
+          "Pvt. Tegan Iyari — “Foxfire”: took it shaken. Stress +16, Morale -5.",
+          "Spec. Junia Petrov: took it warmly. Stress 0, Morale +9."
+        ],
+        "day": 39
+      },
+      {
+        "index": 10,
+        "missionId": "mission_amaranth_10",
+        "displayName": "Amaranth I.10 — The Amaranth Betrayal",
+        "outcome": "commander_down after 6 attempts (every attempt voided, no debrief)",
+        "losses": [],
+        "takes": [],
+        "day": 44
+      },
+      {
+        "index": 11,
+        "missionId": "mission_amaranth_11",
+        "displayName": "Amaranth I.11 — The Long Walk Back",
+        "outcome": "loss",
+        "losses": [
+          "Spec. Junia Petrov",
+          "M.Sgt. Halvard Bosk — “Anvil”"
+        ],
+        "takes": [
+          "Pvt. Tegan Iyari — “Foxfire”: took it heavily. Stress +16, Morale -12."
+        ],
+        "day": 47
+      },
+      {
+        "index": 12,
+        "missionId": "mission_amaranth_12",
+        "displayName": "Amaranth I.12 — The Fallow Line",
+        "outcome": "win",
+        "losses": [
+          "Pvt. Idris Nakamura",
+          "Pvt. Tegan Iyari — “Foxfire”"
+        ],
+        "takes": [],
+        "day": 52
+      }
+    ],
+    "pilots": {
+      "pilot_bosk": {
+        "pilotId": "pilot_bosk",
+        "displayName": "M.Sgt. Halvard Bosk — “Anvil”",
+        "startedPanicking": false,
+        "stress": [
+          45,
+          32,
+          21,
+          22,
+          29,
+          36,
+          35,
+          15
+        ],
+        "morale": [
+          69,
+          72,
+          80,
+          82,
+          70,
+          58,
+          50,
+          59
+        ]
+      },
+      "pilot_iyari": {
+        "pilotId": "pilot_iyari",
+        "displayName": "Pvt. Tegan Iyari — “Foxfire”",
+        "startedPanicking": false,
+        "stress": [
+          41,
+          28,
+          18,
+          13,
+          20,
+          27,
+          34,
+          32,
+          30
+        ],
+        "morale": [
+          78,
+          84,
+          96,
+          100,
+          88,
+          76,
+          64,
+          59,
+          47
+        ]
+      },
+      "pilot_anand": {
+        "pilotId": "pilot_anand",
+        "displayName": "Cpl. Priya Anand — “Farsight”",
+        "startedPanicking": true,
+        "stress": [
+          94,
+          81,
+          69,
+          70,
+          77
+        ],
+        "morale": [
+          58,
+          62,
+          68,
+          72,
+          60
+        ]
+      },
+      "pilot_lask": {
+        "pilotId": "pilot_lask",
+        "displayName": "Spec. Corin Lask — “Patch”",
+        "startedPanicking": false,
+        "stress": [
+          11,
+          0,
+          0,
+          0
+        ],
+        "morale": [
+          82,
+          90,
+          98,
+          100
+        ]
+      },
+      "pilot_recruit_2": {
+        "pilotId": "pilot_recruit_2",
+        "displayName": "Spec. Junia Petrov",
+        "startedPanicking": false,
+        "stress": [
+          9,
+          0
+        ],
+        "morale": [
+          63,
+          72
+        ]
+      }
+    },
+    "pairs": {
+      "pilot_anand::pilot_bosk": {
+        "key": "pilot_anand::pilot_bosk",
+        "start": 40,
+        "end": 66,
+        "fromMissions": 2,
+        "fromGrief": 12,
+        "fromHub": 12
+      },
+      "pilot_bosk::pilot_iyari": {
+        "key": "pilot_bosk::pilot_iyari",
+        "start": 5,
+        "end": 57,
+        "fromMissions": 3,
+        "fromGrief": 12,
+        "fromHub": 37
+      },
+      "pilot_anand::pilot_iyari": {
+        "key": "pilot_anand::pilot_iyari",
+        "start": -25,
+        "end": -13,
+        "fromMissions": -4,
+        "fromGrief": 16,
+        "fromHub": 0
+      },
+      "pilot_bosk::pilot_lask": {
+        "key": "pilot_bosk::pilot_lask",
+        "start": 1,
+        "end": 3,
+        "fromMissions": 2,
+        "fromGrief": 0,
+        "fromHub": 1
+      },
+      "pilot_iyari::pilot_lask": {
+        "key": "pilot_iyari::pilot_lask",
+        "start": 1,
+        "end": 8,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 7
+      },
+      "pilot_anand::pilot_lask": {
+        "key": "pilot_anand::pilot_lask",
+        "start": -8,
+        "end": -8,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": -8
+      },
+      "pilot_anand::pilot_recruit_1": {
+        "key": "pilot_anand::pilot_recruit_1",
+        "start": 6,
+        "end": 6,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 6
+      },
+      "pilot_bosk::pilot_recruit_2": {
+        "key": "pilot_bosk::pilot_recruit_2",
+        "start": 6,
+        "end": 29,
+        "fromMissions": 6,
+        "fromGrief": 0,
+        "fromHub": 23
+      },
+      "pilot_iyari::pilot_recruit_2": {
+        "key": "pilot_iyari::pilot_recruit_2",
+        "start": 1,
+        "end": 8,
+        "fromMissions": 1,
+        "fromGrief": 0,
+        "fromHub": 7
+      },
+      "pilot_iyari::pilot_recruit_3": {
+        "key": "pilot_iyari::pilot_recruit_3",
+        "start": 6,
+        "end": 12,
+        "fromMissions": 0,
+        "fromGrief": 0,
+        "fromHub": 12
+      }
+    },
+    "carries": {
+      "M.Sgt. Halvard Bosk — “Anvil”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.28,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_6",
+          "day": 26
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.28,
+          "about": [
+            "Spec. Junia Valdis"
+          ],
+          "missionId": "mission_amaranth_6",
+          "day": 26
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.24,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        }
+      ],
+      "Pvt. Tegan Iyari — “Foxfire”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.66,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_11",
+          "day": 47
+        },
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.66,
+          "about": [
+            "Spec. Junia Petrov"
+          ],
+          "missionId": "mission_amaranth_11",
+          "day": 47
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.53,
+          "about": [],
+          "missionId": "mission_amaranth_11",
+          "day": 47
+        }
+      ],
+      "Cpl. Priya Anand — “Farsight”": [
+        {
+          "label": "Lost a squadmate",
+          "salience": 0.23,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_5",
+          "day": 21
+        },
+        {
+          "label": "Went down and was restocked",
+          "salience": 0.15,
+          "about": [
+            "Spec. Corin Lask — “Patch”"
+          ],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        },
+        {
+          "label": "Went down",
+          "salience": 0.13,
+          "about": [],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        }
+      ],
+      "Spec. Corin Lask — “Patch”": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.09,
+          "about": [
+            "M.Sgt. Halvard Bosk — “Anvil”"
+          ],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.09,
+          "about": [
+            "Cpl. Priya Anand — “Farsight”"
+          ],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        },
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.06,
+          "about": [],
+          "missionId": "mission_amaranth_4",
+          "day": 16
+        }
+      ],
+      "Spec. Junia Petrov": [
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.24,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        },
+        {
+          "label": "Watched a squadmate fall",
+          "salience": 0.17,
+          "about": [
+            "Pvt. Tegan Iyari — “Foxfire”"
+          ],
+          "missionId": "mission_amaranth_7",
+          "day": 31
+        },
+        {
+          "label": "Patched a squadmate up",
+          "salience": 0.16,
+          "about": [],
+          "missionId": "mission_amaranth_9",
+          "day": 39
+        }
+      ]
+    },
+    "lean": {
+      "M.Sgt. Halvard Bosk — “Anvil”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.15,
+          "fear": 0.04,
+          "anger": 0.08,
+          "sadness": 0.11
+        }
+      },
+      "Pvt. Tegan Iyari — “Foxfire”": {
+        "dominant": "sadness",
+        "drift": {
+          "love": 0.04,
+          "fear": 0.22,
+          "anger": 0.01,
+          "sadness": 0.36
+        }
+      },
+      "Cpl. Priya Anand — “Farsight”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.09,
+          "fear": 0.03,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Spec. Corin Lask — “Patch”": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.05,
+          "fear": 0.02,
+          "anger": 0,
+          "sadness": 0
+        }
+      },
+      "Spec. Junia Petrov": {
+        "dominant": "love",
+        "drift": {
+          "love": 0.06,
+          "fear": 0,
+          "anger": 0,
+          "sadness": 0.05
+        }
+      }
+    },
+    "pinnedAt100Before8": [],
+    "panicked": [
+      "Cpl. Priya Anand — “Farsight”"
+    ],
+    "maxOrdinaryPairShift": 4,
+    "closestPair": "pilot_anand::pilot_bosk",
+    "loudestKindByPilot": {
+      "M.Sgt. Halvard Bosk — “Anvil”": "lost_squadmate",
+      "Pvt. Tegan Iyari — “Foxfire”": "lost_squadmate",
+      "Cpl. Priya Anand — “Farsight”": "lost_squadmate",
+      "Spec. Corin Lask — “Patch”": "saw_fall",
+      "Spec. Junia Petrov": "saw_fall"
+    },
+    "finalDay": 57
+  }
+]
