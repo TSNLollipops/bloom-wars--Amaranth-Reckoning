@@ -75,7 +75,24 @@ const CHECKS = reserved.map(({ name, match }) => ({
 }));
 
 const ROOTS = ["src", "assets", "public", "index.html"].filter(existsSync);
-const SKIP = new Set([".png", ".jpg", ".jpeg", ".webp", ".woff2", ".woff", ".ttf"]);
+const SKIP = new Set([
+  // Images
+  ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".bmp",
+  // Fonts
+  ".woff2", ".woff", ".ttf", ".otf", ".eot",
+  // Audio — added 13 Sep 2026 after thrusterFire_003.ogg's compressed binary
+  // data produced a coincidental byte run that decoded as "Osk" and tripped
+  // the surname check at a fake "line 303". Binary audio has no player-facing
+  // text in it; reading it as UTF-8 was always going to eventually spell
+  // something by accident. Same reasoning extends to video/other binaries
+  // below, none of which are known to be in the repo yet but all of which
+  // would hit the same failure mode the first time one is added.
+  ".ogg", ".mp3", ".wav", ".m4a", ".flac",
+  // Video
+  ".mp4", ".webm", ".mov",
+  // Other binary blobs
+  ".wasm", ".zip",
+]);
 const hits = [];
 
 function walk(pth) {
