@@ -1,0 +1,520 @@
+{
+  "_comment": "Reserved names for the Bloom Wars cast-collision lint (tools/lint-cast-collision.mjs) and the pool test (src/data/__tests__/names.test.ts). CANONICAL SOURCE, since 13 Sep 2026: the book project's own naming/spoiler lock document, v1 (compiled 12 Sep 2026 from Character Sheets v37/v38, Forward Cast Roster v1, Political Web, Concept v8). The book doc has priority on book facts; when it is refreshed, re-derive this list from it rather than hand-maintaining a fork. Entries the lock doc does not list but the v34 character sheets did (Nossik, Chidi Ekwueme, Corran, Alina Firemoss, Coherence of Process, Perrin Cato, Faela Bren, Reya Solt, Denna Ashworth, Vekk) are kept: over-blocking costs nothing. This is a DIFFERENT protection from the Build Brief's spoiler-lock term (tools/lint-spoiler.mjs), which guards one hidden reveal word read from a git-ignored .env.local and is untouched here. Three match modes: 'full' = the whole multi-word phrase only, case-insensitive; 'single' = one distinctive word, whole-word, case-insensitive; 'surname' = a family name from the book's two naming registers, whole-word and CASE-SENSITIVE so ordinary prose (a marsh tile, an ash cloud) never trips it. Full crossover (2 Sep 2026) makes species/setting/structural borrowing fair game; it does not make character-name collisions fine.",
+  "approvedCrossover": [
+    {
+      "name": "Fracrals Thyns",
+      "note": "Team One (Bloom Wars archived 4-mission slice), Canon Pass-confirmed direct port."
+    },
+    {
+      "name": "Derek Barasj",
+      "note": "Team One, direct port."
+    },
+    {
+      "name": "Hiro Nagori",
+      "note": "Team One, direct port."
+    },
+    {
+      "name": "Yren Tourignie",
+      "note": "Team One, direct port."
+    },
+    {
+      "name": "Bram Solvig",
+      "note": "Team Two roster depth, Canon Pass §H, Maxime's own invitation (\"add population to the mech folder with as many as you want\")."
+    },
+    {
+      "name": "Frida Green",
+      "note": "Team Two roster depth, Canon Pass §H."
+    },
+    {
+      "name": "Trahsin Hyrs",
+      "note": "Team Two roster depth, Canon Pass §H."
+    },
+    {
+      "name": "Elodie Dufours",
+      "note": "Team Two roster depth, Canon Pass §H."
+    },
+    {
+      "name": "Naomi Castell",
+      "note": "Bench replacement, Canon Pass §H.2."
+    },
+    {
+      "name": "Suki Arnesen",
+      "note": "Bench replacement, Canon Pass §H.2."
+    }
+  ],
+  "registerExemptions": [
+    {
+      "surname": "Green",
+      "why": "The game's own rank-stage word (Green / Blooded / Command, 160 hits). Frida Green stays covered as a full name."
+    },
+    {
+      "surname": "Okafor",
+      "why": "Sgt. Wren Okafor, Warden Company, shipped and in Maxime's own lines. Kept 13 Sep 2026: \"its fine, they are not exactly the same group of person.\" Fenn Okafor stays covered as a full name."
+    },
+    {
+      "surname": "Reyes",
+      "why": "Cpl. Damon Reyes, Warden Company, shipped. Same decision. Mikka Reyes stays covered as a full name."
+    },
+    {
+      "surname": "Osei",
+      "why": "Pvt. Bram Osei, shipped. Same decision. Amara Osei stays covered as a full name."
+    },
+    {
+      "surname": "Voss",
+      "why": "House Voss / Corin Ashby-Voss (Heirloom aristocrat in the Vault) and Marcus Voss (archived Team One). Same decision. Denic Voss stays covered as a full name."
+    },
+    {
+      "surname": "Barasj / Nagori / Tourignie / Thyns / Hyrs / Solvig / Dufours / Castell / Arnesen",
+      "why": "The archived Team One/Two roster in data/meks.ts, listed under approvedCrossover. Hidden from the player on purpose (Maxime, 13 Sep 2026: \"team one is hiden from player for a reason\"). Each full name is exempt; the bare surname is not blocked because the archived records would trip it."
+    }
+  ],
+  "reserved": [
+    {
+      "name": "Reqa",
+      "match": "single"
+    },
+    {
+      "name": "Zeteii",
+      "match": "single"
+    },
+    {
+      "name": "Coherence of Process",
+      "match": "full"
+    },
+    {
+      "name": "Yssa Calder",
+      "match": "full"
+    },
+    {
+      "name": "Dana Halvorsen",
+      "match": "full"
+    },
+    {
+      "name": "Cassia Vantree",
+      "match": "full"
+    },
+    {
+      "name": "Amara Osei",
+      "match": "full"
+    },
+    {
+      "name": "Devrin Osk",
+      "match": "full"
+    },
+    {
+      "name": "Aurelian Kest",
+      "match": "full"
+    },
+    {
+      "name": "Vrassik",
+      "match": "single"
+    },
+    {
+      "name": "Lissrak",
+      "match": "single"
+    },
+    {
+      "name": "Jifsook",
+      "match": "single"
+    },
+    {
+      "name": "Bruvald Ashe",
+      "match": "full"
+    },
+    {
+      "name": "Krethis",
+      "match": "single"
+    },
+    {
+      "name": "Nossik",
+      "match": "single",
+      "note": "Added 9 Sep 2026, v34 sheets — Hiopi cadet, promoted to full entry B1.CH24-25."
+    },
+    {
+      "name": "Peregrine Thale",
+      "match": "full"
+    },
+    {
+      "name": "Alina Firemoss",
+      "match": "full"
+    },
+    {
+      "name": "Toma Ruiz",
+      "match": "full"
+    },
+    {
+      "name": "Denic Voss",
+      "match": "full"
+    },
+    {
+      "name": "Ilyen Pral",
+      "match": "full"
+    },
+    {
+      "name": "Corw Adeyemi-Tal",
+      "match": "full"
+    },
+    {
+      "name": "Talia Renn",
+      "match": "full"
+    },
+    {
+      "name": "Fenn Okafor",
+      "match": "full"
+    },
+    {
+      "name": "Petra Lindqvist",
+      "match": "full"
+    },
+    {
+      "name": "Doyle Marsh",
+      "match": "full"
+    },
+    {
+      "name": "Sana Voight",
+      "match": "full"
+    },
+    {
+      "name": "Soren Adair",
+      "match": "full"
+    },
+    {
+      "name": "Chidi Ekwueme",
+      "match": "full",
+      "note": "Added 9 Sep 2026, v34 sheets — promoted from the background register B1.CH06-25. His surname alone collided with a RECRUIT_SURNAMES entry (src/data/names.ts), same 'full' precedent as Okafor/Reyes/Osei below — resolved same day by swapping that pool entry to 'Okorie' (see names.ts's own header comment)."
+    },
+    {
+      "name": "Mikka Reyes",
+      "match": "full"
+    },
+    {
+      "name": "Perrin Cato",
+      "match": "full"
+    },
+    {
+      "name": "Faela Bren",
+      "match": "full"
+    },
+    {
+      "name": "Reya Solt",
+      "match": "full"
+    },
+    {
+      "name": "Denna Ashworth",
+      "match": "full"
+    },
+    {
+      "name": "Vekk",
+      "match": "single"
+    },
+    {
+      "name": "Milo Castellane",
+      "match": "full"
+    },
+    {
+      "name": "Corran",
+      "match": "single",
+      "note": "Added 9 Sep 2026, v34 sheets — background cohort register, B1.CH06, thin/swappable entry per that register's own rule but on the page and named, so reserved the same as anything else here."
+    },
+    {
+      "name": "Trav Calder",
+      "match": "full",
+      "note": "Moved out of approvedCrossover 13 Sep 2026: not in the code any more (Marcus Voss replaced him as the Team One survivor), so the book's protagonist is simply reserved now."
+    },
+    {
+      "name": "Reqa Tremblay",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the lock doc v1; 'Reqa' alone is already a single-match entry above."
+    },
+    {
+      "name": "Selwyn Vellory",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Andrienne Kohl",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Bertram Ossley",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Nell Aduba",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Tobin Sarr",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Ven Halloway",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Ragnvald Hask",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Vaskr Hallen",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Ostrava Kell",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Bev Sorokin",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Emmet Roos",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Juno Achterberg",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Marrec Sual",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Wren Achara",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Emeric Anseline",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Halvor Vardagen",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Perpetua Ashcroft",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "Hesskir Vaun",
+      "match": "full",
+      "note": "Added 13 Sep 2026 from the book-side naming/spoiler lock doc v1 (Part 2)."
+    },
+    {
+      "name": "MeltaDread",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Ironhowl",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Sunkfist",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Quickmarrow",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Glasswake",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Hollowking",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Redgrist",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Palefang",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Tallgallows",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Anseline Line",
+      "match": "full",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Second Landing",
+      "match": "full",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Coldwater",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Openhand",
+      "match": "single",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Fallow Companies",
+      "match": "full",
+      "note": "Battle-clan name, lock doc v1 Part 2. Not a person, still a named entity of the shared universe."
+    },
+    {
+      "name": "Calder",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Tremblay",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Pral",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Marsh",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Lindqvist",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Ashe",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Renn",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Adeyemi-Tal",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Ruiz",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Halvorsen",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Voight",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Adair",
+      "match": "surname",
+      "note": "Off-Roll surname register (lock doc v1 Part 3): the book keeps minting characters from this family name, so the surname alone is blocked for any new game name."
+    },
+    {
+      "name": "Kest",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Osk",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Castellane",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Thale",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Vantree",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Vellory",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Vardagen",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Ashcroft",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Vaun",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Anseline",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Aduba",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Sarr",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Hallen",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    },
+    {
+      "name": "Hask",
+      "match": "surname",
+      "note": "On-Roll house register (lock doc v1 Part 3): inherited-name nobility, still drawing new members. Surname alone blocked for any new game name."
+    }
+  ]
+}

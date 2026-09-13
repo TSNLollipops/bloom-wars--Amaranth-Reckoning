@@ -327,7 +327,7 @@ export const BLOOM: Record<string, BloomArchetype> = {
   //
   // Renamed from an earlier working name to "The Unnamed" on 26 Aug 2026
   // after a cross-project naming collision was caught (the old name is
-  // already load-bearing, locked material on the Qiraki side) — deliberate,
+  // already load-bearing, locked material on the book side) — deliberate,
   // in-fiction irony, not a placeholder: the thing at the heart of a
   // 36-mission war that command never gets around to properly designating.
   // Stats, lineage, and mission behavior are all unchanged; only the id,

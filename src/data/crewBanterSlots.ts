@@ -28,16 +28,16 @@
 // in the live UI (ShopPanel.ts, TransporterPad.ts), deliberately avoiding
 // Canon Pass §D's per-path gear names (Stocklance, Stormblade, and the
 // rest) since those trace back to a book-side source document
-// (Qiraki_Points_Shop_Catalog.md) and Bloom_Wars_Codex_Design_v1.md §9
+// (the book project's Points_Shop_Catalog.md) and Bloom_Wars_Codex_Design_v1.md §9
 // (item 4) had flagged pulling them into game-facing text as needing
 // Maxime's own call. Asked directly, he said "use the named gear tiers" —
 // so GEAR_TIER_NAMES below is that table, Canon Pass §D's own 4×7 grid,
 // copied verbatim. Worth being precise about why this is fine even though
-// the table's ultimate source is a Qiraki document: the project's own
+// the table's ultimate source is a book-side document: the project's own
 // naming-lock policy (see the Master Index's "Cross-project references"
 // section, 26 Aug 2026) already draws the real line — the ONE hard block
-// is the specific reserved term plus "The Synker Wars," both untouched
-// here; general Qiraki-sourced flavor (species, culture, and — per Canon
+// is the specific reserved term plus the series' military-arc title, both untouched
+// here; general book-sourced flavor (species, culture, and — per Canon
 // Pass §D's own note that the game's four paths ARE the book's own path
 // system, not a coincidence — gear-tier names) is explicitly the standing
 // default for deliberate one-way borrowing, not an exception. This was
@@ -47,7 +47,7 @@
 import type { Catalyst, Echo, Stage } from "./ambientLines";
 import type { Path, Tier } from "./types";
 
-// Canon Pass §D's own 4×7 table, Qiraki_Points_Shop_Catalog.md's Meeps/
+// Canon Pass §D's own 4×7 table, the book's Points_Shop_Catalog.md's Meeps/
 // Tank/Reeps/Munti tiers G through A, copied verbatim (Meeps column
 // follows Marcus Voss's own blade-branch progression — the doc notes a
 // lance-branch fork exists as an alternate flavor set, not used here).

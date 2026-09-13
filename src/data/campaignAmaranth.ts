@@ -1588,7 +1588,7 @@ export const AMARANTH_MISSION_22: CampaignMission = {
   // ship dies." Left at the pre-existing ground+Sirenmaw composition
   // (turnLimit raised to 20, which cost nothing and is at worst neutral).
   // If revisited, the next lever worth trying is probably map/spawn-side
-  // (a second landing tile to split player attention) rather than more
+  // (another landing tile to split player attention) rather than more
   // headcount — this file's own tools can't fix a single-chokepoint
   // problem by adding more bodies to the same chokepoint.
   // REWORK 8 Sep 2026 (mission rework pass) — Ash on the Water. Two causeways, one dock, Undertow under both causeways, and the water isn't a wall to anything with wings: waves alternate causeways every three turns while single Sirenmaw and then Choir come straight across the sump at the hull, each one a dock-side problem the causeway line can't answer. Hull 300 -> 360 so one flyer landing isn't the mission. Twenty turns. (Sim bot: 0% — it fights forward on the causeways and never garrisons the dock; rated by trace: 2-3 mechs held back at the dock kill each flyer the turn it lands.)

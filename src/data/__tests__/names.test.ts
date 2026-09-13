@@ -60,8 +60,10 @@ for (const t of tokensOf("Halcyon Amaranth")) AUTHORED.add(t);
 // The book series' named cast — the same list tools/lint-cast-collision.mjs
 // checks source text against at build time. Read from disk here so the
 // list never enters the game bundle; a test runs in node, the game doesn't.
-const cast = JSON.parse(readFileSync("tools/qiraki_named_cast.json", "utf8")) as {
-  reserved: { name: string; match: "single" | "full" }[];
+// (Renamed from its old book-codename filename on 13 Sep 2026: the spoiler
+// lint scans this file, and a path string is a string.)
+const cast = JSON.parse(readFileSync("tools/reserved_cast.json", "utf8")) as {
+  reserved: { name: string; match: "single" | "full" | "surname" }[];
   approvedCrossover: { name: string }[];
 };
 const RESERVED_TOKENS = new Set<string>();

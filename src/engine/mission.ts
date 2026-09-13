@@ -474,7 +474,7 @@ export interface UnitPerformance {
 }
 
 // Point-formula correction (Maxime, 22 Aug 2026, reading
-// Qiraki_Weapons_And_Progression.md's "Scoring system, LOCKED" section for
+// the book project's Weapons_And_Progression.md, "Scoring system, LOCKED" section, for
 // the first time against the economy pass above): the canonical rule is
 // "an individual's score inside a mission is kills plus assists combined.
 // An assist is worth a fraction of a full kill, roughly 10% to 50%
@@ -2374,7 +2374,7 @@ export class Mission {
     }
     this.noteAbilityUse(healer, "abil_repair");
     // Campaign economy pass, point-formula correction (22 Aug 2026):
-    // Qiraki_Weapons_And_Progression.md's locked scoring rule names
+    // the book project's Weapons_And_Progression.md locked scoring rule names
     // "healing/repair actions" as an assist in their own right — see
     // REPAIR_ASSIST_FRACTION's comment above UnitPerformance. Only a
     // repair that actually restored HP counts (amount > 0), same

@@ -57,7 +57,7 @@ import {
 // ---- Personal points: earning -------------------------------------------
 
 // Personal-earnings formula, REVISED 22 Aug 2026 against
-// Qiraki_Weapons_And_Progression.md's "Scoring system, LOCKED" section
+// the book project's Weapons_And_Progression.md, "Scoring system, LOCKED" section
 // (Maxime: "weapon and progression give you the per unit point system...
 // only thing that isnt in it normaly is dmg point bonus because normally
 // bloom unit doesnt have a lifepool"). That doc's own locked rule is

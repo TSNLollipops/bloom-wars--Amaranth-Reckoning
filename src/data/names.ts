@@ -27,7 +27,7 @@
 // hope: no name in any pool below may match a given name, surname, or
 // callsign of any hand-authored pilot on either campaign, any archived
 // Team One/Two pilot, either CO, or any character in the book series'
-// named cast (tools/qiraki_named_cast.json); the three pools are disjoint
+// named cast (tools/reserved_cast.json); the three pools are disjoint
 // from each other; and no first-name/surname pair in the pilot pools can
 // assemble into a book character's full name. Three surnames and two
 // first names left the 5 Sep pools for exactly those reasons — two of the
@@ -39,7 +39,7 @@
 // same reason: the book's own current character sheets (Maxime's upload)
 // promoted a background character to a full sheet whose surname matched
 // this pool's own token exactly — see that character's reserved entry in
-// tools/qiraki_named_cast.json for the citation (the full name isn't
+// tools/reserved_cast.json for the citation (the full name isn't
 // repeated here on purpose, so this comment doesn't trip its own
 // collision lint). Replacements keep every pool the same size.
 //
@@ -74,7 +74,7 @@ export const RECRUIT_RANKS = ["Pvt.", "Spec.", "Cpl."] as const;
 // deliberate — every name in this file has already been cleared against
 // the hand-authored cast on both campaigns, the archived Team One/Two
 // roster, both COs, and the book series' own named cast
-// (tools/qiraki_named_cast.json), and adding even one new name would have
+// (tools/reserved_cast.json), and adding even one new name would have
 // meant re-opening that whole check for no reason tonight's task asked
 // for. The cost is that each pool is now roughly half the size it was, so
 // a long campaign repeats a first name sooner than it used to. Flagged
@@ -176,15 +176,19 @@ export function generateCallsign(n: number): string {
 // thirty hand-authored Meks' own names — those are Maxime's pick, still
 // open as of this file, and will land in the campaign data files, not
 // here. This pool is only ever drawn from for a Mek nobody wrote by hand.
+// Two names swapped 13 Sep 2026 (Nell -> Tess, Kell -> Wes), same reason as
+// every earlier swap above: the reserved book cast (tools/reserved_cast.json)
+// grew when the book side's lock document became its source, and two of its
+// new full names carried these as tokens. Pool size unchanged at 48.
 // ---------------------------------------------------------------------
 
 export const MEK_GIVEN_NAMES: readonly string[] = [
   "Amos", "Cleo", "Dagny", "Dov", "Efi", "Elke", "Nuno", "Esme",
   "Freya", "Gus", "Hux", "Ida", "Iris", "Jens", "Kai", "Kasimir",
-  "Lucan", "Lux", "Mattis", "Moss", "Nell", "Nico", "Noa", "Orla",
+  "Lucan", "Lux", "Mattis", "Moss", "Tess", "Nico", "Noa", "Orla",
   "Otis", "Pell", "Silje", "Thom", "Tove", "Ulla", "Uma", "Vidar",
   "Wil", "Yara", "Zed", "Zora", "Aki", "Cyd", "Edie", "Fife",
-  "Gerd", "Huw", "Inka", "Kell", "Lars", "Malo", "Nia", "Poe",
+  "Gerd", "Huw", "Inka", "Wes", "Lars", "Malo", "Nia", "Poe",
 ];
 
 /**

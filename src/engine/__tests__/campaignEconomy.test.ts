@@ -106,7 +106,7 @@ describe("Mission per-unit performance tracking (the new bookkeeping this pass a
   });
 });
 
-describe("Combat/repair assist credit (Qiraki_Weapons_And_Progression.md's 'Scoring system, LOCKED': kills plus assists combined)", () => {
+describe("Combat/repair assist credit (the book project's Weapons_And_Progression.md, 'Scoring system, LOCKED': kills plus assists combined)", () => {
   it("a solo kill — one pilot deals all the damage and lands the finishing blow — earns the kill and NO self-assist", () => {
     const mission = new Mission(MISSION_1A);
     const attacker = mission.units.find((u) => u.pilotId === "pilot_thyns")!;

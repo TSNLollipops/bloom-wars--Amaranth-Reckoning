@@ -7,7 +7,7 @@
 // "nothing about the ruleset itself is book-specific." That confirmation
 // deliberately excludes the source material's own flavor text (a name for
 // the opening move's sound, an unexplained "feels wrong" note) — flagged
-// there as reaching for Qiraki's own rune-tech material rather than being
+// there as reaching for the book's own rune-tech material rather than being
 // original to this game. NONE of that flavor is used here. This module
 // only implements the plain mechanics: a 3x3 dot grid, one line per turn
 // continuing from your own last line's end, no crossing, Reach/Shield/

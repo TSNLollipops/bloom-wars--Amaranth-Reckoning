@@ -2,9 +2,9 @@
 // Team One pilots + meks, transcribed from Data Pack §4.2 with the Canon
 // Pass v1 §A correction applied: Fracrals Thyns is Hiopi/centauroid, not
 // human/bipedal (Data Pack shipped the neutral-default placeholder before
-// the Qiraki source files were cross-checked). All five confirmed against
-// Qiraki_Military_Era_Outline_v3.md Part B, Qiraki_Session_Locks_Addendum.md,
-// and Qiraki_Character_Sheets_v5.md.
+// the book's source files were cross-checked). All five confirmed against
+// the book project's Military_Era_Outline_v3.md Part B, its
+// Session_Locks_Addendum.md, and its Character_Sheets_v5.md.
 import type { PilotRecord, MekArchetype } from "./types";
 
 export const PILOTS: PilotRecord[] = [
