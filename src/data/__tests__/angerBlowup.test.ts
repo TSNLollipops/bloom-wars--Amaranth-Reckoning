@@ -51,12 +51,12 @@ describe("isAngerBlowupEligible", () => {
     expect(isAngerBlowupEligible(-100, STRESS_PANIC_THRESHOLD, 0)).toBe(true);
   });
 
-  it("the real seeded Anand/Iyari rivalry (bond -25) trips on Anand's own seeded Stress (78) with a calm Iyari (40) — npcSeed.ts's NPC_BOND_SEED and NPC_SEED, not synthetic numbers", () => {
-    expect(isAngerBlowupEligible(-25, 78, 40)).toBe(true);
+  it("the real seeded Anand/Iyari rivalry (bond -25) no longer pre-trips on its own, 13 Sep 2026 — Anand's seed came down from 78 to 58 (npcSeed.ts, Maxime's call once Stress got real teeth), so neither side of a fresh save clears STRESS_PANIC_THRESHOLD (70); the friction is still there in the bond, it just has to be earned through play now rather than starting already snapped", () => {
+    expect(isAngerBlowupEligible(-25, 58, 40)).toBe(false);
   });
 
-  it("the same real Anand/Iyari rivalry also trips with the pair's stress arguments swapped — order-independent on which side is 'A'", () => {
-    expect(isAngerBlowupEligible(-25, 40, 78)).toBe(true);
+  it("same real Anand/Iyari numbers, stress arguments swapped — order-independence holds either way", () => {
+    expect(isAngerBlowupEligible(-25, 40, 58)).toBe(false);
   });
 });
 

@@ -6,8 +6,9 @@
 //
 // WARDEN_PILOTS (data/campaignAmaranth.ts): pilot_rourke (the MC),
 // pilot_bosk, pilot_iyari, pilot_anand, pilot_lask (the Munti). Facility
-// regular seeds: Bosk 30/75, Anand 78/60, Iyari 40/68 (data/npcSeed.ts);
-// Lask and every recruit start on the generic 10/70.
+// regular seeds: Bosk 30/75, Anand 58/60 (13 Sep 2026 — down from 78, see
+// npcSeed.ts's own header for why), Iyari 40/68 (data/npcSeed.ts); Lask and
+// every recruit start on the generic 10/70.
 import { describe, it, expect } from "vitest";
 import { createWardenCampaignState, ensureNpcSocialState } from "../campaignState";
 import { pairKey } from "../../data/npcBonds";
@@ -51,14 +52,14 @@ describe("socialSeedFor / socialStateFor — the same seed the Hub would use", (
     const state = createWardenCampaignState();
     expect(socialSeedFor(state, "pilot_bosk")).toEqual({ favorability: 35, stress: 30, morale: 75 });
     expect(socialSeedFor(state, "pilot_lask")).toEqual(GENERIC_SOCIAL_SEED);
-    expect(socialStateFor(state, "pilot_anand").stress).toBe(78);
+    expect(socialStateFor(state, "pilot_anand").stress).toBe(58);
   });
 
   it("grief on a fresh save no longer seeds a survivor at Morale 0", () => {
     const state = createWardenCampaignState();
     runGriefCatalyst(state, SQUAD, "pilot_lask", mulberry32(1));
     expect(state.pilots["pilot_bosk"].social?.morale).toBe(75);
-    expect(state.pilots["pilot_anand"].social?.stress).toBe(78);
+    expect(state.pilots["pilot_anand"].social?.stress).toBe(58);
   });
 });
 
@@ -147,8 +148,10 @@ describe("runDebriefCatalyst — Stress/Morale movement", () => {
   });
 
   it("the echo colours the take: a fearful pilot's downing costs more Stress than a warm one's", () => {
-    // Anand starts at Stress 78, over the panic line, so pickSoloEcho forces
-    // fear for him regardless of seed. Bosk at 30 rolls from his lean.
+    // A pilot over STRESS_PANIC_THRESHOLD always reads fear via
+    // pickSoloEcho, regardless of catalyst lean — built here directly on
+    // Bosk (stress 80) rather than off a named pilot's real seed, since
+    // Anand's own seed came down below the line 13 Sep 2026 (npcSeed.ts).
     const fearful = createWardenCampaignState();
     fearful.pilots["pilot_bosk"].social = { favorability: 0, stress: 80, morale: 75, inRelationship: false, socialLog: [] };
     const warm = createWardenCampaignState();

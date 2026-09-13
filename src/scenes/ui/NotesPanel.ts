@@ -1,5 +1,13 @@
 // src/scenes/ui/NotesPanel.ts
 //
+// SUPERSEDED 13 Sep 2026 — dead code, nothing imports this file anymore.
+// showNotesPanel below was folded into ui/NotesOverlayPanel.ts's
+// showNotesOverlayPanel(scene, "tester", onClose) when Field Notes and
+// Tester Notes merged into one tabbed panel (Maxime's call). Options.ts's
+// TESTER NOTES button calls the new combined panel now. The device bridge
+// that wrote this session's changes can't delete files — flagged here, and
+// in the day's build-log addendum, for a `git rm` of this one.
+//
 // The editable sibling of CopyTextPanel.ts — same DOM-textarea-over-canvas
 // shell, same unconditional-textarea-plus-best-effort-clipboard idiom, same
 // Escape-always-closes fix (see CopyTextPanel.ts's own header for why that

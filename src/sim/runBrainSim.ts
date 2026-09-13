@@ -249,10 +249,13 @@ function runCampaign(seed: number): CampaignRun {
         track.stress.push(p.stressAfter);
         track.morale.push(p.moraleAfter);
         // Legibility check 1 excludes a pilot who was ALREADY over the panic
-        // line when the campaign met them (Anand is seeded at Stress 78,
-        // data/npcSeed.ts, by design "the stressed one"): the write-back
-        // cannot be blamed for a seed value, and that pilot is the Hub's
-        // job (Share a Drink, the Check-In) before he is this file's.
+        // line when the campaign met them: the write-back cannot be blamed
+        // for a seed value, and that pilot is the Hub's job (Share a Drink,
+        // the Check-In) before he is this file's. Anand's own seed came
+        // down from 78 to 58 on 13 Sep 2026 specifically so he no longer
+        // starts in that excluded bucket by default (data/npcSeed.ts) — he
+        // should now read like everyone else here unless a rough run
+        // actually pushes him over.
         if (p.stressAfter >= 100 && i < 7 && !track.startedPanicking) pinnedAt100Before8.add(p.displayName);
         if (p.stressAfter >= STRESS_PANIC_THRESHOLD) panicked.add(p.displayName);
       }

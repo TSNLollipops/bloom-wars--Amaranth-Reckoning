@@ -38,7 +38,7 @@ import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getSto
 import { getTesterNotes } from "../engine/testerNotes";
 import { makeShopButton } from "./shop/ShopPanel";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
-import { showNotesPanel } from "./ui/NotesPanel";
+import { showNotesOverlayPanel } from "./ui/NotesOverlayPanel";
 import { getMusicVolume, setMusicVolume, getSfxVolume, setSfxVolume } from "../engine/audioSettings";
 import { playAmbient, stopAmbient, applyMusicVolumeLive, playSfx } from "./audio/AudioManager";
 // "Clickable = tooltip," 11 Sep 2026 standing rule (claude/Bloom_Wars_
@@ -435,13 +435,15 @@ export class Options extends Phaser.Scene {
 
   /**
    * The Tester Notes scratchpad — an editable panel, unlike
-   * openExportPanel's read-only one above. See scenes/ui/NotesPanel.ts's
-   * own header for why it's a separate component rather than a second mode
-   * on showCopyTextPanel.
+   * openExportPanel's read-only one above. 13 Sep 2026: opens the combined
+   * notebook (ui/NotesOverlayPanel.ts) on its TESTER NOTES tab — Field
+   * Notes is one click away from here now too, not just from the Codex or
+   * a mid-mission ":notes". See that file's own header for why it's a
+   * separate component rather than a second mode on showCopyTextPanel.
    */
   private openNotesPanel() {
     if (this.notesPanel) return;
-    this.notesPanel = showNotesPanel(this, () => {
+    this.notesPanel = showNotesOverlayPanel(this, "tester", () => {
       this.notesPanel = null;
       this.refreshNotesStatus();
     });

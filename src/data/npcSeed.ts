@@ -47,7 +47,15 @@ import type { PilotBackground } from "./types";
 // stay MC-romanceable; Iyari caps at close-friend/bromance.
 export const NPC_SEED: { pilotId: string; catalyst: Catalyst; stress: number; morale: number; drunk: boolean; favorability: number }[] = [
   { pilotId: "pilot_bosk", catalyst: "raven", stress: 30, morale: 75, drunk: false, favorability: 35 },
-  { pilotId: "pilot_anand", catalyst: "wolf", stress: 78, morale: 60, drunk: false, favorability: 10 },
+  // 13 Sep 2026: brought down from 78 (Maxime's call — the Emotional Brain
+  // build gave Stress real mechanical teeth on 12 Sep, and 78 sat 8 points
+  // past STRESS_PANIC_THRESHOLD with no Check-In feature yet built to give a
+  // player any way to bring him back down; the 10-seed brain-sim harness
+  // showed him pinned at 100 by mission 2 in 7 of 10 runs. 58 keeps him the
+  // clearly most-stressed of the three regulars (Iyari's next at 40) and
+  // close enough to the line that a rough mission or two still tips him
+  // over it, without shipping a pilot nothing the player does can help.
+  { pilotId: "pilot_anand", catalyst: "wolf", stress: 58, morale: 60, drunk: false, favorability: 10 },
   { pilotId: "pilot_iyari", catalyst: "crow", stress: 40, morale: 68, drunk: false, favorability: -5 },
 ];
 

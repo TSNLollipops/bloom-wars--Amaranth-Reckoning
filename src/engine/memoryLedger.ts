@@ -14,7 +14,7 @@
 // visit would have left a survivor at Morale 0 for good (Hub.ts's own
 // buildNpcs() only seeds a pilot the FIRST time it sees them, and never
 // re-seeds). The seed now comes from the facility profile's own regulars
-// (Bosk 30/75, Anand 78/60, ...) or the Hub's generic recruit triple, the
+// (Bosk 30/75, Anand 58/60 — down from 78, 13 Sep 2026 — ...) or the Hub's generic recruit triple, the
 // exact values buildNpcs() would have used, so it no longer matters which
 // screen meets a pilot first.
 import type { CampaignState, HubPilotSocialState } from "./campaignState";

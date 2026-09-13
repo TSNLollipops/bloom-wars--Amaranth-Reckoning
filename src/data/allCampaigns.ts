@@ -102,7 +102,20 @@ export const CAMPAIGNS: CampaignDef[] = [
   // as before; only the mission-SELECT picker loses these tabs. Flip this
   // back to unconditional once House Amaranth is ready for its own release
   // (Business Plan v1, version 1.0.0 reserved for exactly that).
-  ...(import.meta.env.DEV
+  //
+  // `?.` added 13 Sep 2026: this file is also loaded by every `tsx
+  // src/sim/*.ts` script that touches WARDEN_MISSION_CHAIN or
+  // ALL_MISSIONS_BY_ID (sim, sim:batch, sim:brain) — a real bug, found
+  // while running sim:brain to check the Anand seed change below. tsx runs
+  // outside Vite entirely and never defines `import.meta.env` at all (not
+  // "DEV is false" — undefined), so the bare `.DEV` read crashed every one
+  // of those three scripts at import time the moment this gate landed, 12
+  // Sep night; nobody had run any of them since. `?.` reads as
+  // undefined/falsy there instead of throwing, which is exactly "not a dev
+  // build" for this array — ALL_MISSIONS_BY_ID and both *_MISSION_CHAIN
+  // exports below are untouched either way, so the sim harness still sees
+  // every House Amaranth mission exactly as before.
+  ...(import.meta.env?.DEV
     ? [
         {
           id: "house_amaranth_act1",

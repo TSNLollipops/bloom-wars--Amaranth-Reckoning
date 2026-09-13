@@ -78,7 +78,7 @@ type GateResult = { passed: boolean; log: string[] };
 // -20 — a real, pre-existing rivalry is the chain's own precondition, not
 // something needs create) — reused by name for a concrete, "point to it"
 // result rather than an anonymous synthetic pilot, but their Stress starts
-// at a healthy 20 here, NOT the real seed's own 78, so this run has to
+// at a healthy 20 here, NOT the real seed's own 58 (down from 78, 13 Sep 2026), so this run has to
 // earn the panic threshold through real decay rather than start past it.
 // Anand's sleep, specifically, is what goes unaddressed.
 function runAngerBlowupLane(): GateResult {

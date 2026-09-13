@@ -101,6 +101,10 @@ export const OUTCOME_TAKE: Record<"win" | "loss", { stress: number; morale: numb
  * from mission 2 on. Retuned to what a player can plausibly counter with
  * the Hub's own relief verbs (Share a Drink is -8): an ordinary sortie
  * with a downing nets +6..+10, a bad one +12..+16, a clean win -3.
+ * (His seed itself came down separately, 78 to 58, on 13 Sep 2026 — see
+ * data/npcSeed.ts — once it was clear the clamp alone couldn't give a
+ * player any way to help him if the seed stayed structurally over the
+ * line before a single mission ran.)
  */
 export const MISSION_STRESS_CLAMP = 16;
 export const MISSION_MORALE_CLAMP = 12;

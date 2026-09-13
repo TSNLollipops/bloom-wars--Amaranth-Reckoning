@@ -2,28 +2,15 @@
 //
 // Field Notes, the read side — Mission Chat / Player Notes / Battle HUD
 // Relayout Plan v1, Workstream 1, 12 Sep 2026. data/playerNotes.ts holds
-// the notebook itself; this file draws it, in two hosts:
+// the notebook itself; this file draws the one thing that reads it:
 //
 //   - renderFieldNotesList(): one paged list renderer with a per-note
 //     DELETE (arm-then-confirm, same two-click idiom Pilot Discharge uses
 //     in ShopPanel.ts — a note written with a typo or by a cat on the
 //     keyboard is otherwise permanent, and a one-click delete on a feature
 //     whose whole point is remembering things is the wrong default).
-//     Used by scenes/Codex.ts's FIELD NOTES section, and by the overlay
-//     below.
-//   - showFieldNotesPanel(): a full-screen overlay hosting that same list,
-//     for ":notes" typed with no text from inside a MISSION. Battle can't
-//     scene.start("Codex") the way the Hub does — leaving the Battle scene
-//     mid-mission and coming back restarts it, which is a mission reset,
-//     not a page turn — so in a mission the notebook opens in place.
-//     Same shell as scenes/ui/NotesPanel.ts (the Tester Notes scratchpad,
-//     a different feature — see playerNotes.ts's own header for the
-//     distinction), same Escape-always-closes rule and the reason for it
-//     (CopyTextPanel.ts's header: a real DOM element can end up painted
-//     over a canvas CLOSE button at some Display Size settings, so no close
-//     path may depend on hitting a button). This overlay has no DOM element
-//     of its own, but the rule is kept for consistency rather than
-//     re-deciding it per panel.
+//     Used by scenes/Codex.ts's FIELD NOTES section, and by
+//     ui/NotesOverlayPanel.ts's FIELD NOTES tab.
 //
 // Grouped by campaign (groupNotesByCampaign), newest first within a group,
 // so a Warden save's notes and a House Amaranth save's notes never
@@ -33,20 +20,16 @@
 // per-row would mean rendering to know how many fit — the codebase's own
 // paged-not-scrolled convention (ShopPanel.ts, Codex.ts) already accepts a
 // conservative fixed budget over that.
+//
+// 13 Sep 2026: the full-screen overlay that used to live in this file
+// (showFieldNotesPanel, for a mid-mission ":notes" with no text) is now
+// ui/NotesOverlayPanel.ts's showNotesOverlayPanel(scene, "field", onClose)
+// — merged with the Tester Notes overlay into one tabbed panel, Maxime's
+// call. This file keeps only the list renderer both callers share.
 import Phaser from "phaser";
-import { makeShopButton } from "../shop/ShopPanel";
 import { HoverTip } from "./HoverTip";
 import { wrapTipText } from "../../engine/hoverTipLayout";
-import {
-  deletePlayerNote,
-  formatNoteContext,
-  loadPlayerNotes,
-  buildNotesRows,
-  notesPageCount,
-  notesRowsForPage,
-  NOTES_PER_PAGE,
-  type NotesPageRow,
-} from "../../data/playerNotes";
+import { deletePlayerNote, formatNoteContext, buildNotesRows, loadPlayerNotes, notesRowsForPage, NOTES_PER_PAGE, type NotesPageRow } from "../../data/playerNotes";
 
 const TEXT_MAIN = "#e8e2d4";
 const TEXT_DIM = "#8a97a6";
@@ -137,77 +120,4 @@ export function renderFieldNotesList(opts: FieldNotesListOptions): NotesPageRow[
     cy += Math.max(rowH, body.height + 16);
   }
   return rows;
-}
-
-/**
- * The in-mission overlay (see the file header). Returns the container so a
- * caller can check `.active`; `onClose` fires after it's destroyed.
- */
-export function showFieldNotesPanel(scene: Phaser.Scene, onClose: () => void): Phaser.GameObjects.Container {
-  const bg = scene.add.rectangle(537, 320, 900, 540, 0x0c0f12, 0.97).setStrokeStyle(2, 0x4a7a9a).setInteractive();
-  const title = scene.add.text(537, 70, "FIELD NOTES", { fontFamily: "monospace", fontSize: "14px", color: "#facc15" }).setOrigin(0.5);
-  const subtitle = scene.add
-    .text(537, 90, "Your own notebook. Written with  :notes <text>  from the chat box. Yours across every campaign, not the commander's.", {
-      fontFamily: "monospace",
-      fontSize: "10px",
-      color: TEXT_DIM,
-      align: "center",
-      wordWrap: { width: 820 },
-    })
-    .setOrigin(0.5);
-  const listLayer = scene.add.container(0, 0);
-  const navLayer = scene.add.container(0, 0);
-  const closeLayer = scene.add.container(0, 0);
-  const panel = scene.add.container(0, 0, [bg, title, subtitle, listLayer, navLayer, closeLayer]);
-  const hoverTip = new HoverTip(scene);
-  let page = 0;
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      close();
-    }
-  };
-  document.addEventListener("keydown", onKeyDown);
-
-  function close() {
-    document.removeEventListener("keydown", onKeyDown);
-    panel.destroy(true);
-    hoverTip.destroy();
-    onClose();
-  }
-
-  function redraw() {
-    listLayer.removeAll(true);
-    navLayer.removeAll(true);
-    const rows = renderFieldNotesList({ scene, layer: listLayer, hoverTip, x: 117, y: 112, w: 840, h: 420, page, onChanged: () => redraw() });
-    const pageCount = notesPageCount(rows);
-    if (page > pageCount - 1) {
-      page = pageCount - 1;
-      redraw();
-      return;
-    }
-    if (pageCount > 1) {
-      const y = 548;
-      makeShopButton(scene, navLayer, 780, y, 26, 22, "<", page > 0, () => { page--; redraw(); }, ["Previous Page"], hoverTip);
-      navLayer.add(scene.add.text(824, y, `PAGE ${page + 1} / ${pageCount}`, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM }).setOrigin(0.5));
-      makeShopButton(scene, navLayer, 868, y, 26, 22, ">", page < pageCount - 1, () => { page++; redraw(); }, ["Next Page"], hoverTip);
-    }
-  }
-  redraw();
-
-  makeShopButton(
-    scene,
-    closeLayer,
-    537,
-    576,
-    220,
-    30,
-    "CLOSE (or press Esc)",
-    true,
-    close,
-    ["Close", "", ...wrapTipText("Back to the mission. Notes are already saved as you wrote them.", 42)],
-    hoverTip
-  );
-  return panel;
 }

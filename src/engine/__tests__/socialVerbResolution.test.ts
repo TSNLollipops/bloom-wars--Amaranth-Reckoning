@@ -121,6 +121,22 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     expect(r.line).toBe(CONGRATULATE_LINES.wolf);
   });
 
+  it("Congratulate with no live topic but killCredit set: treated the same as a live topic, same line bank, no new dialogue needed", () => {
+    const s = createWardenCampaignState(0);
+    const r = resolveSocialVerb(s, bosk, "congratulate", { ...ctx(), killCredit: true });
+    expect(r.applied).toBe(true);
+    expect(r.logged).toBe(true);
+    expect(r.favorability).toBe(CONGRATULATE_FAVORABILITY_DELTA);
+    expect(r.line).toBe(CONGRATULATE_LINES.wolf);
+  });
+
+  it("Congratulate with neither a live topic nor killCredit: still refused", () => {
+    const s = createWardenCampaignState(0);
+    const r = resolveSocialVerb(s, bosk, "congratulate", { ...ctx(), killCredit: false });
+    expect(r.applied).toBe(false);
+    expect(r.line).toBe("Congrats for what?");
+  });
+
   it("Send-Off: favor up, stress relieved (floored at 0), and the sendOff flag for the caller to write preMissionSendOff", () => {
     const s = createWardenCampaignState(0);
     const social = ensureHubSocialState(s, "pilot_bosk", SEED);

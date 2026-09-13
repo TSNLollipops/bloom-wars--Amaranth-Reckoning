@@ -44,7 +44,17 @@
 //     out (the anti-farming rule from 2 Sep 2026). The caller passes
 //     whatever topic list it has — the Hub its live list, the Battle the
 //     pending queue — and gets the same "Congrats for what?" refusal
-//     either way when there's none.
+//     either way when there's none. 13 Sep 2026: mission chat also has a
+//     second, independent way in — SocialVerbContext.killCredit, true when
+//     the pilot has a confirmed kill this mission (Mission.unitPerformance,
+//     the same counter ledger_entry and the Debrief summary already read).
+//     A real "congrats on the kill" beat, not a wording change: promotions
+//     never happen mid-mission, so without this the mission-chat Congratulate
+//     could never once succeed. Deliberately NOT a HotTopic — a kill isn't
+//     something other pilots should overhear about later (see hotTopics.ts's
+//     own circulation rules), it's a private, in-the-moment nod between the
+//     two people in the exchange. The Hub never sets this flag and its
+//     behavior is unchanged.
 //
 // Diminishing returns (§5c's one flagged addition, easy to veto): Maxime
 // explicitly declined a per-mission cap on chat, and this respects that —
@@ -110,6 +120,8 @@ export interface SocialVerbSubject {
 export interface SocialVerbContext {
   /** Live hot topics the caller knows about — Congratulate looks for a "promoted" one about this pilot. */
   hotTopics: readonly HotTopic[];
+  /** Mission chat only, 13 Sep 2026 — true when this pilot has a confirmed kill this mission, a second (non-HotTopic) way for Congratulate to pay out. See this file's own header. Hub always leaves this unset. */
+  killCredit?: boolean;
   /** Date.now() at the caller — SocialLogEntry.at and the topic's `at`. */
   now: number;
   /** Times this verb has already hit this pilot in the current mission (Battle only; Hub passes 0). */
@@ -267,7 +279,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
     }
     case "congratulate": {
       const topic = ctx.hotTopics.find((t) => t.kind === "promoted" && t.aboutPilotId === subject.pilotId);
-      if (!topic) return base("Congrats for what?", false);
+      if (!topic && !ctx.killCredit) return base("Congrats for what?", false);
       social.favorability += scaled(CONGRATULATE_FAVORABILITY_DELTA, scale);
       social.morale = clamp100(social.morale + scaled(CONGRATULATE_MORALE_DELTA, scale));
       const line = pickCongratulateLine(subject.catalyst);

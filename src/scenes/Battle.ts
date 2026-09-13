@@ -49,7 +49,7 @@ import { CHAT_FALLBACK_LINES, COMMAND_HELP_LINES, unknownCommandLine } from "../
 import { loudestWorry } from "../data/worries";
 import { pickCombatWorryLine } from "../data/combatWorryLines";
 import { addPlayerNote } from "../data/playerNotes";
-import { showFieldNotesPanel } from "./ui/FieldNotesPanel";
+import { showNotesOverlayPanel } from "./ui/NotesOverlayPanel";
 // Item-info tooltip pass, 11 Sep 2026 (playtest note: "found by accident
 // that one of his units could heal — nothing told him that going in").
 // WEAPON_BRANCHES.description already exists for every branch (it's the
@@ -1686,9 +1686,12 @@ export class Battle extends Phaser.Scene {
         if (!command.text) {
           // In place, never scene.start("Codex"): leaving Battle and coming
           // back restarts the mission. See FieldNotesPanel.ts's header.
+          // 13 Sep 2026: opens the combined notebook (NotesOverlayPanel.ts)
+          // on its FIELD NOTES tab — Tester Notes is one click away from
+          // here now too, not just from Options.
           if (this.fieldNotesPanel) return;
           this.hoverTip?.hide();
-          this.fieldNotesPanel = showFieldNotesPanel(this, () => {
+          this.fieldNotesPanel = showNotesOverlayPanel(this, "field", () => {
             this.fieldNotesPanel = null;
             this.updateHoverTip();
           });
@@ -1762,7 +1765,12 @@ export class Battle extends Phaser.Scene {
         seed: regular ? { favorability: regular.favorability, stress: regular.stress, morale: regular.morale } : { favorability: 0, stress: 10, morale: 70 },
       },
       verb,
-      { hotTopics: state.pendingHotTopics ?? [], now: Date.now(), repeatIndex }
+      // Congratulate, 13 Sep 2026: a confirmed kill this mission pays out
+      // the same as a live "promoted" topic would — see
+      // socialVerbResolution.ts's own header for why this is a second,
+      // separate signal rather than a HotTopic. Harmless to pass for every
+      // other verb; only the congratulate branch ever reads it.
+      { hotTopics: state.pendingHotTopics ?? [], now: Date.now(), repeatIndex, killCredit: (this.mission.unitPerformance[pilotId]?.kills ?? 0) > 0 }
     );
     this.socialVerbUses[key] = repeatIndex + 1;
     if (result.hotTopic) queuePendingHotTopic(state, result.hotTopic);
@@ -1844,7 +1852,10 @@ export class Battle extends Phaser.Scene {
       text,
       turn: this.mission.turn,
     });
-    this.logCommsLine("SYS", `Channel to ${target.displayName} is open. They heard you. No reply on this frequency yet.`);
+    // Reworded 13 Sep 2026, Maxime's call — see Now & Next's mission-chat
+    // item 8. The Tier-3 standoff SYS line ("X won't fly with you after
+    // this...") is untouched — a separate, later round, one line at a time.
+    this.logCommsLine("SYS", "Channel's open. They're listening. Nothing's coming back on this frequency.");
   }
 
   private catalystFor(target: ChatCandidate): ReturnType<typeof catalystForPilot> {
