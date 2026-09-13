@@ -10,6 +10,7 @@ import type { PilotRecord, MekArchetype } from "./types";
 export const PILOTS: PilotRecord[] = [
   {
     id: "pilot_thyns",
+    gender: "male",
     displayName: "Fracrals Thyns",
     archetypeId: "arch_tank_centauroid", // Canon Pass §A.2
     mekId: "mek_thyns",
@@ -17,6 +18,7 @@ export const PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_barasj",
+    gender: "male",
     displayName: "Derek Barasj",
     archetypeId: "arch_munti_bipedal",
     mekId: "mek_barasj",
@@ -24,6 +26,7 @@ export const PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_nagori",
+    gender: "male",
     displayName: "Hiro Nagori",
     archetypeId: "arch_meeps_bipedal",
     mekId: "mek_nagori",
@@ -31,6 +34,7 @@ export const PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_tourignie",
+    gender: "female",
     displayName: "Yren Tourignie",
     archetypeId: "arch_reeps_bipedal",
     mekId: "mek_tourignie",
@@ -38,6 +42,7 @@ export const PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_voss",
+    gender: "male",
     displayName: "Marcus Voss",
     archetypeId: "arch_meeps_bipedal",
     mekId: "mek_voss",
@@ -87,12 +92,12 @@ export const MEKS: Record<string, MekArchetype> = {
 // of the four slice missions' playerPilotIds — kept here so the campaign
 // layer can grow into it without another data-entry pass.
 export const ROSTER_DEPTH_PILOTS: PilotRecord[] = [
-  { id: "pilot_solvig", displayName: "Bram Solvig", archetypeId: "arch_munti_vibrissal", mekId: "mek_solvig", tier: "G" },
-  { id: "pilot_green", displayName: "Frida Green", archetypeId: "arch_munti_bipedal", mekId: "mek_green", tier: "G" },
-  { id: "pilot_hyrs", displayName: "Trahsin Hyrs", archetypeId: "arch_tank_centauroid", mekId: "mek_hyrs", tier: "G" },
-  { id: "pilot_dufours", displayName: "Elodie Dufours", archetypeId: "arch_reeps_bipedal", mekId: "mek_dufours", tier: "G" },
-  { id: "pilot_castell", displayName: "Naomi Castell", archetypeId: "arch_reeps_bipedal", mekId: "mek_castell", tier: "G" },
-  { id: "pilot_arnesen", displayName: "Suki Arnesen", archetypeId: "arch_reeps_bipedal", mekId: "mek_arnesen", tier: "G" },
+  { id: "pilot_solvig", displayName: "Bram Solvig", gender: "male", archetypeId: "arch_munti_vibrissal", mekId: "mek_solvig", tier: "G" },
+  { id: "pilot_green", displayName: "Frida Green", gender: "female", archetypeId: "arch_munti_bipedal", mekId: "mek_green", tier: "G" },
+  { id: "pilot_hyrs", displayName: "Trahsin Hyrs", gender: "female", archetypeId: "arch_tank_centauroid", mekId: "mek_hyrs", tier: "G" },
+  { id: "pilot_dufours", displayName: "Elodie Dufours", gender: "female", archetypeId: "arch_reeps_bipedal", mekId: "mek_dufours", tier: "G" },
+  { id: "pilot_castell", displayName: "Naomi Castell", gender: "female", archetypeId: "arch_reeps_bipedal", mekId: "mek_castell", tier: "G" },
+  { id: "pilot_arnesen", displayName: "Suki Arnesen", gender: "female", archetypeId: "arch_reeps_bipedal", mekId: "mek_arnesen", tier: "G" },
 ];
 
 export const ROSTER_DEPTH_MEKS: Record<string, MekArchetype> = {

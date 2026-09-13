@@ -70,6 +70,7 @@ import { runDebriefCatalyst, debriefTakeLine, type DebriefCatalystResult } from 
 import { recordHumanMissionSummary, activeRosterSize, currentGameVersion } from "../engine/telemetry";
 import { summaryMvp, type MissionSummary } from "../engine/missionSummary";
 import { ShopPanel, makeShopButton, showSaveAsOverlay } from "./shop/ShopPanel";
+import { genderOf, subjectPronoun } from "../data/gender";
 import { showCharacterCreatorOverlay } from "./shop/CharacterCreatorOverlay";
 import { addMenuOverlayButton } from "./MenuOverlay";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
@@ -819,7 +820,25 @@ export class Debrief extends Phaser.Scene {
       const height = headerH + result.mourners.length * lineH + result.bondShifts.length * lineH + 10;
 
       this.add.rectangle(480, y + height / 2, CARD_W, height, 0x1b1922, 1).setStrokeStyle(1, 0x4a4258);
-      this.add.text(CARD_L + 16, y + 8, `GRIEF — HOW THEY'RE TAKING IT (${lostName})`, {
+      // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026) replaces
+      // the "GRIEF — HOW THEY'RE TAKING IT (name)" HEADER only — the
+      // per-mourner lines and the bond shifts below it stay exactly as
+      // they were, per that entry's own "(replaces ...)" annotation.
+      //
+      // This is the seventh and last of his seven Debrief lines, and it
+      // was the one held back on 12 Sep: his own text reads "when she/he
+      // got angry," which needs a real pronoun, and PilotRecord had no
+      // gender field to read one from. That field exists as of 13 Sep
+      // (data/gender.ts, and the 36-pilot authored backfill) — genderOf
+      // is the safe read, carrying its own fallback for a save older than
+      // the field. Falls back on the id alone when the lost pilot's record
+      // is already gone from state.pilots, the same case the lostName line
+      // above already guards for.
+      const lostPilot = this.state.pilots[result.lostPilotId]?.pilot;
+      const griefHeader = this.isHouseAmaranthMission
+        ? `I'm going to miss "${lostName}"'s snark when ${subjectPronoun(genderOf(lostPilot ?? { id: result.lostPilotId }))} got angry.`
+        : `GRIEF — HOW THEY'RE TAKING IT (${lostName})`;
+      this.add.text(CARD_L + 16, y + 8, griefHeader, {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#a99bc4",
@@ -959,8 +978,13 @@ export class Debrief extends Phaser.Scene {
         color: "#facc15",
       })
       .setOrigin(0.5);
+    // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026 — "replaces
+    // the day-count stat"): the CAMPAIGN COMPLETE header above is
+    // untouched, only this second row swaps. Warden's own day-count line
+    // is untouched.
+    const finaleSubtext = this.isHouseAmaranthMission ? "Hold as long as possible. We have proof now. This works." : `Your run: ${formatDayLabel(this.state)}`;
     this.add
-      .text(480, top + 38, `Your run: ${formatDayLabel(this.state)}`, {
+      .text(480, top + 38, finaleSubtext, {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#c9b98a",
@@ -973,13 +997,16 @@ export class Debrief extends Phaser.Scene {
     if (!this.muntiFired || !this.muntiPilot) return top;
     const height = 40;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x2a1f14, 1).setStrokeStyle(1, 0xb8860b);
+    // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026 — "replaces
+    // EMERGENCY REPLACEMENT — [name] assigned, Munti-class, G-tier"). Drops
+    // the class/tier detail the same way the other six Debrief lines each
+    // drop whatever mechanical text they replace — Warden's own line is
+    // untouched below.
+    const muntiText = this.isHouseAmaranthMission
+      ? `You lost your munties. I had to transfer "${this.muntiPilot.displayName}" urgently from the academy. Good luck.`
+      : `EMERGENCY REPLACEMENT — ${this.muntiPilot.displayName} assigned, Munti-class, G-tier`;
     this.add
-      .text(
-        480,
-        top + height / 2,
-        `EMERGENCY REPLACEMENT — ${this.muntiPilot.displayName} assigned, Munti-class, G-tier`,
-        { fontFamily: "monospace", fontSize: "12px", color: "#facc15" }
-      )
+      .text(480, top + height / 2, muntiText, { fontFamily: "monospace", fontSize: "12px", color: "#facc15" })
       .setOrigin(0.5);
     return top + height;
   }
@@ -1004,6 +1031,13 @@ export class Debrief extends Phaser.Scene {
       text = `BONUS OBJECTIVE COMPLETE — patch cleared (+${this.bonusObjectivePoints} pts)`;
     }
     if (!text) return top;
+    // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026) — this panel
+    // carries only one line of text total (no separate header/detail split
+    // the way Grief/Callsign/Lance do), so unlike those, Verinis's line
+    // stands in for the whole thing rather than one named part of it —
+    // same "drop the mechanical detail" treatment as Munti above. Warden's
+    // own point/name detail is untouched.
+    if (this.isHouseAmaranthMission) text = "You succeeded beyond my expectations. Good job.";
     const height = 40;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14261c, 1).setStrokeStyle(1, 0x4ade80);
     this.add.text(480, top + height / 2, text, { fontFamily: "monospace", fontSize: "12px", color: "#4ade80" }).setOrigin(0.5);
@@ -1027,6 +1061,28 @@ export class Debrief extends Phaser.Scene {
    */
   private drawCallsignCallout(top: number): number {
     if (!this.callsignsEarned.length) return top;
+    if (this.isHouseAmaranthMission) {
+      // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026, "replaces
+      // THE CREW HAS A NAME FOR THEM NOW") already names both the pilot
+      // and their new callsign, so it stands in for the header AND the
+      // "— first kill" sub-line together — one full line per pilot named
+      // this mission rather than a generic header plus a per-entry list.
+      const lineH = 20;
+      const height = 12 + this.callsignsEarned.length * lineH;
+      this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1c1a14, 1).setStrokeStyle(1, 0xc8b273);
+      let y = top + 6 + lineH / 2;
+      for (const earned of this.callsignsEarned) {
+        this.add
+          .text(480, y, `"${earned.pilot}" has been named "${earned.callsign}" by the crew. I'm surprised to have heard about it before you.`, {
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: "#c8b273",
+          })
+          .setOrigin(0.5);
+        y += lineH;
+      }
+      return top + height;
+    }
     const height = 26 + this.callsignsEarned.length * 16;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1c1a14, 1).setStrokeStyle(1, 0xc8b273);
     this.add
@@ -1099,18 +1155,15 @@ export class Debrief extends Phaser.Scene {
     // Warden's. See integrateHouseAmaranthSecondLance's own doc comment
     // for the full history of that reversal.
     if (this.isHouseAmaranthMission) {
+      // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026) explicitly
+      // "replaces …recruit it at the Campaign Shop / five berths, empty" —
+      // both lines below, not just one, so this is a single centered line
+      // rather than the header+detail pair Warden keeps.
       this.add
-        .text(480, top + 16, "YOU HAVE BEEN GIVEN A SECOND LANCE — recruit it at the Campaign Shop", {
+        .text(480, top + height / 2, "You'll command two lance as of today. It's your job to fill the roster.", {
           fontFamily: "monospace",
           fontSize: "12px",
           color: "#4ade80",
-        })
-        .setOrigin(0.5);
-      this.add
-        .text(480, top + 36, this.berthsLine("b", "The Campaign Shop below"), {
-          fontFamily: "monospace",
-          fontSize: "10px",
-          color: "#8a97a6",
         })
         .setOrigin(0.5);
       return top + height;
@@ -1151,18 +1204,13 @@ export class Debrief extends Phaser.Scene {
     const height = 56;
     this.add.rectangle(480, top + height / 2, CARD_W, height, 0x14201f, 1).setStrokeStyle(1, 0x4ade80);
     if (this.isHouseAmaranthMission) {
+      // Verinis's Debrief line (Voice Bank v1 §10, 12 Sep 2026) — same
+      // "replaces both lines" treatment as drawSecondLanceCallout above.
       this.add
-        .text(480, top + 16, "YOU HAVE BEEN GIVEN A THIRD LANCE — recruit it at the Campaign Shop", {
+        .text(480, top + height / 2, "Congratulations, you are promoted. Go fill your 3rd Lance.", {
           fontFamily: "monospace",
           fontSize: "12px",
           color: "#4ade80",
-        })
-        .setOrigin(0.5);
-      this.add
-        .text(480, top + 36, this.berthsLine("c", "The Campaign Shop below"), {
-          fontFamily: "monospace",
-          fontSize: "10px",
-          color: "#8a97a6",
         })
         .setOrigin(0.5);
       return top + height;

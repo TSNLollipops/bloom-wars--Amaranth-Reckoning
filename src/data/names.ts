@@ -43,7 +43,13 @@
 // repeated here on purpose, so this comment doesn't trip its own
 // collision lint). Replacements keep every pool the same size.
 //
-// This file imports nothing — src/data stays pure, hand-editable data.
+// This file imports one type and nothing else — src/data stays pure,
+// hand-editable data. (It imported literally nothing until 13 Sep 2026,
+// when the gendered name split below needed the Gender union. That is a
+// type-only import from a sibling data module, erased at compile time,
+// and it does not touch the rule that actually matters here: src/data/**
+// must never import from src/engine/**.)
+import type { Gender } from "./types";
 
 /** Pick one element at random. `rng` is injectable so a test can be deterministic. */
 export function randomFrom<T>(list: readonly T[], rng: () => number = Math.random): T {
@@ -58,11 +64,68 @@ export function randomFrom<T>(list: readonly T[], rng: () => number = Math.rando
 /** The rank a fresh recruit carries. Deliberately junior — they are new, and the authored cast's ranks are earned. */
 export const RECRUIT_RANKS = ["Pvt.", "Spec.", "Cpl."] as const;
 
-export const RECRUIT_FIRST_NAMES: readonly string[] = [
-  "Vera", "Idris", "Noor", "Cassian", "Mira", "Tobias", "Saoirse", "Selin",
-  "Runa", "Alaric", "Zaine", "Ngozi", "Kwame", "Ilse", "Renzo", "Ayla",
-  "Dmitri", "Neve", "Osman", "Thea", "Bastien", "Junia", "Marek", "Sena",
+// Split by gender 13 Sep 2026 (Maxime: "The gender is chosen before name.
+// So it match"), so the character creator can reroll a name that agrees
+// with the gender the player just picked.
+//
+// Worth being exact about what this split did and did not do: it is a
+// PARTITION of the same 24 names that were already here, not a rewrite.
+// Nothing was added, nothing was removed, nothing was renamed. That was
+// deliberate — every name in this file has already been cleared against
+// the hand-authored cast on both campaigns, the archived Team One/Two
+// roster, both COs, and the book series' own named cast
+// (tools/qiraki_named_cast.json), and adding even one new name would have
+// meant re-opening that whole check for no reason tonight's task asked
+// for. The cost is that each pool is now roughly half the size it was, so
+// a long campaign repeats a first name sooner than it used to. Flagged
+// rather than fixed: expanding either pool is a real content pass with a
+// real collision check attached, and Maxime's own eyes on the new names.
+//
+// One judgment call inside the partition, called out rather than buried:
+// "Noor" is genuinely used for men and women both, and it went to the
+// female pool. Moving it is a one-line edit if he'd rather.
+export const RECRUIT_FIRST_NAMES_MALE: readonly string[] = [
+  "Idris", "Cassian", "Tobias", "Alaric", "Zaine", "Kwame",
+  "Renzo", "Dmitri", "Osman", "Bastien", "Marek",
 ];
+
+export const RECRUIT_FIRST_NAMES_FEMALE: readonly string[] = [
+  "Vera", "Noor", "Mira", "Saoirse", "Selin", "Runa", "Ngozi",
+  "Ilse", "Ayla", "Neve", "Thea", "Junia", "Sena",
+];
+
+/**
+ * Both pools as one list. Kept because the collision discipline this
+ * file's header describes is about the SET of names the game can mint,
+ * not about which pool a name sits in — data/__tests__/names.test.ts
+ * checks this union, so a name can never be smuggled past that check by
+ * living in only one of the two pools.
+ */
+export const RECRUIT_FIRST_NAMES: readonly string[] = [...RECRUIT_FIRST_NAMES_MALE, ...RECRUIT_FIRST_NAMES_FEMALE];
+
+/** The first-name pool that matches a gender. The one mapping — never index the two pools by hand at a call site. */
+export function firstNamePoolFor(gender: Gender): readonly string[] {
+  return gender === "male" ? RECRUIT_FIRST_NAMES_MALE : RECRUIT_FIRST_NAMES_FEMALE;
+}
+
+/**
+ * How often a generated recruit rolls male. Not 0.5, and the reason is
+ * canon rather than taste: data/archive.ts's own `sp_osnian` entry states
+ * outright that "males are overrepresented in the Coalition's front-line
+ * service by a wide margin." A flat coin-flip would have quietly
+ * contradicted a line the player can go and read in the Archive.
+ *
+ * 0.65 is a judgment call inside the space that line allows — enough of a
+ * skew to be visible across a twenty-pilot roster, not so much that a
+ * player stops seeing women in their own lance. It is one number, in one
+ * place, on purpose: change this line and every recruit path follows.
+ */
+export const RECRUIT_MALE_WEIGHT = 0.65;
+
+/** One weighted roll for a generated recruit's gender. See RECRUIT_MALE_WEIGHT for why it isn't a coin flip. */
+export function randomGender(rng: () => number = Math.random): Gender {
+  return rng() < RECRUIT_MALE_WEIGHT ? "male" : "female";
+}
 
 export const RECRUIT_SURNAMES: readonly string[] = [
   "Okonkwo", "Valdis", "Brennan", "Nakamura", "Oyelaran", "Ferrow", "Halden", "Sarkis",
@@ -79,9 +142,19 @@ export const RECRUIT_CALLSIGNS: readonly string[] = [
   "Sprocket", "Halfmoon", "Thistle", "Coldsnap", "Tinder", "Windup", "Juniper", "Rattler", "Fenwick", "Hollow",
 ];
 
-/** A recruit's plain rank-and-name identity, with no callsign — that gets earned. */
-export function generateRecruitName(rng: () => number = Math.random): string {
-  return `${randomFrom(RECRUIT_RANKS, rng)} ${randomFrom(RECRUIT_FIRST_NAMES, rng)} ${randomFrom(RECRUIT_SURNAMES, rng)}`;
+/**
+ * A recruit's plain rank-and-name identity, with no callsign — that gets
+ * earned. Takes the gender FIRST, both in the parameter list and in the
+ * order the caller is expected to decide things, because that is the
+ * actual sequencing Maxime asked for: the gender is picked, then a name
+ * that matches it is drawn. Surnames are not gendered and draw from the
+ * one shared pool.
+ *
+ * Still exactly three rng draws, in the same order as before the split
+ * (rank, first name, surname), so a seeded caller's sequence is unchanged.
+ */
+export function generateRecruitName(gender: Gender, rng: () => number = Math.random): string {
+  return `${randomFrom(RECRUIT_RANKS, rng)} ${randomFrom(firstNamePoolFor(gender), rng)} ${randomFrom(RECRUIT_SURNAMES, rng)}`;
 }
 
 /**

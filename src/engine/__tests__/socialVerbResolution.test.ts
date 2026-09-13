@@ -11,6 +11,7 @@ import {
   GIFT_FAVORABILITY_DELTA,
   PRAISE_FAVORABILITY_DELTA,
   FLIRT_FAVORABILITY_DELTA,
+  FLIRT_FAVORABILITY_GATE,
   INSULT_FAVORABILITY_DELTA,
   APOLOGY_FAVORABILITY_DELTA,
   INSULT_TIER2_COUNT,
@@ -56,11 +57,22 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     expect(r.line).toBe(PRAISE_LINES.wolf);
   });
 
-  it("Flirt on a romanceable pilot: +FLIRT_FAVORABILITY_DELTA, a flirt line", () => {
+  it("Flirt on a romanceable pilot already at/above the Favorability gate: +FLIRT_FAVORABILITY_DELTA, a flirt line", () => {
     const s = createWardenCampaignState(0);
+    ensureHubSocialState(s, "pilot_bosk", SEED).favorability = FLIRT_FAVORABILITY_GATE;
     const r = resolveSocialVerb(s, bosk, "flirt", ctx());
     expect(r.applied).toBe(true);
-    expect(r.favorability).toBe(FLIRT_FAVORABILITY_DELTA);
+    expect(r.favorability).toBe(FLIRT_FAVORABILITY_GATE + FLIRT_FAVORABILITY_DELTA);
+  });
+
+  it("Flirt on a romanceable pilot below the Favorability gate: refused like any other requirements-gated verb, nothing moves, nothing logged", () => {
+    const s = createWardenCampaignState(0);
+    const r = resolveSocialVerb(s, bosk, "flirt", ctx());
+    expect(r.applied).toBe(false);
+    expect(r.logged).toBe(false);
+    expect(r.favorability).toBe(SEED.favorability);
+    expect(r.line).toBe("You don't know them well enough yet.");
+    expect(ensureHubSocialState(s, "pilot_bosk", SEED).socialLog).toHaveLength(0);
   });
 
   it("Flirt on a close-friend-only species: the Ask Out redirect line, nothing moves, but it IS logged (Hub.ts always logged that one)", () => {

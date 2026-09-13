@@ -11,6 +11,15 @@ export type Path = "meeps" | "tank" | "reeps" | "munti";
 // value exists for isRomanceableSpecies() to key off directly rather than
 // through the archetype lookup every combat pilot uses.
 export type Species = "human" | "hiopi" | "osnius" | "carabil";
+/**
+ * A pilot's gender (13 Sep 2026). Male or female, deliberately nothing
+ * else — Maxime's own answer when asked what values the field should
+ * carry. Lives here beside Species rather than in data/gender.ts so that
+ * file can import it the same direction everything else imports its types,
+ * with no data-module import cycle. Every pronoun that reads off it, and
+ * the one safe read path for it, are in data/gender.ts.
+ */
+export type Gender = "male" | "female";
 export type Chassis = "bipedal" | "centauroid" | "bipedal_vibrissal";
 /**
  * Gear tier. G is the floor, A the top of the ladder a pilot can BUY.
@@ -181,6 +190,23 @@ export interface PilotRecord {
    * correct rather than missing data.
    */
   callsign?: string;
+  /**
+   * Male or female (13 Sep 2026, Maxime: "Assign gender based on name and
+   * species... We gotta add gender to the character creator"). Read it
+   * through `data/gender.ts`'s `genderOf`, never off this field directly —
+   * that helper carries the fallback for saves written before this field
+   * existed, and its own doc-comment explains the optionality.
+   *
+   * Optional on the TYPE for save compatibility only. It is not optional
+   * on hand-authored content: all 36 authored pilots across
+   * campaignAmaranth.ts, campaignHouseAmaranth.ts and meks.ts set it
+   * explicitly, and `data/__tests__/gender.test.ts` fails red if a future
+   * authored pilot is added without one. Generated recruits get theirs
+   * from engine/campaignState.ts's generatePilot, before the name is
+   * rolled, so the name matches the gender rather than the other way
+   * round (his own sequencing: "The gender is chosen before name").
+   */
+  gender?: Gender;
   archetypeId: string;
   mekId: string;
   tier: Tier;

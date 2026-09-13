@@ -83,42 +83,51 @@ export const CAMPAIGNS: CampaignDef[] = [
     subtitle: "Warden Company. Meridian's Oath, the withdrawal, The Cradle, the relief fleet — Act III complete, missions 25-36 of 36. Campaign complete.",
     missions: AMARANTH_ACT3,
   },
-  // House Amaranth — Mission Select + roster-seeding wiring pass, 1 Sep
-  // 2026. Titles from Bloom_Wars_House_Amaranth_Mission_Plan_v1.md §4 ("The
-  // Amaranth Bargain," act titles Harvest Ground / The Bargain Holds / The
-  // Stalling Season) — already the names every mission's own build-time
-  // comment in campaignHouseAmaranth.ts uses, so this isn't picking a new
-  // name, just surfacing the one already in use. Same permissive behavior
-  // as Warden's own three tabs above: nothing here gates a tab behind
-  // finishing the previous act or behind which SIDE a save was started as
-  // (CampaignSetup.ts) — a Warden save browsing into these tabs will find
-  // an empty House Amaranth roster, same as the existing cross-act
-  // permissiveness this file's own header already documents for Warden.
-  // Not fixed in this pass — flagged, not silently patched over, since
-  // building real campaign-scoping in MapSelect would be a new system, not
-  // wiring an existing one.
-  {
-    id: "house_amaranth_act1",
-    name: "The Amaranth Bargain — Act I: Harvest Ground",
-    subtitle: "House Amaranth. Col. Marrow's lance, the diversion program's early days — Act I complete, missions 1-12 of 12.",
-    missions: HOUSE_AMARANTH_ACT1,
-  },
-  {
-    id: "house_amaranth_act2",
-    name: "The Amaranth Bargain — Act II: The Bargain Holds",
-    // Second Lance integration (engine/campaignState.ts's
-    // integrateHouseAmaranthSecondLance) fires off a Mission 12 win, same
-    // "regardless of which tab you're looking at" permissiveness Warden's
-    // own Act II comment above already documents.
-    subtitle: "House Amaranth. A second lance, political pressure, the shared Mission 20 duel — Act II complete, missions 13-20 of 20.",
-    missions: HOUSE_AMARANTH_ACT2,
-  },
-  {
-    id: "house_amaranth_act3",
-    name: "The Amaranth Bargain — Act III: The Stalling Season",
-    subtitle: "House Amaranth. The Bramble, the Wellroot, a stalling action fought to real local vindication — Act III complete, missions 21-36 of 36. Campaign complete.",
-    missions: HOUSE_AMARANTH_ACT3,
-  },
+  // House Amaranth — hidden from the normal/paid build, 12 Sep 2026
+  // (Sitrep, item 4: "hide House Amaranth from the normal/paid build via an
+  // env-gated filter"). Wired into CAMPAIGNS on 1 Sep 2026 (titles from
+  // Bloom_Wars_House_Amaranth_Mission_Plan_v1.md §4, "The Amaranth
+  // Bargain," act titles Harvest Ground / The Bargain Holds / The Stalling
+  // Season), but a full 36-mission second campaign showing up in
+  // mission-select isn't ready to ship in the EA build. Same "kept, not
+  // offered" treatment as Team One above, done the DEV-gated way instead
+  // of a hard removal, since — unlike Team One — this one still needs to
+  // stay visible to whoever is actually building it: `import.meta.env.DEV`
+  // is true for `npm run dev`/local dev builds and false for the real
+  // `vite build`/`build:demo` a release ships from, so the three tabs
+  // below disappear from mission-select the moment this repo is built for
+  // real. Zero effect on ALL_MISSIONS_BY_ID or HOUSE_AMARANTH_MISSION_CHAIN
+  // below — both stay unfiltered, so the sim harness, Battle.ts and the
+  // mission-order gate all still resolve every House Amaranth id exactly
+  // as before; only the mission-SELECT picker loses these tabs. Flip this
+  // back to unconditional once House Amaranth is ready for its own release
+  // (Business Plan v1, version 1.0.0 reserved for exactly that).
+  ...(import.meta.env.DEV
+    ? [
+        {
+          id: "house_amaranth_act1",
+          name: "The Amaranth Bargain — Act I: Harvest Ground",
+          subtitle: "House Amaranth. Col. Marrow's lance, the diversion program's early days — Act I complete, missions 1-12 of 12.",
+          missions: HOUSE_AMARANTH_ACT1,
+        },
+        {
+          id: "house_amaranth_act2",
+          name: "The Amaranth Bargain — Act II: The Bargain Holds",
+          // Second Lance integration (engine/campaignState.ts's
+          // integrateHouseAmaranthSecondLance) fires off a Mission 12 win,
+          // same "regardless of which tab you're looking at" permissiveness
+          // Warden's own Act II comment above already documents.
+          subtitle: "House Amaranth. A second lance, political pressure, the shared Mission 20 duel — Act II complete, missions 13-20 of 20.",
+          missions: HOUSE_AMARANTH_ACT2,
+        },
+        {
+          id: "house_amaranth_act3",
+          name: "The Amaranth Bargain — Act III: The Stalling Season",
+          subtitle: "House Amaranth. The Bramble, the Wellroot, a stalling action fought to real local vindication — Act III complete, missions 21-36 of 36. Campaign complete.",
+          missions: HOUSE_AMARANTH_ACT3,
+        },
+      ]
+    : []),
 ];
 
 export const ALL_MISSIONS_BY_ID: Record<string, CampaignMission> = {

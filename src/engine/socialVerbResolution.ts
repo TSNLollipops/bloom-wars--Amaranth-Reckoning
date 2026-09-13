@@ -79,6 +79,7 @@ import {
   CONGRATULATE_MORALE_DELTA,
   pickCongratulateLine,
   FLIRT_FAVORABILITY_DELTA,
+  FLIRT_FAVORABILITY_GATE,
   pickFlirtLine,
   SEND_OFF_FAVORABILITY_DELTA,
   SEND_OFF_STRESS_DELTA,
@@ -209,6 +210,16 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
         const line = CLOSE_FRIEND_ONLY_LINES[Math.floor(rng() * CLOSE_FRIEND_ONLY_LINES.length)];
         log(line);
         return base(line, false, true);
+      }
+      // Favorability gate, 12 Sep 2026 (Placeholder TODO item N, resolved
+      // via AskUserQuestion — "layer both gates"): the species check above
+      // is unchanged and still runs first; this is a second, independent
+      // gate on top of it. Below FLIRT_FAVORABILITY_GATE this refuses like
+      // any other requirements-gated verb (Congratulate's "Congrats for
+      // what?" precedent) — a plain line, no favorability change, no line
+      // roll, nothing logged.
+      if (social.favorability < FLIRT_FAVORABILITY_GATE) {
+        return base("You don't know them well enough yet.", false);
       }
       social.favorability += scaled(FLIRT_FAVORABILITY_DELTA, scale);
       const line = pickFlirtLine(subject.catalyst);

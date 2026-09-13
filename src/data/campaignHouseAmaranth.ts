@@ -42,6 +42,7 @@ import type { CampaignMission, MekArchetype, PilotRecord } from "./types";
 export const HOUSE_AMARANTH_PILOTS: PilotRecord[] = [
   {
     id: "pilot_marrow",
+    gender: "female",
     displayName: "Col. Ysolde Marrow",
     // Tank -- resolved 31 Aug 2026 via AskUserQuestion ("as proposed").
     // arch_tank_bipedal, not centauroid/vibrissal: no chassis/species was
@@ -60,6 +61,7 @@ export const HOUSE_AMARANTH_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_vondra",
+    gender: "female",
     displayName: "Sgt. Petra Vondra — “Ironrow”",
     // Hiopi/centauroid, per Maxime's "2 hiopi meeps" -- same chassis/
     // species pairing as Iyari/Tarrant in campaignAmaranth.ts.
@@ -69,6 +71,7 @@ export const HOUSE_AMARANTH_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_meir",
+    gender: "male",
     displayName: "Cpl. Jonas Meir — “Sparrow”",
     archetypeId: "arch_meeps_centauroid", // Hiopi/centauroid, the second of the two
     mekId: "mek_meir",
@@ -76,6 +79,7 @@ export const HOUSE_AMARANTH_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_bray",
+    gender: "male",
     displayName: "S.Sgt. Callum Bray — “Deadfall”",
     archetypeId: "arch_reeps_bipedal", // human, per "a human reeps"
     mekId: "mek_bray",
@@ -83,6 +87,7 @@ export const HOUSE_AMARANTH_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_orin",
+    gender: "female",
     displayName: "Cpl. Nessa Orin — “Quill”",
     archetypeId: "arch_munti_vibrissal", // Osnian/vibrissal, per "a osnian munties" -- same pairing as Anand/Vashti
     mekId: "mek_orin",
@@ -153,6 +158,7 @@ export const HOUSE_AMARANTH_ROSTER_IDS = HOUSE_AMARANTH_PILOTS.map((p) => p.id);
 export const HOUSE_AMARANTH_SECOND_LANCE_PILOTS: PilotRecord[] = [
   {
     id: "pilot_kessler",
+    gender: "male",
     displayName: "Sgt. Rutger Kessler — “Tallgrass”",
     archetypeId: "arch_tank_bipedal",
     mekId: "mek_kessler",
@@ -160,6 +166,7 @@ export const HOUSE_AMARANTH_SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_vantana",
+    gender: "female",
     displayName: "Cpl. Imara Vantana — “Windbreak”",
     archetypeId: "arch_meeps_vibrissal", // Osnius/vibrissal -- contrast with Vondra/Meir's hiopi-centauroid
     mekId: "mek_vantana",
@@ -167,6 +174,7 @@ export const HOUSE_AMARANTH_SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_reyken",
+    gender: "male",
     displayName: "Spec. Toma Reyken — “Longshadow”",
     archetypeId: "arch_reeps_centauroid", // Hiopi/centauroid
     mekId: "mek_reyken",
@@ -174,6 +182,7 @@ export const HOUSE_AMARANTH_SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_solano",
+    gender: "female",
     displayName: "Cpl. Adaeze Solano — “Backfurrow”",
     archetypeId: "arch_reeps_bipedal", // Human/bipedal, the lance's second Reeps
     mekId: "mek_solano",
@@ -181,6 +190,7 @@ export const HOUSE_AMARANTH_SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_marrin",
+    gender: "female",
     displayName: "Sgt. Ondine Marrin — “Greenhand”",
     archetypeId: "arch_munti_centauroid", // Hiopi/centauroid -- contrast with Orin's osnius-vibrissal
     mekId: "mek_marrin",
@@ -248,6 +258,7 @@ export const HOUSE_AMARANTH_ACT2_DEFAULT_SQUAD = [...HOUSE_AMARANTH_ROSTER_IDS, 
 export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
   {
     id: "pilot_thorne",
+    gender: "male",
     displayName: "Pvt. Emeka Thorne — “Harrow”",
     // Human/bipedal, matching Marrow/Bray/Kessler/Solano's own default
     // read for an unspecified pilot (HOUSE_AMARANTH_PILOTS' own comment
@@ -259,6 +270,7 @@ export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_kastan",
+    gender: "female",
     displayName: "Pvt. Liora Kastan — “Scarecrow”",
     archetypeId: "arch_meeps_centauroid", // Hiopi/centauroid, the third of this roster's now-three
     mekId: "mek_kastan",
@@ -266,6 +278,7 @@ export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_osei",
+    gender: "male",
     displayName: "Pvt. Bram Osei — “Silo”",
     archetypeId: "arch_reeps_vibrissal", // Osnian/vibrissal -- this roster's first Reeps of that species, contrast with Bray/Solano's human-bipedal Reeps
     mekId: "mek_osei",
@@ -273,6 +286,7 @@ export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_dunmore",
+    gender: "female",
     displayName: "Pvt. Sera Dunmore — “Chaffwind”",
     archetypeId: "arch_munti_centauroid", // Hiopi/centauroid, matching Marrin's own pairing
     mekId: "mek_dunmore",
@@ -280,6 +294,7 @@ export const HOUSE_AMARANTH_THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_amsel",
+    gender: "male",
     displayName: "Pvt. Teo Amsel — “Rootbind”",
     archetypeId: "arch_meeps_bipedal", // Human/bipedal -- a Ward-Crop Technician thirteen months ago, per this section's own header
     mekId: "mek_amsel",

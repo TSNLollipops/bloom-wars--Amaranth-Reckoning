@@ -51,6 +51,7 @@ import type { CampaignMission, MekArchetype, Path, PilotRecord } from "./types";
 export const WARDEN_PILOTS: PilotRecord[] = [
   {
     id: "pilot_rourke",
+    gender: "female",
     displayName: "2nd Lt. Dessa Rourke — “Lark”",
     archetypeId: "arch_meeps_bipedal",
     mekId: "mek_rourke",
@@ -66,6 +67,7 @@ export const WARDEN_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_bosk",
+    gender: "male",
     displayName: "M.Sgt. Halvard Bosk — “Anvil”",
     archetypeId: "arch_tank_bipedal",
     mekId: "mek_bosk",
@@ -73,6 +75,7 @@ export const WARDEN_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_iyari",
+    gender: "female",
     displayName: "Pvt. Tegan Iyari — “Foxfire”",
     archetypeId: "arch_meeps_centauroid", // Hiopi/centauroid, per §6
     mekId: "mek_iyari",
@@ -80,6 +83,7 @@ export const WARDEN_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_anand",
+    gender: "female",
     displayName: "Cpl. Priya Anand — “Farsight”",
     archetypeId: "arch_reeps_vibrissal", // Osnian/vibrissal, per §6 — the
     // squad's first vibrissal pilot in this codebase (Team One's roster
@@ -89,6 +93,7 @@ export const WARDEN_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_lask",
+    gender: "male",
     displayName: "Spec. Corin Lask — “Patch”",
     archetypeId: "arch_munti_bipedal",
     mekId: "mek_lask",
@@ -134,6 +139,7 @@ const WARDEN_ROSTER_IDS = WARDEN_PILOTS.map((p) => p.id);
 export const SECOND_LANCE_PILOTS: PilotRecord[] = [
   {
     id: "pilot_okafor",
+    gender: "female",
     displayName: "Sgt. Wren Okafor — “Ledger”",
     archetypeId: "arch_tank_bipedal",
     mekId: "mek_okafor",
@@ -141,6 +147,7 @@ export const SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_solheim",
+    gender: "female",
     displayName: "Cpl. Nadia Solheim — “Static”",
     archetypeId: "arch_reeps_bipedal",
     mekId: "mek_solheim",
@@ -148,6 +155,7 @@ export const SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_tarrant",
+    gender: "male",
     displayName: "Pvt. Yusuf Tarrant — “Kestrel”",
     archetypeId: "arch_meeps_centauroid", // Hiopi, same chassis family as Iyari
     mekId: "mek_tarrant",
@@ -155,6 +163,7 @@ export const SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_vashti",
+    gender: "female",
     displayName: "Spec. Elin Vashti — “Driftwood”",
     archetypeId: "arch_munti_vibrissal", // Osnius/vibrissal — the roster's second Munti
     mekId: "mek_vashti",
@@ -162,6 +171,7 @@ export const SECOND_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_reyes",
+    gender: "male",
     displayName: "Cpl. Damon Reyes — “Hardpan”",
     archetypeId: "arch_reeps_centauroid",
     mekId: "mek_reyes",
@@ -223,6 +233,7 @@ export const SECOND_LANCE_ROSTER_IDS = SECOND_LANCE_PILOTS.map((p) => p.id);
 export const THIRD_LANCE_PILOTS: PilotRecord[] = [
   {
     id: "pilot_kova",
+    gender: "female",
     displayName: "Sgt. Mireille Kova — “Bastion”",
     archetypeId: "arch_tank_vibrissal",
     mekId: "mek_kova",
@@ -230,6 +241,7 @@ export const THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_ness",
+    gender: "male",
     displayName: "Cpl. Aurelio Ness — “Rampart”",
     archetypeId: "arch_tank_centauroid",
     mekId: "mek_ness",
@@ -237,6 +249,7 @@ export const THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_onwuka",
+    gender: "female",
     displayName: "Pvt. Sable Onwuka — “Whiplash”",
     archetypeId: "arch_meeps_vibrissal",
     mekId: "mek_onwuka",
@@ -244,6 +257,7 @@ export const THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_delgado",
+    gender: "female",
     displayName: "Spec. Rasha Delgado — “Longshot”",
     archetypeId: "arch_reeps_bipedal",
     mekId: "mek_delgado",
@@ -251,6 +265,7 @@ export const THIRD_LANCE_PILOTS: PilotRecord[] = [
   },
   {
     id: "pilot_yeun",
+    gender: "male",
     displayName: "Cpl. Faro Yeun — “Splint”",
     archetypeId: "arch_munti_centauroid",
     mekId: "mek_yeun",

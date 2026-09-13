@@ -9,6 +9,8 @@ import {
   generateCallsign,
   generateMekName,
   generateRecruitName,
+  RECRUIT_FIRST_NAMES_MALE,
+  RECRUIT_FIRST_NAMES_FEMALE,
 } from "../names";
 import { SECOND_LANCE_PILOTS, THIRD_LANCE_PILOTS, WARDEN_PILOTS } from "../campaignAmaranth";
 import {
@@ -135,16 +137,29 @@ function seq(values: number[]): () => number {
 }
 
 describe("generateRecruitName", () => {
+  // Took a gender as its first argument from 13 Sep 2026 — the first name
+  // is drawn from the pool matching it. Everything these two tests were
+  // already pinning (the shape of the string, determinism under an
+  // injected rng, three draws in rank/first/surname order) is unchanged;
+  // they just have to say which pool now. The gender-specific behaviour
+  // itself is covered in data/__tests__/gender.test.ts.
   it("is rank, given name, surname — no callsign, that is earned", () => {
-    for (let i = 0; i < 50; i++) {
-      const name = generateRecruitName();
-      expect(name).toMatch(/^(Pvt\.|Spec\.|Cpl\.) [A-Z][a-z]+ [A-Z][a-z]+$/);
-      expect(name).not.toContain("“");
+    for (const gender of ["male", "female"] as const) {
+      for (let i = 0; i < 50; i++) {
+        const name = generateRecruitName(gender);
+        expect(name).toMatch(/^(Pvt\.|Spec\.|Cpl\.) [A-Z][a-z]+ [A-Z][a-z]+$/);
+        expect(name).not.toContain("“");
+      }
     }
   });
 
   it("is deterministic under an injected rng", () => {
-    expect(generateRecruitName(seq([0, 0, 0]))).toBe(`${RECRUIT_RANKS[0]} ${RECRUIT_FIRST_NAMES[0]} ${RECRUIT_SURNAMES[0]}`);
+    expect(generateRecruitName("male", seq([0, 0, 0]))).toBe(
+      `${RECRUIT_RANKS[0]} ${RECRUIT_FIRST_NAMES_MALE[0]} ${RECRUIT_SURNAMES[0]}`,
+    );
+    expect(generateRecruitName("female", seq([0, 0, 0]))).toBe(
+      `${RECRUIT_RANKS[0]} ${RECRUIT_FIRST_NAMES_FEMALE[0]} ${RECRUIT_SURNAMES[0]}`,
+    );
   });
 });
 

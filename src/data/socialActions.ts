@@ -271,6 +271,17 @@ export function pickSendOffLine(catalyst: Catalyst): string {
 // this file's own "not sim-tuned" caveat, same as every other number here.
 export const FLIRT_FAVORABILITY_DELTA = 6;
 
+// Favorability gate, 12 Sep 2026 (Placeholder TODO item N — the Flirt design
+// collision) — Maxime's own locked spec: "Requires 40+ existing Favorability
+// with the target already." Layers ON TOP of the species gate above
+// (romanceable) rather than replacing it — his own call between the two
+// options that collision surfaced. Below this, Flirt refuses exactly like
+// any other requirements-gated verb (Congratulate's own "Congrats for
+// what?" precedent): a plain line, nothing moves, nothing logged. Ask Out's
+// own ROMANCE_MIN_FAVORABILITY (romance.ts, 50) is a separate number for a
+// separate verb — Maxime's own call was to leave that one alone.
+export const FLIRT_FAVORABILITY_GATE = 40;
+
 // Three lines per catalyst rather than Praise/Gift's one flat line each —
 // Maxime's own call, made when asked whether this verb should get its own
 // content or just borrow Praise's ("At least 27 new line"). Same array-and-

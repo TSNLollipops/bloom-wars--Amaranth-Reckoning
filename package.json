@@ -1,7 +1,9 @@
 {
   "name": "bloom-wars",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.9.0",
+  "description": "The Bloom Wars — a browser tactics RPG, Early Access build.",
+  "author": "TSNL",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

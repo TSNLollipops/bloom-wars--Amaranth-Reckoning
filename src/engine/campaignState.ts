@@ -50,11 +50,11 @@
 // screen gets built (extend pilotRegistry's lookup to also check the
 // active CampaignState, or have Mission accept resolved PilotRecords
 // directly instead of ids) but is out of scope here.
-import type { CampaignMission, MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
+import type { CampaignMission, Gender, MekArchetype, MekTrack, Path, PilotRecord } from "../data/types";
 import type { Stage } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { rollBackground } from "../data/background";
-import { generateCallsign, generateMekName, generateRecruitName, randomFrom } from "../data/names";
+import { generateCallsign, generateMekName, generateRecruitName, randomFrom, randomGender } from "../data/names";
 import { WARDEN_PILOTS, WARDEN_MEKS, SECOND_LANCE_PILOTS, SECOND_LANCE_MEKS, THIRD_LANCE_PILOTS, THIRD_LANCE_MEKS } from "../data/campaignAmaranth";
 // House Amaranth — Mission Select + roster-seeding pass, 1 Sep 2026.
 import {
@@ -1481,9 +1481,18 @@ export type ArchetypeChassisSuffix = "bipedal" | "centauroid" | "vibrissal";
 function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: ArchetypeChassisSuffix = "bipedal"): PilotRecord {
   const n = state.nextGeneratedId;
   state.nextGeneratedId += 1;
+  // Gender is rolled BEFORE the name, and the name is drawn from the pool
+  // that matches it (13 Sep 2026 — Maxime: "The gender is chosen before
+  // name. So it match"). Deliberately in this order rather than naming
+  // first and inferring a gender from the name afterward: inference off a
+  // first name is a guess that gets Noor, Wren and Sable wrong, and it
+  // would make the character creator's own GENDER row a lie the moment a
+  // player typed a name by hand. The roll is weighted, not a coin flip —
+  // data/names.ts's RECRUIT_MALE_WEIGHT has the canon reason.
+  const gender = randomGender();
   // A real rank and name, not a callsign — see data/names.ts's own header
   // and awardCallsign for why a recruit starts unnamed in that sense.
-  const recruitName = generateRecruitName();
+  const recruitName = generateRecruitName(gender);
   const pilotId = `pilot_recruit_${n}`;
   const mekId = `mek_recruit_${n}`;
 
@@ -1522,6 +1531,7 @@ function generatePilot(state: CampaignState, targetClass: Path, chassisSuffix: A
   const pilot: PilotRecord = {
     id: pilotId,
     displayName: recruitName,
+    gender,
     archetypeId: `arch_${targetClass}_${chassisSuffix}`,
     mekId,
     // Combat Medic Cadre (2 Sep 2026, data/carrierModules.ts) — the one
@@ -1593,6 +1603,30 @@ export function rechassisPilot(state: CampaignState, pilotId: string, chassisSuf
  * accidental blank submit keeps whatever name the pilot already had
  * rather than saving an empty displayName.
  */
+/**
+ * The Character Creator overlay's GENDER row (13 Sep 2026). Sits beside
+ * rechassisPilot/renamePilot deliberately — all three are the same shape:
+ * a small, immediate, live edit to one already-generated recruit, applied
+ * the moment the player clicks, with no separate commit step.
+ *
+ * Returns `{ ok: true }` as a no-op when the gender is already the one
+ * asked for, matching renamePilot's own "an empty rename is a no-op, not
+ * an error" reading — the caller is a UI button, and a button pressed
+ * twice is not a failure worth surfacing.
+ *
+ * Deliberately does NOT touch displayName. Rerolling the name to match a
+ * newly picked gender is the overlay's own job (it owns the text field,
+ * and the player may have typed something by hand that shouldn't be
+ * silently thrown away) — see scenes/shop/CharacterCreatorOverlay.ts.
+ */
+export function setPilotGender(state: CampaignState, pilotId: string, gender: Gender): RechassisResult {
+  const entry = state.pilots[pilotId];
+  if (!entry) return { ok: false, reason: "no such pilot" };
+  if (entry.pilot.gender === gender) return { ok: true };
+  entry.pilot = { ...entry.pilot, gender };
+  return { ok: true };
+}
+
 export function renamePilot(state: CampaignState, pilotId: string, displayName: string): RechassisResult {
   const entry = state.pilots[pilotId];
   if (!entry) return { ok: false, reason: "no such pilot" };

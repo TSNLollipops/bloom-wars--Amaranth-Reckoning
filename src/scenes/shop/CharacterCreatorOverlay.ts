@@ -36,6 +36,7 @@ import Phaser from "phaser";
 import {
   rechassisPilot,
   renamePilot,
+  setPilotGender,
   ALL_CHASSIS_SUFFIXES,
   type ArchetypeChassisSuffix,
   type CampaignState,
@@ -43,6 +44,7 @@ import {
 import { UNIT_ARCHETYPES } from "../../data/units";
 import { ABILITIES } from "../../data/abilities";
 import { generateRecruitName } from "../../data/names";
+import { ALL_GENDERS, GENDER_LABELS, genderOf, type Gender } from "../../data/gender";
 import { makeShopButton } from "./ShopPanel";
 import { HoverTip } from "../ui/HoverTip";
 import { wrapTipText } from "../../engine/hoverTipLayout";
@@ -111,30 +113,45 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
   // also the one place this gets torn down.
   const hoverTip = new HoverTip(scene);
   const backdrop = scene.add.rectangle(480, 320, 960, 640, 0x000000, 0.8).setInteractive().setScrollFactor(0);
-  const panel = scene.add.rectangle(480, 320, 560, 360, 0x141a20, 1).setStrokeStyle(1, 0x3a4552).setScrollFactor(0);
-  const title = scene.add.text(480, 172, "NEW RECRUIT", { fontFamily: "monospace", fontSize: "18px", color: "#facc15" }).setOrigin(0.5).setScrollFactor(0);
+  // Panel is 350 tall centred at y=275 (was 360 at y=320) — it grew by one
+  // row and moved up when the GENDER row landed, 13 Sep 2026, and every y
+  // below shifted with it. Margins checked against a real render, not
+  // guessed: ~24px above the title, ~25px below CONFIRM. Still one screen,
+  // no scrolling: the row order is GENDER, NAME, SPECIES, CONFIRM.
+  const panel = scene.add.rectangle(480, 275, 560, 350, 0x141a20, 1).setStrokeStyle(1, 0x3a4552).setScrollFactor(0);
+  const title = scene.add.text(480, 133, "NEW RECRUIT", { fontFamily: "monospace", fontSize: "18px", color: "#facc15" }).setOrigin(0.5).setScrollFactor(0);
   layer.add([backdrop, panel, title]);
 
   const currentArchetype = UNIT_ARCHETYPES[entry.pilot.archetypeId];
   const classLabel = currentArchetype ? currentArchetype.path[0].toUpperCase() + currentArchetype.path.slice(1) : "";
   const classLine = scene.add
-    .text(480, 198, `${classLabel} pilot, G-tier`, { fontFamily: "monospace", fontSize: "12px", color: "#8a97a6" })
+    .text(480, 159, `${classLabel} pilot, G-tier`, { fontFamily: "monospace", fontSize: "12px", color: "#8a97a6" })
     .setOrigin(0.5)
     .setScrollFactor(0);
   const mek = state.meks[entry.pilot.mekId];
   const mekLine = scene.add
-    .text(480, 218, mek ? `with their Mek, ${mek.displayName}` : "", { fontFamily: "monospace", fontSize: "11px", color: "#5a6472" })
+    .text(480, 179, mek ? `with their Mek, ${mek.displayName}` : "", { fontFamily: "monospace", fontSize: "11px", color: "#5a6472" })
     .setOrigin(0.5)
     .setScrollFactor(0);
   layer.add([classLine, mekLine]);
 
-  const nameLabel = scene.add.text(420, 244, "NAME", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0.5).setScrollFactor(0);
+  // ---- GENDER, deliberately drawn above NAME -------------------------
+  // Maxime, 13 Sep 2026: "The gender is chosen before name. So it match."
+  // The ordering is the feature, not decoration — picking a gender rerolls
+  // the name below it out of the matching pool, so the two never disagree.
+  const genderLabel = scene.add.text(480, 207, "GENDER", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0.5).setScrollFactor(0);
+  layer.add(genderLabel);
+  const genderRow = scene.add.container(0, 0).setScrollFactor(0);
+  layer.add(genderRow);
+  let currentGender: Gender = genderOf(entry.pilot);
+
+  const nameLabel = scene.add.text(420, 265, "NAME", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0.5).setScrollFactor(0);
   layer.add(nameLabel);
 
   const nameInput = scene.add
     .dom(
       420,
-      270,
+      291,
       "input",
       "width: 260px; padding: 6px 8px; font-family: monospace; font-size: 13px; text-align: center; " +
         "background: #1a2028; color: #e8e2d4; border: 1px solid #4a7a9a; outline: none;",
@@ -144,6 +161,15 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
   const nameNode = nameInput.node as HTMLInputElement;
   nameNode.value = entry.pilot.displayName;
   nameNode.maxLength = 40;
+  // Whether the player has typed in this field themselves. Picking a
+  // gender rerolls the name to match — but only while the name is still
+  // one the game rolled. The moment someone types their own, that name is
+  // theirs and a later gender click must not silently delete it. Pressing
+  // REROLL hands the field back to the game and clears this again.
+  let nameTouched = false;
+  nameNode.addEventListener("input", () => {
+    nameTouched = true;
+  });
   nameNode.addEventListener("keydown", (e: KeyboardEvent) => {
     // Same reasoning as CampaignSetup.ts's own companyInput: no form to
     // submit, and this scene's own keyboard input (if any) shouldn't see
@@ -164,19 +190,66 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
     scene,
     layer,
     610,
-    270,
+    291,
     110,
     30,
     "REROLL",
     true,
     () => {
-      nameNode.value = generateRecruitName();
+      nameNode.value = generateRecruitName(currentGender);
+      nameTouched = false;
     },
-    ["Reroll", "", ...wrapTipText("Randomizes this recruit's name. Doesn't touch species or Mek.", 42)],
+    ["Reroll", "", ...wrapTipText("Randomizes this recruit's name, from the pool matching their gender. Doesn't touch species or Mek.", 42)],
     hoverTip
   );
 
-  const speciesLabel = scene.add.text(480, 306, "SPECIES", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0.5).setScrollFactor(0);
+  // Drawn here, after nameNode exists, because a gender click has to be
+  // able to reroll the name field. Declared above the NAME row so the
+  // reading order on screen is still gender first.
+  function redrawGenderRow() {
+    genderRow.removeAll(true);
+    const btnW = 150;
+    const gap = 10;
+    const startCx = 480 - (btnW + gap) / 2; // two buttons, centered as a pair
+    ALL_GENDERS.forEach((gender, i) => {
+      const cx = startCx + i * (btnW + gap);
+      const selected = gender === currentGender;
+      const bg = scene.add
+        .rectangle(cx, 233, btnW, 30, selected ? 0x2e5c7a : 0x1a2028, 1)
+        .setStrokeStyle(1, selected ? 0xfacc15 : 0x3a4552)
+        .setScrollFactor(0)
+        .setInteractive({ useHandCursor: true });
+      const txt = scene.add
+        .text(cx, 233, GENDER_LABELS[gender], { fontFamily: "monospace", fontSize: "11px", color: selected ? "#ffffff" : "#8a97a6" })
+        .setOrigin(0.5)
+        .setScrollFactor(0);
+      const tip = [
+        GENDER_LABELS[gender],
+        "",
+        ...wrapTipText(
+          "Sets this recruit's gender, which is what the crew's own lines use when they talk about them. Rerolls the name below to match, unless you've typed one yourself.",
+          42,
+        ),
+      ];
+      bg.on("pointerover", (pointer: Phaser.Input.Pointer) => hoverTip.show(tip, pointer.x, pointer.y))
+        .on("pointermove", (pointer: Phaser.Input.Pointer) => hoverTip.show(tip, pointer.x, pointer.y))
+        .on("pointerout", () => hoverTip.hide());
+      bg.on("pointerdown", () => {
+        if (gender === currentGender) return;
+        const result = setPilotGender(state, pilotId, gender);
+        if (!result.ok) return;
+        currentGender = gender;
+        // The whole point of the row order: a name the game rolled follows
+        // the gender. A name the player typed does not.
+        if (!nameTouched) nameNode.value = generateRecruitName(gender);
+        redrawGenderRow();
+      });
+      genderRow.add([bg, txt]);
+    });
+  }
+  redrawGenderRow();
+
+  const speciesLabel = scene.add.text(480, 327, "SPECIES", { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" }).setOrigin(0.5).setScrollFactor(0);
   layer.add(speciesLabel);
 
   const speciesRow = scene.add.container(0, 0).setScrollFactor(0);
@@ -192,12 +265,12 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
       const cx = startCx + i * (btnW + gap);
       const selected = suffix === currentChassis;
       const bg = scene.add
-        .rectangle(cx, 332, btnW, 30, selected ? 0x2e5c7a : 0x1a2028, 1)
+        .rectangle(cx, 353, btnW, 30, selected ? 0x2e5c7a : 0x1a2028, 1)
         .setStrokeStyle(1, selected ? 0xfacc15 : 0x3a4552)
         .setScrollFactor(0)
         .setInteractive({ useHandCursor: true });
       const txt = scene.add
-        .text(cx, 332, CHASSIS_LABELS[suffix], { fontFamily: "monospace", fontSize: "11px", color: selected ? "#ffffff" : "#8a97a6" })
+        .text(cx, 353, CHASSIS_LABELS[suffix], { fontFamily: "monospace", fontSize: "11px", color: selected ? "#ffffff" : "#8a97a6" })
         .setOrigin(0.5)
         .setScrollFactor(0);
       const chassisTip = chassisTooltipLines(currentArchetype?.path, suffix);
@@ -221,7 +294,7 @@ export function showCharacterCreatorOverlay(scene: Phaser.Scene, state: Campaign
     scene,
     layer,
     480,
-    384,
+    407,
     220,
     36,
     "CONFIRM",
