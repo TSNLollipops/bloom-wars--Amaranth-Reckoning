@@ -12,10 +12,10 @@ import Phaser from "phaser";
 import { CAMPAIGNS, WARDEN_MISSION_CHAIN, HOUSE_AMARANTH_MISSION_CHAIN } from "../data/allCampaigns";
 import type { CampaignMission } from "../data/types";
 import { baseSceneKeyFor, loadCampaignState, isMissionUnlocked } from "../engine/campaignState";
-import { isMissionDemoLocked, DEMO_LOCK_MESSAGE } from "../data/demoCap";
+import { isMissionDemoLocked, isCampaignDemoLocked, DEMO_LOCK_MESSAGE, DEMO_TAB_LOCK_MESSAGE } from "../data/demoCap";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
-import { TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
+import { Panel, TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
 
@@ -54,6 +54,20 @@ export class MapSelect extends Phaser.Scene {
   // Plain scene class, no competing scene-wide hover system — one shared
   // instance covers the header buttons, campaign tabs, and mission cards.
   private hoverTip!: HoverTip;
+  // Act II/III demo tease, 13 Sep 2026 (Build Brief
+  // claude_Bloom_Wars_Build_Brief_TeaseTooltipsStressBar_13Sep2026.md item
+  // 1). Built lazily on first click, per scene visit — reset to undefined
+  // at the top of create() because Phaser destroys the previous visit's
+  // GameObjects on restart (same reason tabButtons gets reset there), so a
+  // stale reference would otherwise point at a destroyed Panel.
+  private teasePanel?: Panel;
+  // A stable bound reference so create()'s own off()-then-on() (same
+  // pattern this file already uses for the wheel listener, right below)
+  // only ever removes THIS listener on a re-visit, not any other scene
+  // code's own keydown-ESC handler sharing the same input plugin.
+  private onEscTease = () => {
+    if (this.teasePanel?.visible) this.teasePanel.close();
+  };
 
   constructor() {
     super("MapSelect");
@@ -63,6 +77,7 @@ export class MapSelect extends Phaser.Scene {
     this.activeCampaignIndex = Math.min(this.activeCampaignIndex, CAMPAIGNS.length - 1);
     this.cameras.main.setBackgroundColor("#0c0f12");
     this.hoverTip = new HoverTip(this);
+    this.teasePanel = undefined;
     // "engine test pass — pick a mission" removed here, 10 Sep 2026 (EA
     // Dev-Cleanup Checklist v1's first confirmed item) — real dev-comment
     // text that had been rendering on screen since before MainMenu.ts (28
@@ -164,29 +179,46 @@ export class MapSelect extends Phaser.Scene {
       CAMPAIGNS.forEach((campaign, i) => {
         const x = 30 + tabWidth * i + tabWidth / 2;
         const active = i === this.activeCampaignIndex;
+        // Act II/III demo tease, 13 Sep 2026 (Build Brief item 1) — a tab
+        // whose every mission is demo-locked gets its own dimmed, non-
+        // hover-reactive look and opens showDemoTease() instead of
+        // switching lists. Same chain-selection ternary renderMissionList
+        // already uses below; not worth a shared helper for one line
+        // duplicated twice in one file.
+        const chain = campaign.id.startsWith("house_amaranth") ? HOUSE_AMARANTH_MISSION_CHAIN : WARDEN_MISSION_CHAIN;
+        const demoLocked = isCampaignDemoLocked(
+          campaign.id,
+          chain,
+          campaign.missions.map((m) => m.id)
+        );
         const bg = this.add
-          .rectangle(x, 116, tabWidth - 12, 40, active ? 0x2e5c7a : 0x1a2028, 1)
-          .setStrokeStyle(1, active ? PANEL_ACCENT : PANEL_BORDER)
+          .rectangle(x, 116, tabWidth - 12, 40, demoLocked ? 0x14181c : active ? 0x2e5c7a : 0x1a2028, 1)
+          .setStrokeStyle(1, demoLocked ? PANEL_CARD_BORDER : active ? PANEL_ACCENT : PANEL_BORDER)
           .setInteractive({ useHandCursor: true });
         const label = this.add
           .text(x, 116, campaign.name, {
             fontFamily: "monospace",
             fontSize: "12px",
-            color: active ? TEXT_MAIN : TEXT_DIM,
+            color: demoLocked ? TEXT_DIM : active ? TEXT_MAIN : TEXT_DIM,
             align: "center",
             letterSpacing: 0.5,
             wordWrap: { width: tabWidth - 24 },
           })
           .setOrigin(0.5);
-        const tabTip = [campaign.name, "", ...wrapTipText(campaign.subtitle, 42)];
-        bg.on("pointerdown", () => this.selectCampaign(i));
+        const tabTip = demoLocked
+          ? [campaign.name, "", ...wrapTipText(DEMO_TAB_LOCK_MESSAGE, 42)]
+          : [campaign.name, "", ...wrapTipText(campaign.subtitle, 42)];
+        bg.on("pointerdown", () => {
+          if (demoLocked) this.showDemoTease();
+          else this.selectCampaign(i);
+        });
         bg.on("pointerover", (pointer: Phaser.Input.Pointer) => {
-          if (i !== this.activeCampaignIndex) bg.setFillStyle(0x232b35, 1);
+          if (!demoLocked && i !== this.activeCampaignIndex) bg.setFillStyle(0x232b35, 1);
           this.hoverTip.show(tabTip, pointer.x, pointer.y);
         });
         bg.on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(tabTip, pointer.x, pointer.y));
         bg.on("pointerout", () => {
-          if (i !== this.activeCampaignIndex) bg.setFillStyle(0x1a2028, 1);
+          if (!demoLocked && i !== this.activeCampaignIndex) bg.setFillStyle(0x1a2028, 1);
           this.hoverTip.hide();
         });
         this.tabButtons.push({ bg, label, campaignId: campaign.id });
@@ -212,6 +244,42 @@ export class MapSelect extends Phaser.Scene {
       const newY = Phaser.Math.Clamp(this.missionListLayer.y - dy * 0.5, this.listScrollMinY, 0);
       this.missionListLayer.y = newY;
     });
+
+    // Demo tease panel's Esc-to-close — same off()-then-on() reset as the
+    // wheel listener directly above, and for the same reason (this scene
+    // re-runs create() every visit). onEscTease is a stable bound instance
+    // field, so this only ever touches the one listener this file itself
+    // registered.
+    this.input.keyboard?.off("keydown-ESC", this.onEscTease);
+    this.input.keyboard?.on("keydown-ESC", this.onEscTease);
+  }
+
+  /**
+   * Act II/III demo tease, 13 Sep 2026 (Build Brief
+   * claude_Bloom_Wars_Build_Brief_TeaseTooltipsStressBar_13Sep2026.md item
+   * 1). Copy is Maxime's own, locked, not Claude's wording — see
+   * DEMO_TAB_LOCK_MESSAGE in data/demoCap.ts. Built lazily, once per scene
+   * visit, since the content never changes between opens.
+   */
+  private showDemoTease() {
+    if (!this.teasePanel) {
+      const panel = new Panel(this, { left: 230, right: 730, top: 230, bottom: 380 }, () => panel.close(), {
+        title: "ACT LOCKED",
+      });
+      const body = this.add
+        .text(480, 305, DEMO_TAB_LOCK_MESSAGE, {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: TEXT_MAIN,
+          align: "center",
+          wordWrap: { width: 440 },
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0);
+      panel.add(body);
+      this.teasePanel = panel;
+    }
+    this.teasePanel.open();
   }
 
   private selectCampaign(index: number) {

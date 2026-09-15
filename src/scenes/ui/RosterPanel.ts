@@ -108,7 +108,19 @@ import { UNIT_ARCHETYPES } from "../../data/units";
 // Archive's own band words (stressBand/moraleBand) rather than inventing
 // new wording, so a pilot never reads as "fine" here and "near the line"
 // there.
+//
+// UPGRADED to a small bar per stat, 13 Sep 2026 (Build Brief
+// claude_Bloom_Wars_Build_Brief_TeaseTooltipsStressBar_13Sep2026.md item 3
+// — Maxime's own locked style: "a small bar. Not raw numbers, not a
+// hover-only tooltip"). The raw numbers are gone; the band words stay
+// (still useful at a glance) and a bar now shows where in the 0-100 range
+// each stat actually sits. See drawWellbeingRow() below. Favorability
+// (the `standing` line, further down) is checked and confirmed still
+// plain text as of this pass — this is genuinely the first bar this panel
+// draws, flagged in the build addendum rather than quietly becoming a
+// one-off component.
 import { moraleBand, stressBand } from "../../data/archive";
+import { STRESS_PANIC_THRESHOLD, MORALE_PANIC_THRESHOLD } from "../../data/ambientLines";
 import { pilotServiceRecords, type PilotServiceRecord } from "../../engine/statsStore";
 import { ABILITIES } from "../../data/abilities";
 // B4 (portrait wiring), 5 Sep 2026 — this panel never had a placeholder
@@ -624,7 +636,12 @@ export class RosterPanel {
       // favorability already competing for attention would defeat. No
       // recruit has ever set foot in the Hub, so no `social` means no line
       // at all rather than a misleading "stress 0."
-      const wellbeingLine = social ? `    stress ${stressBand(social.stress)} ${social.stress}  ·  morale ${moraleBand(social.morale)} ${social.morale}` : "";
+      // A single space, not the old raw-number sentence — kept non-empty
+      // (rather than "") so .filter(Boolean) below still keeps it as its
+      // own blank line, reserving the exact vertical slot the bar row
+      // below gets drawn into. "" (no social at all — a recruit) still
+      // collapses out of textLines entirely, same as before.
+      const wellbeingLine = social ? " " : "";
 
       // Nobody is "carried" by a click any more (see beginDrag) — swapFrom
       // now only ever gets set by a FAILED drag-drop (movePilot's failure
@@ -685,6 +702,24 @@ export class RosterPanel {
       this.container.add(cardText);
       this.rowObjs.push(cardBg, avatar.container, cardText);
 
+      // Stress/Morale bars, 13 Sep 2026 — drawn into the blank slot
+      // wellbeingLine reserved above, ADDED AFTER cardBg/cardText so they
+      // paint on top of the card background rather than under it (Phaser
+      // draws later-added children over earlier ones). lineCount is
+      // always 4 here (name / standing / blank / service) since we're
+      // inside `if (social)`, where wellbeingLine is " " (kept by
+      // filter(Boolean)) not "". Measured off cardText's own real
+      // rendered height, not a guessed per-line pixel constant — the
+      // exact lesson the Portrait pass's ROW_H bug already paid for once
+      // in this file's own history.
+      if (social) {
+        const lineH = cardText.height / 4;
+        const wellbeingRowY = y + CARD_PAD_Y + lineH * 2 + lineH / 2;
+        const rowObjs = this.drawWellbeingRow(scene, cardL + CARD_PAD_X + PORTRAIT_GUTTER, wellbeingRowY, social);
+        this.container.add(rowObjs);
+        this.rowObjs.push(...rowObjs);
+      }
+
       y += cardH + CARD_GAP;
     }
 
@@ -695,6 +730,65 @@ export class RosterPanel {
     // card AFTER the ghost in this.container's child list, which would
     // otherwise bury the ghost under them — keep it on top regardless.
     if (this.dragGhost) this.container.bringToTop(this.dragGhost);
+  }
+
+  /**
+   * Stress/Morale as a small bar per stat, 13 Sep 2026 (Build Brief
+   * claude_Bloom_Wars_Build_Brief_TeaseTooltipsStressBar_13Sep2026.md item
+   * 3). `social` only needs the two numeric fields structurally — callers
+   * pass the real HubSocialState-shaped object, this just doesn't demand
+   * the rest of it. Every x position is measured off the PRECEDING piece's
+   * own real `.width` after creation, never a guessed monospace char
+   * count, so a band word changing length (e.g. "flagging" vs "high")
+   * never drifts the bar that follows it out of alignment.
+   */
+  private drawWellbeingRow(
+    scene: Phaser.Scene,
+    x: number,
+    centerY: number,
+    social: { stress: number; morale: number }
+  ): Phaser.GameObjects.GameObject[] {
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const barW = 40;
+    const barH = 6;
+    const barTrack = 0x2a323b; // CARD_BORDER's own shade — a neutral track, not a new color
+    const barTrackStroke = 0x3a4552; // PANEL_BORDER's own shade
+    const barOk = 0x7fa88a; // TEXT_OK's own hex, as a fill color rather than a text color
+    const barWarn = 0xc17a6a; // TEXT_WARN's own hex
+
+    const addStat = (startX: number, label: string, value: number, panicking: boolean): number => {
+      const text = scene.add
+        .text(startX, centerY, label, { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM })
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0);
+      objs.push(text);
+      const barX = startX + text.width + 5;
+      const track = scene.add
+        .rectangle(barX + barW / 2, centerY, barW, barH, barTrack, 1)
+        .setStrokeStyle(1, barTrackStroke)
+        .setScrollFactor(0);
+      objs.push(track);
+      // Clamped and floored at 1px so a pilot at 0 still shows a sliver
+      // rather than reading as "no bar drawn at all" (a rendering glitch,
+      // not a stat).
+      const fillW = Math.max(1, Math.round((Phaser.Math.Clamp(value, 0, 100) / 100) * (barW - 2)));
+      const fill = scene.add
+        .rectangle(barX + 1 + fillW / 2, centerY, fillW, barH - 2, panicking ? barWarn : barOk, 1)
+        .setScrollFactor(0);
+      objs.push(fill);
+      return barX + barW;
+    };
+
+    // Panic-threshold-only coloring (warn vs. ok), not a full 3-4 band
+    // gradient — STRESS_PANIC_THRESHOLD/MORALE_PANIC_THRESHOLD are already
+    // the one line the engine itself treats as special ("where the engine
+    // takes over" — stressBand's own comment), so the bar's color reuses
+    // the one threshold that's actually mechanically meaningful rather
+    // than inventing extra color bands with no engine meaning behind them.
+    const afterStress = addStat(x, `stress ${stressBand(social.stress)}`, social.stress, social.stress >= STRESS_PANIC_THRESHOLD);
+    addStat(afterStress + 14, `morale ${moraleBand(social.morale)}`, social.morale, social.morale <= MORALE_PANIC_THRESHOLD);
+
+    return objs;
   }
 
   /** The pilot ids currently in `lance` — Hub hands these to the Transporter Pad as a deploy pre-selection. */

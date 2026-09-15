@@ -62,7 +62,16 @@ export type WorrySourceId =
   | "combat_permadeath_lost"
   | "combat_permadeath_recoverable"
   | "combat_overwatch"
-  | "combat_dodge";
+  | "combat_dodge"
+  // Gate 4, the audience gate, 14 Sep 2026 — Reaction_Formula_v2's own Gate 4
+  // table. Two sources rather than one shared "reaction_suppression," and the
+  // split is load-bearing rather than tidiness: upsertWorry below replaces an
+  // entry from the SAME source, so a single id would mean a pilot who swallows
+  // their temper right after holding back a confession silently loses the
+  // first worry. Two ids let both sit on the stack at once and compete on
+  // intensity like any other pair, which is what the cap is for.
+  | "hub_suppressed_anger"
+  | "hub_suppressed_askout";
 
 export type WorryEntry = {
   source: WorrySourceId;
@@ -93,6 +102,19 @@ export type WorryEntry = {
   // removal path for a live source like Mission Worry — see
   // removeWorry's own comment.
   expiresAt: number;
+  // Gate 4, 14 Sep 2026. Who this worry is ABOUT, when it is about a person
+  // at all. Optional, so every existing writer (Hub.ts's updateMissionWorry,
+  // data/combatWorry.ts) stays valid with it simply absent, exactly the way
+  // `context` was added on 10 Sep.
+  //
+  // Read by nothing today — the same forward-looking-metadata status `context`
+  // above still has. It exists because Gate 4's own spec is "a Worry about the
+  // TARGET opens," and a worry that cannot name its target does not implement
+  // that sentence. Storing it now costs one optional string and means the
+  // first reader that wants it (an ambient line that says the name, the
+  // dossier, a rival-pressure read) finds the data already there instead of
+  // needing a migration.
+  about?: string;
 };
 
 // Gate 3's own "loudest thing wins" resolution rule (NPC_Reaction_Engine_v1

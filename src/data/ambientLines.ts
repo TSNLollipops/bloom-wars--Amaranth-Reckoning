@@ -443,9 +443,24 @@ const STAGE_PROMOTION_LINES: Record<Catalyst, Record<"blooded" | "command", stri
   },
 };
 
-export function pickStagePromotionLine(catalyst: Catalyst, toStage: "blooded" | "command"): string {
+// Seeded-rng cleanup, 13 Sep 2026 — the Emotional Brain build (12 Sep) added
+// an optional `rng` param to pickSoloEcho/pickAmbientLine/pickWeightedEcho
+// above, in the same pass that fixed the three replay tests (that fix
+// actually lived in data/combatWorryLines.ts + engine/mission.ts, not here —
+// see that build log's own correction). This file's remaining four
+// functions — this one plus pickRankGreetingLine, pickMusterDeclineLine and
+// pickLineForMessage below — were left on raw Math.random() at the time.
+// None of them run during a mission (all four are Hub-side flavor: rank-up
+// reveals, promotion greetings, muster declines, rumor/muster chatter), so
+// nothing was actually broken — this just finishes bringing the file in
+// line with the house rule the Emotional Brain doc states outright:
+// "everything random in the new code takes a seeded rng." Same shape as
+// the three functions above: an optional `rng` param defaulting to
+// `Math.random`, so every existing call site is unchanged unless it's
+// deliberately updated to pass a real seeded generator later.
+export function pickStagePromotionLine(catalyst: Catalyst, toStage: "blooded" | "command", rng: () => number = Math.random): string {
   const bank = STAGE_PROMOTION_LINES[catalyst][toStage];
-  return bank[Math.floor(Math.random() * bank.length)];
+  return bank[Math.floor(rng() * bank.length)];
 }
 
 // ---- Rourke rank-deference greeting ("Hello, Sir"), 27 Aug 2026 ---------
@@ -585,9 +600,9 @@ const RANK_GREETING_LINES: Record<Catalyst, Record<"capt" | "maj", string[]>> = 
   },
 };
 
-export function pickRankGreetingLine(catalyst: Catalyst, rank: "capt" | "maj"): string {
+export function pickRankGreetingLine(catalyst: Catalyst, rank: "capt" | "maj", rng: () => number = Math.random): string {
   const bank = RANK_GREETING_LINES[catalyst][rank];
-  return bank[Math.floor(Math.random() * bank.length)];
+  return bank[Math.floor(rng() * bank.length)];
 }
 
 function fillTemplate(line: string, vars: Record<string, string>): string {
@@ -607,18 +622,18 @@ function fillTemplate(line: string, vars: Record<string, string>): string {
 // Separate from pickLineForMessage on purpose: a decline isn't a variant of
 // the muster HubMessage's own content, it's what a specific NPC ROLE says
 // INSTEAD of reacting to it, so it takes a role rather than a HubMessage.
-export function pickMusterDeclineLine(role: "mek" | "co"): string {
+export function pickMusterDeclineLine(role: "mek" | "co", rng: () => number = Math.random): string {
   const bank = role === "co" ? CO_MUSTER_DECLINE_LINES : MEK_MUSTER_DECLINE_LINES;
-  return bank[Math.floor(Math.random() * bank.length)];
+  return bank[Math.floor(rng() * bank.length)];
 }
 
-export function pickLineForMessage(speaker: { catalyst: Catalyst; stage: Stage }, message: HubMessage): string {
+export function pickLineForMessage(speaker: { catalyst: Catalyst; stage: Stage }, message: HubMessage, rng: () => number = Math.random): string {
   if (message.kind === "emotion") {
     const bank = LINE_BANK[speaker.catalyst][message.echo][speaker.stage];
-    return bank[Math.floor(Math.random() * bank.length)];
+    return bank[Math.floor(rng() * bank.length)];
   }
   if (message.kind === "muster") {
-    return MUSTER_LINES[Math.floor(Math.random() * MUSTER_LINES.length)];
+    return MUSTER_LINES[Math.floor(rng() * MUSTER_LINES.length)];
   }
   // 9 Sep 2026 — outcome picks which pair of banks, exaggerated still
   // picks which tier within it, same two-axis shape as before this had a
@@ -631,7 +646,7 @@ export function pickLineForMessage(speaker: { catalyst: Catalyst; stage: Stage }
       : message.exaggerated
         ? RUMOR_LINES_EXAGGERATED
         : RUMOR_LINES_MILD;
-  const line = bank[Math.floor(Math.random() * bank.length)];
+  const line = bank[Math.floor(rng() * bank.length)];
   // Both {rejector} and {target} map to the same targetName — the
   // rejected banks' templates were written with {rejector}, the accepted
   // banks' with {target}; supplying both keys lets fillTemplate's own

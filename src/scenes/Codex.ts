@@ -120,7 +120,7 @@ const CONTROLS: ControlRow[] = [
   { key: "Click cyan", desc: "Munti only — heals that ally instead of attacking. Costs 1 action, does not end the turn.", chip: "info" },
   { key: "End Turn", desc: "Bottom-right button. Resolves the hostile AI's whole turn, then the environment step (acid tiles, deploy-pad healing, shield/regen ticks), then hands the turn back to you." },
   { key: "< mission select", desc: "Top-right, bails out to the mission list at any time — nothing is saved mid-mission, so this is a hard restart of the current fight." },
-  { key: "Campaign tabs", desc: "Team One (the original 4-mission engine test) and Amaranth Act I — independent rosters, maps, same rules." },
+  { key: "Campaign tabs", desc: "Team One (the original 4-mission prototype) and Amaranth Act I — independent rosters, maps, same rules." },
 ];
 
 interface TerrainRow {

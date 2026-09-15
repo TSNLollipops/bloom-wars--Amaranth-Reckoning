@@ -1,8 +1,8 @@
 # Bloom Wars — Rank and Command
 
-*Companion doc, not a new source of canon except where marked. Consolidates a rank/command structure that was previously scattered across the Amaranth Reckoning's §10 squad-scaling table and the Antfarm Carrier Hub's §12.1 hub-access gate into one usable reference — same job the uploaded Qiraki rank-path doc did for that project, structure borrowed deliberately, vocabulary not.*
+*Companion doc, not a new source of canon except where marked. Consolidates a rank/command structure that was previously scattered across the Amaranth Reckoning's §10 squad-scaling table and the Antfarm Carrier Hub's §12.1 hub-access gate into one usable reference — same job the uploaded Qiraki rank-path doc did for that project, structure borrowed deliberately, vocabulary not.* **Superseded in part, 14 Sep 2026 — see the correction right after §0.** The "vocabulary not" half of that sentence no longer holds for the two command-position titles; it still holds for the enlisted ladder in §2.
 
-**Status:** paper only, nothing here is built. First draft 25 Aug 2026.
+**Status:** the command-position titles (Raid Lead, Guildmaster — renamed 14 Sep 2026, see below) are live, shipped text in `src/data/archive.ts`'s rank codex entries. The enlisted ladder (§2) and everything else here is still paper, nothing built. First draft 25 Aug 2026.
 
 **Depends on:** `Bloom_Wars_Independent_Campaign_The_Amaranth_Reckoning.md` §6/§10 (Rourke's locked rank beats, the Lance-scaling table), `claude/Bloom_Wars_Antfarm_Carrier_Hub_v1.md` §12.1 (the existing rank-gated hub access rule), `Bloom_Wars_Data_Pack_v0.1.docx` §6.4 (the G–A gear-tier cost table this doc hooks into rather than duplicates).
 
@@ -16,13 +16,17 @@ What's worth stealing is the *shape*, not the words: that document splits **pers
 
 One deliberate non-borrow, worth naming since the source doc leaned on it hard: it needed a real-world historical grounding metaphor specifically because its own project rule bars real military vocabulary from that ladder. Bloom Wars carries no such rule — Warden Company already uses real rank titles directly — so this doc doesn't need an invented frame either. The grounding here is just: this is how modern militaries already separate the two tracks, applied straight.
 
+**Superseded, 14 Sep 2026 — Maxime: "we will have to do the expensive thing. this is a big hole."** This whole section's reasoning held right up until the 2 Sep 2026 full-crossover call (`Bloom_Wars_Naming_Lock_Policy_Update_2Sep2026.md`) and nobody went back and checked it afterward — a real gap, not a minor one, since it left Warden Company inventing its own parallel rank vocabulary while being written, everywhere else, as an actual part of the Coalition of Enlightened's own military (the Warrant/Hand backstory, `Bloom_Wars_Coalition_Lore_Codex_Entry_Plan_v1.md`). The bridge material's own locked rank-vocabulary note (`Qiraki_Bible_Skeleton.md`) states the *entire* COE military ladder runs on guild/raid vocabulary, no exceptions: Party (5-pilot team) led by a Raid Lead, Guild (carrier battlegroup) led by a Guildmaster, Legion (multi-guild alliance) led by a Legion Commander, Faction Leader at the top. None of these words are the Build Brief's actual reserved spoiler term — this is already-cleared crossover vocabulary, same standing as "Warrant" and "the Hand."
+
+**Decision, 14 Sep 2026 — full rename, titles only.** Command position titles adopt the guild vocabulary directly: **Lance Lead → Raid Lead**, **Company Commander → Guildmaster**, everywhere in this doc and in the already-shipped codex text (`src/data/archive.ts`). Explicitly scoped narrower than a full match to the bridge vocabulary, checked with Maxime directly: **"Lance" stays "Lance."** Lance A/B/C, "Warden Company," and every other unit-name/branding noun are untouched — only the two command-position *titles* change, not the units they lead or the company's own name. This means "Raid Lead of Lance A" reads as Warden's own informal usage sitting on top of the Coalition's own formal rank name, not a literal one-to-one match to "Party" — a deliberate, accepted looseness, not an oversight. Full reasoning and the two cheaper alternatives that were on the table and turned down: `claude/Bloom_Wars_Rank_Guild_Naming_Consistency_Plan_v1.md`. The enlisted ladder in §2 (Pvt. through Sgt. Maj., plus 2nd Lt./Capt./Maj. as personal-rank abbreviations riding alongside the two command titles) is untouched — not part of what was asked or decided here.
+
 ---
 
 ## 1. The two axes
 
 **Personal rank** — an individual pilot's own standing, tied to their gear tier (already locked, Data Pack §6.4: G → F → E → D → C → B → A, upgraded with points, no participation bonus — "showing up and training isn't separately rewarded" is already this project's own rule, not borrowed from anywhere). Every pilot has one, whether or not they ever lead anyone.
 
-**Command position** — a role, not a stat. Two rungs, matching what Bloom Wars' own campaign structure actually needs (no invented scale beyond it): **Lance Lead**, running one 5-pilot lance day to day, and **Company Commander**, running the whole multi-lance force. The two aren't a hand-off — Company Commander sits *above* Lance Lead, not in place of it. A pilot can hold both at once (Rourke does, §3), while other lances stand up their own separate Lead reporting up to the same Company Commander. A pilot can hold high personal rank and no command slot at all — most of the roster, by design. A pilot can be pulled into a command role without being the most senior person nearby, same as any merit-based promotion already assumes elsewhere in this project's own economy.
+**Command position** — a role, not a stat. Two rungs, matching what Bloom Wars' own campaign structure actually needs (no invented scale beyond it): **Raid Lead** (renamed 14 Sep 2026, was Lance Lead), running one 5-pilot lance day to day, and **Guildmaster** (renamed 14 Sep 2026, was Company Commander), running the whole multi-lance force. The two aren't a hand-off — Guildmaster sits *above* Raid Lead, not in place of it. A pilot can hold both at once (Rourke does, §3), while other lances stand up their own separate Lead reporting up to the same Guildmaster. A pilot can hold high personal rank and no command slot at all — most of the roster, by design. A pilot can be pulled into a command role without being the most senior person nearby, same as any merit-based promotion already assumes elsewhere in this project's own economy.
 
 ---
 
@@ -50,15 +54,17 @@ Directly off the existing gear-tier table. No new currency, no new cost numbers 
 
 This one needed almost nothing invented — Rourke's own progression, already locked in the Amaranth Reckoning (§6/§10), already *is* this ladder. Formalizing the mapping is the whole job.
 
+*Titles renamed 14 Sep 2026 — see the correction after §0. "Lance Lead" and "Company Commander" are these titles' old names, kept in the "Locked example" column's history but no longer the current display text.*
+
 | Command position | Title | Unit led | Locked example |
 | --- | --- | --- | --- |
 | Pilot | (enlisted title, §2) | Self, one seat in a lance | Everyone who isn't in command of anything |
-| Lance Lead | 2nd Lt. | One 5-pilot lance | Rourke, Act I — "Rourke's five-mech lance," already the campaign doc's own flavor text for Lance A before Warden Company even has that name |
-| Company Commander | Capt. → Maj. | The full multi-lance force — *and*, for Rourke specifically, still Lance A directly underneath that | Rourke again: Capt. at Mission 12 (Act I's finale, already locked), Maj. at Mission 24 (Act II's finale, already locked) — both already gate Antfarm hub access under Antfarm §12.1 |
+| **Raid Lead** | 2nd Lt. | One 5-pilot lance | Rourke, Act I — "Rourke's five-mech lance," already the campaign doc's own flavor text for Lance A before Warden Company even has that name |
+| **Guildmaster** | Capt. → Maj. | The full multi-lance force — *and*, for Rourke specifically, still Lance A directly underneath that | Rourke again: Capt. at Mission 12 (Act I's finale, already locked), Maj. at Mission 24 (Act II's finale, already locked) — both already gate Antfarm hub access under Antfarm §12.1 |
 
 No new rungs above Maj. — the campaign never needs one. Warden Company never splits into multiple companies under one player's command; "Maj.+" in the Amaranth Reckoning's own §10 table is already the open-ended top of this ladder, not a placeholder for something above it.
 
-**Corrected, 25 Aug 2026 — Maxime: "shes still leading lance a, she just lead lance b and c as well. even if they got their own co."** Not a hand-off. Rourke's promotion to Company Commander doesn't pull her out of Lance A — she stays its Lead in person, the same unit she's run since Mission 1, *and* holds overall command of the whole force on top of that. Lance B and Lance C can each stand up their own Lead (their own "CO," in Maxime's words) once they form, reporting up to her — but that's a subordinate post under her, not a replacement for her. So the open casting question from the first draft was scoped wrong: it's not "who replaces Rourke on Lance A" (nobody does), it's narrower — **who becomes Lance B's and Lance C's own Lead** once each forms, still genuinely open, still not guessed at here.
+**Corrected, 25 Aug 2026 — Maxime: "shes still leading lance a, she just lead lance b and c as well. even if they got their own co."** Not a hand-off. Rourke's promotion to Guildmaster doesn't pull her out of Lance A — she stays its Lead in person, the same unit she's run since Mission 1, *and* holds overall command of the whole force on top of that. Lance B and Lance C can each stand up their own Lead (their own "CO," in Maxime's words) once they form, reporting up to her — but that's a subordinate post under her, not a replacement for her. So the open casting question from the first draft was scoped wrong: it's not "who replaces Rourke on Lance A" (nobody does), it's narrower — **who becomes Lance B's and Lance C's own Lead** once each forms, still genuinely open, still not guessed at here.
 
 ---
 
@@ -76,6 +82,7 @@ The real hook is `PilotRecord.tier` (`src/data/types.ts`), which already exists 
 
 ## 6. Open items, for the Defect Queue
 
+- **Closed, 14 Sep 2026 — command-position titles vs. full crossover.** Was: this doc's deliberate real-world-rank vocabulary was never checked against the 2 Sep full-crossover call. Resolved: Lance Lead → Raid Lead, Company Commander → Guildmaster, titles only, Lance/Warden Company untouched. See the correction after §0 and `claude/Bloom_Wars_Rank_Guild_Naming_Consistency_Plan_v1.md` for the full reasoning.
 - **Named-pilot titles vs. the mechanical ladder** (§2) — recommended resolution (decouple, named pilots keep authored titles) stated but not locked.
 - **Who becomes Lance B's and Lance C's own Lead** once each forms (§3) — Rourke stays Lance A's Lead throughout, so this is scoped to the two new lances only; genuinely unanswered, not guessed at.
 - **Whether personal rank should carry mechanical teeth** (a points multiplier, a morale/Favorability bonus, anything beyond a display title) — deliberately out of scope this pass, flagged as a possible future extension rather than invented unbidden.

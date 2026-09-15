@@ -50,7 +50,28 @@ export type MemoryKind =
   | "breakdown" // a Breakdown, and how it resolved (data/breakdown.ts)
   | "was_insulted" // the player used Insult on them
   | "was_gifted" // the player used Gift on them
-  | "asked_out"; // the player asked them out (accepted or not is in `echo`)
+  | "asked_out" // the player asked them out (accepted or not is in `echo`)
+  // Gate 4, the audience gate — Bloom_Wars_Reaction_Formula_v2_Locked_14Sep2026.md's
+  // own "Gate 4, updated" table, 14 Sep 2026. A reaction the room makes
+  // unavailable is never lost; it reroutes into whichever channel the moment
+  // leaves open. These are the two rows of that table that leave a mark on the
+  // LEDGER rather than only a Worry or a deferral.
+  //
+  // The sadness row deliberately has NO kind here, and that absence is the
+  // decision rather than an oversight: a breakdown with too many witnesses is
+  // DEFERRED, not suppressed. It still fires, later, once the pilot is alone
+  // or with one bonded pilot, and writes an ordinary `breakdown` entry at that
+  // point (data/breakdown.ts). A kind here would write one event into the
+  // ledger twice, once for holding it in and once for letting it out, and
+  // double-count it in echoLoad/topMemories for the rest of the campaign.
+  //
+  // The struck/off-roster row has no kind either, for a different reason: it
+  // is not implementable yet. Nothing in the engine tracks a pilot's standing
+  // on the Matter ladder (reactionGate4.ts's own Standing type is a stub with
+  // no writer), so that row stays unbuilt rather than half-built against
+  // invented data.
+  | "suppressed_anger_impulse" // wanted to blow up at someone, the CO was in the room
+  | "suppressed_askout_rival"; // wanted to ask someone out, their rival was standing right there
 
 export interface MemoryEntry {
   kind: MemoryKind;
@@ -89,13 +110,28 @@ export const MEMORY_FLOOR = 0.05;
  * dominate; kills and repairs are ordinary; the Hub verbs sit in between
  * because they are personal (the player did it to them, on purpose).
  */
+/**
+ * Pulled out as its own constant 14 Sep 2026, and only because Gate 4 gave it
+ * a second reader. `suppressed_anger_impulse` is specified as "roughly 1.5x
+ * normal weight" (Reaction_Formula_v2's Gate 4 table) where "normal" means
+ * exactly this — the weight a blowup that actually happened would have got.
+ * Writing 0.75 as a literal below would have been a second number with a
+ * silent dependency on this one: retune a blowup and the suppressed variant
+ * quietly stops being 1.5x anything. Same reasoning STRESS_PANIC_THRESHOLD
+ * and DART_ZONE_THRESHOLDS were both hoisted out for, and the value is
+ * unchanged from the literal it replaces.
+ */
+export const BLOWUP_BIRTH_WEIGHT = 0.5;
+/** Gate 4's own multiplier for an anger impulse the room made unavailable. Held anger sits heavier than spent anger. */
+export const SUPPRESSED_ANGER_MULTIPLIER = 1.5;
+
 export const MEMORY_BIRTH_WEIGHT: Record<MemoryKind, number> = {
   lost_squadmate: 1.0,
   was_pulled_out: 0.8,
   was_downed: 0.7,
   saw_fall: 0.5,
   breakdown: 0.6,
-  blowup: 0.5,
+  blowup: BLOWUP_BIRTH_WEIGHT,
   was_insulted: 0.5,
   asked_out: 0.45,
   was_gifted: 0.35,
@@ -104,6 +140,22 @@ export const MEMORY_BIRTH_WEIGHT: Record<MemoryKind, number> = {
   patched_someone: 0.3,
   got_the_kill: 0.3,
   mission_won: 0.2,
+  // Gate 4, 14 Sep 2026. Both are placeholders in this file's own sense (see
+  // the header): picked with reasoning, owed a `npm run sim:brain` pass, and
+  // expected to move.
+  //
+  // 0.75 — the spec's "roughly 1.5x normal," derived rather than typed, so it
+  // tracks a blowup's own weight if that ever gets retuned. Above breakdown
+  // (0.6) on purpose: the thing you swallowed in front of your CO is louder,
+  // later, than the thing you got to let out.
+  suppressed_anger_impulse: BLOWUP_BIRTH_WEIGHT * SUPPRESSED_ANGER_MULTIPLIER,
+  // 0.4, just under a real ask-out (0.45). No multiplier here, and the
+  // asymmetry with anger above is deliberate: held anger festers, a held
+  // confession mostly just aches. The Gate 4 table only mandates a Worry for
+  // this row — the ledger entry is an addition, made so the moment shows up
+  // in the Archive's Carries block instead of existing only as a Worry that
+  // expires in a day and leaves no trace it ever happened.
+  suppressed_askout_rival: 0.4,
 };
 
 /** Current salience of one memory, given today's in-game day. */
@@ -180,4 +232,11 @@ export const MEMORY_KIND_LABEL: Record<MemoryKind, string> = {
   was_insulted: "Was insulted by their commander",
   was_gifted: "Was given a gift by their commander",
   asked_out: "Was asked out by their commander",
+  // Gate 4, 14 Sep 2026. Record voice, same as every line above: a dossier
+  // noting what the pilot did, never the pilot narrating it. "Held back"
+  // rather than "suppressed" because the Archive is a personnel record, not a
+  // systems readout, and a reader should be able to parse the line without
+  // knowing the engine has a gate in it at all.
+  suppressed_anger_impulse: "Held back an angry impulse",
+  suppressed_askout_rival: "Held back a confession",
 };

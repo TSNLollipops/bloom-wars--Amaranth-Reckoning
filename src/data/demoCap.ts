@@ -93,3 +93,36 @@ export function isMissionDemoLockedWithCap(
 export function isMissionDemoLocked(campaignId: string, chain: readonly CampaignMission[], missionId: string): boolean {
   return isMissionDemoLockedWithCap(DEMO_MISSION_CAP, campaignId, chain, missionId);
 }
+
+/**
+ * The line shown in the tease panel a locked Act tab opens instead of its
+ * mission list — see scenes/MapSelect.ts. Distinct from DEMO_LOCK_MESSAGE
+ * above (which explains one already-visible, individually-locked mission
+ * card): this is the tab-level tease, Build Brief
+ * claude_Bloom_Wars_Build_Brief_TeaseTooltipsStressBar_13Sep2026.md item 1,
+ * copy locked by Maxime, transcribed verbatim, not Claude's wording.
+ */
+export const DEMO_TAB_LOCK_MESSAGE = "The war doesn't end at Mission 12. The rest of Warden Company's story is waiting on itch.io.";
+
+/**
+ * Whole-tab demo lock — true only when EVERY mission in this campaign/act
+ * is demo-locked. Reuses isMissionDemoLockedWithCap per mission rather than
+ * a cap-position shortcut (e.g. "cap < this act's first mission index"), so
+ * a future uneven or hand-edited cap that split an act's own mission list
+ * fails closed (reads as "not tab-locked," falling through to the normal
+ * per-mission-card lock every mission already carries on its own) instead
+ * of silently mis-teasing a partially-playable act.
+ */
+export function isCampaignDemoLockedWithCap(
+  cap: number | null,
+  campaignId: string,
+  chain: readonly CampaignMission[],
+  missionIds: readonly string[]
+): boolean {
+  return missionIds.length > 0 && missionIds.every((id) => isMissionDemoLockedWithCap(cap, campaignId, chain, id));
+}
+
+/** Real, import.meta.env-backed version of isCampaignDemoLockedWithCap — see that function and DEMO_MISSION_CAP above. */
+export function isCampaignDemoLocked(campaignId: string, chain: readonly CampaignMission[], missionIds: readonly string[]): boolean {
+  return isCampaignDemoLockedWithCap(DEMO_MISSION_CAP, campaignId, chain, missionIds);
+}

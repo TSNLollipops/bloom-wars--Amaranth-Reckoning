@@ -193,7 +193,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     statusMode: "rourke",
     body: [
       "Meeps. Human. Green when this started, and it showed: quick, aggressive, not yet a commander. Still leading from the front. The unit under her now carries the opposite of her own callsign.",
-      "By Mission 12 she's carrying Capt.'s bars, and Maj.'s by Mission 24. Company Commander over the whole force, both times. Neither promotion pulls her out of Lance A. She's still its Lead in person, still the same lance she's run since Mission 1, just with more of Warden Company answering to her on top of it.",
+      "By Mission 12 she's carrying Capt.'s bars, and Maj.'s by Mission 24. Guildmaster over the whole force, both times. Neither promotion pulls her out of Lance A. She's still its Lead in person, still the same lance she's run since Mission 1, just with more of Warden Company answering to her on top of it.",
     ],
     tail: { heading: "MEK — mek_rourke, catalyst Raven", body: "Grew up on a working dock on Glasswater itself, close enough to the sector capital's real labor to know exactly what keeps a comfortable world running underneath it. That's the same instinct that makes a good Mek: quietly making sure Rourke's own rig is right before she ever has to ask." },
   },
@@ -332,8 +332,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Command Position",
     gate: null,
     body: [
-      "A role, not a rung, layered on top of personal rank rather than replacing it. Lance Lead runs one five-synker lance day to day, carrying the title 2nd Lt. Company Commander sits above that, running the whole force, carrying Capt. and later Maj. as the company grows.",
-      "The two aren't a hand-off. When a Lance Lead gets promoted to Company Commander, they don't step back from the lance they were already running. They keep leading it in person, on top of everything else now answering to them. Rourke's own record is the clearest example: still Lance A's Lead, the exact same lance she's led since her very first mission, and Company Commander over the whole of Warden Company besides.",
+      "A role, not a rung, layered on top of personal rank rather than replacing it. Raid Lead runs one five-synker lance day to day, carrying the title 2nd Lt. Guildmaster sits above that, running the whole force, carrying Capt. and later Maj. as the company grows.",
+      "The two aren't a hand-off. When a Raid Lead gets promoted to Guildmaster, they don't step back from the lance they were already running. They keep leading it in person, on top of everything else now answering to them. Rourke's own record is the clearest example: still Lance A's Lead, the exact same lance she's led since her very first mission, and Guildmaster over the whole of Warden Company besides.",
     ],
   },
 
