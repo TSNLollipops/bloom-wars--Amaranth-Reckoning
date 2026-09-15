@@ -21,7 +21,7 @@
 //      directly against BLOWUP_BIRTH_WEIGHT rather than against the literal
 //      0.75, so retuning a blowup either keeps the relationship or fails here.
 import { describe, it, expect } from "vitest";
-import { gate4Check, SADNESS_WITNESS_LIMIT, type SceneContext } from "../reactionGate4";
+import { gate4Check, SADNESS_WITNESS_LIMIT, type SceneContext, type Gate4Result, type Gate4Suppression } from "../reactionGate4";
 import { MEMORY_BIRTH_WEIGHT, BLOWUP_BIRTH_WEIGHT, SUPPRESSED_ANGER_MULTIPLIER } from "../memories";
 import type { AmbientPilotState } from "../ambientLines";
 
@@ -33,6 +33,14 @@ function pilot(overrides: Partial<AmbientPilotState> = {}): AmbientPilotState {
 
 function scene(overrides: Partial<SceneContext> = {}): SceneContext {
   return { nearbyPilotIds: [], bondedPilotIds: [], rivalPilotIds: [], authorityPilotIds: [], ...overrides };
+}
+
+// Asserts the verdict is a suppression and hands back the narrowed half, so
+// each case reads its outputs without repeating the discriminant check. The
+// throw is the assertion: vitest reports it with the test name.
+function suppressed(result: Gate4Result): Gate4Suppression {
+  if (result.allowed) throw new Error("expected a suppression, got allowed");
+  return result;
 }
 
 describe("gate4Check — the empty room allows everything", () => {
@@ -54,19 +62,19 @@ describe("gate4Check — anger, authority in the room", () => {
   const angry = scene({ targetPilotId: "bosk", authorityPilotIds: ["player"], nearbyPilotIds: ["bosk", "player"] });
 
   it("suppresses anger when authority is present and the anger has a target", () => {
-    const result = gate4Check(pilot(), "anger", angry);
+    const result = suppressed(gate4Check(pilot(), "anger", angry));
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("anger_authority_present");
   });
 
   it("produces BOTH a ledger mark and a Worry, not one or the other", () => {
-    const result = gate4Check(pilot(), "anger", angry);
+    const result = suppressed(gate4Check(pilot(), "anger", angry));
     expect(result.memoryKind).toBe("suppressed_anger_impulse");
     expect(result.worry).toEqual({ source: "hub_suppressed_anger", about: "bosk" });
   });
 
   it("opens the Worry about the target of the anger, not about the authority figure", () => {
-    const result = gate4Check(pilot(), "anger", angry);
+    const result = suppressed(gate4Check(pilot(), "anger", angry));
     expect(result.worry?.about).toBe("bosk");
     expect(result.worry?.about).not.toBe("player");
   });
@@ -82,7 +90,7 @@ describe("gate4Check — anger, authority in the room", () => {
   });
 
   it("does not defer — held anger is recorded now, not replayed later", () => {
-    const result = gate4Check(pilot(), "anger", angry);
+    const result = suppressed(gate4Check(pilot(), "anger", angry));
     expect(result.deferred).toBeUndefined();
   });
 });
@@ -96,14 +104,13 @@ describe("gate4Check — sadness, more than two witnesses", () => {
 
   it("defers sadness one witness past the limit", () => {
     const overLimit = scene({ nearbyPilotIds: ["a", "b", "c"] });
-    const result = gate4Check(pilot(), "sadness", overLimit);
-    expect(result.allowed).toBe(false);
+    const result = suppressed(gate4Check(pilot(), "sadness", overLimit));
     expect(result.reason).toBe("sadness_too_many_witnesses");
     expect(result.deferred).toBe(true);
   });
 
   it("writes no ledger mark — the deferred breakdown writes its own when it fires", () => {
-    const result = gate4Check(pilot(), "sadness", scene({ nearbyPilotIds: ["a", "b", "c"] }));
+    const result = suppressed(gate4Check(pilot(), "sadness", scene({ nearbyPilotIds: ["a", "b", "c"] })));
     expect(result.memoryKind).toBeUndefined();
     expect(result.worry).toBeUndefined();
   });
@@ -117,7 +124,7 @@ describe("gate4Check — sadness, more than two witnesses", () => {
 describe("gate4Check — love, rival in the room", () => {
   it("suppresses love when a rival is actually standing there", () => {
     const rivalPresent = scene({ targetPilotId: "anand", rivalPilotIds: ["lask"], nearbyPilotIds: ["anand", "lask"] });
-    const result = gate4Check(pilot(), "love", rivalPresent);
+    const result = suppressed(gate4Check(pilot(), "love", rivalPresent));
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("askout_rival_present");
     expect(result.memoryKind).toBe("suppressed_askout_rival");
@@ -125,7 +132,7 @@ describe("gate4Check — love, rival in the room", () => {
 
   it("opens the Worry about the RIVAL, not about the person they wanted to ask", () => {
     const rivalPresent = scene({ targetPilotId: "anand", rivalPilotIds: ["lask"], nearbyPilotIds: ["anand", "lask"] });
-    const result = gate4Check(pilot(), "love", rivalPresent);
+    const result = suppressed(gate4Check(pilot(), "love", rivalPresent));
     expect(result.worry).toEqual({ source: "hub_suppressed_askout", about: "lask" });
   });
 
@@ -143,7 +150,7 @@ describe("gate4Check — love, rival in the room", () => {
 
   it("picks the rival who is present when several rivals exist", () => {
     const manyRivals = scene({ targetPilotId: "anand", rivalPilotIds: ["lask", "bosk"], nearbyPilotIds: ["anand", "bosk"] });
-    const result = gate4Check(pilot(), "love", manyRivals);
+    const result = suppressed(gate4Check(pilot(), "love", manyRivals));
     expect(result.worry?.about).toBe("bosk");
   });
 });
@@ -160,12 +167,12 @@ describe("gate4Check — fear has no row in the table", () => {
   });
 });
 
-describe("the invariant the flat Gate4Result can no longer express in types", () => {
-  // Gate4Result is one flat interface rather than a discriminated union,
-  // because this project builds with strict off and TypeScript will not narrow
-  // a union without strictNullChecks (see that type's own comment). The thing
-  // the union would have guaranteed for free — a suppression always carries a
-  // reason, an allowed result never does — has to be asserted here instead.
+describe("the union's own invariants, checked at runtime as well", () => {
+  // The discriminated union already guarantees at the type level that a
+  // suppression carries a reason. These cases check the RUNTIME side of the
+  // same contract: that each row actually returns the suppressed member (not
+  // an allowed one by mistake), and that an allowed result carries no stray
+  // payload. The type cannot see either of those.
   const suppressing: [string, Parameters<typeof gate4Check>[1], SceneContext][] = [
     ["anger", "anger", scene({ targetPilotId: "bosk", authorityPilotIds: ["player"], nearbyPilotIds: ["bosk", "player"] })],
     ["sadness", "sadness", scene({ nearbyPilotIds: ["a", "b", "c"] })],
@@ -173,24 +180,22 @@ describe("the invariant the flat Gate4Result can no longer express in types", ()
   ];
 
   it.each(suppressing)("every suppressing row sets a reason (%s)", (_label, echo, ctx) => {
-    const result = gate4Check(pilot(), echo, ctx);
+    const result = suppressed(gate4Check(pilot(), echo, ctx));
     expect(result.allowed).toBe(false);
     expect(result.reason).toBeDefined();
   });
 
   it.each(suppressing)("every suppressing row produces at least one output (%s)", (_label, echo, ctx) => {
-    const result = gate4Check(pilot(), echo, ctx);
+    const result = suppressed(gate4Check(pilot(), echo, ctx));
     const produced = [result.memoryKind, result.worry, result.deferred].filter((v) => v !== undefined);
     expect(produced.length).toBeGreaterThan(0);
   });
 
-  it("an allowed result carries no reason and no outputs", () => {
-    const result = gate4Check(pilot(), "fear", scene());
-    expect(result.allowed).toBe(true);
-    expect(result.reason).toBeUndefined();
-    expect(result.memoryKind).toBeUndefined();
-    expect(result.worry).toBeUndefined();
-    expect(result.deferred).toBeUndefined();
+  it("an allowed result is exactly { allowed: true } and carries nothing else", () => {
+    // Under the union an allowed result has no reason/memoryKind/worry/deferred
+    // fields at the type level, so this checks the runtime object too: no
+    // stray payload riding along on a pass.
+    expect(gate4Check(pilot(), "fear", scene())).toEqual({ allowed: true });
   });
 });
 

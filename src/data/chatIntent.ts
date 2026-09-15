@@ -134,11 +134,15 @@ function countHits(text: string, keywords: string[]): number {
 // again, same day, once darts (src/engine/darts.ts) shipped — Maxime's
 // "fletcher is like persona 5 royal" resolved to a real skill-based
 // aim/power throw, living inside the Rec Room as its own zone rather than
-// a new room. "spar" stays, since nothing has designed it at all yet, not
-// even a reference.
-const UNBUILT_VERB_LINES: { verb: string; keywords: string[]; line: string }[] = [
-  { verb: "spar", keywords: ["spar", "sparring"], line: "No sparring ring here — not a thing yet." },
-];
+// a new room. "spar" GRADUATED too, 15 Sep 2026, once Challenge to Spar
+// (data/verbs.ts's "challengeSpar", data/socialActions.ts's
+// rollSparChallengeOutcome) shipped as a real player-initiated verb — see
+// challengeSpar's own entry in VERB_REQUEST_KEYWORDS below, which now
+// claims the bare word this placeholder used to catch. This table is
+// empty as a result, kept (rather than deleted along with
+// detectUnbuiltVerbLine) so the next genuinely-unbuilt verb someone tries
+// in chat has a home to land in without re-deriving this whole pattern.
+const UNBUILT_VERB_LINES: { verb: string; keywords: string[]; line: string }[] = [];
 
 // Real verb requests — 26 Aug 2026, the verb framework's first consumer.
 // Checked BEFORE detectUnbuiltVerbLine (Hub.ts's submitChat), so "drink"
@@ -212,6 +216,41 @@ const VERB_REQUEST_KEYWORDS: Partial<Record<VerbId, string[]>> = {
   apology: ["sorry", "i apologize", "my apologies", "i shouldn't have said that", "forgive me", "i take it back"],
   congratulate: ["congrats", "congratulations", "well earned", "you earned that"],
   sendOff: ["wish me luck", "watch my back out there", "look out for me out there", "send me off"],
+  // condolences/reassurance/checkIn/challengeSpar, 15 Sep 2026 — the "Any
+  // new verb we can add in?" batch (data/verbs.ts's own header has the
+  // full design reasoning). Deliberately no bare "sorry" in the
+  // condolences list even though that reads naturally ("sorry for your
+  // loss") — apology's own list above already claims "sorry" as a
+  // standalone keyword, checked first (object insertion order), so any
+  // phrase containing it as its own word would resolve to apology and
+  // never reach condolences. Every phrase below is picked to avoid that
+  // collision rather than reordering the table and risking a different one.
+  condolences: ["condolences", "my condolences", "for your loss", "so sad we lost them", "thinking of you today"],
+  reassurance: [
+    "you'll be fine", "youll be fine", "it'll be okay", "itll be okay", "it's going to be alright",
+    "its going to be alright", "you're going to be okay", "youre going to be okay", "you'll get through this",
+    "youll get through this",
+  ],
+  // Deliberately NOT "how are you" — GREETING_KEYWORDS below already owns
+  // that exact phrase (5 Sep 2026's "everyone in earshot hears a hello"
+  // broadcast), and detectVerbRequest is checked before detectSmallTalk, so
+  // a bare "how are you" has to keep resolving as a greeting, not silently
+  // start singling out one pilot for a deeper worry read instead. "how are
+  // you doing" is one word longer and phrased as a genuine question rather
+  // than a greeting reflex, so it's kept as Check-In's own trigger.
+  //
+  // Also deliberately NOT bare "you okay"/"you ok" — WORRY_CHECKIN_KEYWORDS
+  // below already owns "you okay about the mission" (a different, older
+  // question: how do you feel about your SQUADMATE being deployed, not how
+  // are YOU doing), and a bare "you okay" is a substring of that whole
+  // phrase, so it would have hijacked it the same way "how are you" almost
+  // hijacked plain greetings. "what's wrong"/"talk to me" carry the same
+  // intent without the overlap.
+  checkIn: ["how are you doing", "what's wrong", "whats wrong", "talk to me"],
+  // "spar"/"sparring" bare words graduated onto this list from
+  // UNBUILT_VERB_LINES above, 15 Sep 2026 — same word-boundary matching
+  // means this still won't false-positive inside "sparse"/"disparage".
+  challengeSpar: ["spar with me", "let's spar", "lets spar", "fight me", "wanna spar", "want to spar", "spar", "sparring"],
 };
 
 // Named single-target addressing, 2 Sep 2026 — every verb above resolves

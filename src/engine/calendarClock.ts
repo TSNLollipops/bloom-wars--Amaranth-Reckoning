@@ -127,6 +127,17 @@ export const VERB_DAY_COST: Record<VerbId, number> = {
   fletchers: 0.25,
   poker: 0.5,
   askOut: 0.5,
+  // Condolences/Reassurance/Check-In, 15 Sep 2026 — conversation-tier, same
+  // as gift/praise/apology/congratulate/insult/flirt above: a chat exchange
+  // the running clock already covers, no separate bill.
+  condolences: 0,
+  reassurance: 0,
+  checkIn: 0,
+  // Challenge to Spar, 15 Sep 2026 — a real, short sit-down activity in the
+  // Spar Room, same tier as the Rec Room trio (shareADrink/pegBoard/
+  // fletchers) just above, not conversation-tier: the player is doing
+  // something, not just standing there talking.
+  challengeSpar: 0.25,
 };
 
 /**

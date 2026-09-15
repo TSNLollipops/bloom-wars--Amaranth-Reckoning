@@ -3928,6 +3928,21 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(color, 0.4);
     }
 
+    // Drop shadow (visual polish pass, 15 Sep 2026 — see
+    // Bloom_Wars_Unit_Shadow_Scope_v1.md): a soft dark ellipse under every
+    // unit, same trick the bloom_flight branch below already uses for its
+    // own ground shadow. Two exclusions, both deliberate: bloom_flight
+    // skips this and keeps drawing its own (stacking both would double it
+    // up), and a still-burrowed Bloom skips it too — GDD §12's "Burrowed:
+    // dashed outline, 40% opacity" wants that state barely-there, not
+    // grounded by a shadow. Own fillStyle call, restored to the unit's
+    // real color/alpha right after so the shape fill below is unaffected.
+    if (kind !== "bloom_flight" && !burrowedBlob) {
+      g.fillStyle(0x000000, 0.25);
+      g.fillEllipse(cx, cy + r * 0.5, r * 1.0, r * 0.38);
+      g.fillStyle(color, fillAlpha);
+    }
+
     if (kind === "blob") {
       g.fillCircle(cx, cy, r);
     } else if (kind === "meeps") {

@@ -69,6 +69,14 @@ export const SOURCE_TAKE: Record<WorrySourceId, { stress: number; morale: number
   combat_permadeath_lost: { stress: 0, morale: 0 }, // the pilot is gone; survivors are handled via LOSS_TAKE
   combat_overwatch: { stress: 0.5, morale: 2, kind: "held_the_line" },
   combat_dodge: { stress: 2, morale: 1 },
+  // Gate 4, 14 Sep 2026 — same case as mission_pilot_missing above: Hub-side
+  // sources (engine/suppressedReaction.ts writes them onto HubNpc.worries),
+  // never on a Mission's combatWorries list, so this lookup never reaches
+  // them. Zero take, present only because the Record is exhaustive over
+  // WorrySourceId. The memory each one leaves is written at the moment of
+  // suppression through recordMemory, not here at Debrief, so no `kind`.
+  hub_suppressed_anger: { stress: 0, morale: 0 },
+  hub_suppressed_askout: { stress: 0, morale: 0 },
 };
 
 /** How the echo colours the take. stressUp scales any Stress increase; moraleUp any Morale gain; moraleDown any Morale loss. */

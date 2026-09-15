@@ -84,33 +84,32 @@ export type Gate4Reason = "anger_authority_present" | "sadness_too_many_witnesse
  * handles all three fields correctly handles all four table rows without
  * knowing which one it is looking at.
  *
- * ONE FLAT INTERFACE, NOT A DISCRIMINATED UNION, and this is the part that
- * looks like worse TypeScript and is not. This project's tsconfig.json does
- * not set `strict`, and therefore not strictNullChecks, and without
- * strictNullChecks the compiler does not narrow discriminated unions at all.
- * A `{ allowed: true } | { allowed: false, ... }` union type-checks fine where
- * it is BUILT and then fails at every single site that READS it: `if
- * (!r.allowed) { r.reason }` reports "Property 'reason' does not exist on type
- * '{ allowed: true }'". That was checked against this repo's own tsconfig, on
- * this shape and on the previous one, rather than assumed — the previous
- * three-route union has the same fault and would have failed the same way at
- * its first real consumer.
+ * A DISCRIMINATED UNION, ON PURPOSE, AND CHECKED. `{ allowed: true } |
+ * Gate4Suppression` means a caller that writes `if (!r.allowed)` gets a
+ * Gate4Suppression on the other side, with `reason` guaranteed present and
+ * the three optional outputs typed. That guarantee is only real when
+ * strictNullChecks is on, which it is here: package.json pins typescript
+ * ~6.0, and TypeScript 6 made `strict` the default, so tsconfig.json not
+ * mentioning it means ON, not off.
  *
- * The cost is real and worth naming rather than hiding: the type no longer
- * guarantees that a suppression carries a `reason`. That invariant moves to
- * __tests__/reactionGate4.test.ts, which asserts it row by row. In a codebase
- * with strict off, the tests carry the load the type system has put down.
+ * Recorded because it was got wrong once. An earlier draft of this file
+ * flattened the type to `allowed: boolean` plus optionals, on the strength of
+ * a sandbox that happened to be running TypeScript 5 — where strict defaults
+ * OFF and the union genuinely does not narrow. The flattened shape then failed
+ * the real build in engine/suppressedReaction.ts with "Gate4Reason |
+ * undefined is not assignable to Gate4Reason", which is strictNullChecks
+ * talking. The lesson is about toolchains, not types: check `npx tsc -v`
+ * against package.json before trusting what a sandbox says about narrowing.
  *
  * `memoryKind` carries no weight of its own on purpose: the 1.5x multiplier
  * lives in data/memories.ts's own MEMORY_BIRTH_WEIGHT table (derived there
  * from BLOWUP_BIRTH_WEIGHT, so it tracks retunes), and recordMemory looks it
  * up from the kind. One number, one home.
  */
-export interface Gate4Result {
-  /** False when the room made this reaction's normal output unavailable. */
-  allowed: boolean;
-  /** Which row fired. Set whenever `allowed` is false, absent when it is true. */
-  reason?: Gate4Reason;
+export interface Gate4Suppression {
+  allowed: false;
+  /** Which row of the table fired. */
+  reason: Gate4Reason;
   /** Write this kind into the reactor's ledger. Absent when the row leaves no ledger mark. */
   memoryKind?: MemoryKind;
   /** Open a Worry on the reactor, about `about`. Absent when the row opens none. */
@@ -119,12 +118,7 @@ export interface Gate4Result {
   deferred?: boolean;
 }
 
-/**
- * Alias kept so a caller that has already checked `allowed` can name what it
- * is holding. Identical to Gate4Result: with strict off there is no narrower
- * type to point at, and pretending otherwise would just move the failure.
- */
-export type Gate4Suppression = Gate4Result;
+export type Gate4Result = { allowed: true } | Gate4Suppression;
 
 /** More than two witnesses, per the table's own wording. Three or more other pilots in the room. */
 export const SADNESS_WITNESS_LIMIT = 2;

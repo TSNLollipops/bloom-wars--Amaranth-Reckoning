@@ -147,10 +147,23 @@ import {
 import {
   // The seven social verbs' own constants and line picks moved to
   // engine/socialVerbResolution.ts, 12 Sep 2026 — see applySocialVerb.
+  // Condolences and Reassurance (15 Sep 2026) joined that same file, same
+  // reason — only Reassurance's own cooldown constant is needed directly
+  // here (see reassureNpc below).
   MC_STRESS_DEFAULT,
   CONFIDE_STRESS_DELTA,
   pickCoConfideLine,
   pickCoCalloutLine,
+  REASSURANCE_COOLDOWN_MS,
+  // Check-In and Challenge to Spar, 15 Sep 2026 — neither goes through the
+  // generic resolver (see verbs.ts's own header for why), so their content
+  // is read directly here rather than through applySocialVerb.
+  bucketForWorrySource,
+  pickCheckInLine,
+  CHECK_IN_FAVORABILITY_DELTA,
+  rollSparChallengeOutcome,
+  pickSparChallengeLine,
+  SPAR_CHALLENGE_FAVORABILITY_DELTA,
 } from "../data/socialActions";
 // Chat Keyword Categories Plan v1 closing pass, 1 Sep 2026 — see
 // data/smallTalk.ts's own header for the full provenance (three separate
@@ -1526,6 +1539,19 @@ function isMissionWorrySignal(state: CampaignState): boolean {
  */
 const HUB_HUD_DEPTH = 20;
 
+// NPC speech bubbles (15 Sep 2026 — reported: banter bubble disappearing
+// under other things). Root cause: every bubbleContainer (pilots, the CO,
+// both Mek loops — 4 creation sites, this file) was created with no
+// setDepth at all, defaulting to 0, same as every NPC body and room prop.
+// At equal depth Phaser draws in creation/insertion order, so any NPC or
+// prop added later in the same frame's build simply painted over an
+// earlier NPC's bubble the instant it sat nearby. NPC_BUBBLE_DEPTH sits
+// above all of that ordinary room content (depth 0) but still below
+// HUB_HUD_DEPTH and every modal overlay (60/61) — a bubble should always
+// read over the room, but a Vault/Workshop/rec-room overlay opening should
+// still correctly cover it, same as before this fix.
+const NPC_BUBBLE_DEPTH = 10;
+
 const DOCK_SPLIT_X = ROOM_BOUNDS.right + 8; // 838 — unchanged from the old CHAT_LOG_X
 const DOCK_WIDTH = 1074 - DOCK_SPLIT_X; // 236 — the dock's own full screen width, canvas edge to canvas edge
 const DOCK_HEIGHT = 640; // full canvas height — the UI camera is a static, full-height strip, not confined to old ROOM_BOUNDS.top/bottom
@@ -1696,6 +1722,16 @@ type HubNpc = {
   // the single boolean other systems (pickSoloEcho, reactionGate) already
   // read — this is only the timer deciding when that boolean flips back.
   drunkUntil?: number;
+  // Reassurance verb, 15 Sep 2026 — the Spitball doc's own open question #2
+  // ("should this be free every time or gated"), resolved to a real
+  // per-pilot cooldown so Reassurance can't be the always-do-it button
+  // before every mission that flattens Stress into a number the player
+  // always zeroes out. Epoch ms (Date.now()), same convention as
+  // drunkUntil just above; undefined means no cooldown active. Lives here,
+  // not in engine/socialVerbResolution.ts, for the identical reason
+  // drunkUntil does — a per-scene pacing rule, not part of what the verb
+  // mechanically does.
+  reassuranceCooldownUntil?: number;
   // 26 Aug 2026, Build Plan §24 — cross-room wandering. Undefined = not
   // mid-journey. Set to a real destination RoomId the instant an idle roam
   // decision rolls EXPLORE_CHANCE (or, mid-journey, stays set across a
@@ -3083,6 +3119,55 @@ export class Hub extends Phaser.Scene {
       return;
     }
 
+    // Condolences/Reassurance/Check-In, 15 Sep 2026 — same precedence slot
+    // and same not-room-gated shape as Gift/Praise/etc. just above (see
+    // that block's own comment): comforting, reassuring, or checking in on
+    // a crewmate isn't tied to one room's furniture.
+    if (verbId === "condolences") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to say that to.");
+        return;
+      }
+      this.condolencesToNpc(target);
+      return;
+    }
+    if (verbId === "reassurance") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to hear that.");
+        return;
+      }
+      this.reassureNpc(target);
+      return;
+    }
+    if (verbId === "checkIn") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to ask.");
+        return;
+      }
+      this.checkInOnNpc(target);
+      return;
+    }
+    // Challenge to Spar, 15 Sep 2026 — room-gated to the Spar Room, same
+    // shape as Share a Drink's rec-room gate above (this method's own
+    // header has the full reasoning for why this isn't the ambient
+    // boredom-triggered Spar's resolution path).
+    if (verbId === "challengeSpar") {
+      if (this.currentRoomId !== "sparRoom") {
+        this.showFallback("Nothing to spar over out here — try the Spar Room.");
+        return;
+      }
+      const target = this.nearestNpcInRange(APPROACH_RADIUS, "sparRoom");
+      if (!target) {
+        this.showFallback("Nobody's close enough for a match.");
+        return;
+      }
+      this.challengeToSpar(target);
+      return;
+    }
+
     // Build request — Antfarm build economy, first slice, 27 Aug 2026.
     // Checked in the same slot as the real verbs above (a genuine build
     // request beats both the history/highlights reads and the generic
@@ -3930,6 +4015,71 @@ export class Hub extends Phaser.Scene {
 
   private sendOffNpc(npc: HubNpc) {
     this.applySocialVerb(npc, "sendOff");
+  }
+
+  // Condolences, 15 Sep 2026 — see data/socialActions.ts's own header and
+  // engine/socialVerbResolution.ts's "condolences" case for the actual
+  // gate (a live "muntiLost" HotTopic, not tied to this specific pilot).
+  private condolencesToNpc(npc: HubNpc) {
+    this.applySocialVerb(npc, "condolences");
+  }
+
+  // Reassurance, 15 Sep 2026 — same flat-delta shape as the verbs above,
+  // gated by a per-pilot cooldown this scene owns (see
+  // HubNpc.reassuranceCooldownUntil's own comment for why it lives here
+  // and not in the generic resolver). On cooldown: a plain UI line, same
+  // "nothing moved, nothing logged" shape every other requirements-gated
+  // refusal in this file uses — this isn't the NPC's own voice, it's the
+  // game telling the player to wait, so it goes through showFallback
+  // rather than a bubble.
+  private reassureNpc(npc: HubNpc) {
+    const now = Date.now();
+    if (npc.reassuranceCooldownUntil !== undefined && now < npc.reassuranceCooldownUntil) {
+      this.showFallback("They just heard this from you. Give it a little time.");
+      return;
+    }
+    this.applySocialVerb(npc, "reassurance");
+    npc.reassuranceCooldownUntil = now + REASSURANCE_COOLDOWN_MS;
+  }
+
+  // Check-In, 15 Sep 2026 — surfaces npc.ambient.topWorry (data/worries.ts,
+  // computed every tick by updateMissionWorry-adjacent code elsewhere in
+  // this file) through the four-bucket content read data/socialActions.ts
+  // builds for this verb specifically. Doesn't go through applySocialVerb/
+  // resolveSocialVerb — there's no HotTopic gate and no Stress/Morale
+  // change, just a small guaranteed Favorability nudge for asking, so the
+  // hand-rolled version here is honestly simpler than forcing this into
+  // the generic resolver's shape. Always succeeds — the "clear" bucket
+  // covers the empty-worries case the same as every other bucket.
+  private checkInOnNpc(npc: HubNpc) {
+    const now = this.time.now;
+    const bucket = npc.ambient.topWorry ? bucketForWorrySource(npc.ambient.topWorry.source) : "clear";
+    const line = pickCheckInLine(npc.ambient.catalyst, bucket);
+    npc.favorability += CHECK_IN_FAVORABILITY_DELTA;
+    this.showBubble(npc, line, now);
+    this.holdForPlayerTalk(npc);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "checkIn", line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Challenge to Spar, 15 Sep 2026 — the player-facing counterpart to the
+  // ambient, boredom-triggered Spar (tryBoredomSpar/runBoredomSpar below).
+  // Deliberately its own small resolution rather than a reuse of
+  // socialSim.ts's resolveSparEncounter — see data/socialActions.ts's own
+  // header for why (the MC has no modeled SocialSimPilot). Room-gated to
+  // the Spar Room in submitChat, the same way Share a Drink is gated to
+  // the rec room — see this method's one call site.
+  private challengeToSpar(npc: HubNpc) {
+    const now = this.time.now;
+    const outcome = rollSparChallengeOutcome();
+    npc.favorability += SPAR_CHALLENGE_FAVORABILITY_DELTA[outcome];
+    const line = pickSparChallengeLine(npc.ambient.catalyst, outcome);
+    this.showBubble(npc, line, now);
+    this.holdForPlayerTalk(npc);
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "challengeSpar", line, at: Date.now() });
+    this.persistNpcSocial(npc);
   }
 
   // Phase 3 piece two, 26 Aug 2026 — Ask Out. All the actual deciding
@@ -7205,7 +7355,7 @@ export class Hub extends Phaser.Scene {
       const root = this.add.container(pos.x, pos.y, [avatar.container, nameTag]);
 
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
-      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
+      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false).setDepth(NPC_BUBBLE_DEPTH);
 
       this.npcs.push({
         pilotId,
@@ -7336,7 +7486,7 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0.5);
     const coRoot = this.add.container(coPos.x, coPos.y, [coAvatar.container, coNameTag]);
     const coFavLabel = this.add.text(coPos.x, coPos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
-    const coBubbleContainer = this.add.container(coPos.x, coPos.y - NPC_R - 30).setVisible(false);
+    const coBubbleContainer = this.add.container(coPos.x, coPos.y - NPC_R - 30).setVisible(false).setDepth(NPC_BUBBLE_DEPTH);
 
     this.npcs.push({
       pilotId: CO_PILOT_ID,
@@ -7560,7 +7710,7 @@ export class Hub extends Phaser.Scene {
       const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
       const root = this.add.container(pos.x, pos.y, [avatar.container, nameTag]);
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
-      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
+      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false).setDepth(NPC_BUBBLE_DEPTH);
 
       this.npcs.push({
         pilotId: seed.mekId,
@@ -7686,7 +7836,7 @@ export class Hub extends Phaser.Scene {
       const nameTag = this.add.text(0, NPC_R + 12, displayName, { fontFamily: "monospace", fontSize: "9px", color: TEXT_DIM }).setOrigin(0.5);
       const root = this.add.container(pos.x, pos.y, [avatar.container, nameTag]);
       const favLabel = this.add.text(pos.x, pos.y - NPC_R - 14, "", { fontFamily: "monospace", fontSize: "9px", color: "#facc15" }).setOrigin(0.5).setVisible(false);
-      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false);
+      const bubbleContainer = this.add.container(pos.x, pos.y - NPC_R - 30).setVisible(false).setDepth(NPC_BUBBLE_DEPTH);
 
       this.npcs.push({
         pilotId: mekId,

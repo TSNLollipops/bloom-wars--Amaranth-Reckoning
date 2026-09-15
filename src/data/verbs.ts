@@ -114,6 +114,32 @@
 // under the "breakdown" verb id, unchanged; this is a separate, everyday
 // event with its own id.
 //
+// condolences / reassurance / checkIn / challengeSpar, 15 Sep 2026 — the
+// "Any new verb we can add in?" brainstorm, all four picked at once
+// (Maxime). Same single-target, player-initiated shape as the crew-
+// interaction batch below, but not a uniform mechanic underneath:
+// condolences and reassurance are flat-delta verbs slotting into the same
+// generic resolver as gift/praise/flirt/insult/apology/congratulate/
+// sendOff (engine/socialVerbResolution.ts) — condolences gates on a live
+// "muntiLost" HotTopic (targets whichever surviving pilot is carrying the
+// grief, not a specific pilotId the way Congratulate's "promoted" gate
+// does — see socialActions.ts's own header for why this isn't Congratulate
+// with different words), reassurance has no hot-topic gate at all but
+// carries its own small per-pilot cooldown (enforced in Hub.ts, not the
+// resolver — see REASSURANCE_COOLDOWN_MS in socialActions.ts). checkIn and
+// challengeSpar don't go through that generic resolver: checkIn surfaces
+// the real per-pilot Worries state (data/worries.ts) through a small
+// 4-bucket content read of its own (built fresh rather than reusing
+// ambientLines.ts's pickSoloEcho/pickLineForMessage, because that existing
+// pipeline was found, while building this, to never actually vary its line
+// by worry source — see socialActions.ts's Check-In header for the full
+// finding); challengeSpar is a deliberately separate, simpler resolution
+// (socialActions.ts's rollSparChallengeOutcome) rather than a reuse of the
+// existing NPC-vs-NPC Spar engine (engine/socialSim.ts's
+// resolveSparEncounter), because that engine needs a full SocialSimPilot
+// record (catalyst/stage/species) for both participants and the player/MC
+// has no such record anywhere in this codebase.
+//
 // gift / praise / insult / apology / congratulate / sendOff, 2 Sep 2026 —
 // the crew-interaction brainstorm pass ("add it all they are good. code it.
 // you are free to go."). All six are single-target, player-initiated, and
@@ -147,7 +173,11 @@ export type VerbId =
   | "insult"
   | "apology"
   | "congratulate"
-  | "sendOff";
+  | "sendOff"
+  | "condolences"
+  | "reassurance"
+  | "checkIn"
+  | "challengeSpar";
 
 export interface VerbRequirements {
   minFavorability?: number;
@@ -228,6 +258,13 @@ export const VERBS: Record<VerbId, VerbDef> = {
   apology: { id: "apology", label: "Apology", broadcast: false },
   congratulate: { id: "congratulate", label: "Congratulate", broadcast: false },
   sendOff: { id: "sendOff", label: "Send-Off", broadcast: false },
+  // 15 Sep 2026 batch — see this file's own header above for the full
+  // per-verb reasoning. All four broadcast: false, same as every other
+  // single-target verb in this file.
+  condolences: { id: "condolences", label: "Condolences", broadcast: false },
+  reassurance: { id: "reassurance", label: "Reassurance", broadcast: false },
+  checkIn: { id: "checkIn", label: "Check In", broadcast: false },
+  challengeSpar: { id: "challengeSpar", label: "Challenge to Spar", broadcast: false },
 };
 
 // The "Log entry" §3 asks for ("feeds the social-history record... it's

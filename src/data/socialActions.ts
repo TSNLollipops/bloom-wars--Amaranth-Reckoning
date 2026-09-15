@@ -389,3 +389,278 @@ export const CO_CALLOUT_LINES: string[] = [
 export function pickCoCalloutLine(): string {
   return pickOne(CO_CALLOUT_LINES);
 }
+
+// ---- Condolences ---------------------------------------------------------
+// 15 Sep 2026 — the half of the 2 Sep "hot-topic attendance" idea this file's
+// own Congratulate header named as deliberately NOT built that pass ("unlike
+// a promotion, there's no single living NPC to walk up to for a loss").
+// That's still true, and it's the actual design question this verb has to
+// answer, not a blocker: a loss has no single correct target the way a
+// promotion does (the promoted pilot is right there; the pilot who died
+// obviously isn't), so this pays out against ANY living pilot while a
+// muntiLost HotTopic is still live — you're not consoling the specific
+// person the topic is "about" (aboutPilotId is the deceased), you're
+// comforting whoever you're standing in front of while the loss is still
+// fresh news, the same way ambient chatter lets any nearby pilot bring it up
+// (data/hotTopics.ts's own pickHotTopicForSpeaker has no aboutPilotId tie
+// either, for the identical reason). Gated the same anti-farming way
+// Congratulate gates on "promoted" — no live muntiLost topic, no payout, per
+// engine/socialVerbResolution.ts's own "for what?" refusal shape.
+export const CONDOLENCE_FAVORABILITY_DELTA = 5;
+export const CONDOLENCE_STRESS_DELTA = -6;
+
+export const CONDOLENCE_LINES: Record<Catalyst, string> = {
+  wolf: "...Yeah. Doesn't feel real yet. Glad you came by, though — means we're still a company, not just a roster.",
+  dog: "Thank you. I keep looking over at where they'd be standing. Stupid, I know.",
+  cat: "I'm fine. I don't need — okay. Thanks. I heard you.",
+  crow: "Not really in a joking mood today, if that tells you anything. Thanks for checking.",
+  raven: "Appreciate it. I'll mourn on my own time — right now there's still a war on, and that's what they'd want anyway.",
+  bear: "...Yeah. Thanks. I don't really talk about it. But thanks.",
+  fox: "Careful, I might actually let that land instead of deflecting it. ...Thanks. Really.",
+  rabbit: "I can't stop thinking about it. Thank you for not pretending everything's fine.",
+  shark: "Won't lie, it shook me more than I expected. Appreciate you saying something instead of walking past.",
+};
+
+export function pickCondolenceLine(catalyst: Catalyst): string {
+  return CONDOLENCE_LINES[catalyst];
+}
+
+// ---- Reassurance -----------------------------------------------------------
+// Spitball Ideas Addendum, 8 Sep 2026 — Maxime's own ask, verbatim: "I want
+// to be able to tell my ant 'you'll be fine''name'' and it lower stress and
+// raise moral." That doc named this as slotting straight into the existing
+// verb framework with no new resolution model — "a straightforward
+// Stress-down/Morale-up delta on the target... just a third lever on numbers
+// that already exist" — so, unlike Gift/Praise/Congratulate/etc., this one
+// deliberately has NO Favorability line: the doc's own spec was Stress and
+// Morale only, and adding a Favorability nudge nobody asked for would be
+// scope creep on a verb that was scoped down to exactly two numbers on
+// purpose.
+//
+// Cooldown, 15 Sep 2026 — the doc's own open question #2, resolved: a real
+// per-pilot cooldown rather than free-every-time, so this can't be the
+// obvious always-do-it button before every mission (the doc's own stated
+// risk: "flatten Stress into a number you always zero out"). Enforced in
+// Hub.ts (HubNpc.reassuranceCooldownUntil), not in the generic resolver —
+// same reasoning as drunkUntil/engagedUntil living on HubNpc rather than in
+// engine/socialVerbResolution.ts: this is a per-scene pacing rule, not part
+// of what the verb mechanically DOES. Placeholder number, same "not
+// sim-tuned" caveat as everything else in this file.
+export const REASSURANCE_STRESS_DELTA = -10;
+export const REASSURANCE_MORALE_DELTA = 8;
+export const REASSURANCE_COOLDOWN_MS = 3 * 60 * 1000;
+
+export const REASSURANCE_LINES: Record<Catalyst, string> = {
+  wolf: "Yeah. Yeah, okay. We'll get through it together, like always.",
+  dog: "...Thank you. I needed to hear that more than I realized.",
+  cat: "I wasn't worried. But — fine. It helps. A little.",
+  crow: "Aw, look at you, being all supportive. Okay, I feel better. Don't tell anyone.",
+  raven: "Noted. And believed, for what that's worth coming from you.",
+  bear: "...Alright. I'll be fine either way, but... thanks.",
+  fox: "You didn't have to do that. I'll pretend I don't appreciate it. I do, though.",
+  rabbit: "Really? You mean that? ...Okay. Okay, I believe you. Thank you.",
+  shark: "I wasn't losing sleep over it. But that's good to hear regardless.",
+};
+
+export function pickReassuranceLine(catalyst: Catalyst): string {
+  return REASSURANCE_LINES[catalyst];
+}
+
+// ---- Check-In (surfacing a pilot's real Worries state) --------------------
+// 15 Sep 2026 — reads data/worries.ts's already-shipped Worries System
+// (9 real sources: a missing squadmate, 7 combat outcomes, 2 Gate-4
+// suppression sources) instead of inventing new content from nothing. Real
+// gap this verb closes: today that whole system only ever surfaces through
+// ambient chatter's own probability roll (pickSoloEcho, ambientLines.ts) —
+// a player who wants to know what's actually bothering a pilot has no way to
+// just ASK and get a guaranteed answer, only to wait around and hope the
+// idle-chatter dice land on it.
+//
+// Honest scope line, worth stating plainly rather than leaving implicit: the
+// live pickSoloEcho path doesn't actually differentiate its "fear" line by
+// WorrySourceId at all — every worry, missing-pilot or combat or suppressed,
+// currently renders the exact same generic dread content (LINE_BANK[catalyst]
+// ["fear"][stage], no per-source variant exists anywhere in this codebase
+// today). Reusing that path verbatim for Check-In would technically work but
+// would answer "what's wrong?" with the same flavorless line regardless of
+// what's actually wrong — a real letdown for a verb whose entire point is
+// finding out something specific. This block goes one step further than the
+// bare minimum without going all the way to a full 9-source content matrix
+// (81 lines): three real content buckets, grouping the 9 sources by what
+// they're actually about, plus a fourth "nothing's wrong" bucket for when a
+// pilot has no live worry — 4 buckets × 9 catalysts, matching the same
+// per-catalyst array scale Flirt already set as this project's going rate
+// for "this verb deserves its own real content."
+export type CheckInBucket = "missing" | "combat" | "suppressed" | "clear";
+
+// mission_pilot_missing -> missing; every combat_* source -> combat; both
+// hub_suppressed_* sources -> suppressed. worries.ts's own WorrySourceId
+// union is the source of truth for this mapping — if a tenth source is ever
+// added there, TypeScript's exhaustiveness on the switch in
+// bucketForWorrySource (below) is what will flag it, not memory.
+export const CHECK_IN_FAVORABILITY_DELTA = 2;
+
+export const CHECK_IN_LINES: Record<CheckInBucket, Record<Catalyst, string>> = {
+  missing: {
+    wolf: "Honestly? I keep checking the board for word on the squad still out there. Can't help it.",
+    dog: "I won't lie, I'm worried sick about them. Any word at all would help.",
+    cat: "...I've been keeping half an eye on the deployment board, if you must know.",
+    crow: "Trying not to think about it, which means I'm thinking about it constantly. Great system.",
+    raven: "I'm tracking it. Doesn't mean I'm not concerned — I just don't say it every five minutes.",
+    bear: "...They're late. I noticed. I'm not gonna make a thing of it.",
+    fox: "I've got three theories on what's holding them up, none of them good. Don't ask.",
+    rabbit: "I can't stop thinking about them out there. What if something's wrong?",
+    shark: "They'd better have a good reason for running this long. I'm watching the clock.",
+  },
+  combat: {
+    wolf: "Still running the last mission back in my head. Wondering if I could've covered someone better.",
+    dog: "Something from out there's still sitting with me. I'll be alright, just... still there.",
+    cat: "It's fine. I'm fine. I've just been a little off since the last sortie, that's all.",
+    crow: "Weird after-mission brain, you know? Can't shake a few seconds of it.",
+    raven: "Replaying the last engagement. Looking for what I'd change, if there's anything.",
+    bear: "...It was a rough one out there. I don't need to talk about it. But it was rough.",
+    fox: "I've got it handled. Mostly. There's just one part of the last op I keep circling back to.",
+    rabbit: "I keep seeing it when I close my eyes. The last mission, I mean. I'm okay, I just — yeah.",
+    shark: "Still recalibrating after the last sortie. Nothing I can't push through.",
+  },
+  suppressed: {
+    wolf: "There's something I've been sitting on. Not the time, probably. Maybe later.",
+    dog: "I've got something on my mind I haven't said out loud yet. It's fine. It'll keep.",
+    cat: "There's a thing I decided not to say earlier. Still deciding if that was right.",
+    crow: "Oh, there's definitely a whole thing I'm not talking about. Nice of you to notice, though.",
+    raven: "I held something back earlier. Deliberately. I'll bring it up when it's actually useful to.",
+    bear: "...There's something. I'm not saying it. Leave it there.",
+    fox: "Let's just say I've got a card I'm not showing yet. Ask me again some other time.",
+    rabbit: "I wanted to say something earlier and didn't. I probably should have. Sorry.",
+    shark: "There's a conversation I'm putting off. Not today, though. Today I've got a job to do.",
+  },
+  clear: {
+    wolf: "Nothing on my mind, honestly. Squad's good, I'm good. Ask me again after the next op.",
+    dog: "Doing alright, actually! Thanks for asking, that's genuinely nice of you.",
+    cat: "I'm fine. Why does everyone keep asking. I'm FINE.",
+    crow: "Clear skies up here! Well, figuratively. Ask me literally and it's a different answer.",
+    raven: "Nothing pressing. I'd tell you if there were — no sense carrying quiet weather like a storm.",
+    bear: "...Nothing. I'm good. Was there something else?",
+    fox: "Nothing you need to worry about. That's not a deflection, for once — I mean it.",
+    rabbit: "I'm okay! Really. Things have actually been pretty good lately.",
+    shark: "Nothing's slowing me down right now. Ask me again once something actually goes wrong.",
+  },
+};
+
+// worries.ts's own WorrySourceId union, mapped down to the four content
+// buckets above. Exhaustive switch on purpose — a tenth WorrySourceId added
+// there without a matching case here is a compile error, not a silent gap.
+export function bucketForWorrySource(source: import("./worries").WorrySourceId): CheckInBucket {
+  switch (source) {
+    case "mission_pilot_missing":
+      return "missing";
+    case "combat_kill":
+    case "combat_repair":
+    case "combat_downed":
+    case "combat_permadeath_lost":
+    case "combat_permadeath_recoverable":
+    case "combat_overwatch":
+    case "combat_dodge":
+      return "combat";
+    case "hub_suppressed_anger":
+    case "hub_suppressed_askout":
+      return "suppressed";
+  }
+}
+
+export function pickCheckInLine(catalyst: Catalyst, bucket: CheckInBucket): string {
+  return CHECK_IN_LINES[bucket][catalyst];
+}
+
+// ---- Challenge to Spar (player-initiated) ---------------------------------
+// 15 Sep 2026 — the player-facing counterpart to the existing ambient,
+// boredom-triggered Spar (scenes/Hub.ts's tryBoredomSpar/runBoredomSpar,
+// 30 Aug 2026). Deliberately NOT the same resolution path: that one runs
+// through engine/socialSim.ts's resolveSparEncounter, which resolves two
+// full SocialSimPilot records against each other (catalyst, stage, species)
+// — the MC has never been modeled as one of those (data/verbs.ts's own
+// header: "Actor isn't modeled... always the MC," the same gap the CO
+// Confide header names a second time). Bolting the player onto a function
+// built for two NPCs would mean inventing a fake catalyst/stage/species for
+// a character that doesn't canonically have any, which reads as a hack
+// dressed up as a reuse. This is a small, separate, honestly-simpler
+// resolution instead: a flat three-way roll, no hidden stat comparison
+// (there's nothing to compare against), same spirit as a friendly sparring
+// match between two people where the actual skill numbers don't exist yet.
+//
+// All three outcomes move Favorability up, never down — a friendly challenge
+// in the Spar Room isn't Insult-tier risk, and losing a spar to your own
+// commanding officer is, if anything, a better story than winning one.
+// Placeholder magnitudes and odds, same "not sim-tuned" caveat as everything
+// else in this file.
+export type SparChallengeOutcome = "win" | "lose" | "draw";
+
+export const SPAR_CHALLENGE_FAVORABILITY_DELTA: Record<SparChallengeOutcome, number> = {
+  win: 6,
+  lose: 8,
+  draw: 4,
+};
+
+// Roughly even thirds, lose given a slight edge — these are trained mech
+// pilots and the MC's own combat record isn't modeled as a stat anywhere,
+// so "the pilot usually holds their own against the boss" reads truer than
+// a flat coin-flip would. Not simulated, not tuned — a reasoned guess under
+// the same latitude every other placeholder number in this file carries.
+export function rollSparChallengeOutcome(rng: () => number = Math.random): SparChallengeOutcome {
+  const roll = rng();
+  if (roll < 0.3) return "win";
+  if (roll < 0.7) return "lose";
+  return "draw";
+}
+
+export const SPAR_CHALLENGE_LINES: Record<Catalyst, Record<SparChallengeOutcome, string>> = {
+  wolf: {
+    win: "Ha! Good bout. You've been holding out on us — that's a real fight stance.",
+    lose: "Yeah, that's a win, no argument. Good spar, though — you kept up.",
+    draw: "Even match. I'll take that as a compliment, coming from command.",
+  },
+  dog: {
+    win: "You got me! No hard feelings, that was a genuinely good fight.",
+    lose: "That one's mine, sorry! You'll get me next time.",
+    draw: "Even trade. That was actually really fun, thank you for asking.",
+  },
+  cat: {
+    win: "...Fine. You won. Don't let it go to your head.",
+    lose: "I win. Obviously. Better luck next time, Commander.",
+    draw: "A draw. I'll allow it. This time.",
+  },
+  crow: {
+    win: "Okay THAT was embarrassing, but also kind of fun? Rematch?",
+    lose: "Ha, got you! That felt amazing, ask me again sometime.",
+    draw: "Nobody wins, everybody's tired — perfect spar, honestly.",
+  },
+  raven: {
+    win: "Clean win, your side. I'll adjust my footwork before we go again.",
+    lose: "Mine, this round. You left an opening early — worth knowing for next time.",
+    draw: "Dead even. Good data either way.",
+  },
+  bear: {
+    win: "...Yeah. You got me. Good spar.",
+    lose: "That's mine. No hard feelings.",
+    draw: "...Even. Fine by me.",
+  },
+  fox: {
+    win: "Alright, alright — you got the better of me. Won't happen twice.",
+    lose: "That's a win for me. Don't worry, I won't tell anyone the Commander lost.",
+    draw: "A draw. Neither of us has to admit anything. I like this outcome.",
+  },
+  rabbit: {
+    win: "You beat me! That was really impressive, actually.",
+    lose: "I won that one — you're really not bad though, seriously!",
+    draw: "That was so close! That was fun, we should do it again sometime.",
+  },
+  shark: {
+    win: "You earned that one. Don't expect it twice.",
+    lose: "That's a win on my ledger. Come back when you've trained more.",
+    draw: "Even. I don't love a draw, but I respect it.",
+  },
+};
+
+export function pickSparChallengeLine(catalyst: Catalyst, outcome: SparChallengeOutcome): string {
+  return SPAR_CHALLENGE_LINES[catalyst][outcome];
+}

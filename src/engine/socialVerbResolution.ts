@@ -1,9 +1,12 @@
 // src/engine/socialVerbResolution.ts
 //
-// The seven single-target social verbs — Gift, Praise, Flirt, Insult,
-// Apology, Congratulate, Send-Off — resolved in one Phaser-free place.
-// Mission Chat, Player Notes and Battle HUD Relayout Plan v1, Workstream 4
-// (§5c), 12 Sep 2026: "The real work is architectural, not designed."
+// The single-target social verbs that share one flat-delta shape — Gift,
+// Praise, Flirt, Insult, Apology, Congratulate, Send-Off — resolved in one
+// Phaser-free place. Mission Chat, Player Notes and Battle HUD Relayout
+// Plan v1, Workstream 4 (§5c), 12 Sep 2026: "The real work is
+// architectural, not designed." Condolences and Reassurance (15 Sep 2026,
+// the "Any new verb we can add in?" batch) joined the same list later —
+// same flat-delta shape, same reasons to live here rather than on a scene.
 //
 // Until today every one of these lived as a private method on scenes/Hub.ts
 // (giveGift, praiseNpc, flirtWithNpc, insultNpc, apologizeToNpc,
@@ -94,12 +97,31 @@ import {
   SEND_OFF_FAVORABILITY_DELTA,
   SEND_OFF_STRESS_DELTA,
   pickSendOffLine,
+  CONDOLENCE_FAVORABILITY_DELTA,
+  CONDOLENCE_STRESS_DELTA,
+  pickCondolenceLine,
+  REASSURANCE_STRESS_DELTA,
+  REASSURANCE_MORALE_DELTA,
+  pickReassuranceLine,
 } from "../data/socialActions";
 import { CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 
-export type SocialVerb = Extract<VerbId, "gift" | "praise" | "flirt" | "insult" | "apology" | "congratulate" | "sendOff">;
+export type SocialVerb = Extract<
+  VerbId,
+  "gift" | "praise" | "flirt" | "insult" | "apology" | "congratulate" | "sendOff" | "condolences" | "reassurance"
+>;
 
-export const SOCIAL_VERBS: readonly SocialVerb[] = ["gift", "praise", "flirt", "insult", "apology", "congratulate", "sendOff"];
+export const SOCIAL_VERBS: readonly SocialVerb[] = [
+  "gift",
+  "praise",
+  "flirt",
+  "insult",
+  "apology",
+  "congratulate",
+  "sendOff",
+  "condolences",
+  "reassurance",
+];
 
 export function isSocialVerb(verb: VerbId | null | undefined): verb is SocialVerb {
   return !!verb && (SOCIAL_VERBS as readonly string[]).includes(verb);
@@ -292,6 +314,30 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
       const line = pickSendOffLine(subject.catalyst);
       log(line);
       return { ...base(line, true), sendOff: true };
+    }
+    // 15 Sep 2026 — see data/socialActions.ts's own Condolences header for
+    // why this gates on ANY live "muntiLost" topic rather than one about
+    // this specific subject (aboutPilotId on that topic is the deceased,
+    // not the pilot being consoled).
+    case "condolences": {
+      const topic = ctx.hotTopics.find((t) => t.kind === "muntiLost");
+      if (!topic) return base("Comfort them about what? Nobody's been lost.", false);
+      social.favorability += scaled(CONDOLENCE_FAVORABILITY_DELTA, scale);
+      social.stress = clamp100(social.stress + scaled(CONDOLENCE_STRESS_DELTA, scale));
+      const line = pickCondolenceLine(subject.catalyst);
+      log(line);
+      return base(line, true);
+    }
+    // 15 Sep 2026 — no hot-topic gate, no Favorability change (the Spitball
+    // doc's own spec: Stress/Morale only). The per-pilot cooldown lives on
+    // Hub.ts's HubNpc, not here — see socialActions.ts's own Reassurance
+    // header for why.
+    case "reassurance": {
+      social.stress = clamp100(social.stress + scaled(REASSURANCE_STRESS_DELTA, scale));
+      social.morale = clamp100(social.morale + scaled(REASSURANCE_MORALE_DELTA, scale));
+      const line = pickReassuranceLine(subject.catalyst);
+      log(line);
+      return base(line, true);
     }
   }
 }
