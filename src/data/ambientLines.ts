@@ -253,7 +253,7 @@ export function pickAmbientLine(pilot: AmbientPilotState, rng: () => number = Ma
 // for the two real call sites this outcome now branches from.
 export type HubMessage =
   | { kind: "emotion"; echo: Echo }
-  | { kind: "muster" }
+  | { kind: "muster"; leeroy?: boolean }
   | { kind: "rumor"; outcome: "rejected" | "accepted"; askerName: string; targetName: string; exaggerated?: boolean };
 
 const MUSTER_LINES = [
@@ -264,6 +264,18 @@ const MUSTER_LINES = [
   "About time — right behind you.",
   "Bay, got it. Moving.",
 ];
+
+// Easter egg, 15 Sep 2026 — Maxime's own line, verbatim: he types "alright,
+// CHUMS! Lets do this!" as the muster call, the whole squad answers in
+// unison with this instead of the normal scattered MUSTER_LINES picks
+// above. One fixed line, not a bank — the joke is everyone shouting the
+// same thing together, not nine different reactions. Set via HubMessage's
+// new `leeroy` flag (chatIntent.ts's interpretPlayerChat, keyed off the
+// word "chums") rather than a separate message kind, so every existing
+// muster consumer (propagation, distortMessage's no-op, Mek/CO declines)
+// needed zero changes — this only touches which line gets picked once a
+// muster message reaches an NPC who can actually respond to it.
+const LEEROY_LINE = "LEEROY JENKINS!";
 
 // Muster decline lines, 2 Sep 2026 (Bloom_Wars_Build_Log_Addendum_MusterMekCoAckFix_02Sep2026.md's
 // own flagged follow-up). A Mek or the CO hears a muster call the same as
@@ -633,6 +645,7 @@ export function pickLineForMessage(speaker: { catalyst: Catalyst; stage: Stage }
     return bank[Math.floor(rng() * bank.length)];
   }
   if (message.kind === "muster") {
+    if (message.leeroy) return LEEROY_LINE;
     return MUSTER_LINES[Math.floor(rng() * MUSTER_LINES.length)];
   }
   // 9 Sep 2026 — outcome picks which pair of banks, exaggerated still

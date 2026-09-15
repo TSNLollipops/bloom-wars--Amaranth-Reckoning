@@ -51,6 +51,11 @@ const MUSTER_KEYWORDS = [
   "rally",
   "launch",
   "mission",
+  // 15 Sep 2026 — Maxime's own muster call, "alright, CHUMS! Lets do
+  // this!" — doubles as the trigger for the LEEROY_LINE easter egg below
+  // (interpretPlayerChat), so a bare "chums" also reads as a real muster
+  // on its own, same as any other word in this list.
+  "chums",
 ];
 
 // Reclassified 2 Sep 2026 (crew-interaction brainstorm pass): "well done"
@@ -660,7 +665,14 @@ export function interpretPlayerChat(raw: string): HubMessage | null {
   const text = raw.trim().toLowerCase();
   if (!text) return null;
 
-  if (countHits(text, MUSTER_KEYWORDS) > 0) return { kind: "muster" };
+  if (countHits(text, MUSTER_KEYWORDS) > 0) {
+    // Easter egg, 15 Sep 2026 — see ambientLines.ts's LEEROY_LINE comment
+    // for the full story. Checked as its own word here (not folded
+    // silently into the muster read above) so it's clear this is a
+    // deliberate second check on the same text, not a coincidence.
+    if (countHits(text, ["chums"]) > 0) return { kind: "muster", leeroy: true };
+    return { kind: "muster" };
+  }
 
   let bestEcho: Echo | null = null;
   let bestScore = 0;
