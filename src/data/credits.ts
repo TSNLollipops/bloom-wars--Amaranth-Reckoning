@@ -44,13 +44,13 @@ The desktop build runs on Electron (MIT) and Chromium (BSD-style), whose
 notices are included with that build's own files.
 
 ------------------------------------------------------------
-ART
+AI TOOLS
 ------------------------------------------------------------
 
-Title, victory and defeat screen art was generated with Google Gemini. As a
-solo, self-funded dev with no art budget, this got illustrated screens into
-the game instead of none at all. Everything else — design, writing, code,
-systems, the world — is my own work.
+Title, victory and defeat screen art was generated with Google Gemini. The
+code was written with heavy help from Claude, Anthropic's AI. As a solo,
+self-funded dev with no art budget and no coding background, this is how the
+game got made. The design, the writing, the systems and the world are mine.
 
 ------------------------------------------------------------
 AUDIO (all Creative Commons Zero — public domain)
