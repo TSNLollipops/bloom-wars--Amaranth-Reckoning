@@ -539,3 +539,15 @@ export const ALL_HOSTILE_MECHS: Record<string, HostileMechArchetype> = {
   ...WARDEN_RIVAL_MECHS,
   ...LOYALIST_HOSTILE_MECHS,
 };
+
+/**
+ * Ejection capsules (15 Sep 2026). The named rivals' ids — Marrow and the
+ * rival Rourke. When one of these frames collapses, her own side pulls the
+ * capsule out before anyone can reach it, so she is never capturable.
+ * Maxime's call, same day: "No, they get pulled out by their side." They
+ * are story characters with their own arc, and a rival turning up on the
+ * player's bench would collide with every later mission she appears in.
+ * Built off the two rival blocks above rather than a hand-typed list, so a
+ * rival added to either block is covered without touching this line.
+ */
+export const RIVAL_HOSTILE_MECH_IDS: ReadonlySet<string> = new Set([...Object.keys(AMARANTH_RIVAL_MECHS), ...Object.keys(WARDEN_RIVAL_MECHS)]);

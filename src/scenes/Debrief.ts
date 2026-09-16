@@ -20,13 +20,16 @@
 // all take a live Mission directly, which is exactly what this buys.
 import Phaser from "phaser";
 import type { PilotRecord } from "../data/types";
-import type { Mission } from "../engine/mission";
+import type { Mission, CapturedPrisoner } from "../engine/mission";
 import {
   createWardenCampaignState,
   loadCampaignState,
   saveCampaignState,
   checkMuntiGuarantee,
   generateRandomRescuedPilot,
+  ransomPrisoner,
+  recruitPrisoner,
+  PRISONER_RANSOM_POINTS,
   integrateSecondLance,
   integrateThirdLance,
   integrateHouseAmaranthSecondLance,
@@ -88,6 +91,31 @@ const CARD_W = 900;
 const CARD_L = 480 - CARD_W / 2;
 const CARD_R = 480 + CARD_W / 2;
 
+// Debrief Scroll Fix, 15 Sep 2026 (Maxime's own screenshot: Amaranth
+// III.27's footer buttons sitting on top of the WHAT THEY TOOK FROM IT
+// panel, a fragmented "page 1/22" visible in the shop below it) — the
+// CAMPAIGN SHOP section's own fixed page-content budget (ShopPanel.
+// render()'s `bottom - top`), now expressed as a constant HEIGHT added to
+// wherever the callout stack above it ended, instead of a fixed absolute
+// screen position. See the viewportTop/viewportBottom assignment further
+// down in create() for the full diagnosis of what broke and why. 500 is
+// deliberately more generous than the ~320-366px this screen's shop
+// effectively got before the bug (viewportTop was small on an early,
+// low-roster mission, leaving more of the old fixed 566 ceiling free) —
+// this screen can now scroll to reach a taller shop page (see the
+// camera-bounds/wheel-listener block in create()), so there's no reason
+// left to keep shop pages as cramped as the old no-scroll layout required.
+const SHOP_BUDGET_HEIGHT = 500;
+
+// Footer layering fix, 15 Sep 2026 — see the footerLayer assignment in
+// create(). Depth sits above ordinary content and the shop (both 0) and
+// below every overlay that can open on this screen: the shop's own Discharge
+// and Frame modals (10/11), MENU (15), Save As (20), Character Creator (30).
+// The band is how much of the bottom of the screen the pinned footer covers
+// (its backdrop starts at y≈576 on a 640px camera).
+const DEBRIEF_FOOTER_DEPTH = 5;
+const DEBRIEF_FOOTER_BAND = 64;
+
 // Campaign-finale detection, 2 Sep 2026 (Calendar Economy v2 proposal §7's
 // "final day count at the finale as a shareable stat"). Hardcoded ids,
 // matching this file's own existing style for the Mission 12/24 story
@@ -112,6 +140,15 @@ export class Debrief extends Phaser.Scene {
   private secondLancePilots?: PilotRecord[];
   private thirdLancePilots?: PilotRecord[];
   private rescuedPilot?: PilotRecord;
+  // Ejection capsules (15 Sep 2026) — enemy pilots taken prisoner this
+  // mission (Mission.capturedPrisoners, win only) and what the player chose
+  // for each, keyed by capsule id: the line the row shows once decided.
+  // Rows redraw into prisonerLayer in place; the callout's height never
+  // changes after the choice, so nothing below it has to move.
+  private prisoners: CapturedPrisoner[] = [];
+  private prisonerOutcome: Record<string, string> = {};
+  private prisonerLayer: Phaser.GameObjects.Container | null = null;
+  private prisonerRowsTop = 0;
   // CO Check-In Gate Plan v1, 28 Aug 2026 — built 1 Sep 2026. Set once in
   // create(), before lastMissionEcho gets overwritten below — see that
   // assignment's own comment for why "was lastMissionEcho undefined before
@@ -197,9 +234,10 @@ export class Debrief extends Phaser.Scene {
     this.state.activeMissionAttempt = undefined;
 
     // ---- 1b. Apply this mission's permanent losses to the roster --------
-    // Mission.permanentLosses (engine/mission.ts) was already computed
-    // LIVE, at the exact instant of each downing this mission — that
-    // file's own header names this exact moment ("a future debrief
+    // Mission.permanentLosses (engine/mission.ts) was already decided by
+    // the Mission itself, the moment it ended (ejection capsules, 15 Sep
+    // 2026: a pilot whose capsule nobody recovered — see resolveCapsules).
+    // That file's own header names this exact moment ("a future debrief
     // screen") as where it gets applied to the persistent CampaignState.
     // Deliberately NOT re-run through evaluatePermadeathCheck/
     // applyPermadeathCheck here: those take a live BattleUnit + the
@@ -382,6 +420,11 @@ export class Debrief extends Phaser.Scene {
     // recruit"); clear_bloom_patch has no reward beyond the points
     // themselves, so it needs nothing resolved here.
     this.rescuedPilot = this.mission.rescueOutcome === "succeeded" ? generateRandomRescuedPilot(this.state) : undefined;
+    // Ejection capsules (15 Sep 2026) — nothing is applied here: each
+    // prisoner waits for the player's RANSOM / RECRUIT click
+    // (drawPrisonerCallout). Anyone still undecided at RETURN TO BASE is
+    // ransomed, so leaving the screen never quietly drops a prisoner.
+    this.prisoners = this.mission.capturedPrisoners();
 
     // ---- 3b. Second Lance integration (Act II opening, 25 Aug 2026) ------
     // See engine/campaignState.ts's integrateSecondLance for the full
@@ -516,6 +559,7 @@ export class Debrief extends Phaser.Scene {
     cursorY = this.drawTakeCallout(cursorY + 8);
     cursorY = this.drawMuntiCallout(cursorY + 8);
     cursorY = this.drawBonusObjectiveCallout(cursorY + 8);
+    cursorY = this.drawPrisonerCallout(cursorY + 8);
     cursorY = this.drawCallsignCallout(cursorY + 8);
     cursorY = this.drawSecondLanceCallout(cursorY + 8);
     cursorY = this.drawThirdLanceCallout(cursorY + 8);
@@ -526,10 +570,43 @@ export class Debrief extends Phaser.Scene {
       .text(480, cursorY + 10, "CAMPAIGN SHOP", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
 
+    // Debrief Scroll Fix, 15 Sep 2026 — viewportTop stays exactly what it
+    // always was (wherever the callout stack above actually ended,
+    // unbounded — that was never the bug). viewportBottom used to be a
+    // hardcoded 566, which only worked back when this whole scene was
+    // assumed to fit in one fixed 640px screen with no scrolling: on a
+    // mission with enough deployed pilots/bond shifts to push cursorY past
+    // ~536, viewportTop (cursorY+30) overtook that fixed 566 and handed
+    // ShopPanel.render() a near-zero or negative budget. computePages
+    // (ShopPanel.ts) always seats at least one entry per page regardless of
+    // budget (its own `pages[pages.length-1].length > 0` guard is what stops
+    // it looping forever on a page that can never fit anything) — so the
+    // shop degenerated into dozens of near-empty one-entry pages ("page
+    // 1/22" in Maxime's own screenshot) instead of its intended handful, all
+    // crushed into the same sliver of Y sitting right on top of the footer.
+    //
+    // Fix is two parts: (1) below, give the shop a budget relative to
+    // wherever the callout stack ended, instead of a fixed absolute screen
+    // position, so it's never squeezed no matter how tall that stack got;
+    // (2) right after this.shop.render(), since viewportTop+SHOP_BUDGET_
+    // HEIGHT can now legitimately run past the bottom of a 640px screen,
+    // this scene's camera scrolls to reach it instead of everything being
+    // forced into one fixed screen. The footer is pinned to the viewport
+    // (setScrollFactor(0) below) so RETURN TO BASE etc. stay reachable at
+    // any scroll position — same "pin what must always be reachable, let
+    // content scroll under it" split Hub.ts's own scrolling camera already
+    // uses for its Vault/Workshop panels.
     this.viewportTop = cursorY + 30;
-    this.viewportBottom = 566;
+    this.viewportBottom = this.viewportTop + SHOP_BUDGET_HEIGHT;
 
-    this.footerLayer = this.add.container(0, 0);
+    // Footer layering fix, 15 Sep 2026: the footer is created BEFORE the
+    // ShopPanel below, and Phaser draws same-depth objects in creation order,
+    // so the shop's text drew on top of the footer band whenever the page was
+    // scrolled ("CAMPAIGN SHOP" / "PILOTS — PERSONAL SHOP" showing between
+    // the buttons). An explicit depth puts the footer above ordinary scene
+    // content (depth 0) and still below every overlay that can open over it
+    // (see DEBRIEF_FOOTER_DEPTH's own comment for the list).
+    this.footerLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(DEBRIEF_FOOTER_DEPTH);
     // ShopPanel (25 Aug 2026) — this used to be ~270 lines of shop-drawing
     // code living directly on this class; now shared with scenes/Hangar.ts.
     // See that file's own header for why. onRender redraws just the footer
@@ -537,6 +614,38 @@ export class Debrief extends Phaser.Scene {
     // this scene needing to know anything about the panel's internals.
     this.shop = new ShopPanel(this, this.state, this.viewportTop, this.viewportBottom, () => this.renderFooter());
     this.shop.render();
+
+    // Debrief Scroll Fix, 15 Sep 2026 (continued) — the shop panel always
+    // draws pinned to its own [viewportTop, viewportBottom] budget whether
+    // or not it actually paginated (computePages leaves blank space rather
+    // than shrinking to fit), and its own PREV/NEXT nav row, when shown,
+    // sits at viewportBottom+8 with a ~24px button — so viewportBottom+40 is
+    // a safe (if occasionally slightly generous) lower bound on this
+    // scene's real content height. World height is whichever is taller:
+    // that, or the camera's own screen height (an ordinary early mission
+    // with nothing unusual shouldn't scroll at all). Bounds are set for
+    // Phaser's own bookkeeping; the wheel listener below clamps by hand
+    // (Phaser.Math.Clamp, the same utility scenes/ui/Panel.ts's own
+    // scrollBy already uses) rather than leaning on setBounds' own
+    // auto-clamp, so correctness here doesn't depend on exactly how that
+    // internal behavior works.
+    // + DEBRIEF_FOOTER_BAND (15 Sep 2026): the pinned footer now really
+    // covers the bottom band, so the world has to run that much further or
+    // the shop's own PREV/NEXT row would sit under the footer even at full
+    // scroll and could never be clicked.
+    const debriefWorldHeight = Math.max(this.cameras.main.height, this.viewportBottom + 40 + DEBRIEF_FOOTER_BAND);
+    this.cameras.main.setBounds(0, 0, 960, debriefWorldHeight);
+    const debriefMaxScrollY = Math.max(0, debriefWorldHeight - this.cameras.main.height);
+    // Re-run guard, the same idiom Hub.ts's own scene-wide wheel listener
+    // uses (that file's own comment: re-create()-accumulation caution) —
+    // scene.start("Debrief") reuses the same underlying Scene/InputPlugin
+    // instance per scene key, so a player replaying a mission and landing
+    // back on Debrief would otherwise stack a second listener on top of the
+    // first rather than replacing it.
+    this.input.off("wheel");
+    this.input.on("wheel", (_pointer: unknown, _over: unknown, _dx: number, dy: number) => {
+      this.cameras.main.scrollY = Phaser.Math.Clamp(this.cameras.main.scrollY + dy * 0.5, 0, debriefMaxScrollY);
+    });
 
     // Character Creator overlay, 9 Sep 2026 — same "toggle for every new
     // NPC" ask as ShopPanel.ts's own generic-hire button (see that file's
@@ -560,6 +669,16 @@ export class Debrief extends Phaser.Scene {
   // ---- Footer: live company balance + Return to Base ---------------------
   private renderFooter(): void {
     this.footerLayer.removeAll(true);
+    // Debrief Scroll Fix, 15 Sep 2026 — this scene now scrolls (see
+    // create()'s own camera-bounds comment above), so without something
+    // opaque behind it, whatever callout/shop content is currently scrolled
+    // underneath would show straight through the footer's buttons.
+    // footerLayer itself is already pinned (setScrollFactor(0) at
+    // construction, in create()), so this backdrop + divider inherit that
+    // automatically — added first so the buttons/text below draw on top of
+    // them, not the other way round.
+    this.footerLayer.add(this.add.rectangle(480, 604, 960, 56, 0x0c0f12, 1));
+    this.footerLayer.add(this.add.rectangle(480, 578, 960, 1, 0x3a4552, 0.8));
     this.footerLayer.add(
       this.add
         .text(CARD_L + 16, 604, `Company Points: ${this.state.points}`, { fontFamily: "monospace", fontSize: "12px", color: "#facc15" })
@@ -630,6 +749,7 @@ export class Debrief extends Phaser.Scene {
       "RETURN TO BASE",
       true,
       () => {
+        this.settleUndecidedPrisoners();
         saveCampaignState(this.state);
         // 1 Sep 2026 — see baseSceneKeyFor's own doc comment (engine/
         // campaignState.ts): a House Amaranth save has no Hub to send it to.
@@ -669,7 +789,15 @@ export class Debrief extends Phaser.Scene {
   }
 
   private flashSavedMessage(slot: number): void {
-    const msg = this.add.text(480, 630, `Saved to Slot ${slot + 1}.`, { fontFamily: "monospace", fontSize: "11px", color: "#4ade80" }).setOrigin(0.5);
+    // Debrief Scroll Fix, 15 Sep 2026 — sits in the same footer band as
+    // SAVE AS..., which is pinned; this needs the same setScrollFactor(0)
+    // or it'd render at world y=630 instead of screen y=630 the moment the
+    // player has scrolled at all.
+    const msg = this.add
+      .text(480, 630, `Saved to Slot ${slot + 1}.`, { fontFamily: "monospace", fontSize: "11px", color: "#4ade80" })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(DEBRIEF_FOOTER_DEPTH + 1); // sits in the footer band, so it has to draw above the footer's backdrop
     this.time.delayedCall(2200, () => msg.destroy());
   }
 
@@ -1052,6 +1180,117 @@ export class Debrief extends Phaser.Scene {
    * own two-row layout instead of squeezing into the Munti/bonus
    * callouts' single-line shape.
    */
+  /**
+   * PRISONERS (ejection capsules, 15 Sep 2026). One row per enemy pilot a
+   * unit pulled out of a capsule on this (won) mission, each with RANSOM
+   * (+PRISONER_RANSOM_POINTS company points) and RECRUIT (a new G-tier
+   * pilot of the same class, on the bench, handed to the Character Creator
+   * overlay like the Mission 5 rescue). System copy, not character voice,
+   * so it reads the same on both campaigns.
+   */
+  private drawPrisonerCallout(top: number): number {
+    if (!this.prisoners.length) return top;
+    const rowH = 30;
+    const height = 30 + this.prisoners.length * rowH + 18;
+    this.add.rectangle(480, top + height / 2, CARD_W, height, 0x1f1614, 1).setStrokeStyle(1, 0xfca5a5);
+    this.add
+      .text(CARD_L + 16, top + 14, `PRISONERS — ${this.prisoners.length} enemy pilot${this.prisoners.length === 1 ? "" : "s"} pulled from their capsules`, {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#fca5a5",
+      })
+      .setOrigin(0, 0.5);
+    this.add
+      .text(CARD_L + 16, top + height - 10, `They fight the same war. Ransom one for ${PRISONER_RANSOM_POINTS} points, or sign them on. Anyone left undecided is ransomed when you leave.`, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#8a97a6",
+      })
+      .setOrigin(0, 0.5);
+    this.prisonerRowsTop = top + 30;
+    this.prisonerLayer = this.add.container(0, 0);
+    this.renderPrisonerRows();
+    return top + height;
+  }
+
+  private renderPrisonerRows(): void {
+    const layer = this.prisonerLayer;
+    if (!layer) return;
+    // The clicked button is about to be destroyed under the pointer, so its
+    // pointerout never fires — hide its tooltip by hand or it lingers
+    // (caught on the first live check).
+    this.hoverTip.hide();
+    layer.removeAll(true);
+    const rowH = 30;
+    this.prisoners.forEach((p, i) => {
+      const y = this.prisonerRowsTop + i * rowH + rowH / 2;
+      const cls = p.path.charAt(0).toUpperCase() + p.path.slice(1);
+      layer.add(
+        this.add.text(CARD_L + 28, y, `${p.displayName} — ${cls}${p.capturedBy ? `  (taken by ${p.capturedBy})` : ""}`, { fontFamily: "monospace", fontSize: "11px", color: "#e8e2d4" }).setOrigin(0, 0.5)
+      );
+      const decided = this.prisonerOutcome[p.capsuleId];
+      if (decided) {
+        layer.add(this.add.text(CARD_R - 16, y, decided, { fontFamily: "monospace", fontSize: "11px", color: "#a3e635" }).setOrigin(1, 0.5));
+        return;
+      }
+      makeShopButton(
+        this,
+        layer,
+        CARD_R - 250,
+        y,
+        150,
+        24,
+        `RANSOM  +${PRISONER_RANSOM_POINTS}`,
+        true,
+        () => this.ransom(p),
+        ["Ransom", "", ...wrapTipText(`Hand this pilot back to their own side for ${PRISONER_RANSOM_POINTS} company points.`, 42)],
+        this.hoverTip
+      );
+      makeShopButton(
+        this,
+        layer,
+        CARD_R - 86,
+        y,
+        150,
+        24,
+        "RECRUIT",
+        true,
+        () => this.recruit(p),
+        ["Recruit", "", ...wrapTipText(`Sign them on: a new ${cls} pilot at G-tier, on the bench. You'll get to see and rename them next.`, 42)],
+        this.hoverTip
+      );
+    });
+  }
+
+  private ransom(p: CapturedPrisoner): void {
+    if (this.prisonerOutcome[p.capsuleId]) return;
+    const paid = ransomPrisoner(this.state);
+    this.prisonerOutcome[p.capsuleId] = `Ransomed, +${paid} points`;
+    this.renderPrisonerRows();
+    this.shop?.render();
+  }
+
+  private recruit(p: CapturedPrisoner): void {
+    if (this.prisonerOutcome[p.capsuleId]) return;
+    const pilot = recruitPrisoner(this.state, p);
+    const label = () => `Signed on: ${this.state.pilots[pilot.id]?.pilot.displayName ?? pilot.displayName}, on the bench`;
+    this.prisonerOutcome[p.capsuleId] = label();
+    this.renderPrisonerRows();
+    this.shop?.render();
+    showCharacterCreatorOverlay(this, this.state, pilot.id, () => {
+      this.prisonerOutcome[p.capsuleId] = label();
+      this.renderPrisonerRows();
+      this.shop?.render();
+    });
+  }
+
+  /** RETURN TO BASE: anyone the player never decided on is ransomed rather than silently dropped. */
+  private settleUndecidedPrisoners(): void {
+    for (const p of this.prisoners) {
+      if (!this.prisonerOutcome[p.capsuleId]) this.ransom(p);
+    }
+  }
+
   /**
    * "The crew has started calling you something" (5 Sep 2026). A recruit
    * joins under a plain rank and name and earns a callsign on their first

@@ -79,6 +79,20 @@ export function showCopyTextPanel(scene: Phaser.Scene, blob: string, onClose: ()
 
   const closeLayer = scene.add.container(0, 0);
   const panel = scene.add.container(0, 0, [bg, title, area, closeLayer]);
+  // Debrief Scroll Fix, 15 Sep 2026 — Debrief.ts's own camera can now
+  // scroll (COPY MISSION LOG is reachable from its pinned footer at any
+  // scroll position), and this panel had no scroll-factor pinning of its
+  // own, unlike every other full-screen overlay in this game
+  // (showSaveAsOverlay, showCharacterCreatorOverlay, ShopPanel's discharge
+  // confirm — all pinned from day one). The `true` third argument cascades
+  // down to closeLayer too, which matters: makeShopButton below reads
+  // closeLayer's own scrollFactor at the moment it's called, so this has to
+  // land before that call, not after. Every other existing caller of this
+  // panel (Options' own COPY STATS/BUG REPORT) has a camera that never
+  // moves, so this is a no-op there — same "additive, harmless where
+  // nothing scrolls" shape ShopPanel.ts's own setScrollFactor method
+  // already documents for itself.
+  panel.setScrollFactor(0, 0, true);
   // Tooltip pass, 12 Sep 2026 (standing rule — see
   // claude/Bloom_Wars_Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md).
   // Same shape as NotesPanel.ts's own (its editable sibling, see this

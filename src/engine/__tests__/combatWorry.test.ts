@@ -134,6 +134,13 @@ describe("Mission.repairUnit — combat_repair", () => {
   });
 });
 
+/** Ends the mission as a win: every hostile off the board, then the end-of-turn check. */
+function winNow(mission: Mission): void {
+  for (const u of mission.units) if (u.side === "hostile") u.downed = true;
+  mission.endPlayerTurn();
+  expect(mission.outcome).toBe("win");
+}
+
 describe("Mission.handleDowned — combat_downed and the permadeath-check split", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -157,10 +164,17 @@ describe("Mission.handleDowned — combat_downed and the permadeath-check split"
     expect(downed!.catalyst).toBe("rabbit");
     expect(downed!.context).toBe("battle");
 
-    const recoverable = entries.find((w) => w.source === "combat_permadeath_recoverable");
+    // Ejection capsules (15 Sep 2026): the verdict waits for the end of the
+    // mission now. Mid-fight there is a capsule on the board and no verdict.
+    expect(entries.find((w) => w.source === "combat_permadeath_recoverable")).toBeUndefined();
+    expect(mission.fieldCapsules().some((c) => c.pilotId === "pilot_nagori")).toBe(true);
+
+    winNow(mission); // the Munti is still standing, so the capsule is picked up after the fight
+    const after = mission.combatWorries["pilot_nagori"]!;
+    const recoverable = after.find((w) => w.source === "combat_permadeath_recoverable");
     expect(recoverable).toBeDefined();
     expect(recoverable!.catalyst).toBe("fox");
-    expect(entries.find((w) => w.source === "combat_permadeath_lost")).toBeUndefined();
+    expect(after.find((w) => w.source === "combat_permadeath_lost")).toBeUndefined();
   });
 
   it("downing the last living Munti pushes combat_downed/rabbit AND combat_permadeath_lost/raven — the heavier verdict", () => {
@@ -177,10 +191,14 @@ describe("Mission.handleDowned — combat_downed and the permadeath-check split"
     const entries = mission.combatWorries["pilot_barasj"]!;
     expect(entries.find((w) => w.source === "combat_downed")).toBeDefined();
 
-    const lost = entries.find((w) => w.source === "combat_permadeath_lost");
+    expect(entries.find((w) => w.source === "combat_permadeath_lost")).toBeUndefined(); // not decided mid-fight any more
+
+    winNow(mission); // nobody left who can recover the only Munti's own capsule
+    const after = mission.combatWorries["pilot_barasj"]!;
+    const lost = after.find((w) => w.source === "combat_permadeath_lost");
     expect(lost).toBeDefined();
     expect(lost!.catalyst).toBe("raven");
-    expect(entries.find((w) => w.source === "combat_permadeath_recoverable")).toBeUndefined();
+    expect(after.find((w) => w.source === "combat_permadeath_recoverable")).toBeUndefined();
   });
 
   it("a hostile going down (no pilotId, no campaign roster) never touches combatWorries", () => {

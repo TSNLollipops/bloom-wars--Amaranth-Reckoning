@@ -150,6 +150,18 @@ function riggedKill(mission: Mission, targetId: string) {
   }
 }
 
+/**
+ * Ejection capsules (15 Sep 2026): a downed pilot sits in a capsule until
+ * the mission ends, and permanentLosses is written then. Ends the mission
+ * as a win (every hostile off the board, then the end-of-turn check) so
+ * the records exist to read.
+ */
+function winNow(mission: Mission): void {
+  for (const u of mission.units) if (u.side === "hostile") u.downed = true;
+  mission.endPlayerTurn();
+  expect(mission.outcome).toBe("win");
+}
+
 describe("Mission.permanentLosses — capturing how the company was standing", () => {
   it("counts the Muntis the squad actually launched with, latched at deploy", () => {
     const mission = new Mission(AMARANTH_MISSION_1);
@@ -172,6 +184,8 @@ describe("Mission.permanentLosses — capturing how the company was standing", (
 
     mission.turn = 4;
     riggedKill(mission, victim.instanceId);
+    expect(mission.permanentLosses).toHaveLength(0); // still in a capsule until the fight ends
+    winNow(mission);
 
     const loss = mission.permanentLosses.find((l) => l.pilotId === victim.pilotId);
     expect(loss).toBeDefined();
@@ -189,6 +203,7 @@ describe("Mission.permanentLosses — capturing how the company was standing", (
     const mission = new Mission(AMARANTH_MISSION_1);
     const muntis = mission.units.filter((u) => u.side === "player" && u.path === "munti");
     for (const m of muntis) riggedKill(mission, m.instanceId);
+    winNow(mission);
 
     const last = muntis[muntis.length - 1];
     const loss = mission.permanentLosses.find((l) => l.pilotId === last.pilotId);
@@ -248,8 +263,8 @@ describe("applyMissionLosses — the stamp, at the one moment it can be made", (
   });
 
   it("carries the mission outcome, which is the one fact Mission itself cannot know at the moment of the downing", () => {
-    // Permadeath resolves live, mid-mission; whether the company went on
-    // to take the objective isn't decided yet. A company CAN lose someone
+    // Permadeath resolves as the mission ends (ejection capsules, 15 Sep
+    // 2026), but the record itself still doesn't carry the outcome. A company CAN lose someone
     // and still win, and a house reads those two very differently.
     const state = createWardenCampaignState();
     const pilotId = Object.keys(state.pilots)[0];
@@ -283,6 +298,7 @@ describe("applyMissionLosses — the stamp, at the one moment it can be made", (
     const mission = new Mission(AMARANTH_MISSION_1);
     const muntis = mission.units.filter((u) => u.side === "player" && u.path === "munti");
     for (const m of muntis) riggedKill(mission, m.instanceId);
+    winNow(mission);
     expect(mission.permanentLosses.length).toBeGreaterThan(0);
 
     const state = createWardenCampaignState();

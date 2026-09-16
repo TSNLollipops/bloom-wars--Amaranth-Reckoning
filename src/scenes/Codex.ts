@@ -161,6 +161,9 @@ const ABILITIES: AbilityRow[] = [
   { name: "Tank Shield", tag: "house rule", desc: "Overshield also grants a real 20-point shield (absorbs before HP) to the Tank and every adjacent ally. Regens 8/turn only if that unit took zero damage since the last tick." },
   { name: "Munti Regen", tag: "house rule", desc: "Every living Munti passively heals itself and same-side allies within 2 tiles for 8 HP/turn — free, stacks with active Repair, doesn't stack across multiple Muntis." },
   { name: "2 Actions / Turn", tag: "house rule", desc: "Move and Repair each cost 1 action and don't end your turn. Attack always burns every remaining action, whichever slot it's used in." },
+  // Ejection capsules, 15 Sep 2026 — engine/mission.ts's EjectionCapsule header has the rules.
+  { name: "Ejection Capsules", tag: "house rule", desc: "A downed mech leaves its pilot's capsule on the tile. A Munti next to it can recover it (1 action). Recovered pilots always come home. Anyone left out is saved on a win only if a Munti is still standing, and lost for good on a loss." },
+  { name: "Prisoners", tag: "house rule", desc: "Enemy mechs eject too (named rivals are pulled out by their own side). Any unit next to an enemy capsule can take the pilot (1 action). Win the mission and Debrief asks: ransom them for points, or recruit them." },
 ];
 
 interface ObjectiveRow {
@@ -272,7 +275,7 @@ const SECTIONS: CodexSection[] = [
   { id: "terrain", num: "03", title: "Terrain", dek: "Tile colour on the board is the actual rules data, not decoration. Fourteen types.", pageCount: 2 },
   { id: "bars", num: "04", title: "Health, Shield & Collapse", dek: "Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.", pageCount: 1 },
   { id: "triangle", num: "05", title: "The Class Triangle", dek: "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.", pageCount: 1 },
-  { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "Four that come with a chassis or a path, and four house rules this game made up for itself.", pageCount: 2 },
+  { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "Four that come with a chassis or a path, and six house rules this game made up for itself.", pageCount: 3 },
   { id: "objectives", num: "07", title: "Objectives", dek: "Seven objective types. Four cannot be lost on the clock. Three can.", pageCount: 2 },
   { id: "roster", num: "08", title: "Paths, Chassis and Mek Tracks", dek: "The three things that decide what a mech does before you buy it a single piece of gear.", pageCount: 1 },
   { id: "missions", num: "09", title: "Reading a Briefing", dek: "The briefing panel is the only place that names the win condition. Read the turn number correctly.", pageCount: 2 },
@@ -742,7 +745,7 @@ export class Codex extends Phaser.Scene {
     });
   }
 
-  // ---- SEC. 06 — Abilities & house rules (paged, 4/4) ------------------
+  // ---- SEC. 06 — Abilities & house rules (paged, 4/4/2) ----------------
   private renderAbilities(x: number, y: number, w: number, h: number) {
     const perPage = 4;
     const items = ABILITIES.slice(this.page * perPage, this.page * perPage + perPage);

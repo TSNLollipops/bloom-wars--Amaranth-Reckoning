@@ -7,7 +7,7 @@
 import Phaser from "phaser";
 import type { BloomArchetype, Coord, TileType } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
-import { Mission, type DeployRosterEntry, type HostilePhaseEvent } from "../engine/mission";
+import { Mission, type DeployRosterEntry, type HostilePhaseEvent, type EjectionCapsule } from "../engine/mission";
 import { playAmbient, stopAmbient, playSfx } from "./audio/AudioManager";
 import type { BattleUnit } from "../engine/units";
 import { coordKey, tileAt } from "../engine/grid";
@@ -156,6 +156,12 @@ const REQUIEM_TARGET_COLOR = 0xfafaf9;
 // attackable's red (0xef4444), Screen's pink (0xf472b6), and Deadfall's
 // fuchsia (0xd946ef), the three nearest warm hues already in use.
 const MASER_LANCE_TARGET_COLOR = 0xf43f5e;
+// Ejection capsules (15 Sep 2026). Lime = one of yours a Munti can recover,
+// salmon = an enemy pilot anyone can take prisoner. Both unused elsewhere on
+// the board, and far enough apart that "save" and "capture" never read as
+// the same verb.
+const CAPSULE_RECOVER_COLOR = 0xa3e635;
+const CAPSULE_CAPTURE_COLOR = 0xfca5a5;
 
 // Right-hand panel layout. The log occupies the band between the HUD block
 // and the contextual action bar; drawHud() budgets its lines against it.
@@ -550,6 +556,11 @@ export class Battle extends Phaser.Scene {
   // button would do, not a click target).
   private rescuableNpc: BattleUnit[] = [];
   private clearableBloom: Coord[] = [];
+  // Ejection capsules (15 Sep 2026): the capsules the selected unit can
+  // secure from where it stands — Mission.getRecoverableCapsules. Same
+  // "click a highlighted target" shape as rescuableNpc, except a capsule is
+  // not a unit, so the click matches on the tile.
+  private recoverableCapsules: EjectionCapsule[] = [];
   // lastword_field_triage preview (Vault Phase 2, slice 1, 2 Sep 2026):
   // follows repairable's own shape (a set of units, not tiles) since it's
   // the same "will get healed" meaning as ordinary Repair, just self-
@@ -2028,6 +2039,13 @@ export class Battle extends Phaser.Scene {
       .text(cx, cy - 40, `${pending.length} unit${pending.length === 1 ? "" : "s"} can still act this turn`, { fontFamily: "monospace", fontSize: "14px", color: "#facc15" })
       .setOrigin(0.5);
     const who = this.add.text(cx, cy - 18, listed, { fontFamily: "monospace", fontSize: "11px", color: "#e8e2d4", wordWrap: { width: 390 }, align: "center" }).setOrigin(0.5);
+    // Ejection capsules (15 Sep 2026): the one thing this prompt exists to
+    // catch that the name list doesn't say — a capsule sitting right next to
+    // someone who could still grab it.
+    const podsInReach = new Set(pending.flatMap((u) => this.mission.getRecoverableCapsules(u.instanceId).map((c) => c.id))).size;
+    const pods = this.add
+      .text(cx, cy + 4, podsInReach ? `${podsInReach} capsule${podsInReach === 1 ? "" : "s"} in reach right now` : "", { fontFamily: "monospace", fontSize: "11px", color: "#a3e635" })
+      .setOrigin(0.5);
     const yes = this.add
       .rectangle(cx - 90, cy + 32, 160, 30, 0x7a2430)
       .setStrokeStyle(1, 0xef4444)
@@ -2044,7 +2062,7 @@ export class Battle extends Phaser.Scene {
       });
     const noLabel = this.add.text(cx + 90, cy + 32, "KEEP PLAYING  [esc]", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
     const hint = this.add.text(cx, cy + 56, "space again = end turn", { fontFamily: "monospace", fontSize: "10px", color: "#8a97a6" }).setOrigin(0.5);
-    this.endTurnPrompt = this.add.container(0, 0, [bg, title, who, yes, yesLabel, no, noLabel, hint]);
+    this.endTurnPrompt = this.add.container(0, 0, [bg, title, who, pods, yes, yesLabel, no, noLabel, hint]);
   }
 
   private closeEndTurnPrompt() {
@@ -2361,6 +2379,21 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
+    // Ejection capsules (15 Sep 2026) — recover one of yours (a Munti) or
+    // take an enemy pilot prisoner (anyone). Same shape as Rescue above:
+    // 1 action, turn continues, stays selected. Matched on the tile, since
+    // a capsule isn't a unit; only when nobody else is standing on it, so
+    // clicking an ally parked on a capsule still selects that ally.
+    if (this.selectedUnitId && (!unitHere || unitHere.instanceId === this.selectedUnitId)) {
+      const capsule = this.recoverableCapsules.find((c) => coordKey(c.pos) === coordKey(tile));
+      if (capsule) {
+        this.mission.recoverCapsule(this.selectedUnitId, capsule.id);
+        this.refreshSelectionAfterAction();
+        this.render();
+        return;
+      }
+    }
+
     // Moving the selected unit to a reachable tile. Costs 1 action and
     // doesn't end the turn — stay selected and recompute options once the
     // walk animation finishes, if the unit still has an action left
@@ -2596,6 +2629,7 @@ export class Battle extends Phaser.Scene {
     this.interdictZone = [];
     this.screenable = [];
     this.rescuableNpc = [];
+    this.recoverableCapsules = [];
     this.clearableBloom = [];
     this.fieldTriageTargets = [];
     this.fireSupportTargeting = false;
@@ -2660,6 +2694,7 @@ export class Battle extends Phaser.Scene {
     this.interdictZone = this.mission.getInterdictedTilesFrom(unitId, unit.pos);
     this.screenable = this.mission.getScreenableFrom(unitId, unit.pos);
     this.rescuableNpc = this.mission.getRescuableFrom(unitId, unit.pos);
+    this.recoverableCapsules = this.mission.getRecoverableCapsules(unitId);
     this.clearableBloom = this.mission.getClearableBloomFrom(unitId, unit.pos);
     this.fieldTriageTargets = this.mission.getFieldTriageTargetsFrom(unitId, unit.pos);
   }
@@ -2756,6 +2791,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2783,6 +2819,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2808,6 +2845,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2863,6 +2901,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2892,6 +2931,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2928,6 +2968,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2964,6 +3005,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -2984,6 +3026,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -3016,6 +3059,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -3053,6 +3097,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -3084,6 +3129,7 @@ export class Battle extends Phaser.Scene {
           this.interdictZone = [];
           this.screenable = [];
           this.rescuableNpc = [];
+          this.recoverableCapsules = [];
           this.clearableBloom = [];
           this.fieldTriageTargets = [];
         },
@@ -3266,6 +3312,16 @@ export class Battle extends Phaser.Scene {
     for (const u of this.rescuableNpc) {
       g.fillStyle(0xfacc15, 0.4);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
+    }
+    // A capsule tile is usually also a green move tile, so a fill alone
+    // would just blend into that wash (seen on the first live check). A
+    // light fill plus a thick box in the capsule's own colour reads on top.
+    for (const c of this.recoverableCapsules) {
+      const color = c.side === "player" ? CAPSULE_RECOVER_COLOR : CAPSULE_CAPTURE_COLOR;
+      g.fillStyle(color, 0.3);
+      g.fillRect(this.boardX + c.pos.x * ts, this.boardY + c.pos.y * ts, ts - 1, ts - 1);
+      g.lineStyle(3, color, 1);
+      g.strokeRect(this.boardX + c.pos.x * ts + 2, this.boardY + c.pos.y * ts + 2, ts - 5, ts - 5);
     }
     for (const c of this.clearableBloom) {
       g.fillStyle(0xfacc15, 0.35);
@@ -3509,6 +3565,10 @@ export class Battle extends Phaser.Scene {
     // player unit currently has it in vision — see visibleHostileIds()'s
     // own doc comment for what this pass does and doesn't cover. Player
     // units are never hidden from their own side.
+    // Ejection capsules lie on the ground, so they're drawn before the
+    // units: an ally standing on one still reads as the ally.
+    for (const capsule of this.mission.fieldCapsules()) this.drawCapsule(g, capsule, ts);
+
     const visibleHostiles = this.visibleHostileIds();
     for (const unit of this.mission.livingUnits()) {
       if (unit.side === "hostile" && !visibleHostiles.has(unit.instanceId)) continue;
@@ -3862,6 +3922,31 @@ export class Battle extends Phaser.Scene {
       g.arc(cx, cy, r, start, end, false);
       g.strokePath();
     }
+  }
+
+  /**
+   * An ejection capsule (15 Sep 2026): a small pod lying on its side with a
+   * cockpit window, smaller than any unit silhouette so it never reads as a
+   * combatant. Friendly pods are the same pale tan the Mission 5 rescue
+   * pilot already uses ("someone down, not a combatant") with a lime rim;
+   * enemy pods take the hostile mech colour with a salmon rim. Both rims
+   * match the recover/capture washes, so the colour means the same thing
+   * whether or not a unit is selected.
+   */
+  private drawCapsule(g: Phaser.GameObjects.Graphics, capsule: EjectionCapsule, ts: number) {
+    const cx = this.boardX + capsule.pos.x * ts + ts / 2;
+    const cy = this.boardY + capsule.pos.y * ts + ts / 2;
+    const w = ts * 0.5;
+    const h = ts * 0.3;
+    const friendly = capsule.side === "player";
+    g.fillStyle(0x000000, 0.3);
+    g.fillEllipse(cx, cy + h * 0.55, w * 1.05, h * 0.5);
+    g.fillStyle(friendly ? 0xe8e2d4 : HOSTILE_MECH_COLOR, 1);
+    g.fillEllipse(cx, cy, w, h);
+    g.lineStyle(1.5, friendly ? CAPSULE_RECOVER_COLOR : CAPSULE_CAPTURE_COLOR, 0.95);
+    g.strokeEllipse(cx, cy, w, h);
+    g.fillStyle(0x0c0f12, 0.85);
+    g.fillEllipse(cx + w * 0.18, cy - h * 0.05, w * 0.28, h * 0.45);
   }
 
   private drawUnit(g: Phaser.GameObjects.Graphics, unit: BattleUnit, ts: number) {
@@ -4355,6 +4440,13 @@ export class Battle extends Phaser.Scene {
         lines.push(`Extract: ${target?.displayName ?? "target"} (${status})`);
       }
     }
+    // Ejection capsules (15 Sep 2026) — always shown while any are out,
+    // like the objective lines above: a capsule nobody recovers is a pilot
+    // the player can still lose, and the board alone doesn't say that.
+    // Kept to one short line: the rules live on the capsule's hover tip.
+    const friendlyPods = m.fieldCapsules().filter((c) => c.side === "player").length;
+    const enemyPods = m.fieldCapsules().filter((c) => c.side === "hostile").length;
+    if (friendlyPods || enemyPods) lines.push(`Capsules: ${[friendlyPods ? `${friendlyPods} yours` : "", enemyPods ? `${enemyPods} enemy` : ""].filter(Boolean).join(", ")}`);
     // Index 4 (not 3), since sortieLine above pushed everything down one —
     // splices the briefing+blank in ahead of the "Objective:" line exactly
     // as before, just accounting for the new sortieLine entry at index 2.
@@ -4414,6 +4506,10 @@ export class Battle extends Phaser.Scene {
     }
     // Highlight legend — only for the colours actually on the board right
     // now, so the panel doesn't turn into a permanent key.
+    // Capsules first (15 Sep 2026): fitLines trims from the bottom, and the
+    // first live check lost these two under the Interdict line.
+    if (this.recoverableCapsules.some((c) => c.side === "player")) lines.push("", "Lime box = RECOVER capsule, click (1 action)");
+    if (this.recoverableCapsules.some((c) => c.side === "hostile")) lines.push("", "Salmon box = CAPTURE pilot, click (1 action)");
     if (this.repairable.length) lines.push("", "Cyan tile = Repair target (+HP, instead of attacking)");
     if (this.screenable.length) lines.push("", `Pink tiles = Screen would conceal ${this.screenable.length} unit(s)`);
     if (this.interdictZone.length) lines.push("", "Orange tiles = ground Interdict would pin");
@@ -4707,6 +4803,16 @@ export class Battle extends Phaser.Scene {
       if (h.x < 0 || h.y < 0 || h.x >= m.map.width || h.y >= m.map.height) return out;
       const def = TILES[tileAt(m.map, h)];
       if (!def) return out;
+      const capsule = m.fieldCapsules().find((c) => c.pos.x === h.x && c.pos.y === h.y);
+      if (capsule) {
+        if (capsule.side === "player") {
+          out.push(`CAPSULE — ${capsule.displayName}`, "Needs a Munti next to it (1 action).", "Recovered = safe. Left out: saved on a win only if a Munti is still standing, lost on a loss.");
+        } else {
+          out.push(`ENEMY CAPSULE — ${capsule.displayName}`, "Any unit next to it can take the pilot prisoner (1 action).");
+        }
+        if (selectedId && this.recoverableCapsules.some((c) => c.id === capsule.id)) out.push("Click to " + (capsule.side === "player" ? "recover." : "capture."));
+        out.push("");
+      }
       out.push(`${def.displayName} (${h.x},${h.y})`);
       out.push(def.defenceStars > 0 ? `Cover: ${"*".repeat(def.defenceStars)} (${def.defenceStars})` : "Cover: none");
       if (def.turnStartDamage) out.push(`Burns ${def.turnStartDamage} HP at turn start`);
@@ -4904,12 +5010,32 @@ export class Battle extends Phaser.Scene {
     // engine/campaignEconomy.ts's computeMissionEarnings /
     // computeMissionCompletionBonus / computeCoBonus want (they all take a
     // live Mission directly) — see scenes/Debrief.ts's own header.
+    // Ejection capsules (15 Sep 2026): who came home, who didn't, and any
+    // prisoners waiting at Debrief. Sits just above the rescue line's slot
+    // (y 355) when both exist, so the two never overlap.
+    const podsHome = this.mission.capsules.filter((c) => c.side === "player" && c.status === "recovered").length;
+    const podsLost = this.mission.permanentLosses.length;
+    const prisoners = this.mission.capturedPrisoners().length;
+    const capsuleBits = [
+      podsHome ? `${podsHome} pilot${podsHome === 1 ? "" : "s"} recovered` : "",
+      podsLost ? `${podsLost} lost for good` : "",
+      prisoners ? `${prisoners} prisoner${prisoners === 1 ? "" : "s"} taken, decide at Debrief` : "",
+    ].filter(Boolean);
+    const capsuleLine = capsuleBits.length
+      ? this.add
+          .text(480, rescueLine ? 312 : 355, capsuleBits.join("  ·  "), { fontFamily: "monospace", fontSize: "12px", color: podsLost ? "#fca5a5" : "#a3e635" })
+          .setOrigin(0.5)
+      : null;
     const btn = this.add
       .rectangle(480, 390, 260, 40, 0x2e5c7a)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.scene.start("Debrief", { mission: this.mission }));
     const btnLabel = this.add.text(480, 390, "continue to debrief", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
-    this.overlay.add(rescueLine ? [bg, title, sub, rescueLine, btn, btnLabel] : [bg, title, sub, btn, btnLabel]);
+    const parts: Phaser.GameObjects.GameObject[] = [bg, title, sub];
+    if (rescueLine) parts.push(rescueLine);
+    if (capsuleLine) parts.push(capsuleLine);
+    parts.push(btn, btnLabel);
+    this.overlay.add(parts);
   }
 
   /**

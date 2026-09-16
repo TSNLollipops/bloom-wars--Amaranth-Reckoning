@@ -52,6 +52,8 @@ export interface PlayerAiDecision {
    * module re-deriving the engine's own cardinal/diagonal-direction check.
    */
   targetTile?: Coord;
+  /** For "recover_capsule" (ejection capsules, 15 Sep 2026): which capsule — Mission.recoverCapsule's own `capsuleId`. */
+  capsuleId?: string;
 }
 
 /**
@@ -73,7 +75,11 @@ export type PlayerAiAction =
   | "ambush"
   | "fire_support"
   | "missile"
-  | "maser_lance";
+  | "maser_lance"
+  // Ejection capsules (15 Sep 2026): recover a friendly capsule (Munti) or
+  // capture an enemy one (anyone) — Mission.recoverCapsule. 1 action,
+  // turn continues, so it's a repeatable verb in driveMission.
+  | "recover_capsule";
 
 export type PlayerAiTier = "easy" | "moderate" | "hard" | "legacy";
 
@@ -176,6 +182,8 @@ export interface PlayerAiMissionContext {
   readonly getMaserLanceDirectionTargets?: (unitId: string) => Coord[];
   /** Mission.previewMaserLanceCone — the resolved cone footprint for a given direction-selecting `target`, or null when that tile doesn't name a legal cardinal/diagonal direction from the unit's own position. */
   readonly previewMaserLanceCone?: (unitId: string, target: Coord) => Coord[] | null;
+  /** Mission.getRecoverableCapsules (ejection capsules, 15 Sep 2026) — the capsules this unit could secure right now. Optional so hand-built test contexts still type-check. */
+  readonly getRecoverableCapsules?: (unitId: string) => readonly { id: string; side: "player" | "hostile" }[];
 }
 
 export type PlayerAiReason =
@@ -189,6 +197,8 @@ export type PlayerAiReason =
   | "advance_into_range" // moved to close distance, attacking on arrival if possible
   | "seek_rescue" // heading toward an uncarried rescuable NPC (bonus objective) — not yet adjacent
   | "rescue_pickup" // adjacent to an uncarried rescuable NPC — picked them up
+  | "recover_capsule" // Munti next to a friendly ejection capsule — recovered it, so that pilot comes home whatever happens next
+  | "capture_prisoner" // next to an enemy ejection capsule with no visible hostile left to shoot — took the pilot prisoner
   | "rescue_carry" // already carrying the rescued NPC — heading for the nearest exit tile, combat unavailable while carrying
   | "hold_zone" // objective is hold_zone — converging on (or holding) the nearest zone tile instead of chasing a kill
   | "extract_to_exit" // this unit IS the extract_unit objective's named target — heading for the nearest exit tile instead of chasing a kill

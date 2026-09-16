@@ -57,7 +57,7 @@ if (m.removedFromRoster.length) {
   console.log(`Removed from roster: ${m.removedFromRoster.join(", ")}`);
 }
 if (m.permanentLosses.length) {
-  console.log(`Permanent losses (no living Munti at time of downing): ${m.permanentLosses.map((l) => l.pilotId).join(", ")}`);
+  console.log(`Permanent losses (capsule never recovered): ${m.permanentLosses.map((l) => l.pilotId).join(", ")}`);
 }
 const downed = result.summary.squad.filter((p) => p.downed).map((p) => p.pilotId);
 if (downed.length) console.log(`Downed this mission: ${downed.join(", ")}`);

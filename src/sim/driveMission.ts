@@ -116,7 +116,7 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
           m.moveUnit(unit.instanceId, decision.path[decision.path.length - 1]);
           memory.plannedPositions.set(unit.instanceId, { ...unit.pos });
         }
-        const repeatable = Boolean(decision.repairTargetId) || decision.action === "clear_bloom" || decision.action === "rescue" || decision.action === "screen" || decision.action === "sensor_sweep";
+        const repeatable = Boolean(decision.repairTargetId) || decision.action === "clear_bloom" || decision.action === "rescue" || decision.action === "recover_capsule" || decision.action === "screen" || decision.action === "sensor_sweep";
         if (decision.repairTargetId) m.repairUnit(unit.instanceId, decision.repairTargetId);
         if (decision.attackTargetId) m.attack(unit.instanceId, decision.attackTargetId);
         switch (decision.action) {
@@ -130,6 +130,9 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
             if (npc) m.rescueUnit(unit.instanceId, npc.instanceId);
             break;
           }
+          case "recover_capsule":
+            if (decision.capsuleId) m.recoverCapsule(unit.instanceId, decision.capsuleId);
+            break;
           case "screen":
             m.screenAllies(unit.instanceId);
             break;

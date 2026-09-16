@@ -508,3 +508,31 @@ what this first pass covered and what's still owed.
   asset-decode noise when `public/` is absent from a mirror. The bot-side
   view is `npm run sim:brain` (`src/sim/runBrainSim.ts`); its 10-seed
   printout for the build is `brainSim_10seeds_12Sep2026.txt` (+ `.json`).
+
+- `genCapsuleSave.ts` + `checkEjectionCapsules.mjs` — 15 Sep 2026, ejection
+  capsules and prisoners (`claude/Bloom_Wars_Build_Log_Addendum_Ejection
+  Capsules_15Sep2026.md`). `genCapsuleSave.ts` writes a fresh Warden save
+  (`capsuleSave.json`). `checkEjectionCapsules.mjs` starts a REAL Battle on
+  Mission 6 "House Colors" (the first Warden mission with human-crewed
+  hostiles), downs Iyari and one trooper through the real attack path, then
+  by REAL mouse clicks: selects Lask (Munti) and recovers Iyari's capsule,
+  selects Bosk (Tank) and takes the trooper prisoner. Asserts the lime and
+  salmon highlight sets, the HUD's capsule line and legend, the action cost,
+  that a Tank can capture but never recover, the outcome overlay's
+  "recovered / prisoner" line, then drives the Debrief PRISONERS panel
+  through RECRUIT → the Character Creator → CONFIRM → RETURN TO BASE and
+  checks the save gained exactly one G-tier pilot of the trooper's class and
+  that the RECRUIT tooltip does not linger. Uses the `headless_shell`
+  binary (found by directory scan, not a hardcoded build number). Writes
+  `capsules_*.png`. Needs `public/audio/` staged to stay quiet, same as the
+  Brain checks.
+- `checkDebriefFooter.mjs` — 15 Sep 2026, Debrief footer bleed-through fix
+  (`Debrief.ts`: `DEBRIEF_FOOTER_DEPTH`, `DEBRIEF_FOOTER_BAND`). Reuses
+  `capsuleSave.json` (run `genCapsuleSave.ts` first), wins Mission 6 with a
+  prisoner so the Debrief page is long, then wheels to the very bottom and
+  asserts: the page really scrolled, the footer layer draws above every
+  shop layer, its backdrop is fully opaque, the lowest shop nav button
+  still sits above the footer band at max scroll, and no console errors.
+  (Footer depth 5 staying under the Discharge/Frame modals at 10/11 is by
+  construction in `Debrief.ts`, not asserted here.)
+  Writes `debriefFooter_top.png` and `debriefFooter_bottom.png`.

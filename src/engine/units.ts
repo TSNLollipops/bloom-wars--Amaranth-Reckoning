@@ -630,6 +630,15 @@ export interface BattleUnit {
    */
   isExtractionTarget?: boolean;
 
+  /**
+   * Ejection capsules (15 Sep 2026). The HostileMechArchetype id a hostile
+   * mech was built from (createHostileMechUnit). engine/mission.ts reads it
+   * when the frame collapses, to tell a capturable pilot from a named rival
+   * (data/units.ts's RIVAL_HOSTILE_MECH_IDS). Undefined on every player
+   * unit and every Bloom.
+   */
+  hostileMechId?: string;
+
   chargedThisMove: boolean;
   statusEffects: StatusEffect[];
   usedEvacThisMission: boolean;
@@ -984,6 +993,7 @@ export function createHostileMechUnit(hostileMechId: string, pos: Coord, tierOve
 
   return {
     instanceId: nextInstanceId(hostileMechId),
+    hostileMechId,
     side: "hostile",
     kind: "mech",
     archetypeId,

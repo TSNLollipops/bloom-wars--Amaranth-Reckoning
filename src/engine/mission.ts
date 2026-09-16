@@ -9,12 +9,14 @@ import type {
   EnemyWave,
   MapDefinition,
   MekArchetype,
+  Path,
   PilotRecord,
   RescuePilotBonusObjective,
   TileType,
 } from "../data/types";
 import type { Rank } from "./campaignState";
 import { ALL_MAPS as MAPS } from "../data/mapRegistry";
+import { RIVAL_HOSTILE_MECH_IDS } from "../data/units";
 import { createPlayerUnit, createHostileMechUnit, createBloomUnit, createRescuableNpcUnit, createCivilianUnit, type BattleUnit, type OnHitEffectKind, type Side } from "./units";
 import { findPilot } from "../data/pilotRegistry";
 import {
@@ -245,6 +247,66 @@ export interface PermanentLossRecord {
   muntisDeployed: number;
   /** This pilot WAS the Munti — the one who was supposed to bring everyone home. */
   wasLastMunti: boolean;
+}
+
+/**
+ * Ejection capsules (Maxime, 15 Sep 2026: "lets make all death leave a
+ * capsule player have to click with munties to save. a sort of colapse of
+ * the mech. they leave a capsule behind to save."). The Mission 5 rescue
+ * pilot was the first of these; now every collapsing frame leaves one.
+ *
+ * The rules, all his calls from the two popups that day:
+ *   - A PLAYER capsule is recovered by a Munti standing next to it (or on
+ *     it): 1 action, the Munti's turn continues. Nobody else can do it.
+ *   - Hostiles never target a capsule. The danger is the Munti walking into
+ *     the fire to reach it, not the capsule itself (same "enemy ignore
+ *     rescue" rule the extraction target already has).
+ *   - When the mission ends, a capsule still on the field is decided then,
+ *     not at the moment of downing. On a WIN it is picked up after the fight
+ *     if a Munti is still standing; otherwise the pilot is lost for good. On
+ *     a LOSS only capsules a Munti actually recovered come home. That is
+ *     what makes the click matter: it is insurance against the Munti dying
+ *     later or the fight going south.
+ *   - A HOSTILE mech's capsule (not a Bloom, not a named rival) can be
+ *     captured by any player unit next to it, 1 action. Captured prisoners
+ *     only count on a win, and Debrief asks RANSOM or RECRUIT for each.
+ *   - The commander is unchanged: her going down still ends the attempt on
+ *     the spot, with no capsule and nothing resolved.
+ */
+export type CapsuleStatus = "field" | "recovered" | "captured" | "void";
+
+export interface EjectionCapsule {
+  id: string;
+  /** Whose pilot is inside: "player" (recover with a Munti) or "hostile" (capture with anyone). */
+  side: "player" | "hostile";
+  /** The collapsed BattleUnit this came out of. A capsule only shows while that unit is still down — a beacon revive or Last Rites puts the frame back up and the capsule stops mattering. */
+  unitId: string;
+  /** Player side only. */
+  pilotId?: string;
+  displayName: string;
+  path?: Path;
+  /** The collapsed frame's archetype id. A recruited prisoner keeps its chassis suffix (every hostile mech today is `arch_<path>_bipedal`). */
+  archetypeId: string;
+  /** Hostile side only — data/units.ts's HostileMechArchetype id, so Debrief can say what kind of trooper this was. */
+  hostileMechId?: string;
+  pos: Coord;
+  /** Turn the frame collapsed. */
+  turn: number;
+  /** Player side: PermanentLossRecord.turnsWithoutMunti, latched at the moment of ejection so a later loss record still means "was the squad already without a lifeline when they went down." */
+  turnsWithoutMunti: number;
+  status: CapsuleStatus;
+  /** Who clicked it, for the log and Debrief. */
+  securedBy?: string;
+}
+
+/** One pilot pulled out of an enemy capsule, handed to Debrief on a win for the RANSOM / RECRUIT choice. */
+export interface CapturedPrisoner {
+  capsuleId: string;
+  displayName: string;
+  path: Path;
+  archetypeId: string;
+  hostileMechId?: string;
+  capturedBy?: string;
 }
 
 /**
@@ -675,6 +737,19 @@ export class Mission {
   // pilots and *why*; it does not itself touch any campaign save data,
   // since Mission has no CampaignState reference and isn't meant to.
   permanentLosses: PermanentLossRecord[] = [];
+  /**
+   * Ejection capsules (15 Sep 2026) — every one this mission has produced,
+   * in order, including ones already recovered/captured/voided. See
+   * EjectionCapsule's own header for the rules. Use fieldCapsules() for
+   * "what is lying on the board right now."
+   *
+   * permanentLosses above is now filled when the mission ENDS
+   * (resolveCapsules), not at the moment of downing: a pilot in a capsule
+   * is still alive until the fight is over.
+   */
+  capsules: EjectionCapsule[] = [];
+  private capsuleSeq = 0;
+  private capsulesResolved = false;
   /**
    * Worries System, build order step 3, 10 Sep 2026 — mission-scoped
    * combat-outcome worries, keyed by pilotId (data/combatWorry.ts's own
@@ -1457,6 +1532,165 @@ export class Mission {
       this.rescueOutcome = "succeeded";
       carrier.carryingRescueId = undefined;
       this.log.push(`${carrier.displayName} gets the rescued pilot clear — they're headed home.`);
+    }
+  }
+
+  // ---- Ejection capsules (15 Sep 2026) ----------------------------------
+  //
+  // See EjectionCapsule's header (top of this file) for the rules. Same
+  // three-part shape as rescue above: getRecoverableCapsules() is what the
+  // UI highlights, canRecoverCapsule() is the predicate, recoverCapsule()
+  // is the verb and re-checks it. 1 action, turn continues.
+
+  /** Every capsule lying on the board right now: still "field", and its collapsed frame is still down (a revived frame's capsule stops showing). */
+  fieldCapsules(): EjectionCapsule[] {
+    return this.capsules.filter((c) => c.status === "field" && this.unitById(c.unitId)?.downed === true);
+  }
+
+  /**
+   * Drops a capsule where `unit` just collapsed. Player pilots always
+   * eject. A hostile only ejects if it is a mech built from a
+   * HostileMechArchetype that isn't a named rival; a rival's own side
+   * pulls her out on the spot (logged, nothing left behind). Bloom never
+   * eject. Any older capsule from the same frame (it was revived, then
+   * went down again) is voided first, so a frame only ever has one live
+   * capsule and the latest one decides that pilot's fate.
+   */
+  private ejectCapsule(unit: BattleUnit): void {
+    if (unit.side === "player") {
+      if (!unit.pilotId || unit.npcIncapacitated || unit.isCivilian) return;
+    } else {
+      if (unit.kind !== "mech" || !unit.hostileMechId) return;
+      if (RIVAL_HOSTILE_MECH_IDS.has(unit.hostileMechId)) {
+        this.log.push(`${unit.displayName}'s frame collapses. Her own side pulls the capsule out before anyone can reach it.`);
+        return;
+      }
+    }
+    for (const old of this.capsules) {
+      if (old.unitId === unit.instanceId && old.status !== "void") old.status = "void";
+    }
+    this.capsuleSeq += 1;
+    this.capsules.push({
+      id: `capsule_${this.capsuleSeq}`,
+      side: unit.side === "player" ? "player" : "hostile",
+      unitId: unit.instanceId,
+      pilotId: unit.side === "player" ? unit.pilotId : undefined,
+      displayName: unit.displayName,
+      path: unit.path,
+      archetypeId: unit.archetypeId,
+      hostileMechId: unit.hostileMechId,
+      pos: { ...unit.pos },
+      turn: this.turn,
+      turnsWithoutMunti: this.turn - (this.muntiCollapseTurn ?? this.turn),
+      status: "field",
+    });
+    this.log.push(
+      unit.side === "player"
+        ? `${unit.displayName}'s frame collapses and the cockpit capsule ejects. A Munti next to it can recover them.`
+        : `${unit.displayName}'s frame collapses and the cockpit capsule ejects. Any unit next to it can take the pilot prisoner.`
+    );
+  }
+
+  /** Can `unitId` secure `capsuleId` right now: a living squad unit with an action left, next to (or on) a field capsule. A friendly capsule needs a Munti; an enemy one takes anyone. */
+  canRecoverCapsule(unitId: string, capsuleId: string): boolean {
+    if (this.outcome !== "ongoing") return false;
+    const unit = this.unitById(unitId);
+    if (!unit || unit.downed || unit.side !== "player" || unit.actionsRemaining <= 0) return false;
+    if (unit.npcIncapacitated || unit.isCivilian || unit.carryingRescueId) return false;
+    const capsule = this.fieldCapsules().find((c) => c.id === capsuleId);
+    if (!capsule) return false;
+    if (capsule.side === "player" && unit.path !== "munti") return false;
+    return chebyshevDistance(unit.pos, capsule.pos) <= 1;
+  }
+
+  /** Every capsule `unitId` could secure from where it stands. Empty when it can't act. UI highlight source, same contract as getRescuableFrom. */
+  getRecoverableCapsules(unitId: string): EjectionCapsule[] {
+    return this.fieldCapsules().filter((c) => this.canRecoverCapsule(unitId, c.id));
+  }
+
+  /** Recover a friendly capsule (the pilot is safe) or capture an enemy one (a prisoner for Debrief). 1 action, turn continues. */
+  recoverCapsule(unitId: string, capsuleId: string): boolean {
+    if (!this.canRecoverCapsule(unitId, capsuleId)) return false;
+    const unit = this.unitById(unitId)!;
+    const capsule = this.capsules.find((c) => c.id === capsuleId)!;
+    unit.actionsRemaining -= 1;
+    capsule.securedBy = unit.displayName;
+    if (capsule.side === "player") {
+      capsule.status = "recovered";
+      this.noteAbilityUse(unit, "recover_capsule");
+      this.log.push(`${unit.displayName} recovers ${capsule.displayName}'s capsule. They're coming home.`);
+    } else {
+      capsule.status = "captured";
+      this.noteAbilityUse(unit, "capture_capsule");
+      this.log.push(`${unit.displayName} pulls the pilot out of the ${capsule.displayName}'s capsule. Prisoner secured.`);
+    }
+    return true;
+  }
+
+  /** Enemy pilots taken prisoner this mission. Only a WIN brings them home; on any other outcome this is empty. */
+  capturedPrisoners(): CapturedPrisoner[] {
+    if (this.outcome !== "win") return [];
+    return this.capsules
+      .filter((c) => c.side === "hostile" && c.status === "captured" && c.path)
+      .map((c) => ({ capsuleId: c.id, displayName: c.displayName, path: c.path!, archetypeId: c.archetypeId, hostileMechId: c.hostileMechId, capturedBy: c.securedBy }));
+  }
+
+  /**
+   * Decides every player capsule the moment the mission ends in a win or a
+   * loss (called from checkWinLoss). Never runs on commander_down: that
+   * outcome resolves nothing, same as before capsules existed.
+   *
+   *   recovered            -> safe
+   *   field, WIN, a Munti still standing -> picked up after the fight, safe
+   *   field, anything else -> permanently lost (PermanentLossRecord)
+   *
+   * The win branch goes through evaluatePermadeathCheck, the same pure
+   * "is a Munti alive on this side" rule the game used at the moment of
+   * downing before capsules, now asked at the end instead. The
+   * permadeath_check combat worry moves here too, so the Worries stack
+   * hears the real verdict rather than a guess made mid-fight.
+   */
+  private resolveCapsules(): void {
+    if (this.capsulesResolved) return;
+    if (this.outcome !== "win" && this.outcome !== "loss") return;
+    this.capsulesResolved = true;
+    const win = this.outcome === "win";
+    for (const capsule of this.capsules) {
+      if (capsule.side !== "player" || capsule.status === "void" || !capsule.pilotId) continue;
+      const unit = this.unitById(capsule.unitId);
+      if (!unit || !unit.downed) continue; // revived and still standing — nothing to decide
+      let permanent: boolean;
+      let reason: string;
+      if (capsule.status === "recovered") {
+        permanent = false;
+        reason = `capsule recovered by ${capsule.securedBy ?? "a Munti"} — standard restock`;
+      } else if (win) {
+        const check = evaluatePermadeathCheck(unit, this.units.filter((u) => u.side === unit.side));
+        permanent = check.permanent;
+        reason = check.permanent ? "capsule never recovered, and no Munti was left standing to go get it — permanent loss" : "capsule picked up after the fight — standard restock";
+        if (!permanent) {
+          capsule.status = "recovered";
+          capsule.securedBy = "the squad, after the fight";
+        }
+      } else {
+        permanent = true;
+        reason = "capsule left on the field when the mission was lost — permanent loss";
+      }
+      this.log.push(`Permadeath check — ${unit.displayName}: ${reason}`);
+      this.pushCombatWorry(capsule.pilotId, { kind: "permadeath_check", permanentlyLost: permanent });
+      if (permanent) {
+        this.permanentLosses.push({
+          pilotId: capsule.pilotId,
+          reason,
+          turn: capsule.turn,
+          turnsWithoutMunti: Math.max(0, capsule.turnsWithoutMunti),
+          muntisDeployed: this.muntisDeployed,
+          wasLastMunti: unit.path === "munti",
+        });
+      }
+    }
+    if (!win && this.capsules.some((c) => c.side === "hostile" && c.status === "captured")) {
+      this.log.push("The prisoners are lost with the field.");
     }
   }
 
@@ -4630,17 +4864,14 @@ export class Mission {
       this.log.push("The rescue attempt fails.");
     }
 
-    // Rule 1 (engine/campaignState.ts): evaluated live, right here, at the
-    // exact moment of downing — not deferred to mission end, because the
-    // set of "living Munti on this side" can change turn to turn within
-    // the same mission (a Fabricator redeploy could put one back on the
-    // board; a Munti downed later removes one). Only player-side pilots
-    // are campaign-tracked; hostile mechs/Bloom are no-ops inside the
-    // check itself, but skipped here too so this never runs on every
-    // Bloom kill for nothing.
+    // Rule 1 (engine/campaignState.ts) used to be evaluated right here, at
+    // the moment of downing. Since ejection capsules (15 Sep 2026) the
+    // verdict waits for the end of the mission (resolveCapsules); what
+    // still has to happen here is latching the facts only this moment
+    // knows. Only player-side pilots are campaign-tracked.
     // Latch the turn this side stopped having a lifeline on the board.
     // Deliberately OUTSIDE the pilotId guard below and checked before the
-    // permadeath call: by the time handleDowned runs, engine/combat.ts has
+    // capsule ejects (it latches turnsWithoutMunti from this): by the time handleDowned runs, engine/combat.ts has
     // already set unit.downed, so this filter correctly excludes the unit
     // currently going down — meaning a Munti's own downing is the moment
     // that latches this, and a Munti who is also the last one gets
@@ -4664,33 +4895,17 @@ export class Mission {
       // down."
       const perf = this.unitPerformance[unit.pilotId];
       if (perf) perf.wasDowned = true;
-
-      const sameSide = this.units.filter((u) => u.side === unit.side);
-      const check = evaluatePermadeathCheck(unit, sameSide);
-      this.log.push(`Permadeath check — ${unit.displayName}: ${check.reason}`);
-      // Worries System step 3, 10 Sep 2026 — the check's own verdict,
-      // classified separately from the "downed" push above (two distinct
-      // source ids, data/combatWorry.ts) so a recoverable scare and an
-      // actual permanent loss read as genuinely different weights on the
-      // Worries stack, not the same entry with a bigger number.
-      this.pushCombatWorry(unit.pilotId, { kind: "permadeath_check", permanentlyLost: check.permanent });
-      if (check.permanent) {
-        // The four "how was the company standing" facts, captured at the
-        // only moment they are still knowable — see PermanentLossRecord's
-        // own comment above for why these are stored rather than derived.
-        // mission.outcome is deliberately NOT among them: it isn't decided
-        // yet at a mid-mission downing, and Debrief already has it when it
-        // applies this record (see scenes/Debrief.ts step 1b).
-        this.permanentLosses.push({
-          pilotId: unit.pilotId,
-          reason: check.reason,
-          turn: this.turn,
-          turnsWithoutMunti: this.turn - (this.muntiCollapseTurn ?? this.turn),
-          muntisDeployed: this.muntisDeployed,
-          wasLastMunti: unit.path === "munti",
-        });
-      }
     }
+
+    // Ejection capsules (15 Sep 2026). This used to run the permadeath
+    // check right here ("is a Munti alive at this instant") and write the
+    // loss on the spot. Now the frame collapses and leaves a capsule; the
+    // verdict waits for the end of the mission (resolveCapsules), where a
+    // Munti recovering it, or a Munti still standing after a win, is what
+    // brings the pilot home. The "how was the company standing" facts the
+    // loss record needs are latched on the capsule itself right now, the
+    // only moment they're knowable. Also drops enemy capsules for capture.
+    this.ejectCapsule(unit);
 
     const fired = evaluateUnitDowned(this.mission.events, unit.instanceId, this.turn, this.eventState);
     for (const ev of fired) this.applyEventAction(ev.action);
@@ -6571,7 +6786,20 @@ export class Mission {
     }
   }
 
+  /**
+   * Win/loss evaluation plus the one thing that has to happen the instant
+   * it lands: deciding every capsule still on the field (resolveCapsules).
+   * Wrapped rather than threaded into each of evaluateWinLoss's own dozen
+   * outcome branches, so a future objective can't forget it.
+   */
   private checkWinLoss(): boolean {
+    const wasOngoing = this.outcome === "ongoing";
+    const ended = this.evaluateWinLoss();
+    if (wasOngoing && ended) this.resolveCapsules();
+    return ended;
+  }
+
+  private evaluateWinLoss(): boolean {
     if (this.outcome !== "ongoing") return true;
     const turnLimit = this.mission.objectiveParams.turnLimit;
     // !u.npcIncapacitated (Mission 5's rescue-and-recruit bonus objective,

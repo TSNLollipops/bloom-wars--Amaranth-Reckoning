@@ -385,6 +385,34 @@ export function decidePlayerAiAction(
     return { action: "rescue" };
   }
 
+  // Ejection capsules (15 Sep 2026). Clicking a friendly capsule is
+  // insurance, not a rescue: a win with a Munti still standing brings every
+  // capsule home anyway. So the bot pays the action when the insurance is
+  // worth it — this Munti is hurt enough to die, the squad is down to its
+  // last two, or the shooting is over — and otherwise keeps healing and
+  // holding. The first cut recovered on sight and dropped House Amaranth 19
+  // (a hold) from 19/20 wins to 9/20: a Munti spending half her turn on a
+  // capsule every time one landed next to her, instead of on the line.
+  // An enemy capsule is only taken once nothing hostile is left standing
+  // (the cleanup window between the last kill and the end of the turn), so
+  // the bot never trades a shot it needed for a prisoner. Opportunistic
+  // only: nobody walks toward a capsule.
+  if (profile.useAbilities.capsule && context.getRecoverableCapsules) {
+    const pods = context.getRecoverableCapsules(unit.instanceId);
+    const own = pods.find((p) => p.side === "player");
+    const shootingOver = livingTargets(allUnits, "hostile").length === 0;
+    const squadLeft = allUnits.filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated && !u.isCivilian).length;
+    if (own && (shootingOver || hpFraction < 0.5 || squadLeft <= 2)) {
+      log(entry("recover_capsule", { targetId: own.id }));
+      return { action: "recover_capsule", capsuleId: own.id };
+    }
+    const enemy = pods.find((p) => p.side === "hostile");
+    if (enemy && shootingOver) {
+      log(entry("capture_prisoner", { targetId: enemy.id }));
+      return { action: "recover_capsule", capsuleId: enemy.id };
+    }
+  }
+
   // ---- What this unit knows about the enemy ----
   const allEnemies = livingTargets(allUnits, "hostile");
   const visibleIds = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn, { sensorArray: context.sensorArrayBuilt ?? false }) : new Set(allEnemies.map((e) => e.instanceId));

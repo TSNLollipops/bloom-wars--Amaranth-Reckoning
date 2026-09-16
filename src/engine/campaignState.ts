@@ -1090,10 +1090,13 @@ export interface PermadeathCheckResult {
 }
 
 /**
- * The permadeath rule, evaluated fresh at the exact moment a unit is
- * downed — not a flag latched for the rest of the mission. Call this
- * from wherever a unit is actually reduced to 0 HP (see
- * Mission.handleDowned() in mission.ts, the one live call site).
+ * The permadeath rule: is a Munti still standing on this side. Before
+ * ejection capsules (15 Sep 2026) this ran at the moment of downing, from
+ * Mission.handleDowned(). Now the one live call site is
+ * Mission.resolveCapsules(), at the end of a WON mission, for a capsule
+ * nobody clicked: a Munti still standing means the squad picks it up after
+ * the fight. A recovered capsule never gets here, and on a loss every
+ * unrecovered capsule is lost without asking.
  *
  * `sameSideUnits` should be every unit currently on `downedUnit`'s side,
  * downed or not, at this exact instant. This function does its own
@@ -1659,6 +1662,47 @@ export function renamePilot(state: CampaignState, pilotId: string, displayName: 
 export function generateRandomRescuedPilot(state: CampaignState): PilotRecord {
   const targetClass = ALL_RECRUITABLE_PATHS[Math.floor(Math.random() * ALL_RECRUITABLE_PATHS.length)];
   return generatePilot(state, targetClass, randomChassisSuffix());
+}
+
+// ---- Prisoners from ejection capsules (15 Sep 2026) ---------------------
+// engine/mission.ts's EjectionCapsule header has the battlefield half. An
+// enemy pilot a player unit pulled out of a capsule comes home only on a
+// win, and Debrief asks, per prisoner: RANSOM or RECRUIT. Maxime's reasons,
+// same day: "player can choose upon a win to ransom or turn them into
+// allies. since they fight the same war." Both numbers below are his picks
+// from the popup (ransom 60; recruit keeps the class, starts at G, lands on
+// the bench like the Mission 5 rescue). Placeholders like every other
+// economy number here, to be revisited with real tester data.
+
+/** Company points a ransomed prisoner pays. For scale: DISCRETIONARY_RECRUIT_COST is 80, a G→F gear step is 60. */
+export const PRISONER_RANSOM_POINTS = 60;
+
+/** The narrow slice of Mission's CapturedPrisoner this file needs — kept structural so campaignState never imports mission.ts. */
+export interface PrisonerRef {
+  path: Path;
+  archetypeId: string;
+}
+
+/** Ransom one prisoner: company points up by PRISONER_RANSOM_POINTS. Returns the amount paid. */
+export function ransomPrisoner(state: CampaignState): number {
+  state.points += PRISONER_RANSOM_POINTS;
+  return PRISONER_RANSOM_POINTS;
+}
+
+/**
+ * Recruit one prisoner: a brand-new generated pilot of the SAME class as
+ * the frame they were fighting in, at G-tier (generatePilot's own rule,
+ * including the Combat Medic Cadre's F-tier Munti exception), on the bench.
+ * The chassis suffix is read off the collapsed frame's own archetype id, so
+ * a future non-human hostile would join as its own species; every hostile
+ * mech today is bipedal (human). Name, gender and background are rolled
+ * fresh by generatePilot. The board only ever knew them as a trooper, and
+ * the Character Creator overlay at Debrief is where the player meets them.
+ */
+export function recruitPrisoner(state: CampaignState, prisoner: PrisonerRef): PilotRecord {
+  const suffix = prisoner.archetypeId.split("_").pop();
+  const chassis: ArchetypeChassisSuffix = ALL_CHASSIS_SUFFIXES.includes(suffix as ArchetypeChassisSuffix) ? (suffix as ArchetypeChassisSuffix) : "bipedal";
+  return generatePilot(state, prisoner.path, chassis);
 }
 
 function countActiveMuntis(state: CampaignState): number {

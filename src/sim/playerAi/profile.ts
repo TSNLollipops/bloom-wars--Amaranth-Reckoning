@@ -80,7 +80,11 @@ export type PlayerAiAbility =
   | "abil_fire_support"
   | "abil_missile"
   | "abil_maser_lance"
-  | "rescue";
+  | "rescue"
+  // Ejection capsules (15 Sep 2026) — recovering and capturing. Off for
+  // LEGACY (its numbers are a frozen baseline) and on for every real tier:
+  // even a first-time player clicks the glowing pod next to their Munti.
+  | "capsule";
 
 const ALL_ABILITIES: Record<PlayerAiAbility, boolean> = {
   abil_repair: true,
@@ -95,6 +99,7 @@ const ALL_ABILITIES: Record<PlayerAiAbility, boolean> = {
   abil_missile: true,
   abil_maser_lance: true,
   rescue: true,
+  capsule: true,
 };
 
 /** The pre-1-Sep bot: full awareness, repair/clear/screen(narrow)/rescue only, nothing else. Numbers on record before this date were measured against exactly this. */
@@ -145,7 +150,7 @@ export const EASY: PlayerAiProfile = {
   // Repair, the rescue pickup, and Clear Bloom — the last because it IS
   // the objective on a clear_bloom mission, and a player who never presses
   // the objective button isn't a player, it's a stall.
-  useAbilities: { abil_repair: true, rescue: true, abil_clear_bloom: true },
+  useAbilities: { abil_repair: true, rescue: true, abil_clear_bloom: true, capsule: true },
   mistakeChance: 0.2,
 };
 

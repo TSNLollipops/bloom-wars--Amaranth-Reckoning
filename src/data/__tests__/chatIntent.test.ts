@@ -217,9 +217,14 @@ describe("detectUnbuiltVerbLine — named-but-unbuilt verb requests", () => {
     expect(detectUnbuiltVerbLine("let's play poker")).toBeNull();
   });
 
-  it("recognizes a spar request, including the -ing form", () => {
-    expect(detectUnbuiltVerbLine("let's spar")).toBeTruthy();
-    expect(detectUnbuiltVerbLine("fancy some sparring")).toBeTruthy();
+  // 15 Sep 2026: spar graduated too, once Challenge to Spar shipped as a
+  // real verb. This test used to assert the "not open yet" line; the verb
+  // batch updated chatIntent.ts's table but not this file, so the old
+  // assertion failed on every run until it was turned the same way as the
+  // four graduations above.
+  it("no longer treats a spar request as unbuilt either — graduated 15 Sep 2026, once Challenge to Spar shipped", () => {
+    expect(detectUnbuiltVerbLine("let's spar")).toBeNull();
+    expect(detectUnbuiltVerbLine("fancy some sparring")).toBeNull();
   });
 
   it("returns null for ordinary text, so it doesn't swallow unrelated messages", () => {
@@ -301,8 +306,38 @@ describe("detectVerbRequest — real, actionable verb framework requests", () =>
     expect(detectVerbRequest("i love you")).toBe("askOut");
   });
 
-  it("returns null for verbs that exist as names but have no real VerbDef yet (spar)", () => {
-    expect(detectVerbRequest("let's spar")).toBeNull();
+  // 15 Sep 2026 — this used to be "returns null for spar, a name with no
+  // VerbDef yet." Spar is a real verb now (challengeSpar), so the test
+  // pins where the word lands instead, word boundaries included.
+  it("recognizes a spar challenge — graduated 15 Sep 2026 into the real challengeSpar verb", () => {
+    expect(detectVerbRequest("let's spar")).toBe("challengeSpar");
+    expect(detectVerbRequest("fancy some sparring")).toBe("challengeSpar");
+    expect(detectVerbRequest("spar with me")).toBe("challengeSpar");
+    expect(detectVerbRequest("wanna spar")).toBe("challengeSpar");
+    expect(detectVerbRequest("fight me")).toBe("challengeSpar");
+  });
+
+  it("word-boundary matches 'spar' for the real verb too — not inside 'sparse' or 'disparage'", () => {
+    expect(detectVerbRequest("that's a sparse map")).toBeNull();
+    expect(detectVerbRequest("don't disparage the effort")).toBeNull();
+  });
+
+  // The rest of the same 15 Sep batch had no chat tests at all. Each list's
+  // own comment in chatIntent.ts names a collision it was written to dodge;
+  // these pin both sides of each so a later edit can't quietly reopen one.
+  it("recognizes Condolences, Reassurance and Check-In — the rest of the 15 Sep verb batch", () => {
+    expect(detectVerbRequest("my condolences")).toBe("condolences");
+    expect(detectVerbRequest("so sad we lost them")).toBe("condolences");
+    expect(detectVerbRequest("it'll be okay")).toBe("reassurance");
+    expect(detectVerbRequest("you'll get through this")).toBe("reassurance");
+    expect(detectVerbRequest("how are you doing")).toBe("checkIn");
+    expect(detectVerbRequest("what's wrong")).toBe("checkIn");
+    expect(detectVerbRequest("talk to me")).toBe("checkIn");
+  });
+
+  it("keeps the documented edges of that batch: bare 'how are you' stays a greeting, 'sorry' stays an apology", () => {
+    expect(detectVerbRequest("how are you")).toBeNull();
+    expect(detectVerbRequest("sorry for your loss")).toBe("apology");
   });
 
   it("returns null for ordinary text and for muster/emotion text", () => {
