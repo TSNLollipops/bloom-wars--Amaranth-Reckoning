@@ -80,7 +80,7 @@ export const CARRIER_MODULES: Record<CarrierModuleId, CarrierModuleDef> = {
     // Priced highest of the three because it's the only one whose value
     // keeps compounding for the rest of the campaign rather than paying
     // out once.
-    effect: `Every Fabricator mek carries +${FABRICATION_BAY_CAP_BONUS} more spare parts, campaign-wide.`,
+    effect: `Every Fabricator Mek carries +${FABRICATION_BAY_CAP_BONUS} more spare parts, campaign-wide.`,
     cost: 160,
   },
   combatMedic: {

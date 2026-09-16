@@ -1,0 +1,67 @@
+// src/data/credits.ts
+// Ship audit, 16 Sep 2026 (§4) — the game had no credits screen and no
+// third-party notices anywhere a player could read them. Phaser is MIT,
+// and MIT asks that its copyright + permission notice ship with the
+// software; the minified bundle strips it. The audio is CC0 (no
+// attribution required) but public/audio/CREDITS.txt already lists every
+// source, so it's repeated here rather than left findable only by opening
+// the zip. Shown by Options' CREDITS button through the same read-only
+// CopyTextPanel the bug-report export uses; the same text is written to
+// public/THIRD_PARTY_NOTICES.txt so it lands in dist/ and the Electron
+// package too. Keep the two in sync by hand — this constant is the source.
+
+export const GAME_CREDITS = `THE BLOOM WARS
+An Early Access release by TSNL.
+Made by Maxime Grenon.
+
+------------------------------------------------------------
+THIRD-PARTY SOFTWARE
+------------------------------------------------------------
+
+Phaser — HTML5 game framework
+https://phaser.io
+The MIT License (MIT)
+Copyright (c) 2024 Richard Davey, Phaser Studio Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+The desktop build runs on Electron (MIT) and Chromium (BSD-style), whose
+notices are included with that build's own files.
+
+------------------------------------------------------------
+AUDIO (all Creative Commons Zero — public domain)
+------------------------------------------------------------
+
+Ship ambience: "Scifi City - Ambient Loop" by TinyWorlds
+    https://opengameart.org/content/scifi-city-ambient-loop
+Battle ambience: "Sci-Fi Background noise" by Spring Spring / Spring Enterprises
+    https://opengameart.org/content/sci-fi-background-noise
+Hit, dodge, kill, pilot-lost stings: Kenney "Sci-fi Sounds" pack
+    https://kenney.nl/assets/sci-fi-sounds
+UI click: Kenney "Interface Sounds" pack
+    https://kenney.nl/assets/interface-sounds
+Mission-complete jingle: Kenney "Music Jingles" pack
+    https://kenney.nl/assets/music-jingles
+
+------------------------------------------------------------
+FONTS
+------------------------------------------------------------
+
+The game draws with your browser's own monospace font; no font files ship
+with it.
+`;

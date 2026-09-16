@@ -526,7 +526,16 @@ export class Debrief extends Phaser.Scene {
       const name = awardCallsign(this.state, p.pilotId);
       if (name) this.callsignsEarned.push({ pilot: this.state.pilots[p.pilotId].pilot.displayName, callsign: name });
     }
-    if (this.callsignsEarned.length) saveCampaignState(this.state);
+    // Ship audit, 16 Sep 2026 (§1.3) — everything above (losses, the win
+    // record, earnings, lance integration, the Emotional Brain write-back,
+    // callsigns, the cleared sortie clock) used to live only in memory until
+    // RETURN TO BASE. A refresh, a crash or a closed laptop on this screen
+    // reverted the whole mission — win, points and deaths alike (a free
+    // Ironman undo) — and left activeMissionAttempt on disk, so twelve
+    // hours later Boot showed RECALLED for a mission that was finished.
+    // Save here, once, the moment the result is applied; RETURN TO BASE
+    // still saves again to pick up shop spending and prisoner decisions.
+    saveCampaignState(this.state);
 
     this.add.text(480, 16, "DEBRIEF", { fontFamily: "monospace", fontSize: "22px", color: "#e8e2d4" }).setOrigin(0.5);
 
@@ -642,10 +651,34 @@ export class Debrief extends Phaser.Scene {
     // instance per scene key, so a player replaying a mission and landing
     // back on Debrief would otherwise stack a second listener on top of the
     // first rather than replacing it.
+    // Ship audit, 16 Sep 2026 — the shop lives below the fold and the only
+    // way down was a mouse wheel nobody was told about. A pinned cue in the
+    // footer band, gone the moment the player scrolls (or when there is
+    // nothing to scroll to). Arrow keys / PageDown work now too.
+    const scrollCue =
+      debriefMaxScrollY > 0
+        ? this.add
+            .text(318, 604, "\u25bc scroll down for the shop", { fontFamily: "monospace", fontSize: "10px", color: "#e0b23c" })
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(DEBRIEF_FOOTER_DEPTH + 1)
+        : null;
+    const scrollTo = (y: number) => {
+      this.cameras.main.scrollY = Phaser.Math.Clamp(y, 0, debriefMaxScrollY);
+      if (scrollCue && this.cameras.main.scrollY > 0) scrollCue.setVisible(false);
+    };
     this.input.off("wheel");
     this.input.on("wheel", (_pointer: unknown, _over: unknown, _dx: number, dy: number) => {
-      this.cameras.main.scrollY = Phaser.Math.Clamp(this.cameras.main.scrollY + dy * 0.5, 0, debriefMaxScrollY);
+      scrollTo(this.cameras.main.scrollY + dy * 0.5);
     });
+    this.input.keyboard?.off("keydown-DOWN");
+    this.input.keyboard?.off("keydown-UP");
+    this.input.keyboard?.off("keydown-PAGE_DOWN");
+    this.input.keyboard?.off("keydown-PAGE_UP");
+    this.input.keyboard?.on("keydown-DOWN", () => scrollTo(this.cameras.main.scrollY + 60));
+    this.input.keyboard?.on("keydown-UP", () => scrollTo(this.cameras.main.scrollY - 60));
+    this.input.keyboard?.on("keydown-PAGE_DOWN", () => scrollTo(this.cameras.main.scrollY + 400));
+    this.input.keyboard?.on("keydown-PAGE_UP", () => scrollTo(this.cameras.main.scrollY - 400));
 
     // Character Creator overlay, 9 Sep 2026 — same "toggle for every new
     // NPC" ask as ShopPanel.ts's own generic-hire button (see that file's
@@ -755,7 +788,7 @@ export class Debrief extends Phaser.Scene {
         // campaignState.ts): a House Amaranth save has no Hub to send it to.
         this.scene.start(baseSceneKeyFor(this.state));
       },
-      ["Return to Base", "", ...wrapTipText("Saves your campaign and returns to base — your Hub, or the Campaign Shop for a House Amaranth save with no Hub of its own.", 42)],
+      ["Return to Base", "", ...wrapTipText("Saves your campaign and returns to base — the ship, and the crew waiting in it.", 42)],
       this.hoverTip
     );
   }
@@ -1399,7 +1432,7 @@ export class Debrief extends Phaser.Scene {
       // both lines below, not just one, so this is a single centered line
       // rather than the header+detail pair Warden keeps.
       this.add
-        .text(480, top + height / 2, "You'll command two lance as of today. It's your job to fill the roster.", {
+        .text(480, top + height / 2, "You'll command two lances as of today. It's your job to fill the roster.", {
           fontFamily: "monospace",
           fontSize: "12px",
           color: "#4ade80",

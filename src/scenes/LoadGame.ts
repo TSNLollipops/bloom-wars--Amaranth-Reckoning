@@ -10,6 +10,7 @@ import { listManualSlots, loadManualSlot, saveCampaignState, rankDisplayTitle, M
 import { makeShopButton } from "./shop/ShopPanel";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { centerLegacyLayout } from "./ui/legacyCenter";
 
 export class LoadGame extends Phaser.Scene {
   // Tooltip pass, 12 Sep 2026 (standing rule — see
@@ -25,6 +26,7 @@ export class LoadGame extends Phaser.Scene {
   create() {
     this.hoverTip = new HoverTip(this);
     this.cameras.main.setBackgroundColor("#0a0d10");
+    centerLegacyLayout(this);
     this.add.text(480, 44, "LOAD GAME", { fontFamily: "monospace", fontSize: "24px", color: "#e8e2d4" }).setOrigin(0.5);
     this.add
       .text(480, 72, "loading a slot replaces your current live save with it — same as a rewind, not a branch", {
@@ -105,7 +107,7 @@ export class LoadGame extends Phaser.Scene {
 
     if (slots.every((s) => s === null)) {
       this.add
-        .text(480, top + MANUAL_SAVE_SLOT_COUNT * rowH + 30, "no manual saves yet — use SAVE AS on the Hangar or Debrief screen", {
+        .text(480, top + MANUAL_SAVE_SLOT_COUNT * rowH + 30, "no manual saves yet — use SAVE... on the pause MENU, the Campaign Shop, or the Debrief screen", {
           fontFamily: "monospace",
           fontSize: "11px",
           color: "#5a6472",

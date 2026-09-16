@@ -32,6 +32,7 @@
 import Phaser from "phaser";
 import { loadCampaignState, saveCampaignState, evaluateMissionTimeout, applyMissionTimeout, baseSceneKeyFor, type CampaignState } from "../engine/campaignState";
 import { ALL_MISSIONS_BY_ID } from "../data/allCampaigns";
+import { centerLegacyLayout } from "./ui/legacyCenter";
 
 export class Boot extends Phaser.Scene {
   constructor() {
@@ -72,6 +73,7 @@ export class Boot extends Phaser.Scene {
    */
   private drawRecallNotice(state: CampaignState, missionId?: string) {
     this.cameras.main.setBackgroundColor("#0c0f12");
+    centerLegacyLayout(this);
     const missionName = missionId ? (ALL_MISSIONS_BY_ID[missionId]?.displayName ?? missionId) : "the mission";
 
     this.add.text(480, 140, "RECALLED", { fontFamily: "monospace", fontSize: "26px", color: "#ef4444" }).setOrigin(0.5);

@@ -260,6 +260,11 @@ export interface CampaignState {
   // discretionary recruiting (recruitDiscretionary, below — unchanged by
   // this pass) and purchaseSpareParts (engine/campaignEconomy.ts, new
   // this pass).
+  // Ship audit, 16 Sep 2026 — a version number inside the blob, so a
+  // future breaking change to this shape has somewhere to hang a migration
+  // (today every load runs the ad-hoc backfills below; nothing reads this
+  // yet). Optional for save compatibility; loadCampaignState stamps it.
+  schemaVersion?: number;
   points: number;
   pilots: Record<string, CampaignPilotEntry>; // keyed by pilot id
   // Mutable, campaign-persistent copies of MekArchetype rows. Moved off
@@ -642,11 +647,18 @@ export interface ActiveMissionAttempt {
  * the roster on purpose (tests pass synthetic rosters); createWardenCampaignState
  * below is the real entry point for the one campaign this repo currently ships.
  */
+/** Bump when a change to CampaignState's shape can't be handled by the load-time backfills alone; add the migration in loadCampaignState. */
+export const CAMPAIGN_SCHEMA_VERSION = 1;
+
+/** Ship audit, 16 Sep 2026 — every pilot's social log is trimmed to this many entries at save time. It had no cap (MEMORY_CAP = 24 next door does), and it rides in the live key plus three manual slots. */
+export const SOCIAL_LOG_CAP = 60;
+
 export function createCampaignState(pilots: PilotRecord[], meks: Record<string, MekArchetype>, startingPoints = 0): CampaignState {
   // calendarDay: 1 — the calendar epoch is campaign start, not first-mission-
   // complete (Calendar Economy Proposal v2 §7). "Day 47 — Muster" only reads
   // right if real days have already elapsed before whatever Muster marks.
   const state: CampaignState = {
+    schemaVersion: CAMPAIGN_SCHEMA_VERSION,
     points: startingPoints,
     pilots: {},
     meks: {},
@@ -815,11 +827,91 @@ export interface CampaignStorage {
   removeItem(key: string): void;
 }
 
-/** Real localStorage when it exists (the browser build), the caller's injected storage (tests), or null (headless Node — npm run sim / npm test) — never throws either way. Exported 1 Sep 2026 so engine/statsStore.ts follows the exact same rule rather than a copy of it. */
+// Ship audit, 16 Sep 2026 (Bloom_Wars_Ship_Audit_16Sep2026.md §1.2) — the
+// old body was `if (typeof localStorage !== "undefined") return localStorage`
+// with no try/catch. Inside itch.io's cross-site iframe, Chrome Incognito,
+// Brave and any browser blocking third-party storage make the
+// `window.localStorage` getter itself throw a SecurityError — and `typeof`
+// still runs the getter. First caller is Boot.create(), inside Phaser's
+// frame step, so the throw froze the game on a black canvas before the
+// title screen. Every other storage module in this repo (playerNotes,
+// testerNotes, audioSettings, displayScale) already guarded this; the
+// campaign save was the one that didn't. Now: the real localStorage is
+// handed back wrapped so getItem/setItem/removeItem can never throw out of
+// here either (QuotaExceededError on write was the other unguarded path —
+// itch serves its HTML5 games from a shared origin, so the ~5MB quota is
+// shared with every other itch game the browser has run). A failed write
+// reports through setSaveFailureHandler (main.ts wires a DOM toast) rather
+// than silently dropping the save. Injected test storage is passed through
+// untouched, so tests keep their exact semantics.
+
+/** Fires once per failed write. Engine stays Phaser/DOM-free — main.ts decides what the player sees. */
+let saveFailureHandler: ((key: string, err: unknown) => void) | null = null;
+export function setSaveFailureHandler(fn: ((key: string, err: unknown) => void) | null): void {
+  saveFailureHandler = fn;
+}
+
+let cachedBrowserStorage: CampaignStorage | null | undefined;
+
+function wrapBrowserStorage(raw: Storage): CampaignStorage {
+  return {
+    getItem(key) {
+      try {
+        return raw.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    setItem(key, value) {
+      try {
+        raw.setItem(key, value);
+      } catch (err) {
+        saveFailureHandler?.(key, err);
+        throw err;
+      }
+    },
+    removeItem(key) {
+      try {
+        raw.removeItem(key);
+      } catch {
+        /* nothing to do — a key we can't remove is a key nobody can read either */
+      }
+    },
+  };
+}
+
+/** setItem that never throws — for the small flag/meta writes below, where a full-quota browser should cost the flag, not the click that set it. */
+function trySetItem(s: CampaignStorage, key: string, value: string): boolean {
+  try {
+    s.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Real localStorage when it exists AND is readable (the browser build), the caller's injected storage (tests), or null (headless Node — npm run sim / npm test — or a browser that blocks storage in this frame) — never throws either way. Exported 1 Sep 2026 so engine/statsStore.ts follows the exact same rule rather than a copy of it. */
 export function resolveStorage(storage?: CampaignStorage): CampaignStorage | null {
   if (storage) return storage;
-  if (typeof localStorage !== "undefined") return localStorage;
-  return null;
+  if (cachedBrowserStorage !== undefined) return cachedBrowserStorage;
+  try {
+    if (typeof localStorage !== "undefined" && localStorage !== null) {
+      // A blocked frame can throw on the getter (caught above) OR on first
+      // use — probe once so the answer is settled before Boot relies on it.
+      localStorage.getItem("__bw_probe");
+      cachedBrowserStorage = wrapBrowserStorage(localStorage);
+    } else {
+      cachedBrowserStorage = null;
+    }
+  } catch {
+    cachedBrowserStorage = null;
+  }
+  return cachedBrowserStorage;
+}
+
+/** True when the browser will actually keep a save between visits. False in a storage-blocked frame (MainMenu shows a one-line notice) and in headless Node. */
+export function isStorageAvailable(storage?: CampaignStorage): boolean {
+  return resolveStorage(storage) !== null;
 }
 
 /**
@@ -833,10 +925,25 @@ export function resolveStorage(storage?: CampaignStorage): CampaignStorage | nul
  * none of them pass a key, so they keep writing the live key exactly as
  * before this param existed.
  */
-export function saveCampaignState(state: CampaignState, storage?: CampaignStorage, key: string = STORAGE_KEY): void {
+export function saveCampaignState(state: CampaignState, storage?: CampaignStorage, key: string = STORAGE_KEY): boolean {
   const s = resolveStorage(storage);
-  if (!s) return;
-  s.setItem(key, JSON.stringify(state));
+  if (!s) return false;
+  // Bound the one unbounded array in the blob (see SOCIAL_LOG_CAP). Spliced
+  // in place: Hub NPCs hold the same array reference, so trimming the copy
+  // that's serialised is trimming the one in play — no drift between them.
+  for (const entry of Object.values(state.pilots)) {
+    const log = entry.social?.socialLog;
+    if (log && log.length > SOCIAL_LOG_CAP) log.splice(0, log.length - SOCIAL_LOG_CAP);
+  }
+  try {
+    s.setItem(key, JSON.stringify(state));
+    return true;
+  } catch {
+    // Already reported to the save-failure handler by the wrapper (or, for
+    // an injected storage that throws, nothing to report to). Callers that
+    // care read the boolean; the thirty Hub sites that don't keep working.
+    return false;
+  }
 }
 
 /**
@@ -865,10 +972,59 @@ export function loadCampaignState(storage?: CampaignStorage, key: string = STORA
     backfillCompanyName(state);
     backfillLancesGranted(state);
     backfillCalendarDay(state);
+    if (state.schemaVersion === undefined) state.schemaVersion = CAMPAIGN_SCHEMA_VERSION;
     return state;
   } catch {
     return null;
   }
+}
+
+// ---- Save export / import (Ship audit, 16 Sep 2026, §4; Now & Next's
+// Week-3 item) ----
+// Browser saves live in localStorage, which the browser — or itch.io, whose
+// game-hosting domain has changed before — can clear without asking. The
+// standard mitigation is letting the player carry the save as text.
+// Export is the stored JSON verbatim (no header line, so it round-trips
+// through JSON.parse untouched); import validates the shape before it
+// writes anything, and writes only the live key — a bad paste can never
+// clobber a good save. Both are pure engine functions so a test can drive
+// them with an injected storage.
+
+/** The live save as text, or null when there is no save (or no storage). */
+export function exportCampaignJson(storage?: CampaignStorage): string | null {
+  const s = resolveStorage(storage);
+  if (!s) return null;
+  return s.getItem(STORAGE_KEY);
+}
+
+/** Cheap structural check — enough to reject a stats blob, a notes dump or a truncated paste, not a schema validator. */
+export function looksLikeCampaignState(value: unknown): value is CampaignState {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.points === "number" && !!v.pilots && typeof v.pilots === "object" && !!v.meks && typeof v.meks === "object" && typeof v.nextGeneratedId === "number";
+}
+
+/**
+ * Parses `text`, validates it, and makes it the live save. Never throws.
+ * `ok: false` leaves storage exactly as it was.
+ */
+export function importCampaignJson(text: string, storage?: CampaignStorage): { ok: true; state: CampaignState } | { ok: false; reason: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.trim());
+  } catch {
+    return { ok: false, reason: "That isn't a Bloom Wars save — the text doesn't parse. Paste the whole block from EXPORT SAVE, nothing added or trimmed." };
+  }
+  if (!looksLikeCampaignState(parsed)) {
+    return { ok: false, reason: "That parses, but it isn't a campaign save (no roster, points or Mek table in it). Paste the block from EXPORT SAVE." };
+  }
+  const s = resolveStorage(storage);
+  if (!s) return { ok: false, reason: "This browser is blocking saved data, so there is nowhere to put it." };
+  const state = parsed;
+  if (!saveCampaignState(state, storage)) return { ok: false, reason: "Couldn't write the save — this browser's storage is full or blocked." };
+  // Same self-heal pass a normal load gets, so an older export lands with
+  // every backfilled field present.
+  return { ok: true, state: loadCampaignState(storage) ?? state };
 }
 
 /** See saveCampaignState's own comment on `key`. */
@@ -924,7 +1080,7 @@ function loadManualSaveMeta(storage?: CampaignStorage): Record<number, ManualSav
 function saveManualSaveMeta(meta: Record<number, ManualSaveSlotMeta>, storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
-  s.setItem(MANUAL_SAVE_META_KEY, JSON.stringify(meta));
+  trySetItem(s, MANUAL_SAVE_META_KEY, JSON.stringify(meta));
 }
 
 /** Writes a manual save slot: the state itself (same round-trip machinery the live key uses, just keyed to this slot) plus its metadata record. This is the entire implementation of "Save As..." (§6/§7) — Hangar.ts and Debrief.ts's own buttons call this directly. */
@@ -986,7 +1142,7 @@ export function hasSeenTutorial(storage?: CampaignStorage): boolean {
 export function markTutorialSeen(storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
-  s.setItem(TUTORIAL_SEEN_KEY, "1");
+  trySetItem(s, TUTORIAL_SEEN_KEY, "1");
 }
 
 /**
@@ -1024,7 +1180,7 @@ export function areTutorialHintsEnabled(storage?: CampaignStorage): boolean {
 export function setTutorialHintsEnabled(enabled: boolean, storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
-  s.setItem(TUTORIAL_HINTS_ENABLED_KEY, enabled ? "1" : "0");
+  trySetItem(s, TUTORIAL_HINTS_ENABLED_KEY, enabled ? "1" : "0");
 }
 
 // Hub hints & orientation — own key, survives New Game, same reasoning as
@@ -1072,7 +1228,7 @@ export function markHubHintSeen(id: HubHintId, storage?: CampaignStorage): void 
   if (!s) return;
   const seen = loadHubHintsSeen(storage);
   seen.add(id);
-  s.setItem(HUB_HINTS_SEEN_KEY, JSON.stringify([...seen]));
+  trySetItem(s, HUB_HINTS_SEEN_KEY, JSON.stringify([...seen]));
 }
 
 /** RESET TUTORIAL HINTS (Options.ts) calls this alongside resetTutorialSeen() — one button, read by its own label as "reset every tutorial hint," clears both rather than leaving Hub hints half-reset behind it. */

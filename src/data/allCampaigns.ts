@@ -50,7 +50,7 @@ export const CAMPAIGNS: CampaignDef[] = [
   {
     id: "amaranth_act1",
     name: "The Amaranth Reckoning — Act I: The Fallow Line",
-    subtitle: "Warden Company. Independent, non-canon parallel campaign — Act I complete, missions 1-12.",
+    subtitle: "Warden Company. Missions 1-12. A muster sweep on the Fallow Line that stops being routine.",
     missions: AMARANTH_ACT1,
   },
   {
@@ -64,7 +64,7 @@ export const CAMPAIGNS: CampaignDef[] = [
     // finishing Act I is possible but will show a 5-pilot roster with no
     // picker until Mission 12 is actually won — not blocked here, since
     // nothing else in this campaign enforces mission order either.
-    subtitle: "Warden Company. Two lances, ship fire support — Act II complete, missions 13-24 of 24.",
+    subtitle: "Warden Company. Missions 13-24. Two lances, ship fire support, and a second front.",
     missions: AMARANTH_ACT2,
   },
   {
@@ -80,7 +80,7 @@ export const CAMPAIGNS: CampaignDef[] = [
     // bloom_cradle) debuting in Mission 35, and Mission 36's own
     // objective_complete epilogue closing the story out. See the build log
     // addendum for the batch's full build/tuning history.
-    subtitle: "Warden Company. Meridian's Oath, the withdrawal, The Cradle, the relief fleet — Act III complete, missions 25-36 of 36. Campaign complete.",
+    subtitle: "Warden Company. Missions 25-36. The withdrawal to Meridian, and holding until relief.",
     missions: AMARANTH_ACT3,
   },
   // House Amaranth — hidden from the normal/paid build, 12 Sep 2026

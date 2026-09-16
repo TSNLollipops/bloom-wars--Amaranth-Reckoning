@@ -12,7 +12,7 @@ import Phaser from "phaser";
 import { CAMPAIGNS, WARDEN_MISSION_CHAIN, HOUSE_AMARANTH_MISSION_CHAIN } from "../data/allCampaigns";
 import type { CampaignMission } from "../data/types";
 import { baseSceneKeyFor, loadCampaignState, isMissionUnlocked } from "../engine/campaignState";
-import { isMissionDemoLocked, isCampaignDemoLocked, DEMO_LOCK_MESSAGE, DEMO_TAB_LOCK_MESSAGE } from "../data/demoCap";
+import { isMissionDemoLocked, isCampaignDemoLocked, DEMO_LOCK_MESSAGE, DEMO_TAB_LOCK_MESSAGE, DEMO_STORE_URL } from "../data/demoCap";
 import { makeShopButton } from "./shop/ShopPanel";
 import { addMenuOverlayButton } from "./MenuOverlay";
 import { Panel, TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
@@ -158,7 +158,7 @@ export class MapSelect extends Phaser.Scene {
         const state = loadCampaignState();
         this.scene.start(state ? baseSceneKeyFor(state) : "Hub");
       },
-      ["Back to Hub", "", ...wrapTipText("Returns to your side's Hub to walk around in (or the Campaign Shop, for a House Amaranth save with no Hub of its own yet).", 42)],
+      ["Back to Hub", "", ...wrapTipText("Returns to the ship — your Hub, with the crew in it.", 42)],
       this.hoverTip
     );
 
@@ -277,6 +277,17 @@ export class MapSelect extends Phaser.Scene {
         .setOrigin(0.5)
         .setScrollFactor(0);
       panel.add(body);
+      // Ship audit, 16 Sep 2026 — the player reading "waiting on itch.io"
+      // is already on itch.io; give them the one click that matters.
+      // Opens in a new tab (the game keeps running underneath); in the
+      // Electron build the cap is off, so this panel never shows there.
+      if (DEMO_STORE_URL) {
+        const linkLayer = this.add.container(0, 0).setScrollFactor(0);
+        makeShopButton(this, linkLayer, 480, 352, 220, 26, "GET THE FULL GAME", true, () => {
+          window.open(DEMO_STORE_URL, "_blank", "noopener");
+        }, ["Get the Full Game", "", ...wrapTipText("Opens the full game's itch.io page in a new tab. This demo keeps running here.", 42)], this.hoverTip);
+        panel.add(linkLayer);
+      }
       this.teasePanel = panel;
     }
     this.teasePanel.open();

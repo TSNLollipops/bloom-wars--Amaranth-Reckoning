@@ -181,7 +181,7 @@ function showMenuOverlay(scene: Phaser.Scene, getState: () => CampaignState | nu
   makeShopButton(scene, layer, 480, y, 260, 36, "HOW TO PLAY", true, () => {
     closeOverlay();
     scene.scene.start("Codex", { returnScene: scene.scene.key, campaignState: state });
-  }, ["How To Play", "", ...wrapTipText("The field manual — Personnel, Bestiary, and World entries, live from your current save.", 42)], hoverTip);
+  }, ["How To Play", "", ...wrapTipText("The rules, in plain terms — controls, the board, terrain, classes, abilities, objectives, the Hub. Lore lives in the Archive.", 42)], hoverTip);
   y += rowGap;
 
   makeShopButton(scene, layer, 480, y, 260, 36, "RETURN TO MAIN MENU", true, () => {

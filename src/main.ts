@@ -20,6 +20,7 @@ import { Hub } from "./scenes/Hub";
 // arguments (which is exactly how the Warden `Hub` entry stays the Antfarm).
 import { HOUSE_AMARANTH_FACILITY } from "./engine/facilityHouseAmaranth";
 import { applyDisplayScale, getStoredDisplayScaleId } from "./engine/displayScale";
+import { setSaveFailureHandler } from "./engine/campaignState";
 
 // Screen Resolution Plan v1, 2 Sep 2026 — apply the player's saved display-
 // scale cap (Options screen, defaults to 150%) to #app's max-width/max-
@@ -27,6 +28,30 @@ import { applyDisplayScale, getStoredDisplayScaleId } from "./engine/displayScal
 // the wrong size on the very first frame. See src/engine/displayScale.ts
 // and index.html's own :root fallback for the pre-script default.
 applyDisplayScale(getStoredDisplayScaleId());
+
+// Ship audit, 16 Sep 2026 (§1.2) — a save that fails to write (browser
+// storage full or blocked) used to vanish silently: the click handler that
+// tried to save just died mid-way and the player never knew. The engine
+// reports the failure through this hook; the toast is plain DOM so it works
+// in every scene, over every camera, without touching Phaser's own stack.
+// Throttled so the Hub's many event-driven saves don't stack thirty toasts.
+{
+  let lastShownAt = 0;
+  setSaveFailureHandler(() => {
+    const now = Date.now();
+    if (now - lastShownAt < 10_000) return;
+    lastShownAt = now;
+    const el = document.createElement("div");
+    el.textContent = "Couldn't save your progress — this browser's storage is full or blocked. Options → EXPORT SAVE keeps a copy you can paste back in.";
+    el.setAttribute(
+      "style",
+      "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:90vw;padding:10px 14px;" +
+        "background:#3a1418;color:#ffd7d7;border:1px solid #ef4444;font:12px/1.4 monospace;z-index:100000;pointer-events:none;"
+    );
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 8000);
+  });
+}
 
 const __bwGame = new Phaser.Game({
   type: Phaser.AUTO,

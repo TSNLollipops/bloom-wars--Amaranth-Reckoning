@@ -102,6 +102,14 @@ export function isMissionDemoLocked(campaignId: string, chain: readonly Campaign
  * claude_Bloom_Wars_Build_Brief_TeaseTooltipsStressBar_13Sep2026.md item 1,
  * copy locked by Maxime, transcribed verbatim, not Claude's wording.
  */
+/**
+ * Ship audit, 16 Sep 2026 — where the tease panel's GET THE FULL GAME
+ * button sends a demo player. Empty string = no button (the panel shows
+ * text only), so an unset URL never ships a dead link. Fill in once the
+ * paid itch.io page has its final address.
+ */
+export const DEMO_STORE_URL = "";
+
 export const DEMO_TAB_LOCK_MESSAGE = "The war doesn't end at Mission 12. The rest of Warden Company's story is waiting on itch.io.";
 
 /**

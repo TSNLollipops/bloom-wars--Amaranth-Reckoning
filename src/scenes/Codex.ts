@@ -113,14 +113,21 @@ interface ControlRow {
   desc: string;
   chip?: "go" | "danger" | "info";
 }
+// Ship audit, 16 Sep 2026 (§1.6) — rewritten against the live Battle screen.
+// The previous rows said "no hotkeys," put END TURN bottom-right and mission
+// select top-right, and listed Team One tabs; none of it survived the 12 Sep
+// HUD relayout. Every position and key below was checked against Battle.ts.
 const CONTROLS: ControlRow[] = [
-  { key: "Click a unit", desc: "Selects it. The board lights up around it: green tiles it can move to, red enemies it can hit, cyan allies a Munti can Repair instead of attacking." },
+  { key: "Click a unit", desc: "Selects it. The board lights up around it: green tiles it can move to, red enemies it can hit, cyan allies a Munti can Repair instead of attacking. Hover anything — a unit, a tile, a button — for a tip." },
   { key: "Click green", desc: "Moves there. Costs 1 action, does not end your turn — the unit stays selected and its options recompute.", chip: "go" },
   { key: "Click red", desc: "Attacks. Costs every action the unit has left and ends its turn immediately, no matter how many actions were still in the bank.", chip: "danger" },
   { key: "Click cyan", desc: "Munti only — heals that ally instead of attacking. Costs 1 action, does not end the turn.", chip: "info" },
-  { key: "End Turn", desc: "Bottom-right button. Resolves the hostile AI's whole turn, then the environment step (acid tiles, deploy-pad healing, shield/regen ticks), then hands the turn back to you." },
-  { key: "< mission select", desc: "Top-right, bails out to the mission list at any time — nothing is saved mid-mission, so this is a hard restart of the current fight." },
-  { key: "Campaign tabs", desc: "Team One (the original 4-mission prototype) and Amaranth Act I — independent rosters, maps, same rules." },
+  { key: "Action bar", desc: "Bottom-left, above END TURN, once a unit is selected: Overwatch, Ambush and whatever else that unit carries. Click a slot or press its number (1-6). Hover a slot for exactly what it does and what it costs." },
+  { key: "End Turn", desc: "Bottom-left button, or Space. If anyone can still act you get a prompt first — Space again ends the turn anyway, Esc keeps playing. Then the hostile phase plays out move by move, the environment step ticks (Bloom mat, deploy-pad healing, shields and regen), and the turn is yours." },
+  { key: "Tab · Esc · R-click", desc: "Tab cycles through your units that can still act. Esc or right-click cancels whatever is open — a prompt, an aimed ability, then the selection itself." },
+  { key: "[ and ]", desc: "Hide or show the left (briefing) and right (comms) columns to give a wide map the room." },
+  { key: "T · :notes · :help", desc: "T opens the comms box — a selected pilot hears you, or name one with :t. Type :notes and a line to jot a Field Note mid-fight. :help lists every command." },
+  { key: "< mission select", desc: "Top-left. Asks first, then scraps the attempt: nothing is saved mid-mission, nothing is lost or earned, and the mission is available again. HOW TO PLAY next to it opens this manual without leaving the fight." },
 ];
 
 interface TerrainRow {
@@ -154,9 +161,9 @@ interface AbilityRow {
 }
 const ABILITIES: AbilityRow[] = [
   { name: "Overshield", tag: "Tank, passive", desc: "While an Overshield Tank is alive on the board, every adjacent ally gets +1 terrain defence star (10% less damage taken). Doesn't stack with a second Tank." },
-  { name: "Repair", tag: "Munti, active", desc: "Instead of attacking: heal one adjacent ally 30 HP (38 if the Munti's mek runs Fieldwright as primary). Costs 1 action, doesn't end the turn." },
+  { name: "Repair", tag: "Munti, active", desc: "Instead of attacking: heal one adjacent ally 30 HP (38 if the Munti's Mek runs Fieldwright as primary). Costs 1 action, doesn't end the turn." },
   { name: "Charge", tag: "Centauroid, passive", desc: "Move 3+ tiles in an unbroken straight line over cost-1 terrain, then attack at the end of it — +25% damage." },
-  { name: "Sensor Sweep", tag: "Vibrissal, passive", desc: "Vibrissal-chassis pilots passively detect burrowed units within their own radius — a real mechanical edge against Undertow, wired up as of 6 Sep 2026. A Runemaster-primary Mek extends that reach further." },
+  { name: "Sensor Sweep", tag: "Vibrissal, passive", desc: "Vibrissal-chassis pilots passively detect burrowed units within their own radius — a real mechanical edge against Undertow. A Runemaster-primary Mek extends that reach further." },
   { name: "Meeps Dodge", tag: "house rule", desc: "40% chance to take zero damage from any single hit — as the target, and again on the counter-hit a Meeps eats after attacking something that counters back. Two independent rolls." },
   { name: "Tank Shield", tag: "house rule", desc: "Overshield also grants a real 20-point shield (absorbs before HP) to the Tank and every adjacent ally. Regens 8/turn only if that unit took zero damage since the last tick." },
   { name: "Munti Regen", tag: "house rule", desc: "Every living Munti passively heals itself and same-side allies within 2 tiles for 8 HP/turn — free, stacks with active Repair, doesn't stack across multiple Muntis." },
@@ -226,16 +233,100 @@ const MISSIONS: MissionRow[] = [
     tip: "If the objective is one of the four bonus-target kinds, you are never on a clock. Take the careful line.",
   },
   {
-    title: "The threat list is what intelligence expected",
+    title: "The briefing tells you what intelligence expected",
     tags: ["not a guarantee", "waves arrive on their own schedule"],
-    desc: "The panel names what the briefing was told to expect. Waves arrive on their own timer and the briefing does not always know about the second one. Plan the fight you were given, then keep a unit uncommitted for the one you were not.",
+    desc: "The Transporter Pad and the left column in the fight carry the briefing and the objective. Waves arrive on their own timer and the briefing does not always know about the second one. Plan the fight you were given, then keep a unit uncommitted for the one you were not.",
     tip: "A squad that has spent every action by turn 3 has no answer to a wave that lands on turn 4.",
   },
   {
-    title: "Terrain is on the panel before you deploy",
+    title: "Read the ground on turn 1, before anyone moves",
     tags: ["Sec. 03", "bloom mat, ridge, structure"],
-    desc: "Tile colour is rules data, not decoration. Bloom mat costs you for ending a move on it. Ridge and Structure are the two worth walking further to reach. The map is visible from the briefing — look at where the defence stars are before you pick your deploy pads, not after first contact.",
+    desc: "Tile colour is rules data, not decoration. Bloom mat costs you for ending a move on it. Ridge and Structure are the two worth walking further to reach. Hover a tile for its cost and cover before you commit a move — the first turn is usually quiet enough to look.",
     tip: "Put the Tank in the doorway. There is almost always a doorway.",
+  },
+];
+
+// Ship audit, 16 Sep 2026 — the rules a tester met on screen with nothing
+// explaining them: fog of war (hostiles are only drawn while a unit of yours
+// can see them, and nothing said so), commander down, the sortie clock,
+// Ironman, points. Same card shape as MISSIONS; rendered by renderCards.
+const RULES: MissionRow[] = [
+  {
+    title: "You only see what your squad can see",
+    tags: ["fog of war", "read this one"],
+    desc: "A hostile is drawn on the board only while one of your living units has it in sight (each unit's 'sees N' on its hover tip). Tiles nobody can see are dimmed. An empty-looking board on turn 1 is not an empty board — the first wave is usually already out there, past your sight. Sensor Sweep reveals through the fog for a turn; a vibrissal chassis also finds burrowed units close in.",
+    tip: "Move in a line, not a spread — every unit that steps forward pushes the edge of what you can see.",
+  },
+  {
+    title: "Commander down ends the attempt, not the campaign",
+    tags: ["no losses", "no earnings", "try again"],
+    desc: "If your commanding pilot goes down, the mission stops on the spot: nothing is lost, nothing is earned, no permadeath check, and the mission is available again from mission select. Everyone else who went down that attempt is fine too. It is the one way a fight ends without a Debrief.",
+    tip: "Keep the commander one tile behind the Tank. She does not have to lead to be in charge.",
+  },
+  {
+    title: "The sortie clock — twelve real hours",
+    tags: ["real time", "Command recalls you"],
+    desc: "BEAM DOWN starts a clock in real time. A sortie that is still open twelve hours later — a tab left open overnight, a laptop closed mid-fight — is recalled by Command the next time the game loads: nothing lost, no permadeath roll, the mission simply available again. Nothing is saved mid-mission, so a fight has to be finished in one sitting either way.",
+    tip: "Abandon a sortie on purpose with < mission select rather than leaving it open; the clock stops and the crew stop worrying.",
+  },
+  {
+    title: "Ironman is on by default",
+    tags: ["one save", "no rewinds"],
+    desc: "The IRONMAN box on the New Campaign screen is checked unless you uncheck it. Checked: one live save that overwrites itself, no manual slots, no LOAD GAME. Unchecked: SAVE... on the pause menu, the Campaign Shop or the Debrief writes one of three slots you can come back to. A pilot lost is lost either way — Ironman only decides whether you can rewind the campaign around it.",
+    tip: "First run, uncheck it. The second run is when it means something.",
+  },
+  {
+    title: "Two kinds of points",
+    tags: ["personal", "company"],
+    desc: "Every deployed pilot earns PERSONAL points after a mission (their own gear ladder: tier upgrades, a second Mek track, weapon branches — spent on the Debrief shop). The COMPANY pool is separate: completion, turns under the target, nobody downed, no spare parts spent, plus the CO's bonus. It pays for recruits, carrier bays and the bigger purchases in the Campaign Shop. A pilot can convert personal points to company at a loss.",
+    tip: "The personal pool of a pilot you lose goes with them. Spend before you sortie.",
+  },
+  {
+    title: "Stress, Morale and Favorability",
+    tags: ["the crew", "why they refuse"],
+    desc: "Every pilot carries Stress (0-100, up from losses and a bad night, down from rest, drinks and a good word) and Morale (the opposite). Stress past 70 with a worry on their mind risks a breakdown in the Hub. Favorability is how they feel about you — praise, gifts, a drink and a won fight raise it; insults and losses lower it. Some verbs refuse below a threshold (Flirt needs 40+). Hover a crew member aboard ship to read all three.",
+    tip: "The Debrief's WHAT THEY TOOK FROM IT block is these numbers moving. Watch the one who took it 'shaken'.",
+  },
+];
+
+// The Hub, transcribed from HOW_TO_PLAY.html §10 (which never shipped in
+// the game's own manual) and checked against Hub.ts's controls strip.
+const SHIP: MissionRow[] = [
+  {
+    title: "Getting around",
+    tags: ["WASD / arrows", "E", "T"],
+    desc: "Between missions you walk the ship. WASD or the arrow keys move you. E at a door, a console or a crew member interacts — clicking works too. T opens the chat box to type something real to whoever is nearest. H is your history, L the highlights reel, B the Rec Room standings board. Walk onto the BAY pad on the Hangar Deck and press E to muster and launch the next mission.",
+    tip: "The controls strip along the top of the ship never goes away. When in doubt, read it.",
+  },
+  {
+    title: "The decks",
+    tags: ["four decks", "stairs and corridors"],
+    desc: "LOWER: Rec Room (games, the standings board), the Hangar Deck (ROSTER & GEAR, recruiting, the muster BAY), Berths. GROTTO: the CO's post, the Workshop and the Meks, Engineering and the buildable bays. UPPER: the Vault (Heirlooms, house standing), CIC (the Archive's tactical table), the forward bays. Off the Rec Room: the Spar Room.",
+    tip: "The Archive on the CIC's table is where the lore, the personnel files and the bestiary live — this manual is only the rules.",
+  },
+  {
+    title: "The CO signs off before you fly again",
+    tags: ["the Grotto", "check-in gate"],
+    desc: "After your first mission ends, the BAY will not launch the next one until you have reported to the CO in the Grotto. Talk to him, ask him anything, or send a build request — any of the three clears it. Skip him and BEAM DOWN tells you why it is refusing.",
+    tip: "'Build me a Generator' is the first useful thing to say to him. Most bays need it.",
+  },
+  {
+    title: "Talking to the crew",
+    tags: ["typed verbs", ":help"],
+    desc: "Press T near someone and type. Plain phrases land as real verbs: 'hey' or 'any advice' (small talk), 'grab a drink' (Share a Drink), 'great job' (Praise), 'congrats' (Congratulate), 'sorry' (Apology), 'you're useless' (Insult — it escalates), 'here's a gift', 'ask her out', 'wish me luck' (Send-Off before a sortie), 'let's spar', 'how are you holding up' (a check-in), 'move it' (clears a doorway jam), 'peg' / 'poker' / 'darts' (the Rec Room games). Type :help for the full list, :notes for your notebook.",
+    tip: "Everyone answers in their own voice. The [Green] / [Blooded] / [Command] tag over a head is their career stage — G-F tier, E-D-C, or B and up.",
+  },
+  {
+    title: "Days pass while you play",
+    tags: ["the calendar", "Day N"],
+    desc: "The Day counter at the top of the ship is real time: about six minutes of play is a day, aboard or on a sortie, and finishing a mission costs two more. Some things the crew do take days of their own. Nothing here is a deadline — it is the campaign's clock, the one the crew's memories and the standings board are dated by.",
+    tip: "THREAT at the top right is the Bloom's distance from the ship. In this release it stays DISTANT.",
+  },
+  {
+    title: "Saving aboard ship",
+    tags: ["MENU", "SAVE..."],
+    desc: "The MENU button on the ship, the Campaign Shop and the Debrief opens Save (non-Ironman only), Options, this manual and Return to Main Menu. Returning to the main menu saves first. The live save is written every time something happens aboard — a mission result, a purchase, a conversation — so a closed tab costs you at most a few steps of walking.",
+    tip: "Options has EXPORT SAVE. Paste the text somewhere safe before a big browser update — browser saves can be cleared by the browser.",
   },
 ];
 
@@ -270,15 +361,19 @@ interface CodexSection {
    */
 }
 const SECTIONS: CodexSection[] = [
-  { id: "controls", num: "01", title: "Controls", dek: "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.", pageCount: 1 },
-  { id: "units", num: "02", title: "Reading the Board", dek: "No sprites yet — every unit is a shape. Shape says class, fill says side, outline says chassis.", pageCount: 1 },
+  { id: "controls", num: "01", title: "Controls", dek: "Click to do everything. A few keys make it faster: Space ends the turn, Tab cycles units, Esc cancels.", pageCount: 2 },
+  { id: "units", num: "02", title: "Reading the Board", dek: "Every unit is a shape. Shape says class, fill says side, outline says chassis. Dimmed tiles are out of your sight.", pageCount: 1 },
   { id: "terrain", num: "03", title: "Terrain", dek: "Tile colour on the board is the actual rules data, not decoration. Fourteen types.", pageCount: 2 },
   { id: "bars", num: "04", title: "Health, Shield & Collapse", dek: "Every unit shows a small bar above it. What's stacked there depends on what kind of unit it is.", pageCount: 1 },
   { id: "triangle", num: "05", title: "The Class Triangle", dek: "Meeps > Reeps > Tank > Meeps. Munti sits outside the triangle entirely.", pageCount: 1 },
   { id: "abilities", num: "06", title: "Abilities & House Rules", dek: "Four that come with a chassis or a path, and six house rules this game made up for itself.", pageCount: 3 },
   { id: "objectives", num: "07", title: "Objectives", dek: "Seven objective types. Four cannot be lost on the clock. Three can.", pageCount: 2 },
   { id: "roster", num: "08", title: "Paths, Chassis and Mek Tracks", dek: "The three things that decide what a mech does before you buy it a single piece of gear.", pageCount: 1 },
-  { id: "missions", num: "09", title: "Reading a Briefing", dek: "The briefing panel is the only place that names the win condition. Read the turn number correctly.", pageCount: 2 },
+  { id: "missions", num: "09", title: "Reading a Briefing", dek: "The briefing names the win condition. Read the turn number correctly.", pageCount: 2 },
+  // Ship audit, 16 Sep 2026 — the two sections a tester needed and the
+  // manual didn't have: what the board is hiding from you, and the ship.
+  { id: "rules", num: "10", title: "Sight, Clocks & Losing", dek: "The rules nothing on the board explains by itself: fog of war, commander down, the twelve-hour sortie clock, Ironman, points, the crew's numbers.", pageCount: 3 },
+  { id: "ship", num: "11", title: "The Ship", dek: "Between missions you walk the carrier. Where things are, who to talk to, what to type, and why the BAY sometimes says no.", pageCount: 3 },
   // Field Notes, 12 Sep 2026 (Mission Chat / Player Notes / Battle HUD
   // Relayout Plan v1, Workstream 1). The one section here that is player-
   // AUTHORED rather than transcribed from HOW_TO_PLAY.html — but it belongs
@@ -287,11 +382,17 @@ const SECTIONS: CodexSection[] = [
   // permadeath and a lost campaign by design), which is exactly this
   // scene's "out-of-fiction, needs no save" register. pageCount is a
   // placeholder; renderSection sizes the real one from the notebook.
-  { id: "notes", num: "10", title: "Field Notes", dek: "Your own notebook. Written from the chat box with :notes <text>, aboard or mid-mission, and kept across every campaign.", pageCount: 1 },
+  { id: "notes", num: "12", title: "Field Notes", dek: "Your own notebook. Written from the chat box with :notes <text>, aboard or mid-mission, and kept across every campaign.", pageCount: 1 },
 ];
 
 export class Codex extends Phaser.Scene {
   private returnScene = "MainMenu";
+  // Ship audit, 16 Sep 2026 — opened as an OVERLAY from Battle and the
+  // Transporter Pad (launch + pause, same idiom Archive uses over the Hub)
+  // rather than by scene.start, which would have destroyed the live mission
+  // underneath. When true, BACK stops this scene and resumes the caller
+  // instead of starting it fresh.
+  private launched = false;
   private sectionIndex = 0;
   private page = 0;
   private categoryLayer!: Phaser.GameObjects.Container;
@@ -320,8 +421,9 @@ export class Codex extends Phaser.Scene {
   // the Hub. Left in the call signature rather than chased through two call
   // sites, so this can be re-typed rather than re-plumbed if it ever needs
   // the save again.
-  init(data: { returnScene?: string; section?: string }) {
+  init(data: { returnScene?: string; section?: string; launched?: boolean }) {
     this.returnScene = data.returnScene ?? "MainMenu";
+    this.launched = data.launched === true;
     // ":notes" typed with no text (Hub.ts's submitChat) opens straight onto
     // FIELD NOTES; anything else, or nothing, lands on section 01 as before.
     const wanted = data.section ? SECTIONS.findIndex((sec) => sec.id === data.section) : -1;
@@ -364,6 +466,11 @@ export class Codex extends Phaser.Scene {
       "BACK",
       true,
       () => {
+        if (this.launched) {
+          this.scene.stop();
+          this.scene.resume(this.returnScene);
+          return;
+        }
         this.scene.start(this.returnScene);
       },
       ["Back", "", ...wrapTipText("Returns to wherever this manual was opened from. Nothing here is saved or changed by browsing it.", 42)],
@@ -473,6 +580,8 @@ export class Codex extends Phaser.Scene {
       case "objectives": this.renderObjectives(bodyX, bodyTop, bodyW, bodyH); break;
       case "roster": this.renderRoster(bodyX, bodyTop, bodyW, bodyH); break;
       case "missions": this.renderMissions(bodyX, bodyTop, bodyW, bodyH); break;
+      case "rules": this.renderCards(RULES, bodyX, bodyTop, bodyW, bodyH); break;
+      case "ship": this.renderCards(SHIP, bodyX, bodyTop, bodyW, bodyH); break;
       case "notes":
         renderFieldNotesList({
           scene: this,
@@ -542,9 +651,13 @@ export class Codex extends Phaser.Scene {
 
   // ---- SEC. 01 — Controls -------------------------------------------
   private renderControls(x: number, y: number, w: number, h: number) {
-    const rowH = Math.floor(h / CONTROLS.length);
-    const keyW = 150;
-    CONTROLS.forEach((row, i) => {
+    // Five rows a page (16 Sep 2026 — ten rows on one page wrapped into
+    // each other once the End Turn and Action bar entries grew).
+    const perPage = 5;
+    const rows = CONTROLS.slice(this.page * perPage, this.page * perPage + perPage);
+    const rowH = Math.floor(h / perPage);
+    const keyW = 170;
+    rows.forEach((row, i) => {
       const ry = y + i * rowH + rowH / 2;
       if (row.chip) {
         const color = row.chip === "go" ? PAL.goHex : row.chip === "danger" ? PAL.dangerHex : PAL.infoHex;
@@ -557,7 +670,7 @@ export class Codex extends Phaser.Scene {
         color: PAL.textMuted,
         wordWrap: { width: w - keyW },
       });
-      if (i < CONTROLS.length - 1) {
+      if (i < rows.length - 1) {
         const line = this.add.rectangle(x + w / 2, y + (i + 1) * rowH, w, 1, PAL.cardBorder, 0.6);
         this.contentLayer.add(line);
       }
@@ -823,8 +936,13 @@ export class Codex extends Phaser.Scene {
 
   // ---- SEC. 09 — Mission briefings (paged, 2/2) ------------------------
   private renderMissions(x: number, y: number, w: number, h: number) {
+    this.renderCards(MISSIONS, x, y, w, h);
+  }
+
+  /** Two cards per page — title, tag chips, body, TIP line. Shared by Reading a Briefing, Sight/Clocks/Losing and The Ship. */
+  private renderCards(rows: MissionRow[], x: number, y: number, w: number, h: number) {
     const perPage = 2;
-    const items = MISSIONS.slice(this.page * perPage, this.page * perPage + perPage);
+    const items = rows.slice(this.page * perPage, this.page * perPage + perPage);
     const cardH = (h - 12) / 2;
 
     items.forEach((m, i) => {

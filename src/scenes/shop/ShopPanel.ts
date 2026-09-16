@@ -132,9 +132,9 @@ const TRACK_LABELS: Record<MekTrack, string> = {
 // weapon-branch tooltips just above.
 const SECONDARY_TRACK_TOOLTIPS: Record<MekTrack, string> = {
   fabricator: "+1 spare part. Beacon Control burns a spare part instead of a Restock Room crate when reviving this pilot.",
-  armorer: "+4 attack, +4 defense, +5 max HP for this pilot's mek.",
-  runemaster: "+1 vision. Any on-hit effect this pilot's mek inflicts through a weapon branch (acid, knockback, stun) lasts or reaches ×1.25 further.",
-  fieldwright: "+8 HP/turn self-repair whenever this pilot's mek stands still instead of moving.",
+  armorer: "+4 attack, +4 defense, +5 max HP for this pilot's mech.",
+  runemaster: "+1 vision. Any on-hit effect this pilot's mech inflicts through a weapon branch (acid, knockback, stun) lasts or reaches ×1.25 further.",
+  fieldwright: "+8 HP/turn self-repair whenever this pilot's mech stands still instead of moving.",
   quartermaster: "25% off every shop purchase this pilot makes. Secondary only — there's no primary version of this track.",
 };
 const ALL_TRACKS: MekTrack[] = ["fabricator", "armorer", "runemaster", "fieldwright", "quartermaster"];
@@ -839,7 +839,7 @@ export class ShopPanel {
         "Discharge",
         "",
         ...wrapTipText(
-          "Permanently removes this pilot from the active roster — their mek, loadout, and gear go with them. Opens a confirm step before anything happens. Can't be undone.",
+          "Permanently removes this pilot from the active roster — their Mek, loadout, and gear go with them. Opens a confirm step before anything happens. Can't be undone.",
           42
         ),
       ];

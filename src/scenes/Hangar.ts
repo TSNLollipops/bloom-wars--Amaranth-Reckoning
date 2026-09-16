@@ -165,7 +165,7 @@ export class Hangar extends Phaser.Scene {
         604,
         260,
         30,
-        "WALKABLE HUB (PROTOTYPE)",
+        "BACK TO THE SHIP",
         true,
         () => {
           saveCampaignState(this.state);

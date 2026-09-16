@@ -123,7 +123,7 @@ export function addPlayerNote(text: string, context: NoteContext, storage?: Note
   if (!s) return { ok: false, reason: "Field notes can't be saved here — this browser has no local storage available." };
   const notes = loadPlayerNotes(s);
   if (notes.length >= MAX_NOTES) {
-    return { ok: false, reason: `Notebook full — ${MAX_NOTES} notes is the limit. Delete some from the Codex's FIELD NOTES section first.` };
+    return { ok: false, reason: `Notebook full — ${MAX_NOTES} notes is the limit. Delete some from HOW TO PLAY > Field Notes first.` };
   }
   const note: PlayerNote = {
     id: `${now}-${++noteCounter}`,
@@ -134,7 +134,7 @@ export function addPlayerNote(text: string, context: NoteContext, storage?: Note
   const next = [...notes, note];
   const bytes = JSON.stringify(next).length;
   if (bytes > MAX_NOTES_BYTES) {
-    return { ok: false, reason: "Notebook full — it's at its storage limit. Delete some notes from the Codex's FIELD NOTES section first." };
+    return { ok: false, reason: "Notebook full — it's at its storage limit. Delete some notes from HOW TO PLAY > Field Notes first." };
   }
   if (!persist(next, s)) return { ok: false, reason: "Couldn't save that note — this browser's local storage refused the write." };
   return { ok: true, note, count: next.length };

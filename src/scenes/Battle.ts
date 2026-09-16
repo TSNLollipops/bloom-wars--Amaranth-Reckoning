@@ -10,7 +10,7 @@ import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
 import { Mission, type DeployRosterEntry, type HostilePhaseEvent, type EjectionCapsule } from "../engine/mission";
 import { playAmbient, stopAmbient, playSfx } from "./audio/AudioManager";
 import type { BattleUnit } from "../engine/units";
-import { coordKey, tileAt } from "../engine/grid";
+import { coordKey, tileAt, chebyshevDistance } from "../engine/grid";
 import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen, areTutorialHintsEnabled } from "../engine/campaignState";
@@ -50,6 +50,7 @@ import { loudestWorry } from "../data/worries";
 import { pickCombatWorryLine } from "../data/combatWorryLines";
 import { addPlayerNote } from "../data/playerNotes";
 import { showNotesOverlayPanel } from "./ui/NotesOverlayPanel";
+import { describeObjective } from "../data/missionBriefing";
 // Item-info tooltip pass, 11 Sep 2026 (playtest note: "found by accident
 // that one of his units could heal — nothing told him that going in").
 // WEAPON_BRANCHES.description already exists for every branch (it's the
@@ -802,6 +803,15 @@ export class Battle extends Phaser.Scene {
   private maserLanceTargeting = false;
   private maserLanceDirectionTargets: Coord[] = [];
   private endTurnPrompt: Phaser.GameObjects.Container | null = null;
+  // Ship audit, 16 Sep 2026 (§1.5) — the "< mission select" confirm. Its own
+  // field rather than reusing endTurnPrompt, because Space on an open
+  // end-turn prompt means "end turn anyway" and must not fire from here.
+  private abandonPrompt: Phaser.GameObjects.Container | null = null;
+  // Ship audit, 16 Sep 2026 — hover text for the three hand-rolled HUD
+  // buttons (END TURN, < mission select, ? HELP). Same arbitration the
+  // action-bar slots use: set on pointerover, cleared on pointerout, read
+  // by updateHoverTip ahead of the board hover so the two never fight.
+  private hoveredHudTip: string[] | null = null;
 
   // Battle HUD relayout, 12 Sep 2026 — see engine/battleLayout.ts's own
   // header for the arrangement. `[` toggles the left column (unit info /
@@ -825,6 +835,11 @@ export class Battle extends Phaser.Scene {
   private layout!: BattleLayoutResult;
   private backBtn!: Phaser.GameObjects.Rectangle;
   private backLabel!: Phaser.GameObjects.Text;
+  // Ship audit, 16 Sep 2026 (§2) — HOW TO PLAY from inside a fight. Opens
+  // the Codex as an overlay (see requestHelp) so a stuck player no longer
+  // has to abandon the sortie to read the manual.
+  private helpBtn!: Phaser.GameObjects.Rectangle;
+  private helpLabel!: Phaser.GameObjects.Text;
   private endTurnBtn!: Phaser.GameObjects.Rectangle;
   private endTurnLabel!: Phaser.GameObjects.Text;
   private legendText!: Phaser.GameObjects.Text;
@@ -1068,7 +1083,7 @@ export class Battle extends Phaser.Scene {
       // Never true for any real map (battleLayout.test.ts loops over all of
       // them) — a scrolling board isn't built, so say so rather than
       // silently drawing off the edge.
-      console.warn(`Battle: map ${m.id} (${m.width}x${m.height}) does not fit the viewport at MIN_TILE; the board will overflow the column.`);
+      if (import.meta.env.DEV) console.warn(`Battle: map ${m.id} (${m.width}x${m.height}) does not fit the viewport at MIN_TILE; the board will overflow the column.`);
     }
     const colX = this.layout.leftColumn?.x ?? GUTTER;
 
@@ -1124,6 +1139,7 @@ export class Battle extends Phaser.Scene {
     const doEndTurn = () => {
       if (this.mission.outcome !== "ongoing") return;
       if (this.isAnimatingMove) return; // board's mid-walk — same "can't act yet" beat as handleBoardClick
+      if (this.abandonPrompt) return; // the abandon confirm is modal too, but Space must never answer it
       if (this.endTurnPrompt) {
         this.confirmEndTurn();
         return;
@@ -1149,6 +1165,7 @@ export class Battle extends Phaser.Scene {
         doEndTurn();
       });
     this.endTurnBtn = endTurnBtn;
+    this.wireHudTip(endTurnBtn, ["End Turn  [space]", "", ...wrapTipText("Hands the turn to the enemy. If any of your units can still act you get a prompt first. Then the hostile phase plays out move by move, the environment ticks (Bloom mat, deploy-pad healing, shields, regen) and the turn comes back to you.", 42)]);
     this.endTurnLabel = this.add.text(colX + PANEL_CENTER_OFFSET, 600, "END TURN  [space]", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     endTurnBtn.setStrokeStyle(1, 0x4a7a9a);
     // [tab] next mech hint, same idea as "[space]" on the button above it —
@@ -1339,13 +1356,26 @@ export class Battle extends Phaser.Scene {
     }
 
     this.backBtn = this.add
-      .rectangle(colX + PANEL_CENTER_OFFSET, 20, 200, 26, 0x1a2028)
+      .rectangle(colX + PANEL_CENTER_OFFSET - 36, 20, 128, 26, 0x1a2028)
       .setStrokeStyle(1, 0x3a4552)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", () => this.scene.start("MapSelect"));
-    this.backLabel = this.add.text(colX + PANEL_CENTER_OFFSET, 20, "< mission select", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
+      .on("pointerdown", () => this.requestAbandon());
+    this.backLabel = this.add.text(colX + PANEL_CENTER_OFFSET - 36, 20, "< mission select", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
+    this.wireHudTip(this.backBtn, ["< Mission Select", "", ...wrapTipText("Abandon this sortie (asks first). Nothing is saved mid-mission: no losses, no earnings, and the mission is available again from mission select.", 42)]);
+    this.helpBtn = this.add
+      .rectangle(colX + PANEL_CENTER_OFFSET + 67, 20, 66, 26, 0x1a2028)
+      .setStrokeStyle(1, 0x3a4552)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.requestHelp());
+    this.helpLabel = this.add.text(colX + PANEL_CENTER_OFFSET + 67, 20, "? HELP", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" }).setOrigin(0.5);
+    this.wireHudTip(this.helpBtn, ["How To Play", "", ...wrapTipText("Opens the rules manual over the fight — controls, the board, sight, objectives. BACK brings you straight back to this exact moment.", 42)]);
 
-    this.overlay = this.add.container(0, 0).setVisible(false);
+    // Depth 20 (16 Sep 2026): the comms column and the tutorial line are
+    // created after this container, so without an explicit depth they drew
+    // on top of the result screen (the COMMS panel stayed at full
+    // brightness over "MISSION COMPLETE"). HoverTip sits at 10000 and hides
+    // itself once the mission is over, so nothing else competes.
+    this.overlay = this.add.container(0, 0).setVisible(false).setDepth(20);
     // Per-create() resets for the legibility-pass fields (see their field
     // comments): the label pool and the prompt are rebuilt from scratch
     // each mission, same reason actionSlots is above.
@@ -1359,6 +1389,7 @@ export class Battle extends Phaser.Scene {
     // pointerover yet — harmless once the pointer actually moves, but wrong
     // for however long the tip sat still first.
     this.hoveredActionSlot = null;
+    this.hoveredHudTip = null;
     // Rebuilt per create() like every other display object here — a scene
     // restart destroys the old one with the display list, so holding a
     // stale reference across missions would draw into a dead scene.
@@ -1924,8 +1955,10 @@ export class Battle extends Phaser.Scene {
     const colX = this.layout.leftColumn?.x ?? GUTTER;
     this.hudText.setPosition(colX, HUD_TOP).setVisible(this.leftOpen);
     this.logText.setPosition(colX, LOG_TOP).setVisible(this.leftOpen);
-    this.backBtn.setPosition(colX + PANEL_CENTER_OFFSET, 20);
-    this.backLabel.setPosition(colX + PANEL_CENTER_OFFSET, 20);
+    this.backBtn.setPosition(colX + PANEL_CENTER_OFFSET - 36, 20);
+    this.backLabel.setPosition(colX + PANEL_CENTER_OFFSET - 36, 20);
+    this.helpBtn.setPosition(colX + PANEL_CENTER_OFFSET + 67, 20);
+    this.helpLabel.setPosition(colX + PANEL_CENTER_OFFSET + 67, 20);
     this.endTurnBtn.setPosition(colX + PANEL_CENTER_OFFSET, 600);
     this.endTurnLabel.setPosition(colX + PANEL_CENTER_OFFSET, 600);
     this.legendText.setPosition(colX + PANEL_CENTER_OFFSET, 618);
@@ -1976,6 +2009,10 @@ export class Battle extends Phaser.Scene {
    */
   private cancelCurrent() {
     if (this.mission.outcome !== "ongoing" || this.isAnimatingMove) return;
+    if (this.abandonPrompt) {
+      this.closeAbandonPrompt();
+      return;
+    }
     if (this.endTurnPrompt) {
       this.closeEndTurnPrompt();
       this.render();
@@ -2071,6 +2108,86 @@ export class Battle extends Phaser.Scene {
     this.endTurnPrompt = null;
   }
 
+  /**
+   * "< mission select" while a mission is live — Ship audit, 16 Sep 2026
+   * (§1.5). Before this it was one click, no confirm, straight to MapSelect,
+   * and it never cleared activeMissionAttempt: the sortie clock kept
+   * running on a mission the player had quit, Hub crew read as "worried
+   * about someone on mission," and twelve hours later Boot showed the
+   * RECALLED screen for it. Now a confirm, and on confirm the attempt is
+   * voided exactly the way commander-down voids one (applyCommanderDownAttempt
+   * — nothing lost, nothing earned, the mission is simply available again).
+   * Same visual idiom as the end-turn prompt, centred on the board.
+   */
+  private requestAbandon() {
+    if (this.mission.outcome !== "ongoing") {
+      // Mission already resolved — the outcome overlay owns the exit.
+      this.scene.start("MapSelect");
+      return;
+    }
+    if (this.abandonPrompt) return;
+    this.closeEndTurnPrompt();
+    const cx = this.boardX + (this.mission.map.width * this.tileSize) / 2;
+    const cy = this.boardY + (this.mission.map.height * this.tileSize) / 2;
+    const bg = this.add.rectangle(cx, cy, 460, 140, 0x0c0f12, 0.94).setStrokeStyle(2, 0xef4444).setInteractive();
+    const title = this.add.text(cx, cy - 44, "Abandon this sortie?", { fontFamily: "monospace", fontSize: "14px", color: "#ef4444" }).setOrigin(0.5);
+    const body = this.add
+      .text(cx, cy - 12, "Nothing is saved mid-mission. The attempt is scrapped — no losses, no earnings — and the mission is available again from mission select.", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#e8e2d4",
+        wordWrap: { width: 420 },
+        align: "center",
+      })
+      .setOrigin(0.5);
+    const yes = this.add
+      .rectangle(cx - 100, cy + 40, 180, 30, 0x7a2430)
+      .setStrokeStyle(1, 0xef4444)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.confirmAbandon());
+    const yesLabel = this.add.text(cx - 100, cy + 40, "ABANDON SORTIE", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+    const no = this.add
+      .rectangle(cx + 100, cy + 40, 180, 30, 0x2e5c7a)
+      .setStrokeStyle(1, 0x4a7a9a)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.closeAbandonPrompt());
+    const noLabel = this.add.text(cx + 100, cy + 40, "KEEP FIGHTING  [esc]", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
+    this.abandonPrompt = this.add.container(0, 0, [bg, title, body, yes, yesLabel, no, noLabel]).setDepth(50);
+  }
+
+  /**
+   * HOW TO PLAY without leaving the fight — Ship audit, 16 Sep 2026 (§2).
+   * Launch-and-pause, the same idiom scenes/Archive.ts uses over the Hub:
+   * this scene pauses (its input goes quiet with it), the Codex runs on
+   * top with `launched: true` so its BACK resumes us instead of starting
+   * a fresh Battle, and bringToTop is explicit because main.ts registers
+   * Codex before Battle (a launched scene renders in registration order —
+   * without this it would draw underneath the board, invisibly).
+   */
+  private requestHelp() {
+    if (this.commsOpen) this.closeComms();
+    this.hoverTip?.hide();
+    this.scene.pause();
+    this.scene.launch("Codex", { returnScene: "Battle", launched: true });
+    this.scene.bringToTop("Codex");
+  }
+
+  private closeAbandonPrompt() {
+    if (!this.abandonPrompt) return;
+    this.abandonPrompt.destroy(true);
+    this.abandonPrompt = null;
+  }
+
+  private confirmAbandon() {
+    this.closeAbandonPrompt();
+    const state = loadCampaignState();
+    if (state) {
+      applyCommanderDownAttempt(state);
+      saveCampaignState(state);
+    }
+    this.scene.start("MapSelect");
+  }
+
   private confirmEndTurn() {
     this.closeEndTurnPrompt();
     this.selectedUnitId = null;
@@ -2105,7 +2222,7 @@ export class Battle extends Phaser.Scene {
     // End-turn prompt open (1 Sep 2026): the prompt's own buttons handle
     // themselves; every board click underneath it is swallowed until it's
     // answered — a modal, not a suggestion.
-    if (this.endTurnPrompt) return;
+    if (this.endTurnPrompt || this.abandonPrompt) return;
     const tile = this.pixelToTile(px, py);
     if (!tile) return;
 
@@ -3150,7 +3267,7 @@ export class Battle extends Phaser.Scene {
   private runActionSlot(index: number) {
     if (this.mission.outcome !== "ongoing" || this.mission.phase !== "player") return;
     if (this.isAnimatingMove) return; // same lock as handleBoardClick — see animatingUnitId's field comment
-    if (this.endTurnPrompt) return; // modal — see handleBoardClick's own guard
+    if (this.endTurnPrompt || this.abandonPrompt) return; // modal — see handleBoardClick's own guard
     // MORE (3 Sep 2026): turns the page rather than running a verb. Checked
     // before the option lookup because on an overflowing bar this slot holds
     // no option at all. Deliberately not gated on the mission/animation
@@ -3239,6 +3356,34 @@ export class Battle extends Phaser.Scene {
         g.fillStyle(TILE_COLORS[tile], 1);
         g.fillRect(this.boardX + x * ts, this.boardY + y * ts, ts - 1, ts - 1);
         this.drawDefenseStars(g, tile, this.boardX + x * ts, this.boardY + y * ts, ts);
+      }
+    }
+
+    // Fog of war made visible — Ship audit, 16 Sep 2026 (§2). The fog has
+    // been real since 22 Aug (hostiles only drawn while a living player
+    // unit has them in vision — see the livingUnits loop below), but
+    // nothing on the board ever said so: a tester on Mission 1 saw an empty
+    // field, "Objective: eliminate_all", and enemies appearing from nowhere
+    // on turn 2. Tiles no living player unit can see are dimmed here, using
+    // the exact rule engine/ai.ts's isVisibleTo applies to units (Chebyshev
+    // distance within the observer's vision — no line of sight, so a square
+    // per observer). A built Sensor Array lights the whole board, matching
+    // playerVisibleHostileIds' own sensorArray bypass. Drawn before every
+    // highlight so reachable/attackable washes stay at full brightness.
+    if (!this.mission.sensorArrayBuilt) {
+      const observers = this.mission.livingUnits().filter((u) => u.side === "player" && !u.downed);
+      g.fillStyle(0x05070a, 0.5);
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          let seen = false;
+          for (const o of observers) {
+            if (chebyshevDistance(o.pos, { x, y }) <= o.vision) {
+              seen = true;
+              break;
+            }
+          }
+          if (!seen) g.fillRect(this.boardX + x * ts, this.boardY + y * ts, ts - 1, ts - 1);
+        }
       }
     }
 
@@ -3673,6 +3818,11 @@ export class Battle extends Phaser.Scene {
       line = "TUTORIAL — click a highlighted green tile to move there.";
     } else if (!this.tutorialHasAttacked && this.attackable.length > 0) {
       line = "TUTORIAL — click a highlighted red enemy to attack it.";
+    } else if (!this.tutorialHasAttacked && this.tutorialHasMoved) {
+      // Ship audit, 16 Sep 2026 — Mission 1's first wave spawns past the
+      // squad's sight, so the old sequence went quiet here with nothing red
+      // to click and no word about the dark tiles or how to end the turn.
+      line = "TUTORIAL — dark tiles are past your squad's sight; hostiles out there stay hidden until someone gets close.\nMove everyone, then press Space or END TURN. The enemy phase plays out before your next turn.";
     }
     if (line) {
       this.tutorialText.setText(line).setVisible(true);
@@ -4364,13 +4514,26 @@ export class Battle extends Phaser.Scene {
     // scenes/Boot.ts on the next game load, not inside this scene). Always
     // visible, same as turnLine right above it — a clock nobody can see
     // isn't the feature Maxime asked for.
-    const sortieLine = `Sortie clock: ${this.formatSortieElapsed(Date.now() - this.missionStartedAt)} elapsed — Command recalls a lance past 12h`;
+    // Shortened 16 Sep 2026 (was "...elapsed — Command recalls a lance past
+    // 12h", three wrapped lines) so the objective line above fits without
+    // pushing the briefing off the panel. The 12h rule is on the hover tip
+    // of BEAM DOWN and in HOW TO PLAY §10.
+    const sortieLine = `Sortie clock: ${this.formatSortieElapsed(Date.now() - this.missionStartedAt)} (recall at 12h)`;
     // The briefing is the first thing to go when a unit is selected. It's six
     // wrapped lines of text the player has already read, and the ability-depth
     // pass added up to five status lines plus four legend lines below it —
     // which is exactly how much room the briefing was using. Selected-unit
     // state is live and the briefing isn't, so the briefing yields.
-    const lines = [m.mission.displayName, turnLine, sortieLine, "", `Objective: ${m.mission.objective}`];
+    // Ship audit, 16 Sep 2026 — was the raw objective id ("eliminate_all")
+    // while data/missionBriefing.ts's describeObjective() sat unused here.
+    // Placed ahead of the turn/clock lines: fitLines trims from the bottom
+    // and drops a line whole, so on a long briefing it's the flavour text
+    // that yields, never the win condition.
+    // First sentence only up here (the full text is on the Transporter Pad
+    // and in the CO's brief) — the panel has a 19-line budget to share
+    // with the briefing.
+    const objectiveShort = describeObjective(m.mission).split(/(?<=\.)\s/)[0];
+    const lines = [m.mission.displayName, `OBJECTIVE — ${objectiveShort}`, turnLine, sortieLine, ""];
     // Protect Asset (Mission 22, 25 Aug 2026) — the ship's HP has no other
     // on-screen representation (it's not a unit, per data/types.ts's own
     // "off-board asset" framing), so this is the only place a player can
@@ -4458,7 +4621,7 @@ export class Battle extends Phaser.Scene {
     // fitLines-trimming problem the old arrangement caused (both blocks
     // competing for the same panel budget, caught in the 1 Sep headless
     // smoke test) rather than working around it.
-    if (!this.selectedUnitId) lines.splice(4, 0, m.mission.briefing, "");
+    if (!this.selectedUnitId) lines.push(m.mission.briefing, "");
     if (this.selectedUnitId) {
       const selected = m.unitById(this.selectedUnitId);
       if (selected) {
@@ -4614,10 +4777,27 @@ export class Battle extends Phaser.Scene {
    * the mission is over, since the end-of-mission overlay owns the screen
    * at that point and a tip floating over it reads as a bug.
    */
+  /** pointerover/out wiring for a hand-rolled HUD button — see hoveredHudTip. */
+  private wireHudTip(target: Phaser.GameObjects.Rectangle, lines: string[]): void {
+    target
+      .on("pointerover", () => {
+        this.hoveredHudTip = lines;
+        this.updateHoverTip();
+      })
+      .on("pointerout", () => {
+        if (this.hoveredHudTip === lines) this.hoveredHudTip = null;
+        this.updateHoverTip();
+      });
+  }
+
   private updateHoverTip(): void {
     if (!this.hoverTip) return;
     if (this.mission.outcome !== "ongoing") {
       this.hoverTip.hide();
+      return;
+    }
+    if (this.hoveredHudTip) {
+      this.hoverTip.show(this.hoveredHudTip, this.pointerX, this.pointerY);
       return;
     }
     // The Field Notes overlay owns the screen while it's up; the board tip
@@ -4655,6 +4835,9 @@ export class Battle extends Phaser.Scene {
   private actionSlotTooltipLines(index: number): string[] | null {
     const option = this.slotOptions[index];
     if (!option) return null;
+    // The MORE page-turn slot (16 Sep 2026) — the one slot that used to show
+    // nothing on hover while its five neighbours all did.
+    if (/^MORE\b/.test(option.label)) return [option.label, "", ...wrapTipText("This unit carries more verbs than the bar can show. Turns the page; press again to come back.", 42)];
     const key = stripActionChargeSuffix(option.label);
     const body = BASE_ABILITY_TOOLTIPS[key];
     if (body) return [option.label, "", ...wrapTipText(body, 42)];
@@ -4965,6 +5148,21 @@ export class Battle extends Phaser.Scene {
     // actually being dimmed.
     const bg = this.add.rectangle(this.cameras.main.centerX, this.cameras.main.centerY, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.72);
     const win = this.mission.outcome === "win";
+    // Ship audit, 16 Sep 2026 (§4) — the victory/defeat paintings
+    // (public/splash/, preloaded since 5 Sep) had never been drawn. Full-
+    // bleed behind the result text, dimmed so the text still leads; the
+    // dark backdrop above stays under it so the board reads as "over".
+    const splashKey = win ? "splash_victory" : "splash_defeat";
+    const splash = this.textures.exists(splashKey)
+      ? this.add
+          .image(this.cameras.main.width / 2, this.cameras.main.height / 2, splashKey)
+          .setAlpha(0.55)
+      : null;
+    if (splash) {
+      const scale = Math.max(this.cameras.main.width / splash.width, this.cameras.main.height / splash.height);
+      splash.setScale(scale);
+    }
+    const splashWash = splash ? this.add.rectangle(this.cameras.main.centerX, this.cameras.main.centerY, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.35) : null;
     if (win && !this.missionWinStingPlayed) {
       this.missionWinStingPlayed = true;
       playSfx(this, "mission_win");
@@ -5031,7 +5229,10 @@ export class Battle extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.scene.start("Debrief", { mission: this.mission }));
     const btnLabel = this.add.text(480, 390, "continue to debrief", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
-    const parts: Phaser.GameObjects.GameObject[] = [bg, title, sub];
+    const parts: Phaser.GameObjects.GameObject[] = [bg];
+    if (splash) parts.push(splash);
+    if (splashWash) parts.push(splashWash);
+    parts.push(title, sub);
     if (rescueLine) parts.push(rescueLine);
     if (capsuleLine) parts.push(capsuleLine);
     parts.push(btn, btnLabel);

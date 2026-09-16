@@ -28,7 +28,7 @@
 // separate, bigger scope call (an actual art pipeline decision) — not
 // something this pass quietly assumed into "polished."
 import Phaser from "phaser";
-import { loadCampaignState, listManualSlots, baseSceneKeyFor } from "../engine/campaignState";
+import { loadCampaignState, listManualSlots, baseSceneKeyFor, isStorageAvailable } from "../engine/campaignState";
 import { makeShopButton } from "./shop/ShopPanel";
 // "Clickable = tooltip," 11 Sep 2026 standing rule (claude/Bloom_Wars_
 // Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md) — this
@@ -37,6 +37,8 @@ import { makeShopButton } from "./shop/ShopPanel";
 // trailing params, nothing extra needed.
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { centerLegacyLayout } from "./ui/legacyCenter";
+import { isDemoBuild } from "../data/demoCap";
 
 export class MainMenu extends Phaser.Scene {
   private confirmLayer!: Phaser.GameObjects.Container;
@@ -48,7 +50,9 @@ export class MainMenu extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0a0d10");
+    centerLegacyLayout(this); // see ui/legacyCenter.ts — the 960-wide layout, centred on the 1074 canvas
     this.hoverTip = new HoverTip(this);
+    this.drawSplashArt();
     this.drawBackdrop();
     this.drawTitle();
     this.drawButtons();
@@ -62,14 +66,36 @@ export class MainMenu extends Phaser.Scene {
   // sprite or an image asset; all Phaser Graphics primitives, all disposed
   // automatically when this scene stops (no cleanup needed — same as every
   // other scene's own Graphics use in this codebase).
+  /**
+   * Ship audit, 16 Sep 2026 (§4) — the illustrated title screen
+   * (public/splash/intro_title_screen.jpg, loaded by Preloader since 5 Sep)
+   * had never actually been drawn anywhere; the menu was a dot grid over a
+   * finished painting sitting in the texture cache. Drawn here at half
+   * scale (the file is exactly 2148x1280, twice the canvas), dimmed, pinned
+   * to the screen rather than the scrolled camera, with the dot grid and
+   * tendrils still layered over it so the menu reads as the same game.
+   */
+  private drawSplashArt() {
+    if (!this.textures.exists("splash_intro_title")) return;
+    const cx = this.cameras.main.width / 2;
+    const cy = this.cameras.main.height / 2;
+    const art = this.add.image(cx, cy, "splash_intro_title").setScrollFactor(0).setAlpha(0.42);
+    const scale = Math.max(this.cameras.main.width / art.width, this.cameras.main.height / art.height);
+    art.setScale(scale);
+    // A dark wash over the painting so the title and buttons keep contrast.
+    this.add.rectangle(cx, cy, this.cameras.main.width, this.cameras.main.height, 0x0a0d10, 0.45).setScrollFactor(0);
+  }
+
   private drawBackdrop() {
     const dots = this.add.graphics();
     dots.fillStyle(0x1a2028, 0.6);
     // Tier 6 hotfix, 30 Aug 2026 — main.ts's canvas grew wider (Hub.ts's
     // chat window); reading the live camera width here instead of the old
     // hardcoded 960 keeps this dot grid covering the whole screen instead
-    // of stopping short and leaving a bare strip on the right.
-    for (let x = 20; x < this.cameras.main.width; x += 42) {
+    // of stopping short and leaving a bare strip on the right. 16 Sep 2026:
+    // the camera is now scrolled left to centre the layout, so the loop
+    // starts past the left edge and runs past the right one.
+    for (let x = -64; x < this.cameras.main.width + 64; x += 42) {
       for (let y = 20; y < 640; y += 42) {
         dots.fillCircle(x, y, 1.1);
       }
@@ -88,7 +114,7 @@ export class MainMenu extends Phaser.Scene {
     g.lineStyle(2, color, alpha);
     g.beginPath();
     g.moveTo(-40, baseY);
-    for (let x = -40; x <= 1000; x += 60) {
+    for (let x = -100; x <= 1140; x += 60) {
       const y = baseY + Math.sin(x * 0.012) * 26;
       g.lineTo(x, y);
     }
@@ -98,8 +124,23 @@ export class MainMenu extends Phaser.Scene {
   private drawTitle() {
     this.add.text(480, 150, "THE BLOOM WARS", { fontFamily: "monospace", fontSize: "44px", color: "#e8e2d4" }).setOrigin(0.5);
     this.add
-      .text(480, 194, "an advance-war-lite for the browser", { fontFamily: "monospace", fontSize: "13px", color: "#6b7a8a" })
+      .text(480, 194, "a turn-based tactics campaign", { fontFamily: "monospace", fontSize: "13px", color: "#6b7a8a" })
       .setOrigin(0.5);
+    // Ship audit, 16 Sep 2026 (§2) — the demo build never said it was one;
+    // a tester found out when Act II was greyed, twelve missions in.
+    if (isDemoBuild()) {
+      this.add
+        .text(480, 216, "FREE DEMO — Act I, the first twelve missions, and the ship between them", { fontFamily: "monospace", fontSize: "11px", color: "#e0b23c" })
+        .setOrigin(0.5);
+    }
+    // Same audit — WASD walking and a hover-tip UI have no touch path.
+    // Phaser's device sniff is the honest test; itch.io will happily serve
+    // this page to a phone otherwise.
+    if (!this.sys.game.device.os.desktop) {
+      this.add
+        .text(480, 236, "Needs a keyboard and mouse — this game isn't playable on a touch screen.", { fontFamily: "monospace", fontSize: "11px", color: "#f59e0b" })
+        .setOrigin(0.5);
+    }
     // Version + build stamp (1 Sep 2026, feature-gap report A7) — bottom
     // right, dim, always on. Both constants are baked in at build time by
     // vite.config.ts's `define`; see src/buildInfo.d.ts. This is what a
@@ -111,7 +152,8 @@ export class MainMenu extends Phaser.Scene {
         fontSize: "10px",
         color: "#4a5563",
       })
-      .setOrigin(1, 1);
+      .setOrigin(1, 1)
+      .setScrollFactor(0); // pinned to the real corner — the camera is scrolled to centre the layout (ui/legacyCenter.ts)
   }
 
   private drawButtons() {
@@ -163,7 +205,7 @@ export class MainMenu extends Phaser.Scene {
       : state!.ironman
       ? ["Load Game", "", ...wrapTipText("This is an Ironman campaign — one continuously-overwriting save, no manual slots, no do-overs. That's the whole point of Ironman, so there's nothing here to load.", 42)]
       : !hasAnyManualSlot
-      ? ["Load Game", "", ...wrapTipText("No manual save slots yet. Use SAVE AS on the Hangar or Debrief screen during a run to create one.", 42)]
+      ? ["Load Game", "", ...wrapTipText("No manual save slots yet. Use SAVE... on the pause MENU, the Campaign Shop, or the Debrief screen during a run to create one.", 42)]
       : ["Load Game", "", ...wrapTipText("Loads one of your manually-saved slots.", 42)];
     makeShopButton(this, layer, cx, y, w, h, "LOAD GAME", loadGameEnabled, () => {
       this.scene.start("LoadGame");
@@ -186,12 +228,28 @@ export class MainMenu extends Phaser.Scene {
     // check already handles as "no save" — same object, no new lookup.
     makeShopButton(this, layer, cx, y, w, h, "HOW TO PLAY", true, () => {
       this.scene.start("Codex", { returnScene: "MainMenu", campaignState: state });
-    }, ["How To Play", "", ...wrapTipText("The field manual — Personnel, Bestiary, and World entries. Shows live data from your save if you have one.", 42)], this.hoverTip);
+    }, ["How To Play", "", ...wrapTipText("The rules, in plain terms — controls, reading the board, terrain, the class triangle, abilities, objectives, the Hub. Crew and world lore live in the Archive aboard ship.", 42)], this.hoverTip);
 
     if (!hasLiveSave) {
       this.add
         .text(cx, y + 46, "no saved campaign yet — start with NEW CAMPAIGN", { fontFamily: "monospace", fontSize: "10px", color: "#5a6472" })
         .setOrigin(0.5);
+    }
+    // Ship audit, 16 Sep 2026 (§1.2) — a browser that blocks storage in
+    // this frame (itch.io's iframe under Chrome Incognito / Brave, most
+    // often) used to crash on boot; now it runs, but nothing would survive
+    // a reload. Say so here, once, where every player passes, instead of
+    // letting them find out after Mission 1.
+    if (!isStorageAvailable()) {
+      this.add
+        .text(cx, y + 60, "This browser is blocking saved data for this page — the game runs, but progress won't survive a reload. Try a normal (non-private) window.", {
+          fontFamily: "monospace",
+          fontSize: "10px",
+          color: "#f59e0b",
+          align: "center",
+          wordWrap: { width: 700 },
+        })
+        .setOrigin(0.5, 0);
     }
   }
 
@@ -217,7 +275,7 @@ export class MainMenu extends Phaser.Scene {
       .text(
         480,
         290,
-        "There's only one live save. Starting a new campaign overwrites it the moment you press BEGIN CAMPAIGN. If you already saved this run to a slot (SAVE AS, on the Hangar or Debrief screen), it's safe — LOAD GAME will bring it back. If not, it's gone once you begin.",
+        "There's only one live save. Starting a new campaign overwrites it the moment you press BEGIN CAMPAIGN. If you already saved this run to a slot (SAVE... on the pause MENU, the Campaign Shop, or the Debrief screen), it's safe — LOAD GAME will bring it back. If not, it's gone once you begin.",
         { fontFamily: "monospace", fontSize: "12px", color: "#e8e2d4", align: "center", wordWrap: { width: 460 } }
       )
       .setOrigin(0.5);

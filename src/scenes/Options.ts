@@ -31,7 +31,8 @@
 // everything a little rather than scroll" call the 9 Sep audio rows
 // already made (see this file's own note above them).
 import Phaser from "phaser";
-import { hasSeenTutorial, resetTutorialSeen, areTutorialHintsEnabled, setTutorialHintsEnabled, resetHubHintsSeen } from "../engine/campaignState";
+import { hasSeenTutorial, resetTutorialSeen, areTutorialHintsEnabled, setTutorialHintsEnabled, resetHubHintsSeen, exportCampaignJson, importCampaignJson } from "../engine/campaignState";
+import { GAME_CREDITS } from "../data/credits";
 import { clearStats, exportStatsJson, listMissionSummaries } from "../engine/statsStore";
 import { currentGameVersion } from "../engine/telemetry";
 import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getStoredDisplayScaleId, setStoredDisplayScaleId } from "../engine/displayScale";
@@ -49,6 +50,7 @@ import { playAmbient, stopAmbient, applyMusicVolumeLive, playSfx } from "./audio
 // arbitration flag.
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { centerLegacyLayout } from "./ui/legacyCenter";
 
 export class Options extends Phaser.Scene {
   private returnScene = "MainMenu";
@@ -92,6 +94,7 @@ export class Options extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0a0d10");
+    centerLegacyLayout(this);
     this.exportPanel = null;
     this.notesPanel = null;
     this.displayScaleLayer = null;
@@ -175,7 +178,7 @@ export class Options extends Phaser.Scene {
         "Copy Stats + Bug Report",
         "",
         ...wrapTipText(
-          "Copies the game version, every mission recorded on this computer, and your install id to the clipboard as JSON, prefixed with a spot to describe what happened. If the clipboard write is silently blocked (some site embeds refuse it), the same text still opens in a selectable box you can copy by hand. Nothing is sent anywhere until you paste it yourself.",
+          "Copies the game version, every mission recorded on this computer, and your install id to the clipboard as plain text, prefixed with a spot to describe what happened. If the clipboard write is silently blocked (some site embeds refuse it), the same text still opens in a selectable box you can copy by hand. Nothing is sent anywhere until you paste it yourself.",
           42
         ),
       ],
@@ -216,10 +219,10 @@ export class Options extends Phaser.Scene {
       370,
       320,
       28,
-      "TESTER NOTES",
+      "FEEDBACK NOTES",
       true,
       () => this.openNotesPanel(),
-      ["Tester Notes", "", ...wrapTipText("Opens a local scratchpad for jotting down bugs or feedback as you play. Same local-only rule as the stats above — stays on this computer until you copy it out yourself.", 42)],
+      ["Feedback Notes", "", ...wrapTipText("Opens a local scratchpad for jotting down bugs or feedback as you play. Same local-only rule as the stats above — stays on this computer until you copy it out yourself.", 42)],
       this.hoverTip
     );
     this.notesStatusText = this.add
@@ -238,9 +241,91 @@ export class Options extends Phaser.Scene {
       .setOrigin(0.5);
     this.refreshDisplayScaleRow();
 
-    makeShopButton(this, this.add.container(0, 0), 480, 606, 260, 32, "BACK", true, () => {
+    // Ship audit, 16 Sep 2026 (§4) — SAVE FILE row. Browser saves live in
+    // localStorage, which the browser (or itch.io, whose game-hosting
+    // domain has moved before) can clear without asking; this is the way
+    // out. Export is the save as text through the same panel the bug
+    // report uses; import is that panel's editable mode, validated before
+    // anything is written, and lands on the title screen afterwards so no
+    // scene is left holding a stale copy of the old save.
+    this.add
+      .text(480, 573, "SAVE FILE", { fontFamily: "monospace", fontSize: "11px", color: "#8a97a6" })
+      .setOrigin(0.5);
+    makeShopButton(this, layer, 380, 594, 190, 22, "EXPORT SAVE", true, () => this.openExportSavePanel(), [
+      "Export Save",
+      "",
+      ...wrapTipText("Shows your live campaign save as text and copies it to the clipboard. Paste it into a file somewhere safe — browser saves can be wiped by the browser.", 42),
+    ], this.hoverTip);
+    makeShopButton(this, layer, 580, 594, 190, 22, "IMPORT SAVE", true, () => this.openImportSavePanel(), [
+      "Import Save",
+      "",
+      ...wrapTipText("Paste a save exported earlier (this computer or another) and make it your live campaign. Checked before anything is written; your current live save is replaced only if the paste is valid.", 42),
+    ], this.hoverTip);
+
+    makeShopButton(this, this.add.container(0, 0), 400, 623, 220, 24, "BACK", true, () => {
       this.scene.start(this.returnScene);
     }, ["Back", "", ...wrapTipText("Returns to where you opened Options from. Everything above is already saved as you set it.", 42)], this.hoverTip);
+    makeShopButton(this, this.add.container(0, 0), 600, 623, 160, 24, "CREDITS", true, () => this.openCreditsPanel(), [
+      "Credits",
+      "",
+      ...wrapTipText("Who made this, and the third-party software and sounds it's built on.", 42),
+    ], this.hoverTip);
+  }
+
+  private openExportSavePanel() {
+    if (this.exportPanel) return;
+    this.hoverTip.hide(); // the button under the pointer is about to be covered
+    const json = exportCampaignJson();
+    const blob = json ?? "";
+    this.exportPanel = showCopyTextPanel(
+      this,
+      blob,
+      () => {
+        this.exportPanel = null;
+      },
+      json
+        ? undefined
+        : { title: "No live campaign to export yet — start one with NEW CAMPAIGN first." }
+    );
+  }
+
+  private openImportSavePanel() {
+    if (this.exportPanel) return;
+    this.hoverTip.hide(); // the button under the pointer is about to be covered
+    this.exportPanel = showCopyTextPanel(
+      this,
+      "",
+      () => {
+        this.exportPanel = null;
+      },
+      {
+        editable: true,
+        title: "Paste a save exported from EXPORT SAVE into the box, then press IMPORT. This replaces your live campaign (manual slots are untouched).",
+        submitLabel: "IMPORT THIS SAVE",
+        onSubmit: (text) => {
+          const result = importCampaignJson(text);
+          if (!result.ok) return result.reason;
+          // The scene that opened Options may hold a copy of the OLD save
+          // in memory and would write it back on its next event — go to
+          // the title screen instead, which reads the new one fresh.
+          this.time.delayedCall(0, () => this.scene.start("MainMenu"));
+          return null;
+        },
+      }
+    );
+  }
+
+  private openCreditsPanel() {
+    if (this.exportPanel) return;
+    this.hoverTip.hide(); // the button under the pointer is about to be covered
+    this.exportPanel = showCopyTextPanel(
+      this,
+      GAME_CREDITS,
+      () => {
+        this.exportPanel = null;
+      },
+      { title: "THE BLOOM WARS — credits and third-party notices" }
+    );
   }
 
   /**
@@ -257,7 +342,7 @@ export class Options extends Phaser.Scene {
 
     const current = getDisplayScaleOption(getStoredDisplayScaleId());
     const status = this.add
-      .text(480, 524, `Caps how big Scale.FIT can stretch the game on a bigger monitor — current: ${current.shortLabel}`, {
+      .text(480, 524, `Caps how large the game is allowed to grow on a bigger monitor — current: ${current.shortLabel}`, {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#6b7a8a",
@@ -421,6 +506,7 @@ export class Options extends Phaser.Scene {
    */
   private openExportPanel() {
     if (this.exportPanel) return;
+    this.hoverTip.hide(); // the button under the pointer is about to be covered
     const header = `The Bloom Wars — bug report / statistics\nversion: v${currentGameVersion()}\nexported: ${new Date().toISOString()}\nwhat happened (fill in): \n\n`;
     const blob = header + exportStatsJson();
     // The panel body moved to scenes/ui/CopyTextPanel.ts on 5 Sep 2026, when
@@ -443,6 +529,7 @@ export class Options extends Phaser.Scene {
    */
   private openNotesPanel() {
     if (this.notesPanel) return;
+    this.hoverTip.hide(); // the button under the pointer is about to be covered
     this.notesPanel = showNotesOverlayPanel(this, "tester", () => {
       this.notesPanel = null;
       this.refreshNotesStatus();

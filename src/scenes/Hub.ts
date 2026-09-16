@@ -2365,7 +2365,7 @@ export class Hub extends Phaser.Scene {
         // already at the width that clipped once (see the comment above),
         // so it earns its space by naming the two panels that had no way
         // in except typing at the chat box.
-        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real. H = history, L = highlights.",
+        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real (:help lists what the crew answer to). H = history, L = highlights.",
         {
           fontFamily: "monospace",
           fontSize: "11px",
@@ -2461,8 +2461,12 @@ export class Hub extends Phaser.Scene {
     // in a gap that happens to be empty today. Verified by measurement,
     // not by eye — tools/verify/auditUiText.mjs's COLLIDE check is what
     // caught the grotto overlap in the first place.
+    // 16 Sep 2026 (ship audit): x=190 sat flush against the end of the rank
+    // label at x=16 ("2nd Lt. Dessa Rourke — \u201cLark\u201d" is ~180px at 10px
+    // mono), so the two ran into each other on the first Hub screen. 232
+    // clears the longest Warden rank string with a real gap.
     this.deckIndicatorText = this.add
-      .text(190, 20, "", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
+      .text(232, 20, "", { fontFamily: "monospace", fontSize: "10px", color: "#6b7d8a" })
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(HUB_HUD_DEPTH);
@@ -5069,7 +5073,7 @@ export class Hub extends Phaser.Scene {
           const affordable = holderActive && live && !atMax && nextCost !== undefined && personalPoints >= nextCost;
 
           let status: string;
-          if (!live) status = "(not implemented in combat yet)";
+          if (!live) status = "(no field effect)";
           else if (atMax) status = `rank ${rank}/${HEIRLOOM_MAX_ABILITY_RANK} (max)`;
           else status = `rank ${rank}/${HEIRLOOM_MAX_ABILITY_RANK} — next rank ${nextCost ?? "—"} pts`;
 

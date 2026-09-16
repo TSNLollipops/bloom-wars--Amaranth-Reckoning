@@ -73,7 +73,7 @@ export function showNotesOverlayPanel(scene: Phaser.Scene, initialTab: NotesTab,
     })
     .setOrigin(0.5);
   const testerSubtitle = scene.add
-    .text(CX, 112, "Bugs, wishlist ideas, anything you'd want your ant to be able to do. Saved on this computer as you type.", {
+    .text(CX, 112, "Bugs, wishlist ideas, anything you'd want your crew to be able to do. Saved on this computer as you type.", {
       fontFamily: "monospace",
       fontSize: "10px",
       color: TEXT_DIM,
@@ -143,7 +143,7 @@ export function showNotesOverlayPanel(scene: Phaser.Scene, initialTab: NotesTab,
     try {
       const p = nav?.clipboard?.writeText?.(testerEl.value);
       if (p) {
-        copyStatus.setText("Copied — paste it wherever you send Maxime feedback.");
+        copyStatus.setText("Copied — paste it into the itch.io comments, the Discord, or a bug report.");
         p.catch(() => copyStatus.setText("Couldn't copy automatically — select the text above and copy it by hand (Ctrl+A, Ctrl+C)."));
       } else {
         copyStatus.setText("Couldn't copy automatically — select the text above and copy it by hand (Ctrl+A, Ctrl+C).");
@@ -167,10 +167,20 @@ export function showNotesOverlayPanel(scene: Phaser.Scene, initialTab: NotesTab,
         tab = which;
         redraw();
       });
+      // Ship audit, 16 Sep 2026 — the one place the two notebooks sit side
+      // by side, and nothing said what the difference was.
+      const tip =
+        which === "field"
+          ? ["Field Notes", "", ...wrapTipText("Your own tactical notebook — lines you write with :notes, tagged and dated, kept across every campaign and every loss. For you.", 42)]
+          : ["Feedback Notes", "", ...wrapTipText("A scratchpad for anything you'd want to tell the developer — bugs, ideas, what confused you. Stays on this computer until you copy it out.", 42)];
+      tabBg
+        .on("pointerover", (pointer: Phaser.Input.Pointer) => hoverTip.show(tip, pointer.x, pointer.y))
+        .on("pointermove", (pointer: Phaser.Input.Pointer) => hoverTip.show(tip, pointer.x, pointer.y))
+        .on("pointerout", () => hoverTip.hide());
       tabLayer.add([tabBg, tabLabel]);
     };
     mk(CX - 95, "FIELD NOTES", "field");
-    mk(CX + 95, "TESTER NOTES", "tester");
+    mk(CX + 95, "FEEDBACK NOTES", "tester");
   }
 
   function redrawField() {
@@ -215,7 +225,7 @@ export function showNotesOverlayPanel(scene: Phaser.Scene, initialTab: NotesTab,
     "COPY TO CLIPBOARD",
     true,
     doCopy,
-    ["Copy to Clipboard", "", ...wrapTipText("Copies everything currently in the Tester Notes box, exactly as typed.", 42)],
+    ["Copy to Clipboard", "", ...wrapTipText("Copies everything currently in the Feedback Notes box, exactly as typed.", 42)],
     hoverTip
   );
   makeShopButton(

@@ -168,7 +168,7 @@ export function describeObjective(mission: CampaignMission): string {
   const p = mission.objectiveParams;
   switch (mission.objective) {
     case "eliminate_all":
-      return "Eliminate every hostile on the field. No turn limit — losing the whole squad is the only way to fail this one.";
+      return "Eliminate every hostile on the field. No turn limit — you only fail if the squad is wiped or the commander goes down.";
     case "hold_zone": {
       const holdFrom = p.holdUntilTurn ?? p.turnLimit;
       return `Hold the marked zone — keep every hostile off it from turn ${holdFrom} onward, through turn ${p.turnLimit}. Real deadline: losing the zone unopposed past that point ends the mission.`;
@@ -179,7 +179,7 @@ export function describeObjective(mission: CampaignMission): string {
       }
       return `Get the named unit to an exit tile before turn ${p.turnLimit}. Real deadline.`;
     case "clear_bloom":
-      return "Clear every bloom mat tile on the board. No turn limit — losing the whole squad is the only way to fail this one.";
+      return "Clear every bloom mat tile on the board. No turn limit — you only fail if the squad is wiped or the commander goes down.";
     case "survive_n_turns":
       return `Survive with the squad intact until turn ${p.turnLimit}. No board to clear — just live through it.`;
     case "contested_landing":

@@ -50,7 +50,9 @@ import { equipWeaponBranch } from "../engine/campaignEconomy";
 import { WEAPON_BRANCHES, type WeaponBranchId } from "../data/weaponBranches";
 import { equippedWeaponBranchesOf, mountsFor, frameDrawUsed, drawCapacityFor } from "../engine/frameSystems";
 import { showFrameOverlay } from "./shop/FramePanel";
+import { makeShopButton } from "./shop/ShopPanel";
 import { portraitAssetFor } from "../engine/portraits";
+import { describeObjective } from "../data/missionBriefing";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
 
@@ -484,8 +486,34 @@ export class TransporterPad extends Phaser.Scene {
       .text(480, 44, `TRANSPORTER PAD — ${companyNameOf(this.state).toUpperCase()}`, { fontFamily: "monospace", fontSize: "30px", color: "#e8e2d4" })
       .setOrigin(0.5);
     this.add
-      .text(480, 78, `deploying to: ${this.missionDef.displayName}`, { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
+      .text(480, 72, `deploying to: ${this.missionDef.displayName}`, { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
+    // Ship audit, 16 Sep 2026 (§2) — this screen said where the squad was
+    // going and never what for. The objective text (data/missionBriefing.ts's
+    // describeObjective, the same line the CO's `brief` reads out aboard
+    // ship) now sits under the destination, so BEAM DOWN is never a blind
+    // click. Kept to the 40px band above PAD_LIST_TOP; the longest variant
+    // (hold_zone) wraps to two 10px lines and still clears the first card.
+    this.add
+      .text(480, 88, `OBJECTIVE — ${describeObjective(this.missionDef)}`, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#e0b23c",
+        align: "center",
+        wordWrap: { width: 860 },
+      })
+      .setOrigin(0.5, 0);
+
+    // Ship audit, 16 Sep 2026 (§2) — the manual, reachable from here too,
+    // as an overlay (launch + pause, see Battle.ts's requestHelp for why not
+    // scene.start: this scene needs its missionId to rebuild).
+    const helpLayer = this.add.container(0, 0);
+    makeShopButton(this, helpLayer, 125, 20, 200, 26, "HOW TO PLAY", true, () => {
+      this.hoverTip.hide();
+      this.scene.pause();
+      this.scene.launch("Codex", { returnScene: "TransporterPad", launched: true });
+      this.scene.bringToTop("Codex");
+    }, ["How To Play", "", ...wrapTipText("Opens the rules manual over this screen. BACK brings you straight back here, nothing lost.", 42)], this.hoverTip);
 
     const missionSelectTip = [
       "< Mission Select",

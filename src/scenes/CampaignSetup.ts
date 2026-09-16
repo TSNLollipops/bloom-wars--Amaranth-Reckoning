@@ -20,6 +20,7 @@ import { AMARANTH_ACT1 } from "../data/campaignAmaranth";
 import { HOUSE_AMARANTH_ACT1 } from "../data/campaignHouseAmaranth";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { centerLegacyLayout } from "./ui/legacyCenter";
 
 type Side = "warden" | "house_amaranth";
 
@@ -32,7 +33,7 @@ export class CampaignSetup extends Phaser.Scene {
   // yet") until House Amaranth actually had missions to launch into.
   private selectedSide: Side = "warden";
   private wardenBg!: Phaser.GameObjects.Rectangle;
-  private houseAmaranthBg!: Phaser.GameObjects.Rectangle;
+  private houseAmaranthBg: Phaser.GameObjects.Rectangle | null = null; // null outside dev builds — see drawSideSelect
   // B6, "name your company" (5 Sep 2026). The DOM input follows Hub.ts's own
   // chat-box idiom (buildChatBox) — this.add.dom with an inline style string,
   // which main.ts's `dom: { createContainer: true }` exists to allow. No
@@ -58,7 +59,9 @@ export class CampaignSetup extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0a0d10");
+    centerLegacyLayout(this);
     this.ironmanChecked = true;
+    this.selectedSide = "warden"; // scene instances persist across scene.start — reset alongside ironmanChecked
     this.hoverTip = new HoverTip(this);
 
     this.add.text(480, 50, "NEW CAMPAIGN", { fontFamily: "monospace", fontSize: "26px", color: "#e8e2d4" }).setOrigin(0.5);
@@ -96,44 +99,50 @@ export class CampaignSetup extends Phaser.Scene {
   private drawSideSelect() {
     this.add.text(480, 110, "SIDE", { fontFamily: "monospace", fontSize: "12px", color: "#6b7a8a" }).setOrigin(0.5);
 
+    // Ship audit, 16 Sep 2026 (§1.1) — House Amaranth is hidden from every
+    // public build until its free update (data/allCampaigns.ts gates its
+    // mission-select tabs on import.meta.env.DEV, 12 Sep 2026), but this
+    // screen kept offering the side anyway: BEGIN CAMPAIGN launched its
+    // Mission 1 straight from HOUSE_AMARANTH_ACT1, after which the player
+    // landed in the Greathouse with only Warden tabs to pick from — a
+    // dead-end save two screens into the game. Same gate as the tabs, same
+    // flag, so the two can't drift apart again: the button, its tip and the
+    // caption exist only in a dev build. Warden alone renders centred.
+    const showHouse = !!import.meta.env?.DEV;
+    const wardenX = showHouse ? 330 : 480;
     this.wardenBg = this.add
-      .rectangle(330, 140, 280, 40, 0x2e5c7a, 1)
+      .rectangle(wardenX, 140, 280, 40, 0x2e5c7a, 1)
       .setStrokeStyle(1, 0x4a7a9a)
       .setInteractive({ useHandCursor: true });
-    this.add.text(330, 140, "WARDEN COMPANY", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+    this.add.text(wardenX, 140, "WARDEN COMPANY", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+    this.wardenBg.on("pointerdown", () => this.setSide("warden"));
+    const wardenTip = ["Warden Company", "", ...wrapTipText("The default side — a full Hub to walk around in between missions, plus the Shop, Roster, and everything else.", 42)];
+    this.wardenBg
+      .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(wardenTip, pointer.x, pointer.y))
+      .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(wardenTip, pointer.x, pointer.y))
+      .on("pointerout", () => this.hoverTip.hide());
+
+    if (!showHouse) {
+      this.houseAmaranthBg = null;
+      return;
+    }
 
     this.houseAmaranthBg = this.add
       .rectangle(630, 140, 280, 40, 0x1a2028, 1)
       .setStrokeStyle(1, 0x4a7a9a)
       .setInteractive({ useHandCursor: true });
     this.add.text(630, 140, "HOUSE AMARANTH", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
-
-    this.wardenBg.on("pointerdown", () => this.setSide("warden"));
     this.houseAmaranthBg.on("pointerdown", () => this.setSide("house_amaranth"));
-    const wardenTip = ["Warden Company", "", ...wrapTipText("The default side — a full Hub to walk around in between missions, plus the Shop, Roster, and everything else.", 42)];
-    const houseTip = [
-      "House Amaranth",
-      "",
-      ...wrapTipText("Missions and roster only — no Hub screen to walk around in yet. Shop, gear, and recruiting all still work the same.", 42),
-    ];
-    this.wardenBg
-      .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(wardenTip, pointer.x, pointer.y))
-      .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(wardenTip, pointer.x, pointer.y))
-      .on("pointerout", () => this.hoverTip.hide());
+    // The Greathouse (its own walkable Hub) shipped 6 Sep 2026 — the old
+    // "no Hub of its own yet" caption and tip were stale and read as
+    // unfinished; the dev-only caption now says what this actually is.
+    const houseTip = ["House Amaranth", "", ...wrapTipText("Colonel Marrow's side of the war — its own Greathouse, cast and campaign. Dev builds only until its release.", 42)];
     this.houseAmaranthBg
       .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(houseTip, pointer.x, pointer.y))
       .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(houseTip, pointer.x, pointer.y))
       .on("pointerout", () => this.hoverTip.hide());
-
-    // y=178, not 168 (Claude, 5 Sep 2026 — pre-existing, found by screenshot
-    // during the B6 pass, not caused by it). This string is 94 characters,
-    // which at 10px monospace is just past the 560px wrap width, so it has
-    // always rendered as TWO lines: 26px tall, centered at 168, spanning
-    // 155-181 — while the side buttons above end at 160. It has been
-    // overlapping them by ~5px the whole time. Nudged clear rather than
-    // rewrapped, since the wrap itself reads fine.
     this.add
-      .text(480, 178, "House Amaranth has no Hub of its own to walk around in yet — missions and roster only for now.", {
+      .text(480, 178, "House Amaranth is visible in dev builds only — it ships as a free update after launch.", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#5a6472",
@@ -146,7 +155,7 @@ export class CampaignSetup extends Phaser.Scene {
   private setSide(side: Side) {
     this.selectedSide = side;
     this.wardenBg.setFillStyle(side === "warden" ? 0x2e5c7a : 0x1a2028);
-    this.houseAmaranthBg.setFillStyle(side === "house_amaranth" ? 0x2e5c7a : 0x1a2028);
+    this.houseAmaranthBg?.setFillStyle(side === "house_amaranth" ? 0x2e5c7a : 0x1a2028);
     // Untouched field follows the side; an edited one is left alone — see
     // companyNameEdited's own comment.
     if (!this.companyNameEdited && this.companyInput) {

@@ -47,7 +47,9 @@ function cacheKey(id: AmbientKey | SfxKey): string {
 /** Registers every file above with this.load — call once, from Preloader.ts's own preload(), same place portraits/splash art already loads. */
 export function preloadAudio(scene: Phaser.Scene): void {
   for (const id of Object.keys(FILES) as (AmbientKey | SfxKey)[]) {
-    scene.load.audio(cacheKey(id), `/audio/${FILES[id]}.ogg`);
+    // Relative, not "/audio/..." — itch.io asset-path fix, 16 Sep 2026. See
+    // Preloader.ts's own comment on its portrait/splash loop for why.
+    scene.load.audio(cacheKey(id), `audio/${FILES[id]}.ogg`);
   }
 }
 
@@ -58,6 +60,10 @@ let currentAmbientKey: AmbientKey | null = null;
 export function playAmbient(scene: Phaser.Scene, key: AmbientKey): void {
   if (currentAmbientKey === key && currentAmbient?.isPlaying) return;
   stopAmbient();
+  // Missing-file guard, 16 Sep 2026 — same reason as playSfx below:
+  // sound.add() throws on an uncached key, and this runs inside Hub/
+  // Battle's own create(), where a throw would abort the rest of setup.
+  if (!scene.cache.audio.exists(cacheKey(key))) return;
   const sound = scene.sound.add(cacheKey(key), { loop: true, volume: getMusicVolume() / 100 });
   sound.play();
   currentAmbient = sound;
@@ -93,5 +99,15 @@ export function applyMusicVolumeLive(scene: Phaser.Scene): void {
 
 /** One-shot stings — hit/dodge/kill/click/mission_win/pilot_lost. Fire-and-forget: Phaser's own scene.sound.play() manages the temporary Sound instance's lifetime, nothing here needs to track or destroy it. */
 export function playSfx(scene: Phaser.Scene, key: SfxKey): void {
-  scene.sound.play(cacheKey(key), { volume: getSfxVolume() / 100 });
+  // Missing-file guard, 16 Sep 2026 — this is the actual link between "40
+  // assets 404'd" and "NEW CAMPAIGN does nothing" on itch.io (and very
+  // likely the 10 Sep Electron "main menu buttons don't respond" bug too):
+  // Phaser's sound.play() THROWS when the key isn't in the audio cache, and
+  // makeShopButton (scenes/shop/ShopPanel.ts) calls playSfx("click")
+  // BEFORE the button's own onClick — so one missing click sound turned
+  // every shared button in the game into a dead click. A missing sound
+  // should cost a sound, never a click, so skip quietly instead.
+  const k = cacheKey(key);
+  if (!scene.cache.audio.exists(k)) return;
+  scene.sound.play(k, { volume: getSfxVolume() / 100 });
 }

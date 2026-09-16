@@ -11,7 +11,7 @@
 // the game's own source, and mixing that with Electron's main process adds
 // avoidable friction for a first packaging pass. .cjs sidesteps it entirely.
 
-const { app, BrowserWindow, Menu, globalShortcut, protocol, net } = require("electron");
+const { app, BrowserWindow, Menu, protocol, net, shell } = require("electron");
 const path = require("node:path");
 const url = require("node:url");
 
@@ -23,18 +23,16 @@ const DIST_DIR = path.join(__dirname, "..", "dist");
 // applies, localStorage is stable) instead of Electron's locked-down
 // default treatment of an unknown scheme.
 //
-// Why this exists: the game's own code references public/ assets with
-// root-absolute paths, like "/audio/sfx_kill.ogg" — correct for a real
-// browser, where "/" means the site root. Plain file:// loading has no
-// concept of a site root, so "/audio/..." resolved against the whole
-// filesystem drive instead of the dist/ folder, and every one of those
-// loads 404'd (this is the "121 net::ERR_FILE_NOT_FOUND" wall you saw in
-// the console, and the reason clicking did nothing — the click handler
-// tried to play a sound that 404'd, threw, and never reached the actual
-// menu transition). Rather than rewrite every asset path in the game's own
-// source to work around a packaging quirk, this makes Electron serve
-// dist/ as if it really were a web root, so paths that are already correct
-// for the itch.io build stay correct here too, unchanged.
+// Why this exists: plain file:// loading has no concept of a site root, so
+// asset paths resolved against the whole filesystem drive instead of the
+// dist/ folder and every load 404'd (the "121 net::ERR_FILE_NOT_FOUND"
+// wall of 10 Sep 2026 — the click handler tried to play a sound that
+// 404'd, threw, and never reached the menu transition). Serving dist/ as a
+// real web origin fixes that for good. 16 Sep 2026: the game's asset paths
+// are RELATIVE now ("audio/x.ogg", for itch.io's subfolder hosting — see
+// scenes/Preloader.ts); under app://bloomwars/index.html they resolve to
+// app://bloomwars/audio/x.ogg, the same request as before, so nothing here
+// changed for that fix.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "app",
@@ -52,8 +50,10 @@ protocol.registerSchemesAsPrivileged([
 // the default Electron menu has no purpose here. Side effect worth knowing:
 // Electron's Ctrl+Shift+I / F12 DevTools toggle lives on that default menu's
 // accelerators, not independent of it, so removing the menu silently removed
-// the shortcut too. Re-registered below via globalShortcut instead, so
-// DevTools stays reachable without bringing the menu bar back.
+// the shortcut too. Re-registered in createWindow via before-input-event
+// (scoped to THIS window) — the 11 Sep globalShortcut version was OS-wide
+// and swallowed Ctrl+Shift+I in every other app while the game ran (ship
+// audit, 16 Sep 2026). F11 toggles fullscreen the same way.
 Menu.setApplicationMenu(null);
 
 function createWindow() {
@@ -62,7 +62,10 @@ function createWindow() {
     height: 800,
     // The game's own logical canvas is 1074x640 (see
     // claude/Bloom_Wars_Screen_Resolution_Plan_v1.md) — never let the window
-    // shrink below that, or the UI starts clipping.
+    // shrink below that. useContentSize makes these CONTENT sizes (16 Sep
+    // 2026): without it they were outer sizes including the title bar, so
+    // the "minimum" gave ~1058x601 of content and FIT scaled the game down.
+    useContentSize: true,
     minWidth: 1074,
     minHeight: 640,
     backgroundColor: "#0c0f12", // matches index.html's own background, avoids a white flash on load
@@ -78,11 +81,44 @@ function createWindow() {
   // the big comment above for why.
   win.loadURL("app://bloomwars/index.html");
 
+  // Ship audit, 16 Sep 2026 — three guards a shipped window needs:
+  // 1. Never navigate away from the game. Without this, dragging any file
+  //    onto the window navigated the renderer to file://… and the game
+  //    vanished. Any future in-game link (the itch page, the Discord)
+  //    opens in the player's real browser instead.
+  win.webContents.on("will-navigate", (event, target) => {
+    if (!target.startsWith("app://")) {
+      event.preventDefault();
+      if (/^https?:/.test(target)) shell.openExternal(target);
+    }
+  });
+  win.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (/^https?:/.test(target)) shell.openExternal(target);
+    return { action: "deny" };
+  });
+  // 2. Ctrl+Shift+I / F12 for DevTools and F11 for fullscreen, scoped to
+  //    this window only (see the Menu comment above).
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return;
+    const devtools = (input.control || input.meta) && input.shift && input.key.toUpperCase() === "I";
+    if (devtools || input.key === "F12") {
+      win.webContents.toggleDevTools();
+      event.preventDefault();
+    } else if (input.key === "F11") {
+      win.setFullScreen(!win.isFullScreen());
+      event.preventDefault();
+    }
+  });
+  // 3. Start maximised — a 1280x800 window on a 1080p monitor left the
+  //    game well under the 150% cap most players will keep.
+  win.maximize();
+
   // The 10 Sep 2026 auto-open-DevTools-every-launch debug line lived here
   // temporarily while tracking down the "main menu buttons don't respond"
   // bug. Removed, 11 Sep 2026, per the EA Dev-Cleanup Checklist — a real
   // release build should never pop a detached DevTools window on launch.
-  // Ctrl+Shift+I (registered below) still opens it on demand.
+  // Ctrl+Shift+I / F12 (the before-input-event handler above) still opens
+  // it on demand.
 
   return win;
 }
@@ -106,7 +142,7 @@ app.whenReady().then(() => {
     // on the game side ever generates such a path, so this should never
     // trigger, but it costs nothing to keep the handler from ever serving
     // files outside dist/ if it somehow did.
-    if (!filePath.startsWith(DIST_DIR)) {
+    if (filePath !== DIST_DIR && !filePath.startsWith(DIST_DIR + path.sep)) {
       return new Response("Forbidden", { status: 403 });
     }
 
@@ -115,22 +151,11 @@ app.whenReady().then(() => {
 
   createWindow();
 
-  // Restores DevTools access now that the default menu (and its built-in
-  // accelerator) is gone — see the comment above Menu.setApplicationMenu.
-  globalShortcut.register("CommandOrControl+Shift+I", () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.webContents.toggleDevTools();
-  });
-
   app.on("activate", () => {
     // macOS convention (re-open a window when the dock icon is clicked with
     // no windows open). Harmless no-op on Windows, kept for portability.
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-});
-
-app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
 });
 
 app.on("window-all-closed", () => {

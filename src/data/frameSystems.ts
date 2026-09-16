@@ -368,7 +368,7 @@ export const FRAME_SYSTEMS: Record<FrameSystemId, FrameSystemDef> = {
     displayName: "Stabilizer Struts",
     family: "support",
     draw: 1,
-    description: `A Fieldwright mek's stationary repair still fires if you moved ${STABILIZER_STRUTS_MOVE_ALLOWANCE} tile. Nothing without a Fieldwright track.`,
+    description: `A Fieldwright Mek's stationary repair still fires if you moved ${STABILIZER_STRUTS_MOVE_ALLOWANCE} tile. Nothing without a Fieldwright track.`,
   },
 
   // ---- 5f. Salvage — the Bloom-derived line (§7) ----

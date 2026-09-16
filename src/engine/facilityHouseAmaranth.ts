@@ -113,19 +113,19 @@ export const HOUSE_AMARANTH_FACILITY: FacilityProfile = {
     workshopB: "Second Lance's own works. Empty until they come up from the terraces.",
     workshopC: "Third Lance's own works. Empty until they come up from the terraces.",
     vault: "Walk to the plinth and press E for house offers, holdings, and standing.",
-    berths: "The battlegroup's bunks. Recruitment, romance, one-on-one scenes — not wired in yet.",
+    berths: "The battlegroup's bunks. Lights out during the day; whoever is off shift is asleep in here.",
     berthsB: "Second Lance's bunks. Empty until they come up from the terraces.",
     berthsC: "Third Lance's bunks. Empty until they come up from the terraces.",
     heads: "Stalls, basins, baths. Nothing to do here but the obvious.",
     engineering: "Generator, Fabricator, Restock — ask the Brigadier to build one.",
     forwardBays: "Sensor Array, Weapons Bay, Beacon Control — ask the Brigadier to build one.",
-    cic: "Fire-support config, Energy allocation — not wired in yet.",
-    cellars: "Stores, casks, the salvage cage. Nothing to do down here yet.",
+    cic: "The command floor. Fire-support charges and the House's systems are run from the bays below.",
+    cellars: "Stores, casks, the salvage cage. Cold, and mostly quiet.",
     // No note for the Control Room — the same call Warden's grotto made on
     // 27 Aug 2026: the CO standing there IS the content, and a centred note
     // drew straight through his name tag (checkHubHouseAmaranth's capture).
-    records: "The House's paper. Nothing to read here yet.",
-    sparRoom: "Where the lances work things out with their fists, once there's a real reason to. Nothing wired in yet.",
+    records: "The House's paper. The reading table holds the Archive.",
+    sparRoom: "Mats, tape and a bucket. Where the lances work things out with their fists — challenge someone to spar from the chat box.",
   },
 
   roomDeck: {

@@ -447,7 +447,6 @@ function buildUndercroft(): DeckLayout {
     decor: [
       { kind: "dashrect", x: 700, y: 120, w: 220, h: 120, color: C.metalLight, alpha: 0.45 },
       { kind: "label", x: 810, y: 178, text: "SALVAGE CAGE", size: 8 },
-      { kind: "label", x: 810, y: 194, text: "(not built yet)", size: 7 },
     ],
     solids: [],
   });

@@ -2557,8 +2557,8 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Controls",
     gate: null,
     body: [
-      "Everything happens by clicking the board. No drag, no hotkeys, no right-click menu.",
-      "Click a unit: selects it. Click green: moves there, costs 1 action, doesn't end your turn. Click red: attacks, burns every remaining action and ends the unit's turn. Click cyan: Munti only, heals that ally instead of attacking. End Turn resolves the hostile AI's whole turn, then the environment step: bloom-mat burn, mat regrowth, shield regen, Munti regen, and any asset the mission is making you protect.",
+      "Click to do everything. Space ends the turn, Tab cycles your units, Esc or right-click cancels, 1-6 fire the action bar, [ and ] hide the side columns, T opens comms. Hover anything for a tip.",
+      "Click a unit: selects it. Click green: moves there, costs 1 action, doesn't end your turn. Click red: attacks, burns every remaining action and ends the unit's turn. Click cyan: Munti only, heals that ally instead of attacking. End Turn (bottom-left, or Space) resolves the hostile phase move by move, then the environment step: bloom-mat burn, mat regrowth, shield regen, Munti regen, and any asset the mission is making you protect. A hostile is only drawn while one of your units can see it; dimmed tiles are out of sight.",
     ],
   },
   {
@@ -2568,7 +2568,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     title: "Reading the Board",
     gate: null,
     body: [
-      "No sprites yet. Every unit is a shape. Shape says class, fill says side, outline says chassis.",
+      "Every unit is a shape. Shape says class, fill says side, outline says chassis.",
       "Triangle: Meeps. Square: Tank. Diamond: Reeps. Circle with a bar: Munti. Blue fill is yours, tan is a hostile mech, a coloured blob is a Bloom creature. Thick white outline is a centauroid chassis. A burrowed Bloom renders faded and is already targetable at range. It is hiding from your eyes, not from your guns.",
     ],
   },

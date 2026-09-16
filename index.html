@@ -41,6 +41,68 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      /* Ship audit, 16 Sep 2026 (§1.4) — before this, any uncaught exception
+         inside a Phaser create()/update() stopped the frame loop dead (Phaser
+         only re-requests the next frame AFTER the step returns) and the player
+         got a frozen black canvas with no message. This runs before the bundle
+         so even a boot crash is caught. Plain DOM on purpose: it must work
+         when Phaser itself is the thing that broke. Resource-load errors
+         (a 404'd image fires "error" on its element) carry no .error/.message
+         and are ignored here — the Preloader reports those on its own bar. */
+      (function () {
+        var shown = false;
+        function show(title, detail) {
+          if (shown) return;
+          shown = true;
+          var box = document.createElement("div");
+          box.setAttribute(
+            "style",
+            "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,8,10,0.92);z-index:100001;font:13px/1.5 monospace;color:#e8e2d4;"
+          );
+          var inner = document.createElement("div");
+          inner.setAttribute("style", "max-width:720px;width:90vw;padding:22px 26px;background:#141a20;border:1px solid #ef4444;");
+          var h = document.createElement("div");
+          h.setAttribute("style", "color:#ef4444;font-size:18px;margin-bottom:10px;");
+          h.textContent = "Something broke.";
+          var p = document.createElement("div");
+          p.setAttribute("style", "margin-bottom:12px;color:#c8c2b4;");
+          p.textContent =
+            "Reload the page to keep going — your last save is untouched. " +
+            "If it happens again, copy the text below into a bug report (the itch.io comments or Discord) so it can be fixed.";
+          var ta = document.createElement("textarea");
+          ta.setAttribute("style", "width:100%;height:140px;background:#0c0f12;color:#8a97a6;border:1px solid #3a4552;font:11px/1.4 monospace;padding:8px;box-sizing:border-box;");
+          ta.readOnly = true;
+          ta.value = title + "\n" + (detail || "") + "\nuser agent: " + navigator.userAgent + "\nwhen: " + new Date().toISOString();
+          var row = document.createElement("div");
+          row.setAttribute("style", "margin-top:12px;display:flex;gap:10px;");
+          var reload = document.createElement("button");
+          reload.textContent = "RELOAD";
+          reload.setAttribute("style", "padding:8px 18px;background:#2e5c7a;color:#fff;border:1px solid #4a7a9a;font:12px monospace;cursor:pointer;");
+          reload.onclick = function () { location.reload(); };
+          var copy = document.createElement("button");
+          copy.textContent = "COPY REPORT";
+          copy.setAttribute("style", "padding:8px 18px;background:#1a2028;color:#e8e2d4;border:1px solid #3a4552;font:12px monospace;cursor:pointer;");
+          copy.onclick = function () {
+            ta.focus(); ta.select();
+            try { navigator.clipboard && navigator.clipboard.writeText(ta.value); } catch (e) { /* select-all is the fallback */ }
+          };
+          row.appendChild(reload); row.appendChild(copy);
+          inner.appendChild(h); inner.appendChild(p); inner.appendChild(ta); inner.appendChild(row);
+          box.appendChild(inner);
+          document.body.appendChild(box);
+        }
+        window.addEventListener("error", function (ev) {
+          if (!ev || (!ev.error && !ev.message)) return; // element load error, not a script crash
+          var err = ev.error;
+          show(String(ev.message || (err && err.message) || "Unknown error"), err && err.stack ? String(err.stack) : (ev.filename ? ev.filename + ":" + ev.lineno : ""));
+        });
+        window.addEventListener("unhandledrejection", function (ev) {
+          var r = ev && ev.reason;
+          show("Unhandled promise rejection: " + String(r && r.message ? r.message : r), r && r.stack ? String(r.stack) : "");
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

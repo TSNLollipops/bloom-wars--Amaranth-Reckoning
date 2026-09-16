@@ -74,7 +74,7 @@ export const WARDEN_FACILITY: FacilityProfile = {
   // jumps to the separate Hangar SCENE (the "CAMPAIGN SHOP" screen), not
   // the Hub's own internal "Hangar Deck" ROOM, and the old label read as
   // if it meant the latter.
-  backButtonLabel: "BACK TO THE CARRIER",
+  backButtonLabel: "CAMPAIGN SHOP",
 
   // DECK_ORDER, 28 Aug 2026 — the three original decks were always a
   // straight line (lower — grotto — upper); sparRoom extends that same
@@ -133,14 +133,14 @@ export const WARDEN_FACILITY: FacilityProfile = {
     // 2 Sep 2026 (Vault Build Plan v1) — describes the one thing you
     // actually DO here at the plinth; dedications resolve on their own.
     vault: "Walk to the plinth and press E for house offers, holdings, and standing.",
-    berths: "Warden Company's bunks. Recruitment, romance, one-on-one scenes — not wired in yet.",
+    berths: "Warden Company's bunks. Lights out during the day; whoever is off shift is asleep in here.",
     berthsB: "Second Lance's bunks. Empty until they come aboard.",
     berthsC: "Third Lance's bunks. Empty until they come aboard.",
     heads: "Stalls, sinks, showers. Nothing to do here but the obvious.",
     engineering: "Generator, Fabricator, Restock — ask the CO to build one.",
     forwardBays: "Sensor Array, Weapons Bay, Beacon Control — ask the CO to build one.",
-    cic: "Fire-support config, Energy allocation — not wired in yet.",
-    sparRoom: "Where crew work things out with their fists, once there's a real reason to. Nothing wired in yet.",
+    cic: "The bridge. Fire-support charges and the ship's systems are run from the bays below; the tactical table here holds the Archive.",
+    sparRoom: "Mats, tape and a bucket. Where the crew work things out with their fists — challenge someone to spar from the chat box.",
   },
 
   // Room-to-deck assignment — a hand-authored split, the one in
