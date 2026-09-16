@@ -44,6 +44,15 @@ The desktop build runs on Electron (MIT) and Chromium (BSD-style), whose
 notices are included with that build's own files.
 
 ------------------------------------------------------------
+ART
+------------------------------------------------------------
+
+Title, victory and defeat screen art was generated with Google Gemini. As a
+solo, self-funded dev with no art budget, this got illustrated screens into
+the game instead of none at all. Everything else — design, writing, code,
+systems, the world — is my own work.
+
+------------------------------------------------------------
 AUDIO (all Creative Commons Zero — public domain)
 ------------------------------------------------------------
 
