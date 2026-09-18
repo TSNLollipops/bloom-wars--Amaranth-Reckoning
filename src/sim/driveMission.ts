@@ -26,6 +26,10 @@ import { decidePlayerAiAction, resetPlayerAiLog, createPlayerAiMemory, MODERATE,
 import { hardTurnOrder } from "./playerAi/hard";
 import { needsFrontLineProtection } from "./playerAi/combat";
 import { mulberry32 } from "./rng";
+import { createBotHostileBrain } from "./playerAi/hostileBrain";
+import { ALL_ON_HIT_EFFECT_KINDS, fieldHeirloom, staticRoster, type SimHeirloom } from "./heirloomFielding";
+import type { PlayerAiAction, PlayerAiTier } from "./playerAi/types";
+import type { BattleUnit } from "../engine/units";
 
 export interface DriveOptions {
   profile?: PlayerAiProfile;
@@ -38,6 +42,27 @@ export interface DriveOptions {
   /** Reset the module-level playerAiLog before the run (default true). */
   resetLog?: boolean;
   tag?: string;
+  /**
+   * Hand the hostile mechs to the Player AI at this tier (17 Sep 2026,
+   * Player Bot Reuse Plan §2b, E-lite — sim/playerAi/hostileBrain.ts). The
+   * Bloom keep their own brains. Omitted: the hostile side plays exactly as
+   * it does in the shipped game.
+   */
+  hostileTier?: PlayerAiTier;
+  /**
+   * Put an Heirloom's kit on one deployed pilot (17 Sep 2026,
+   * sim/heirloomFielding.ts). Without it no unit in a headless run ever
+   * carries an Heirloom verb. A Simulacrum (stolen_seal) also gets every
+   * on-hit effect as "fought before", the pool a late campaign would have.
+   */
+  heirloom?: SimHeirloom;
+  /**
+   * Beacon Control on (17 Sep 2026): the three bays it needs are built, the
+   * Restock Room holds this many crates and charges, and Rourke is a
+   * Captain (the rank that unlocks the role). Omitted: no beacon, as in
+   * every batch run before this date.
+   */
+  beacons?: number;
 }
 
 export interface DriveResult {
@@ -46,13 +71,50 @@ export interface DriveResult {
   loops: number;
   summary: MissionSummary;
   memory: PlayerAiMemory;
+  /** The pilot who carried `options.heirloom`, when one was fielded. */
+  heirloomWielderId?: string;
 }
+
+/**
+ * Verbs that cost one action and leave the turn open, so the driver asks the
+ * unit again. Everything else (attack, overwatch, ambush, interdict, taunt,
+ * the strikes, and the whole-turn Heirloom verbs) ends the unit's turn.
+ */
+const REPEATABLE_ACTIONS: ReadonlySet<PlayerAiAction> = new Set<PlayerAiAction>([
+  "clear_bloom",
+  "rescue",
+  "recover_capsule",
+  "screen",
+  "sensor_sweep",
+  "field_triage",
+  "farsight",
+  "overextend",
+  "oathkeeper",
+  "sure_footing",
+  "firebreak",
+  "draft",
+  "borrowed_authority",
+  "last_word",
+  "last_rites",
+  "beacon",
+]);
 
 export function driveMission(missionDef: CampaignMission, options: DriveOptions = {}): DriveResult {
   const profile = options.profile ?? MODERATE;
   const rng = options.seed !== undefined ? mulberry32(options.seed) : Math.random;
   if (options.resetLog !== false) resetPlayerAiLog();
-  const m = new Mission(missionDef, options.deployRoster, options.builtBays ?? [], { rng });
+  const hostileBrain = options.hostileTier ? createBotHostileBrain({ tier: options.hostileTier, rng }) : undefined;
+  let deployRoster = options.deployRoster;
+  let heirloomWielderId: string | undefined;
+  if (options.heirloom) {
+    const fielded = fieldHeirloom(deployRoster ?? staticRoster(missionDef), options.heirloom);
+    deployRoster = fielded.roster;
+    heirloomWielderId = fielded.wielderId;
+  }
+  const foughtOnHitEffectKinds = options.heirloom?.id === "stolen_seal" ? ALL_ON_HIT_EFFECT_KINDS : undefined;
+  const builtBays: ReservedBayId[] = options.beacons ? [...new Set<ReservedBayId>([...(options.builtBays ?? []), "beaconControl", "restockRoom", "generator"])] : (options.builtBays ?? []);
+  const beaconStock = options.beacons ? { beaconCratesRemaining: options.beacons, beaconChargesRemaining: options.beacons, rourkeRank: "capt" as const } : {};
+  const m = new Mission(missionDef, deployRoster, builtBays, { rng, hostileBrain, foughtOnHitEffectKinds, ...beaconStock });
   const memory = createPlayerAiMemory(rng);
   const maxLoops = options.maxLoops ?? 500;
 
@@ -104,10 +166,10 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
     const playerUnits = m.livingUnits().filter((u) => u.side === "player");
     const ordered = profile.threatMap ? hardTurnOrder(playerUnits) : playerUnits;
     memory.pendingVips = new Set(ordered.filter((u) => needsFrontLineProtection(u)).map((u) => u.instanceId));
-    for (const unit of ordered) {
-      memory.pendingVips.delete(unit.instanceId);
-      if (unit.downed) continue;
-      if (unit.actionsRemaining <= 0 && !m.fieldDoctorReady(unit.instanceId)) continue;
+    // One unit's turn: re-asked while it has actions left and its last
+    // decision was repeatable. A function (17 Sep 2026) so a Last Rites
+    // target can take its one borrowed action the moment it's granted.
+    const act = (unit: BattleUnit, depth = 0): void => {
       let subGuard = 0;
       while ((unit.actionsRemaining > 0 || m.fieldDoctorReady(unit.instanceId)) && subGuard < 4) {
         subGuard += 1;
@@ -116,7 +178,7 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
           m.moveUnit(unit.instanceId, decision.path[decision.path.length - 1]);
           memory.plannedPositions.set(unit.instanceId, { ...unit.pos });
         }
-        const repeatable = Boolean(decision.repairTargetId) || decision.action === "clear_bloom" || decision.action === "rescue" || decision.action === "recover_capsule" || decision.action === "screen" || decision.action === "sensor_sweep";
+        const repeatable = Boolean(decision.repairTargetId) || (decision.action !== undefined && REPEATABLE_ACTIONS.has(decision.action));
         if (decision.repairTargetId) m.repairUnit(unit.instanceId, decision.repairTargetId);
         if (decision.attackTargetId) m.attack(unit.instanceId, decision.attackTargetId);
         switch (decision.action) {
@@ -160,6 +222,59 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
           case "maser_lance":
             if (decision.targetTile) m.maserLanceStrike(unit.instanceId, decision.targetTile);
             break;
+          // ---- Heirloom and Signature verbs (17 Sep 2026, playerAi/heirlooms.ts) ----
+          case "field_triage":
+            m.fieldTriage(unit.instanceId);
+            break;
+          case "farsight":
+            m.farsightSignature(unit.instanceId);
+            break;
+          case "overextend":
+            m.ledgerOverextended(unit.instanceId);
+            break;
+          case "oathkeeper":
+            m.oathkeeper(unit.instanceId);
+            break;
+          case "sure_footing":
+            m.cuttingRoomSureFooting(unit.instanceId);
+            break;
+          case "firebreak":
+            m.firebreak(unit.instanceId);
+            break;
+          case "draft":
+            m.draft(unit.instanceId);
+            break;
+          case "borrowed_authority":
+            m.sealBorrowedAuthority(unit.instanceId);
+            break;
+          case "last_word":
+            if (decision.abilityTargetId) m.lastWordSignature(unit.instanceId, decision.abilityTargetId);
+            break;
+          case "last_rites": {
+            // The ally gets one borrowed action right now, this turn; the
+            // engine puts them back down when the turn closes.
+            const target = decision.abilityTargetId ? m.units.find((u) => u.instanceId === decision.abilityTargetId) : undefined;
+            if (target && m.lastRites(unit.instanceId, target.instanceId) && depth === 0) act(target, depth + 1);
+            break;
+          }
+          case "iron_word":
+            m.ironWord(unit.instanceId);
+            break;
+          case "deadfall_strike":
+            if (decision.abilityTargetId) m.deadfallStrike(unit.instanceId, decision.abilityTargetId);
+            break;
+          case "cinder_line":
+            if (decision.targetTile) m.cinderLineSignature(unit.instanceId, decision.targetTile);
+            break;
+          case "cutting_room_charge":
+            if (decision.targetTile) m.cuttingRoomCharge(unit.instanceId, decision.targetTile);
+            break;
+          case "requiem":
+            if (decision.targetTile) m.requiemSeverance(unit.instanceId, decision.targetTile);
+            break;
+          case "beacon":
+            if (decision.abilityTargetId) m.useBeaconControl(unit.instanceId, decision.abilityTargetId);
+            break;
           default:
             break;
         }
@@ -170,6 +285,12 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
         // decision function's own gates make that rare, and subGuard
         // bounds it regardless.
       }
+    };
+    for (const unit of ordered) {
+      memory.pendingVips.delete(unit.instanceId);
+      if (unit.downed) continue;
+      if (unit.actionsRemaining <= 0 && !m.fieldDoctorReady(unit.instanceId)) continue;
+      act(unit);
       if (m.outcome !== "ongoing") break;
     }
     if (m.outcome !== "ongoing") break;
@@ -188,5 +309,5 @@ export function driveMission(missionDef: CampaignMission, options: DriveOptions 
     tag: options.tag ?? (profile.tier === "legacy" ? "legacy" : undefined),
     outcome: m.outcome === "ongoing" ? "loss" : undefined,
   });
-  return { mission: m, outcome, loops, summary, memory };
+  return { mission: m, outcome, loops, summary, memory, heirloomWielderId };
 }

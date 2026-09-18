@@ -84,7 +84,14 @@ export type PlayerAiAbility =
   // Ejection capsules (15 Sep 2026) — recovering and capturing. Off for
   // LEGACY (its numbers are a frozen baseline) and on for every real tier:
   // even a first-time player clicks the glowing pod next to their Munti.
-  | "capsule";
+  | "capsule"
+  // Every Heirloom and Signature verb (17 Sep 2026, sim/playerAi/heirlooms.ts).
+  // One switch: a tier either uses the kit it's handed or it doesn't. Off in
+  // LEGACY (frozen baseline) and EASY (a newcomer doesn't read an Heirloom's
+  // rank text); a unit without an Heirloom never reaches any of it anyway.
+  | "heirloom"
+  /** Beacon Control (17 Sep 2026): revive a downed ally mid-mission. Needs the three bays, so it never fires in a plain batch run. */
+  | "beacon";
 
 const ALL_ABILITIES: Record<PlayerAiAbility, boolean> = {
   abil_repair: true,
@@ -100,6 +107,8 @@ const ALL_ABILITIES: Record<PlayerAiAbility, boolean> = {
   abil_maser_lance: true,
   rescue: true,
   capsule: true,
+  heirloom: true,
+  beacon: true,
 };
 
 /** The pre-1-Sep bot: full awareness, repair/clear/screen(narrow)/rescue only, nothing else. Numbers on record before this date were measured against exactly this. */

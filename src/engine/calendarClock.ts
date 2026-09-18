@@ -138,6 +138,11 @@ export const VERB_DAY_COST: Record<VerbId, number> = {
   // fletchers) just above, not conversation-tier: the player is doing
   // something, not just standing there talking.
   challengeSpar: 0.25,
+  // Ask About, 17 Sep 2026 — conversation-tier, same as checkIn: reading a
+  // line of someone's file to them is a chat exchange the clock covers.
+  askAbout: 0,
+  // Gossip, 17 Sep 2026 — a question and an answer. Conversation-tier.
+  gossip: 0,
 };
 
 /**

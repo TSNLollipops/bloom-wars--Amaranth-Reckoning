@@ -312,8 +312,8 @@ const SHIP: MissionRow[] = [
   },
   {
     title: "Talking to the crew",
-    tags: ["typed verbs", ":help"],
-    desc: "Press T near someone and type. Plain phrases land as real verbs: 'hey' or 'any advice' (small talk), 'grab a drink' (Share a Drink), 'great job' (Praise), 'congrats' (Congratulate), 'sorry' (Apology), 'you're useless' (Insult — it escalates), 'here's a gift', 'ask her out', 'wish me luck' (Send-Off before a sortie), 'let's spar', 'how are you holding up' (a check-in), 'move it' (clears a doorway jam), 'peg' / 'poker' / 'darts' (the Rec Room games). Type :help for the full list, :notes for your notebook.",
+    tags: ["typed verbs", "Sec. 13", ":help"],
+    desc: "Press T near someone and type. Plain phrases land as real verbs: a greeting, a drink, praise, an insult, a gift, an apology, a check-in, a game. Every phrase the crew answers to, what it moves, and when they refuse is in Sec. 13. Type :help for the commands, :notes for your notebook.",
     tip: "Everyone answers in their own voice. The [Green] / [Blooded] / [Command] tag over a head is their career stage — G-F tier, E-D-C, or B and up.",
   },
   {
@@ -327,6 +327,157 @@ const SHIP: MissionRow[] = [
     tags: ["MENU", "SAVE..."],
     desc: "The MENU button on the ship, the Campaign Shop and the Debrief opens Save (non-Ironman only), Options, this manual and Return to Main Menu. Returning to the main menu saves first. The live save is written every time something happens aboard — a mission result, a purchase, a conversation — so a closed tab costs you at most a few steps of walking.",
     tip: "Options has EXPORT SAVE. Paste the text somewhere safe before a big browser update — browser saves can be cleared by the browser.",
+  },
+];
+
+// SEC. 13 — Crew Verbs, 17 Sep 2026 (verb plan §4, Maxime's go from
+// school). One card per thing the crew answers to. RULE, stated in the plan
+// and worth repeating here because §11's own card already broke it: every
+// phrase in `tags` is copied from the live keyword lists in
+// data/chatIntent.ts (VERB_REQUEST_KEYWORDS, the small-talk lists, the
+// colon commands, the CO-only detectors), not from memory of what they
+// were. If a keyword list changes, this is the card that goes stale. No
+// tuning numbers in `desc` (the deltas retune with tester data); the Insult
+// ladder's 3 and 6 are rules, not tuning, so they stay. Grouped by what the
+// player is trying to do, not by how the code resolves it.
+const VERBS: MissionRow[] = [
+  // Kind words
+  {
+    title: "Praise",
+    tags: ["well done", "great job", "proud of you"],
+    desc: "A kind word to one crew member. Raises how they feel about you. Works aboard ship and in a mission. In a mission, aim it: select the pilot first, or name them in the line.",
+    tip: "Repeating a verb at the same pilot in one mission pays less each time, then nothing at all.",
+  },
+  {
+    title: "Congratulate",
+    tags: ["congrats", "well earned", "you earned that"],
+    desc: "Only lands when there is something to congratulate: a promotion the crew is still talking about, or a kill they made this mission. Otherwise they ask what for, and nothing moves.",
+    tip: "The Debrief tells you who got promoted. The mission log tells you who scored.",
+  },
+  {
+    title: "Reassurance",
+    tags: ["you'll be fine", "it'll be okay", "you'll get through this"],
+    desc: "Lifts their mood and takes some of the edge off. They can only be reassured so often, so it refuses for a few minutes after it has worked once.",
+    tip: "Best on someone whose Stress bar is climbing, before it becomes a breakdown.",
+  },
+  {
+    title: "Condolences",
+    tags: ["my condolences", "for your loss"],
+    desc: "For a crew member carrying a loss. Only works while the ship is still grieving a Munti who did not come back; there is nobody to condole otherwise.",
+    tip: "Whoever is carrying it is the one who answers. Check the Archive dossiers if you are not sure who that is.",
+  },
+  {
+    title: "Gift",
+    tags: ["gift", "brought you something", "got you something"],
+    desc: "A small gesture, no inventory behind it. Raises how they feel about you, and they remember it, along with who was in the room when you did it.",
+    tip: "Memories show up on the Debrief and in their Archive dossier.",
+  },
+  // Warmth
+  {
+    title: "Flirt",
+    tags: ["you're cute", "i like you", "flirt with you"],
+    desc: "A compliment with intent. Raises how they feel about you, nothing more. Refused if they do not already think well of you, and some species keep it at close friends only.",
+    tip: "Flirt is not Ask Out. Nothing changes between you until you actually ask.",
+  },
+  {
+    title: "Ask Out",
+    tags: ["ask her out", "date me", "go out with me"],
+    desc: "The real thing. They accept or turn you down, and the whole ship hears about it either way. Needs a high opinion of you first, and the right species.",
+    tip: "A refusal costs you standing with them. Flirt first, ask later.",
+  },
+  {
+    title: "Share a Drink",
+    tags: ["drink", "booze"],
+    desc: "Rec Room only. Takes the edge off their Stress and raises how they feel about you. They are drunk for a while afterwards, which changes what they say.",
+    tip: "A pilot who is still drunk when you launch is not at their best.",
+  },
+  {
+    title: "Send-Off",
+    tags: ["wish me luck", "watch my back out there"],
+    desc: "A word before you fly. Raises their opinion of you and gives your next launch a small edge in the field. Aboard ship only; it cannot be said mid-mission.",
+    tip: "Say it to whoever is deploying. It is spent on the next launch.",
+  },
+  // Checking on them
+  {
+    title: "Check In",
+    tags: ["how are you doing", "what's wrong", "talk to me"],
+    desc: "Asks what is actually on their mind. They answer with their loudest worry, whatever it is right now. Aboard ship, and mid-mission, where they answer with what the fight has done to them.",
+    tip: "A bare \"how are you\" is a greeting everyone in earshot answers. Add \"doing\" to single one person out.",
+  },
+  {
+    title: "Ask About",
+    tags: ["where are you from", "tell me about yourself", "what's your story"],
+    desc: "Their own file, read to you one line at a time, in order, until there is nothing left on it. The first time you ask, they notice. Aboard ship only; the CO and the Meks keep theirs on the Archive table.",
+    tip: "The Archive has the whole record at once. Asking is slower and they remember that you did.",
+  },
+  // Gossip ("what do you think of Bosk") is built and gated off until its
+  // five band lines are written (data/gossip.ts). Add its card here the day
+  // the bank is filled — a manual entry for a verb that answers "not open
+  // yet" would be a lie.
+  {
+    title: "Small talk",
+    tags: ["hey", "any news", "bye", "any advice", "tell me a joke"],
+    desc: "Greeting and farewell reach everyone in earshot. \"Any news\" asks how they feel about whoever is out on a sortie. Advice and a joke go to whoever is nearest. Everyone answers in their own voice.",
+    tip: "The CO has his own answers to all of these.",
+  },
+  // Friction
+  {
+    title: "Insult",
+    tags: ["stupid", "useless", "shut up"],
+    desc: "Lands harder on some than others, and they keep count. Three and they take it to heart and the ship hears about it. Six and they will not fly with you again until you ask the CO to remove them.",
+    tip: "An apology helps. How much depends on who you insulted.",
+  },
+  {
+    title: "Apology",
+    tags: ["sorry", "forgive me", "i take it back"],
+    desc: "Repairs some of what an insult cost. Some forgive almost too readily, some barely at all.",
+    tip: "\"Sorry\" on its own is always an apology, never condolences. Say \"for your loss\" for that.",
+  },
+  {
+    title: "Challenge to Spar",
+    tags: ["let's spar", "fight me", "spar"],
+    desc: "A bout in the Spar Room, win or lose. Burns off boredom and settles who is quicker today. Not the same as two crew sparring on their own, which happens when someone is bored enough.",
+    tip: "A restless crew spars without you. Watch the Spar Room.",
+  },
+  // The Rec Room
+  {
+    title: "The Rec Room games",
+    tags: ["peg", "poker", "darts"],
+    desc: "Peg board, Texas hold'em, and Fletchers (darts), each a real game against a real opponent. A win lifts their mood and yours; a loss stings a little. Every session goes on the standings board.",
+    tip: "The crew get better with practice and so does your opponent. The board shows skill and record separately.",
+  },
+  {
+    title: "The standings board",
+    tags: ["B", "E at the board"],
+    desc: "Everyone aboard, ranked per game and overall. Points for wins and draws; skill is a separate number and the board says who is best aboard even when they are not on top. The lost keep their row.",
+    tip: "You are on the board too, ranked inline. Losing to a rookie moves your record like anyone else's.",
+  },
+  // The CO
+  {
+    title: "The CO",
+    tags: ["brief", "debrief", "build me a generator", "vent"],
+    desc: "In the Grotto. Ask for a brief and the next mission opens as a panel. Debrief after a sortie. Build requests go through him. Vent to him when it has been a lot; that is where your own Stress comes down.",
+    tip: "\"Remove <name>\" is how a standoff ends. He does not do it lightly.",
+  },
+  // Commands
+  {
+    title: "Commands",
+    tags: [":t <name>", ":notes", ":help", "move it"],
+    desc: ":t names who you are talking to, aboard or in a mission (a hostile mech you can see, too). :notes writes to your field notes. :help lists everything. \"Move it\" clears whoever is blocking a doorway.",
+    tip: "Anything without a leading colon is ordinary talk. Ask a question and the nearest crew member takes it.",
+  },
+  // Not yours to start
+  {
+    title: "Blowup, Breakdown, Spar",
+    tags: ["not typed", "what to do"],
+    desc: "The crew do these to each other and to themselves. A Blowup is two rivals boiling over. A Breakdown is one pilot past their limit. A Spar is boredom finding an outlet. You cannot start any of them.",
+    tip: "A drink, a check-in, or a game afterwards is how you help. The Spar Room turns a breakdown into a bout.",
+  },
+  {
+    title: "History and highlights",
+    tags: ["history", "highlights", "H", "L"],
+    desc: "Ask anyone for the history and you get the recent log of what the crew have been saying. Highlights is the reel of firsts and milestones. H and L open the same two panels.",
+    tip: "The history is what they said out loud. The dossier in the Archive is what they carry.",
   },
 ];
 
@@ -383,6 +534,10 @@ const SECTIONS: CodexSection[] = [
   // scene's "out-of-fiction, needs no save" register. pageCount is a
   // placeholder; renderSection sizes the real one from the notebook.
   { id: "notes", num: "12", title: "Field Notes", dek: "Your own notebook. Written from the chat box with :notes <text>, aboard or mid-mission, and kept across every campaign.", pageCount: 1 },
+  // Crew Verbs, 17 Sep 2026 — the reference §11's "Talking to the crew"
+  // card could only gesture at. pageCount is derived from the card list
+  // (two per page, renderCards) so adding a verb never desyncs the nav.
+  { id: "verbs", num: "13", title: "Crew Verbs", dek: "Every phrase the crew answers to, what it moves, and when they refuse. Press T near someone, or :t <name> from anywhere.", pageCount: 11 },
 ];
 
 export class Codex extends Phaser.Scene {
@@ -549,7 +704,7 @@ export class Codex extends Phaser.Scene {
     // FIELD NOTES' page count is the notebook's, not a static number — read
     // it fresh every render so a deletion re-sizes the nav (and clamps the
     // page) without any separate bookkeeping.
-    const pageCount = sec.id === "notes" ? notesPageCount(buildNotesRows(loadPlayerNotes())) : sec.pageCount;
+    const pageCount = sec.id === "notes" ? notesPageCount(buildNotesRows(loadPlayerNotes())) : sec.id === "verbs" ? Math.ceil(VERBS.length / 2) : sec.pageCount;
     if (this.page > pageCount - 1) this.page = pageCount - 1;
     const titleTxt = this.add
       .text(this.contentX + 24, this.contentY + 16, `SEC. ${sec.num} — ${sec.title.toUpperCase()}`, { fontFamily: "monospace", fontSize: "15px", color: PAL.accent })
@@ -582,6 +737,7 @@ export class Codex extends Phaser.Scene {
       case "missions": this.renderMissions(bodyX, bodyTop, bodyW, bodyH); break;
       case "rules": this.renderCards(RULES, bodyX, bodyTop, bodyW, bodyH); break;
       case "ship": this.renderCards(SHIP, bodyX, bodyTop, bodyW, bodyH); break;
+      case "verbs": this.renderCards(VERBS, bodyX, bodyTop, bodyW, bodyH); break;
       case "notes":
         renderFieldNotesList({
           scene: this,

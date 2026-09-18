@@ -221,12 +221,12 @@ import {
   HEIRLOOM_ABILITIES_LIVE_IN_COMBAT,
   type HeirloomId,
 } from "../data/heirlooms";
-import { createPegGame, applyMove as applyPegBoardMove, legalMovesForTurn as pegLegalMoves, pickAiMove as pickPegAiMove, type PegGameState, type PegMove } from "../engine/pegBoard";
-import { createHoldemGame, applyHoldemAction, startNextHand as startNextHoldemHand, legalActionsFor as pokerLegalActions, potTotal as pokerPotTotal, pickAiAction as pickPokerAiAction, type HoldemGameState } from "../engine/holdem";
+import { createPegGame, applyMove as applyPegBoardMove, legalMovesForTurn as pegLegalMoves, pickMove as pickPegMove, pegSkillFor, type PegGameState, type PegMove } from "../engine/pegBoard";
+import { createHoldemGame, applyHoldemAction, startNextHand as startNextHoldemHand, legalActionsFor as pokerLegalActions, potTotal as pokerPotTotal, pickSeatAction as pickPokerSeatAction, pokerSkillFor, type HoldemGameState } from "../engine/holdem";
 import type { BettingAction } from "../engine/cardTable/bettingEngine";
 import { cardLabel, cardIsRed, type Card } from "../engine/cardTable/deck";
 import { describeHand } from "../engine/cardTable/handEval";
-import { createDartsGame, throwDart, pickAiThrowValue, zoneLabel, DART_ZONE_THRESHOLDS, type DartsGameState } from "../engine/darts";
+import { createDartsGame, throwDart, pickThrowValue, dartsSkillFor, zoneLabel, DART_ZONE_THRESHOLDS, type DartsGameState, type DartsPlayerId } from "../engine/darts";
 import {
   loadCampaignState,
   saveCampaignState,
@@ -251,17 +251,19 @@ import {
 // Emotional Brain, 12 Sep 2026 (claude/Bloom_Wars_Emotional_Brain_Build_Plan_
 // v1_12Sep2026.md): recordMemory writes the Hub events a pilot carries
 // (a blowup, a breakdown, being asked out) into their persisted ledger;
-// effectiveEchoLean/settleDrift give every NPC on the floor their own
+// historyAdjustedEchoLean/settleDrift give every NPC on the floor their own
 // archetype lean plus drift, so pickSoloEcho's idle rung draws from who they
 // are and what they have been through instead of a flat coin flip.
-import { recordMemory, settleDrift } from "../engine/memoryLedger";
+import { historyAdjustedEchoLean, recordMemory, settleDrift } from "../engine/memoryLedger";
 import { topMemories } from "../data/memories";
-import { effectiveEchoLean } from "../data/echoLean";
 import { currentDay as calendarCurrentDay } from "../engine/calendarClock";
 // Rec Room Standings & NPC Learning, slice 3 (3 Sep 2026) — the player's own
 // finished sessions are now recorded on the same board the crew sit on.
-import { PLAYER_RECORD_ID, recordSession, skillFor, type RecGameId, type RecRoomState, type StandingsEntrant } from "../engine/recRoomRecord";
-import { REC_GAME_IDS } from "../data/recRoomAptitude";
+import { PLAYER_RECORD_ID, recordSession, skillFor, pairFavoriteGame, type RecGameId, type RecRoomState, type StandingsEntrant } from "../engine/recRoomRecord";
+import { askAbout, ASK_ABOUT_FAVORABILITY_DELTA } from "../engine/askAbout";
+import { gossipBankReady, gossipBandFor, pickGossipLine, GOSSIP_NOT_OPEN_LINE, GOSSIP_WHO_LINE } from "../data/gossip";
+import { genderOf } from "../data/gender";
+import { REC_GAME_IDS, OPPONENT_SKILL_FLOOR, REC_GAME_LABELS } from "../data/recRoomAptitude";
 import { StandingsPanel } from "./ui/StandingsPanel";
 import { MemorialPanel } from "./ui/MemorialPanel";
 import { RosterPanel } from "./ui/RosterPanel"; // B2, the Hangar Deck crew records // B3, the roll of pilots lost — opened from the Vault
@@ -3154,6 +3156,30 @@ export class Hub extends Phaser.Scene {
       this.checkInOnNpc(target);
       return;
     }
+    // Gossip, 17 Sep 2026 — see gossipWithNpc() and data/gossip.ts. The
+    // NAMED pilot in the line is the subject (who you're asking about), so
+    // the target is whoever you're standing next to, not resolveChatTarget's
+    // named-beats-nearest read — that would make "what do you think of
+    // Bosk" a question TO Bosk about himself.
+    if (verbId === "gossip") {
+      const target = this.nearestNpcInRange(APPROACH_RADIUS);
+      if (!target) {
+        this.showFallback("Nobody's close enough to ask.");
+        return;
+      }
+      this.gossipWithNpc(target, trimmed);
+      return;
+    }
+    // Ask About, 17 Sep 2026 — see askAboutNpc() and engine/askAbout.ts.
+    if (verbId === "askAbout") {
+      const target = this.resolveChatTarget(trimmed);
+      if (!target) {
+        this.showFallback("Nobody's close enough to ask.");
+        return;
+      }
+      this.askAboutNpc(target);
+      return;
+    }
     // Challenge to Spar, 15 Sep 2026 — room-gated to the Spar Room, same
     // shape as Share a Drink's rec-room gate above (this method's own
     // header has the full reasoning for why this isn't the ambient
@@ -3487,6 +3513,8 @@ export class Hub extends Phaser.Scene {
       case "apology": this.apologizeToNpc(npc); return;
       case "congratulate": this.congratulateNpc(npc); return;
       case "sendOff": this.sendOffNpc(npc); return;
+      case "askAbout": this.askAboutNpc(npc); return;
+      case "gossip": this.gossipWithNpc(npc, text); return;
       default: break;
     }
     const smallTalk = detectSmallTalk(text);
@@ -3692,6 +3720,22 @@ export class Hub extends Phaser.Scene {
       out[gameId] = skillFor(recRoom, npc.pilotId, npc.ambient.catalyst, gameId, path);
     }
     return out;
+  }
+
+  /**
+   * The skill the PLAYER's opponent actually plays at, 17 Sep 2026: the
+   * NPC's real learned number, floored per game (data/recRoomAptitude.ts's
+   * OPPONENT_SKILL_FLOOR has the reasoning and Maxime's numbers). Before
+   * today all three minigames played the human's opponent at the engine's
+   * flat default and ignored the record entirely — so the standings board
+   * and the opponent you faced disagreed. NPC-vs-NPC sessions keep using
+   * recRoomSkills() directly, unfloored: the floor is a player-facing
+   * guarantee, not a fact about the crew.
+   */
+  private opponentSkill(npc: HubNpc, gameId: RecGameId): number {
+    const recRoom = ensureRecRoomState(this.campaignState);
+    const raw = this.recRoomSkills(recRoom, npc)[gameId] ?? 0;
+    return Math.max(raw, OPPONENT_SKILL_FLOOR[gameId]);
   }
 
   // Stage-promotion "graduation" reveal, 27 Aug 2026 — the write-back half,
@@ -4065,6 +4109,72 @@ export class Hub extends Phaser.Scene {
     npc.socialLog = npc.socialLog ?? [];
     this.logVerbAndCharge(npc, { verb: "checkIn", line, at: Date.now() });
     this.persistNpcSocial(npc);
+  }
+
+  // Ask About, 17 Sep 2026 — "where are you from". The pilot's own Archive
+  // record read to the player one sentence at a time (engine/askAbout.ts
+  // has the whole reasoning, including why the bubble is framed as the
+  // file being read rather than the pilot speaking). The count of how far
+  // we've got is the number of "askAbout" entries already on their own
+  // socialLog, so the log line IS the progress marker — nothing else to
+  // persist. The CO and the Meks aren't in campaignState.pilots and get
+  // the no-file line; their dossiers live on the Archive table.
+  private askAboutNpc(npc: HubNpc) {
+    const now = this.time.now;
+    const entry = this.campaignState.pilots[npc.pilotId];
+    const result = askAbout(this.campaignState, entry, npc.socialLog);
+    this.showBubble(npc, result.line, now);
+    this.holdForPlayerTalk(npc);
+    if (!result.revealed) return;
+    if (result.first) npc.favorability += ASK_ABOUT_FAVORABILITY_DELTA;
+    npc.socialLog = npc.socialLog ?? [];
+    this.logVerbAndCharge(npc, { verb: "askAbout", line: result.line, at: Date.now() });
+    this.persistNpcSocial(npc);
+  }
+
+  // Gossip, 17 Sep 2026 — "what do you think of Bosk?" (data/gossip.ts has
+  // the design and the empty bank that is Maxime's to fill). The subject is
+  // the crewmate NAMED in the line, found over every NPC aboard except the
+  // target (a crewmate can't gossip about themselves); the bond is the real
+  // pair value the roaming/clique/blowup code already runs on. A read:
+  // nothing moves, but the exchange is logged so the Highlights reel gets
+  // a "First Gossip" and the history shows what they said. Gated off until
+  // every band has a line — the player gets an honest "not open yet."
+  private gossipWithNpc(target: HubNpc, raw: string) {
+    const now = this.time.now;
+    if (!gossipBankReady()) {
+      this.showFallback(GOSSIP_NOT_OPEN_LINE);
+      return;
+    }
+    const others = this.npcs.filter((n) => n.pilotId !== target.pilotId);
+    const subjectId = extractNamedTarget(raw, others.map((n) => ({ pilotId: n.pilotId, displayName: n.displayName })));
+    const subject = subjectId ? others.find((n) => n.pilotId === subjectId) : undefined;
+    if (!subject) {
+      this.showBubble(target, GOSSIP_WHO_LINE, now);
+      this.holdForPlayerTalk(target);
+      return;
+    }
+    const bond = this.npcSocial.bonds[pairKey(target.pilotId, subject.pilotId)] ?? 0;
+    const band = gossipBandFor(bond);
+    // Pronoun tokens resolve off the SUBJECT's gender: a pilot's own record
+    // through genderOf (the single read path); the CO is "him" on both
+    // ships; a Mek has no gender on record yet and reads as "they".
+    const subjectPilot = this.campaignState.pilots[subject.pilotId]?.pilot;
+    const subjectGender = subjectPilot ? genderOf(subjectPilot) : subject.pilotId === CO_PILOT_ID ? "male" : undefined;
+    // {GAME}, 17 Sep 2026 — the warm-band "I like to play X with him" line
+    // reads real Rec Room history between TARGET and SUBJECT (not either
+    // one's history with the player), via recRoomRecord.ts's own
+    // pairFavoriteGame. undefined when they've never played together;
+    // pickGossipLine already knows to skip a {GAME} line rather than
+    // render a blank when that happens.
+    const sharedGameId = pairFavoriteGame(ensureRecRoomState(this.campaignState), target.pilotId, subject.pilotId);
+    const sharedGame = sharedGameId ? REC_GAME_LABELS[sharedGameId] : undefined;
+    const line = pickGossipLine(band, target.ambient.catalyst, subject.displayName.split("—")[0].trim(), subjectGender, bond, undefined, undefined, undefined, undefined, sharedGame);
+    this.showBubble(target, line, now);
+    this.holdForPlayerTalk(target);
+    target.socialLog = target.socialLog ?? [];
+    this.logVerbAndCharge(target, { verb: "gossip", line, at: Date.now() });
+    this.persistNpcSocial(target);
   }
 
   // Challenge to Spar, 15 Sep 2026 — the player-facing counterpart to the
@@ -5765,7 +5875,11 @@ export class Hub extends Phaser.Scene {
       this.time.delayedCall(500, () => {
         const current = this.pegGame;
         if (!current || current.status !== "playing" || current.turn !== PEG_AI_SIDE) return;
-        const move = pickPegAiMove(current, PEG_AI_SIDE);
+        // 17 Sep 2026: the opponent's own learned skill, floored — see
+        // opponentSkill(). Was pickAiMove (the flat default, best move
+        // every time) regardless of who was sitting across the table.
+        const opponent = this.pegOpponent;
+        const move = pickPegMove(current, PEG_AI_SIDE, opponent ? pegSkillFor(this.opponentSkill(opponent, "pegBoard")) : undefined);
         if (!move) return; // shouldn't happen — resolveEndConditions inside applyMove would already have ended the game
         this.pegGame = applyPegBoardMove(current, move);
         this.renderPegBoard();
@@ -6034,7 +6148,11 @@ export class Hub extends Phaser.Scene {
       this.time.delayedCall(600, () => {
         const current = this.pokerGame;
         if (!current || current.status !== "playing" || current.betting.actingIndex !== 1) return;
-        applyHoldemAction(current, 1, pickPokerAiAction(current));
+        // 17 Sep 2026: seat 1 plays at the opponent's own learned skill,
+        // floored — see opponentSkill(). Was pickAiAction (the flat shipped
+        // heuristic) regardless of who was in the seat.
+        const opponent = this.pokerOpponent;
+        applyHoldemAction(current, 1, pickPokerSeatAction(current, 1, opponent ? pokerSkillFor(this.opponentSkill(opponent, "poker")) : undefined));
         this.renderPoker();
         this.maybeAdvancePoker();
       });
@@ -6362,7 +6480,11 @@ export class Hub extends Phaser.Scene {
       this.time.delayedCall(700, () => {
         const current = this.dartsGame;
         if (!current || current.status !== "playing" || current.turn !== "ai") return;
-        const aim = pickAiThrowValue();
+        // 17 Sep 2026: the opponent's own learned skill, floored — see
+        // opponentSkill(). Was pickAiThrowValue (the flat default) for
+        // every crew member alike.
+        const opponent = this.dartsOpponent;
+        const aim = pickThrowValue(opponent ? dartsSkillFor(this.opponentSkill(opponent, "fletchers")) : undefined);
         const { state, result } = throwDart(current, aim);
         this.dartsGame = state;
         this.dartsLastResultLine = `${this.dartsOpponentName()}: ${zoneLabel(result.zone)} (+${result.score})`;
@@ -6426,12 +6548,22 @@ export class Hub extends Phaser.Scene {
     return this.dartsOpponent?.displayName.split("—")[0].trim() ?? "Opponent";
   }
 
-  // Marker dots for each side's most recent throw — fixed opposite angles
-  // (human upper-left, AI upper-right) rather than a random-per-throw
-  // angle, so a redraw never makes an already-thrown dart appear to move.
-  // Radius comes straight from that throw's own accuracy, same
-  // 1-accuracy mapping the meter uses, so a dot's position on the board
-  // always matches the zone its status/result text names.
+  // Marker dots for EVERY dart thrown this session, 17 Sep 2026. Until
+  // today this drew only each side's most recent throw, on one fixed
+  // diagonal per side (human upper-left, AI upper-right) — chosen so a
+  // redraw never moved a dart, but the cost was that nine AI throws looked
+  // like a single dart twitching on the same spot (Maxime: "npc only shoot
+  // same point"), and the human's own three darts in a round never sat on
+  // the board together. Now: radius still comes straight from the throw's
+  // accuracy (same 1-accuracy mapping the meter and rings use, so a dot's
+  // ring always matches the zone the result text names), and the angle is
+  // the one darts.ts rolled and STORED on the throw when it landed — so a
+  // redraw is still stable, the original concern is honoured, and the
+  // board fills up the way a real one does. Darts from earlier rounds are
+  // dimmed so the current round reads first. Each dot carries a thin light
+  // outline because DARTS_PLAYER_COLOR and DARTS_INNER_RING_COLOR are the
+  // same value (both == ACCENT) — a player dart in the inner ring was
+  // invisible against it before.
   private drawDartsMarkers() {
     const g = this.dartsBoardGfx;
     // Re-draw the static rings first (Graphics has no per-shape removal),
@@ -6441,18 +6573,24 @@ export class Hub extends Phaser.Scene {
     if (!game) return;
     const c = DARTS_BOARD_CENTER;
     const r = DARTS_BOARD_RADIUS;
-    const lastHuman = game.throws.human[game.throws.human.length - 1];
-    const lastAi = game.throws.ai[game.throws.ai.length - 1];
-    if (lastHuman) {
-      const radius = r * (1 - lastHuman.accuracy);
-      g.fillStyle(DARTS_PLAYER_COLOR, 1);
-      g.fillCircle(c.x - radius * 0.7, c.y - radius * 0.7, 5);
-    }
-    if (lastAi) {
-      const radius = r * (1 - lastAi.accuracy);
-      g.fillStyle(DARTS_AI_COLOR, 1);
-      g.fillCircle(c.x + radius * 0.7, c.y - radius * 0.7, 5);
-    }
+    // Throws are appended in order and never removed, so a throw's index
+    // divided by darts-per-round is its round. game.round is 1-based and
+    // only advances once BOTH sides have thrown, so both sides dim in step.
+    const currentRoundStart = (game.round - 1) * game.dartsPerRound;
+    const drawSide = (side: DartsPlayerId, color: number) => {
+      game.throws[side].forEach((t, i) => {
+        const radius = r * (1 - t.accuracy);
+        const x = c.x + Math.cos(t.angle) * radius;
+        const y = c.y + Math.sin(t.angle) * radius;
+        const alpha = i >= currentRoundStart ? 1 : 0.4;
+        g.fillStyle(color, alpha);
+        g.fillCircle(x, y, 4);
+        g.lineStyle(1, DARTS_METER_MARKER_COLOR, alpha);
+        g.strokeCircle(x, y, 4);
+      });
+    };
+    drawSide("human", DARTS_PLAYER_COLOR);
+    drawSide("ai", DARTS_AI_COLOR);
   }
 
   private renderDarts() {
@@ -7391,7 +7529,11 @@ export class Hub extends Phaser.Scene {
           morale: social.morale,
           drunk: stillDrunk,
           worried: isMissionWorrySignal(this.campaignState),
-          echoLean: effectiveEchoLean(catalystForPilot(pilotId, pilot.background), echoDrift),
+          // Dual-process read (17 Sep 2026): the same lean, bent by what this
+          // pilot carries — a Rabbit who has lost three people leans harder
+          // into fear, a Shark who has lost three has gone quiet about it.
+          // engine/memoryLedger.ts's historyAdjustedEchoLean.
+          echoLean: historyAdjustedEchoLean(catalystForPilot(pilotId, pilot.background), social, echoDrift, calendarCurrentDay(this.campaignState)),
         },
         favorability: social.favorability,
         circle,

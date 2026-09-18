@@ -182,3 +182,16 @@ describe("pickAiMove", () => {
     expect(() => applyMove(state, move!)).not.toThrow();
   });
 });
+
+// 17 Sep 2026 — see darts.test.ts's OPPONENT_SKILL_FLOOR block. The peg
+// board's old flat opponent was the ceiling (bestMoveChance 1); the floor
+// is a moderate opponent on purpose so learning shows in a peg game.
+describe("OPPONENT_SKILL_FLOOR.pegBoard — a moderate, not perfect, opponent", () => {
+  it("maps to a bestMoveChance strictly between a beginner's and perfect play", async () => {
+    const { OPPONENT_SKILL_FLOOR } = await import("../../data/recRoomAptitude");
+    const { pegSkillFor, DEFAULT_PEG_SKILL } = await import("../pegBoard");
+    const floored = pegSkillFor(OPPONENT_SKILL_FLOOR.pegBoard);
+    expect(floored.bestMoveChance).toBeGreaterThan(pegSkillFor(0).bestMoveChance);
+    expect(floored.bestMoveChance).toBeLessThan(DEFAULT_PEG_SKILL.bestMoveChance);
+  });
+});

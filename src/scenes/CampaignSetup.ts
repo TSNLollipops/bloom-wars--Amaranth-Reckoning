@@ -274,7 +274,18 @@ export class CampaignSetup extends Phaser.Scene {
         state.companyName = this.resolveCompanyName(); // B6 — same "overwrite the factory default before the first save" shape as ironman right above
         saveCampaignState(state);
         const missionId = this.selectedSide === "house_amaranth" ? HOUSE_AMARANTH_ACT1[0].id : AMARANTH_ACT1[0].id;
-        this.scene.start("TransporterPad", { missionId });
+        // Universe Intro Plan v1, 17 Sep 2026 — a brand-new Warden campaign
+        // routes through the Prologue first ("so player dont arrive dry"),
+        // Maxime's explicit go-ahead that night. Continuing/loading a save
+        // never reaches this handler at all, so this only ever fires once
+        // per campaign. House Amaranth keeps going straight to
+        // TransporterPad, unchanged — its own intro is deliberately
+        // deferred to its post-EA reveal (see data/prologueIntro.ts).
+        if (this.selectedSide === "warden") {
+          this.scene.start("Prologue", { missionId, companyName: state.companyName });
+        } else {
+          this.scene.start("TransporterPad", { missionId });
+        }
       },
       [
         "Begin Campaign",

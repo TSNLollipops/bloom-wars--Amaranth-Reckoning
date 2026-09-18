@@ -1,0 +1,44 @@
+{
+  "codex": {
+    "landed": {
+      "active": true,
+      "sectionIndex": 12,
+      "page": 0
+    },
+    "lastPage": 10,
+    "missingTitles": [],
+    "sectionHeader": "SEC. 13 — CREW VERBS"
+  },
+  "hub": {
+    "active": true,
+    "opponent": "Cpl. Priya Anand — “Farsight”",
+    "askAbout": {
+      "a1": [
+        "where are you from",
+        "[from the file] Reeps. Osnian, the first of her kind Warden Company's ever fielded."
+      ],
+      "a2": [
+        "tell me about yourself",
+        "[from the file] Raised in Skeinreach's weave-mill housing, one remove from anything that could honestly be called danger, trained locally alongside people she'd go on to actually serve beside."
+      ],
+      "a3": [
+        "what's your story",
+        "[from the file] Nothing about her read is a standout, and that's the point: steady, exactly where the formation needs her, holding a Reeps line rather than chasing a kill count."
+      ],
+      "favBefore": 10,
+      "favAfter1": 11,
+      "favAfter3": 11,
+      "loggedSentences": [
+        "[from the file] Reeps. Osnian, the first of her kind Warden Company's ever fielded.",
+        "[from the file] Raised in Skeinreach's weave-mill housing, one remove from anything that could honestly be called danger, trained locally alongside people she'd go on to actually serve beside.",
+        "[from the file] Nothing about her read is a standout, and that's the point: steady, exactly where the formation needs her, holding a Reeps line rather than chasing a kill count."
+      ]
+    },
+    "gossipGate": [
+      "They keep their read on the crew to themselves — for now. Not open yet.",
+      "They keep their read on the crew to themselves — for now. Not open yet."
+    ]
+  },
+  "pageErrors": [],
+  "pass": true
+}

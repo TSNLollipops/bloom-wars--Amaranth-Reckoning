@@ -4,6 +4,7 @@ import { Boot } from "./scenes/Boot";
 import { Preloader } from "./scenes/Preloader";
 import { MainMenu } from "./scenes/MainMenu";
 import { CampaignSetup } from "./scenes/CampaignSetup";
+import { Prologue } from "./scenes/Prologue";
 import { LoadGame } from "./scenes/LoadGame";
 import { Options } from "./scenes/Options";
 import { Codex } from "./scenes/Codex";
@@ -114,7 +115,12 @@ const __bwGame = new Phaser.Game({
   // the "reading order" comment above: Boot always hands off to Preloader
   // now (see Boot.ts), which loads every portrait/splash file once before
   // handing off to wherever Boot was actually headed.
-  scene: [Boot, Preloader, MainMenu, CampaignSetup, LoadGame, Options, Codex, Archive, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub, new Hub(HOUSE_AMARANTH_FACILITY)],
+  // Prologue joins 17 Sep 2026 (Universe Intro Plan v1) — placed right
+  // after CampaignSetup, matching this array's own "reading order" comment
+  // above: CampaignSetup's BEGIN CAMPAIGN handler now hands a brand-new
+  // Warden campaign to Prologue before TransporterPad (see that handler's
+  // own comment). Continuing/loading a save never touches it.
+  scene: [Boot, Preloader, MainMenu, CampaignSetup, Prologue, LoadGame, Options, Codex, Archive, MapSelect, TransporterPad, Battle, Debrief, Hangar, Hub, new Hub(HOUSE_AMARANTH_FACILITY)],
   render: { pixelArt: false, antialias: true },
   // Build Plan §9 piece #3, 26 Aug 2026 — first use of Phaser's DOM Element
   // game object in this project, for the Hub's real typed-chat input

@@ -103,7 +103,9 @@ import {
   REASSURANCE_STRESS_DELTA,
   REASSURANCE_MORALE_DELTA,
   pickReassuranceLine,
+  type VerbLineState,
 } from "../data/socialActions";
+import { STRESS_PANIC_THRESHOLD, MORALE_PANIC_THRESHOLD } from "../data/ambientLines";
 import { CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 
 export type SocialVerb = Extract<
@@ -198,10 +200,28 @@ function scaled(delta: number, scale: number): number {
  * Never saves, never charges the calendar, never pushes a hot topic — see
  * the file header for who does each of those.
  */
+/**
+ * Which line bucket a reaction comes from, 17 Sep 2026 — read off the same
+ * persisted social state the deltas are applied to, BEFORE this verb's own
+ * delta lands (the pilot reacts as the person they were when you spoke).
+ * Precedence: drunk, then stressed, then low_morale, then idle — see
+ * data/socialActions.ts's VerbLineState. Exported so a test can pin it.
+ */
+export function verbLineStateFor(social: { stress: number; morale: number; drunkUntil?: number }, now: number): VerbLineState {
+  if (social.drunkUntil !== undefined && social.drunkUntil > now) return "drunk";
+  if (social.stress >= STRESS_PANIC_THRESHOLD) return "stressed";
+  if (social.morale <= MORALE_PANIC_THRESHOLD) return "low_morale";
+  return "idle";
+}
+
 export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubject, verb: SocialVerb, ctx: SocialVerbContext): SocialVerbResult {
   const social = ensureHubSocialState(state, subject.pilotId, subject.seed);
   const scale = repeatScale(ctx.repeatIndex ?? 0);
   const rng = ctx.rng ?? Math.random;
+  // 17 Sep 2026 — the bucket every catalyst line pick below reads from.
+  // Every bucket but idle is empty today (Maxime writes them), so this is
+  // behaviour-neutral until his lines land.
+  const lineState = verbLineStateFor(social, ctx.now);
   const base = (line: string, applied: boolean, logged: boolean = applied): SocialVerbResult => ({
     verb,
     line,
@@ -222,7 +242,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
   switch (verb) {
     case "gift": {
       social.favorability += scaled(GIFT_FAVORABILITY_DELTA, scale);
-      const line = pickGiftLine(subject.catalyst);
+      const line = pickGiftLine(subject.catalyst, lineState, rng);
       log(line);
       // Emotional Brain, 12 Sep 2026 — a gift is carried (data/memories.ts
       // `was_gifted`, warm). Only while the verb still has weight: the
@@ -233,7 +253,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
     }
     case "praise": {
       social.favorability += scaled(PRAISE_FAVORABILITY_DELTA, scale);
-      const line = pickPraiseLine(subject.catalyst);
+      const line = pickPraiseLine(subject.catalyst, lineState, rng);
       log(line);
       return base(line, true);
     }
@@ -282,7 +302,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
         social.refusesDeployment = true;
         refusesDeploymentSet = true;
       }
-      const line = pickInsultLine(subject.catalyst);
+      const line = pickInsultLine(subject.catalyst, lineState, rng);
       log(line);
       // Emotional Brain, 12 Sep 2026 — an insult is carried (`was_insulted`).
       // Anger for most archetypes; a Rabbit takes it as hurt, a Bear as
@@ -295,7 +315,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
     }
     case "apology": {
       social.favorability += scaled(APOLOGY_FAVORABILITY_DELTA[subject.catalyst], scale);
-      const line = pickApologyLine(subject.catalyst);
+      const line = pickApologyLine(subject.catalyst, lineState, rng);
       log(line);
       return base(line, true);
     }
@@ -304,14 +324,14 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
       if (!topic && !ctx.killCredit) return base("Congrats for what?", false);
       social.favorability += scaled(CONGRATULATE_FAVORABILITY_DELTA, scale);
       social.morale = clamp100(social.morale + scaled(CONGRATULATE_MORALE_DELTA, scale));
-      const line = pickCongratulateLine(subject.catalyst);
+      const line = pickCongratulateLine(subject.catalyst, lineState, rng);
       log(line);
       return base(line, true);
     }
     case "sendOff": {
       social.favorability += scaled(SEND_OFF_FAVORABILITY_DELTA, scale);
       social.stress = clamp100(social.stress + scaled(SEND_OFF_STRESS_DELTA, scale));
-      const line = pickSendOffLine(subject.catalyst);
+      const line = pickSendOffLine(subject.catalyst, lineState, rng);
       log(line);
       return { ...base(line, true), sendOff: true };
     }
@@ -324,7 +344,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
       if (!topic) return base("Comfort them about what? Nobody's been lost.", false);
       social.favorability += scaled(CONDOLENCE_FAVORABILITY_DELTA, scale);
       social.stress = clamp100(social.stress + scaled(CONDOLENCE_STRESS_DELTA, scale));
-      const line = pickCondolenceLine(subject.catalyst);
+      const line = pickCondolenceLine(subject.catalyst, lineState, rng);
       log(line);
       return base(line, true);
     }
@@ -335,7 +355,7 @@ export function resolveSocialVerb(state: CampaignState, subject: SocialVerbSubje
     case "reassurance": {
       social.stress = clamp100(social.stress + scaled(REASSURANCE_STRESS_DELTA, scale));
       social.morale = clamp100(social.morale + scaled(REASSURANCE_MORALE_DELTA, scale));
-      const line = pickReassuranceLine(subject.catalyst);
+      const line = pickReassuranceLine(subject.catalyst, lineState, rng);
       log(line);
       return base(line, true);
     }

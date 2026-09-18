@@ -177,7 +177,9 @@ export type VerbId =
   | "condolences"
   | "reassurance"
   | "checkIn"
-  | "challengeSpar";
+  | "challengeSpar"
+  | "askAbout"
+  | "gossip";
 
 export interface VerbRequirements {
   minFavorability?: number;
@@ -265,6 +267,21 @@ export const VERBS: Record<VerbId, VerbDef> = {
   reassurance: { id: "reassurance", label: "Reassurance", broadcast: false },
   checkIn: { id: "checkIn", label: "Check In", broadcast: false },
   challengeSpar: { id: "challengeSpar", label: "Challenge to Spar", broadcast: false },
+  // askAbout, 17 Sep 2026 — verb plan §6 #2. "where are you from" / "tell me
+  // about yourself": the pilot's own Archive record, read to the player one
+  // sentence at a time, in order, tracked through their socialLog so it
+  // rotates and can't be farmed. Zero new character lines — the whole
+  // reason it could ship pre-EA. Resolves in engine/askAbout.ts (shape D,
+  // like checkIn: its own small read, not the generic resolver), Hub.ts
+  // applies the one-time Favorability nudge and the bubble.
+  askAbout: { id: "askAbout", label: "Ask About", broadcast: false },
+  // gossip, 17 Sep 2026 — verb plan §6 #1. "what do you think of Bosk?":
+  // the target says how they feel about a NAMED crewmate, read off the
+  // real bond store (data/npcBonds.ts) — the first time the player can see
+  // the bond graph the sim has run on since 26 Aug. A read, no delta.
+  // Ships gated off until Maxime's five band lines are in data/gossip.ts
+  // (gossipBankReady); Hub.ts answers "not open yet" until then.
+  gossip: { id: "gossip", label: "Gossip", broadcast: false },
 };
 
 // The "Log entry" §3 asks for ("feeds the social-history record... it's

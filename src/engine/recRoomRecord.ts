@@ -18,6 +18,7 @@
 import type { Catalyst } from "../data/ambientLines";
 import type { Path } from "../data/types";
 import { REC_GAME_IDS, aptitudeFor, type RecGameId } from "../data/recRoomAptitude";
+import { pairKey } from "../data/npcBonds";
 
 export type { RecGameId } from "../data/recRoomAptitude";
 
@@ -32,6 +33,14 @@ export interface GameRecord {
 
 export interface RecRoomState {
   records: Record<string, Partial<Record<RecGameId, GameRecord>>>;
+  // Added 17 Sep 2026 for Gossip's warm line ("I like to play darts with
+  // him, depending on history" — Maxime's ask). `records` above already
+  // knows a pilot played darts 12 times; it does NOT know who they played
+  // it WITH — no field on this file tracked that until now. pairKey-keyed
+  // (data/npcBonds.ts, same "sort the two ids, join them" as the bond
+  // store), one count per game per pair. Optional so an old save with no
+  // `pairSessions` field just reads as "no history yet" — no migration.
+  pairSessions?: Record<string, Partial<Record<RecGameId, number>>>;
 }
 
 // Rourke sits in the same map as the crew, per Maxime's own call: "you sit
@@ -175,6 +184,44 @@ export function recordSession(state: RecRoomState, entry: SessionEntry): void {
   if (entry.a === entry.b) return;
   applySide(state, entry.a, entry, entry.bestA);
   applySide(state, entry.b, entry, entry.bestB);
+  recordPairSession(state, entry.a, entry.b, entry.gameId);
+}
+
+function recordPairSession(state: RecRoomState, a: string, b: string, gameId: RecGameId): void {
+  if (!state.pairSessions) state.pairSessions = {};
+  const key = pairKey(a, b);
+  let byGame = state.pairSessions[key];
+  if (!byGame) {
+    byGame = {};
+    state.pairSessions[key] = byGame;
+  }
+  byGame[gameId] = (byGame[gameId] ?? 0) + 1;
+}
+
+/** How many times this pair has played a given game together, or 0. */
+export function pairSessionsFor(state: RecRoomState, idA: string, idB: string, gameId: RecGameId): number {
+  return state.pairSessions?.[pairKey(idA, idB)]?.[gameId] ?? 0;
+}
+
+/**
+ * The game this pair has played together the most, or undefined if
+ * they've never shared a Rec Room session at all. Ties go to whichever
+ * game comes first in REC_GAME_IDS — arbitrary, but deterministic, which
+ * is the property a line-picker actually needs.
+ */
+export function pairFavoriteGame(state: RecRoomState, idA: string, idB: string): RecGameId | undefined {
+  const byGame = state.pairSessions?.[pairKey(idA, idB)];
+  if (!byGame) return undefined;
+  let best: RecGameId | undefined;
+  let bestCount = 0;
+  for (const gameId of REC_GAME_IDS) {
+    const count = byGame[gameId] ?? 0;
+    if (count > bestCount) {
+      best = gameId;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 // ---- The board ---------------------------------------------------------

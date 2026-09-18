@@ -5,6 +5,7 @@
 // index.ts and risk a cycle.
 import type { Coord } from "../../data/types";
 import type { ThreatMap } from "../../engine/threat";
+import type { BattleUnit } from "../../engine/units";
 
 export interface PlayerAiDecision {
   path?: Coord[]; // full path incl. start; last element is the move destination
@@ -54,6 +55,8 @@ export interface PlayerAiDecision {
   targetTile?: Coord;
   /** For "recover_capsule" (ejection capsules, 15 Sep 2026): which capsule — Mission.recoverCapsule's own `capsuleId`. */
   capsuleId?: string;
+  /** For the Heirloom verbs that name a unit (deadfall_strike, last_word, last_rites): which one. */
+  abilityTargetId?: string;
 }
 
 /**
@@ -79,7 +82,28 @@ export type PlayerAiAction =
   // Ejection capsules (15 Sep 2026): recover a friendly capsule (Munti) or
   // capture an enemy one (anyone) — Mission.recoverCapsule. 1 action,
   // turn continues, so it's a repeatable verb in driveMission.
-  | "recover_capsule";
+  | "recover_capsule"
+  // Heirloom and Signature verbs (17 Sep 2026, Player Bot Reuse Plan §1c —
+  // sim/playerAi/heirlooms.ts). Each maps 1:1 onto the Mission verb of the
+  // same idea. The first group costs 1 action and the turn continues
+  // (repeatable in driveMission); the second group ends the unit's turn.
+  | "field_triage" // Mission.fieldTriage
+  | "farsight" // Mission.farsightSignature
+  | "overextend" // Mission.ledgerOverextended
+  | "oathkeeper" // Mission.oathkeeper
+  | "sure_footing" // Mission.cuttingRoomSureFooting
+  | "firebreak" // Mission.firebreak
+  | "draft" // Mission.draft
+  | "borrowed_authority" // Mission.sealBorrowedAuthority
+  | "last_word" // Mission.lastWordSignature (abilityTargetId)
+  | "last_rites" // Mission.lastRites (abilityTargetId)
+  | "iron_word" // Mission.ironWord — ends the turn
+  | "deadfall_strike" // Mission.deadfallStrike (abilityTargetId) — ends the turn
+  | "cinder_line" // Mission.cinderLineSignature (targetTile) — ends the turn
+  | "cutting_room_charge" // Mission.cuttingRoomCharge (targetTile) — ends the turn
+  | "requiem" // Mission.requiemSeverance (targetTile) — ends the turn
+  // Beacon Control (17 Sep 2026): revive a downed ally in reach — Mission.useBeaconControl (abilityTargetId). 1 action, turn continues.
+  | "beacon";
 
 export type PlayerAiTier = "easy" | "moderate" | "hard" | "legacy";
 
@@ -111,10 +135,17 @@ export interface PlayerAiMemory {
   squadStallTurns: number;
   /** Set by the driver for the turn after squadStallTurns reaches its limit: caution and hold-in-place postures (overwatch / interdict / ambush, Hard's bars) are suspended so the squad engages. Any tier can stall on a hostile line that doesn't see it. */
   commitThisTurn: boolean;
+  /**
+   * Which side this memory's squad fights for (17 Sep 2026, Player Bot
+   * Reuse Plan §2b). "player" for every caller before that date. The
+   * threat map cache (hard.ts threatMapFor) reads it to know whose reach
+   * to map: the other side's.
+   */
+  side: "player" | "hostile";
 }
 
-export function createPlayerAiMemory(rng: () => number = Math.random): PlayerAiMemory {
-  return { rng, lastSweepTurn: new Map(), lastTauntTurn: new Map(), lastStrikeTurn: -99, lastSeen: new Map(), plannedPositions: new Map(), stalledTurns: new Map(), pendingVips: new Set(), squadStallTurns: 0, commitThisTurn: false };
+export function createPlayerAiMemory(rng: () => number = Math.random, side: "player" | "hostile" = "player"): PlayerAiMemory {
+  return { rng, lastSweepTurn: new Map(), lastTauntTurn: new Map(), lastStrikeTurn: -99, lastSeen: new Map(), plannedPositions: new Map(), stalledTurns: new Map(), pendingVips: new Set(), squadStallTurns: 0, commitThisTurn: false, side };
 }
 
 /**
@@ -154,7 +185,8 @@ export interface PlayerAiMissionContext {
     readonly objectiveParams: { extractUnitId?: string; holdUntilTurn?: number; turnLimit?: number };
     readonly bonusObjective?: { kind: "rescue_pilot" } | { kind: "clear_bloom_patch" };
   };
-  readonly map: { holdZone?: Coord[]; exitTiles?: Coord[] };
+  /** defendZone: protect_asset's perimeter (17 Sep 2026) — a hostile standing on it damages the asset. */
+  readonly map: { holdZone?: Coord[]; exitTiles?: Coord[]; defendZone?: Coord[] };
   /** Squad-shared Fire Support charges (tiers pass, 1 Sep 2026) — Mission's own public field; optional so hand-built test contexts still type-check. */
   readonly fireSupportChargesRemaining?: number;
   /** Mission.fireSupportBonusChargeReady — the Weapons Bay's reserve line. Optional for the same reason. */
@@ -184,6 +216,41 @@ export interface PlayerAiMissionContext {
   readonly previewMaserLanceCone?: (unitId: string, target: Coord) => Coord[] | null;
   /** Mission.getRecoverableCapsules (ejection capsules, 15 Sep 2026) — the capsules this unit could secure right now. Optional so hand-built test contexts still type-check. */
   readonly getRecoverableCapsules?: (unitId: string) => readonly { id: string; side: "player" | "hostile" }[];
+  // ---- Heirloom and Signature verbs (17 Sep 2026, sim/playerAi/heirlooms.ts) ----
+  // Every one mirrors the Mission method of the same name exactly, and is
+  // optional for the same reason the ones above are: a hand-built test
+  // context that never exercises an Heirloom still type-checks. The bot
+  // asks the engine's own gates instead of re-deriving cooldowns, charges
+  // and the Requiem meter.
+  readonly canIronWord?: (unitId: string) => boolean;
+  readonly canFieldTriage?: (unitId: string) => boolean;
+  readonly getFieldTriageTargetsFrom?: (unitId: string, from: Coord) => BattleUnit[];
+  readonly canFarsightSignature?: (unitId: string) => boolean;
+  readonly canLedgerOverextended?: (unitId: string) => boolean;
+  readonly canOathkeeper?: (unitId: string) => boolean;
+  readonly canDeadfallStrike?: (unitId: string) => boolean;
+  readonly getDeadfallStrikeTargetsFrom?: (unitId: string) => BattleUnit[];
+  readonly canCinderLineSignature?: (unitId: string) => boolean;
+  readonly getCinderLineAreaFrom?: (unitId: string, from: Coord) => Coord[];
+  readonly previewCinderLineFrom?: (unitId: string, target: Coord) => Coord[] | null;
+  readonly canFirebreak?: (unitId: string) => boolean;
+  readonly canDraft?: (unitId: string) => boolean;
+  readonly getActiveSurtrLines?: () => readonly { ownerId: string; tiles: Coord[]; turnsRemaining: number; friendlyImmuneTurnsRemaining: number }[];
+  readonly canCuttingRoomCharge?: (unitId: string) => boolean;
+  readonly getCuttingRoomChargeAreaFrom?: (unitId: string, from: Coord) => Coord[];
+  readonly previewCuttingRoomChargeFrom?: (unitId: string, target: Coord) => Coord[] | null;
+  readonly canCuttingRoomSureFooting?: (unitId: string) => boolean;
+  readonly canLastWordSignature?: (unitId: string) => boolean;
+  readonly getLastWordSignatureTargetsFrom?: (unitId: string) => BattleUnit[];
+  readonly canLastRites?: (unitId: string) => boolean;
+  readonly getLastRitesTargetsFrom?: (unitId: string) => BattleUnit[];
+  readonly canSealBorrowedAuthority?: (unitId: string) => boolean;
+  readonly canRequiemSeverance?: (unitId: string) => boolean;
+  readonly getRequiemDirectionTargets?: (unitId: string) => Coord[];
+  readonly previewRequiemSeverance?: (unitId: string, target: Coord) => Coord[] | null;
+  /** Beacon Control (17 Sep 2026): Mission.canPlaceBeacon / getBeaconTargetsFrom. */
+  readonly canPlaceBeacon?: (unitId: string) => boolean;
+  readonly getBeaconTargetsFrom?: (unitId: string) => BattleUnit[];
 }
 
 export type PlayerAiReason =
@@ -220,7 +287,10 @@ export type PlayerAiReason =
   | "repair_move" // Munti walked into repair range of a hurt ally and healed (repairPathing)
   | "explore" // fog-honest and nothing visible — moved toward the nearest enemy spawn seam / deploy zone
   | "preempt_retreat" // Hard: predicted incoming on my tile was lethal-ish — moved before it landed
-  | "mistake"; // Easy: took the second-best option on purpose (mistakeChance)
+  | "mistake" // Easy: took the second-best option on purpose (mistakeChance)
+  | "beacon" // dropped a beacon on a downed ally in reach — full restock (17 Sep 2026)
+  | "defend_asset" // protect_asset: shooting, closing on, or waiting for a hostile that can reach the perimeter next turn (17 Sep 2026)
+  | "heirloom"; // used an Heirloom or Signature verb — the note says which and why (17 Sep 2026, sim/playerAi/heirlooms.ts)
 
 export interface PlayerAiLogEntry {
   turn: number;

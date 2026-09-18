@@ -22,12 +22,12 @@ import {
   CONGRATULATE_MORALE_DELTA,
   SEND_OFF_FAVORABILITY_DELTA,
   SEND_OFF_STRESS_DELTA,
-  GIFT_LINES,
-  PRAISE_LINES,
-  INSULT_LINES,
-  APOLOGY_LINES,
-  CONGRATULATE_LINES,
-  SEND_OFF_LINES,
+  GIFT_IDLE_LINES,
+  PRAISE_IDLE_LINES,
+  INSULT_IDLE_LINES,
+  APOLOGY_IDLE_LINES,
+  CONGRATULATE_IDLE_LINES,
+  SEND_OFF_IDLE_LINES,
 } from "../../data/socialActions";
 import { CLOSE_FRIEND_ONLY_LINES } from "../../data/romance";
 import type { HotTopic } from "../../data/hotTopics";
@@ -44,17 +44,17 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     expect(r.applied).toBe(true);
     expect(r.logged).toBe(true);
     expect(r.favorability).toBe(SEED.favorability + GIFT_FAVORABILITY_DELTA);
-    expect(r.line).toBe(GIFT_LINES.wolf);
+    expect(r.line).toBe(GIFT_IDLE_LINES.wolf);
     const social = ensureHubSocialState(s, "pilot_bosk", SEED);
     expect(social.favorability).toBe(r.favorability);
-    expect(social.socialLog).toEqual([{ verb: "gift", line: GIFT_LINES.wolf, at: 1_000 }]);
+    expect(social.socialLog).toEqual([{ verb: "gift", line: GIFT_IDLE_LINES.wolf, at: 1_000 }]);
   });
 
   it("Praise: +PRAISE_FAVORABILITY_DELTA, the catalyst's praise line", () => {
     const s = createWardenCampaignState(0);
     const r = resolveSocialVerb(s, bosk, "praise", ctx());
     expect(r.favorability).toBe(PRAISE_FAVORABILITY_DELTA);
-    expect(r.line).toBe(PRAISE_LINES.wolf);
+    expect(r.line).toBe(PRAISE_IDLE_LINES.wolf);
   });
 
   it("Flirt on a romanceable pilot already at/above the Favorability gate: +FLIRT_FAVORABILITY_DELTA, a flirt line", () => {
@@ -92,7 +92,7 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     social.refusesDeployment = true;
     const r = resolveSocialVerb(s, bosk, "apology", ctx());
     expect(r.favorability).toBe(APOLOGY_FAVORABILITY_DELTA.wolf);
-    expect(r.line).toBe(APOLOGY_LINES.wolf);
+    expect(r.line).toBe(APOLOGY_IDLE_LINES.wolf);
     expect(social.insultsGiven).toBe(5);
     expect(social.refusesDeployment).toBe(true);
   });
@@ -118,7 +118,7 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     expect(r.favorability).toBe(CONGRATULATE_FAVORABILITY_DELTA);
     expect(r.morale).toBe(100);
     expect(CONGRATULATE_MORALE_DELTA).toBeGreaterThan(2); // the clamp above is only meaningful if the delta would overshoot
-    expect(r.line).toBe(CONGRATULATE_LINES.wolf);
+    expect(r.line).toBe(CONGRATULATE_IDLE_LINES.wolf);
   });
 
   it("Congratulate with no live topic but killCredit set: treated the same as a live topic, same line bank, no new dialogue needed", () => {
@@ -127,7 +127,7 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     expect(r.applied).toBe(true);
     expect(r.logged).toBe(true);
     expect(r.favorability).toBe(CONGRATULATE_FAVORABILITY_DELTA);
-    expect(r.line).toBe(CONGRATULATE_LINES.wolf);
+    expect(r.line).toBe(CONGRATULATE_IDLE_LINES.wolf);
   });
 
   it("Congratulate with neither a live topic nor killCredit: still refused", () => {
@@ -146,7 +146,7 @@ describe("resolveSocialVerb — parity with the Hub's own pre-extraction handler
     expect(r.stress).toBe(0);
     expect(SEND_OFF_STRESS_DELTA).toBeLessThan(-2);
     expect(r.sendOff).toBe(true);
-    expect(r.line).toBe(SEND_OFF_LINES.wolf);
+    expect(r.line).toBe(SEND_OFF_IDLE_LINES.wolf);
   });
 });
 
@@ -155,7 +155,7 @@ describe("resolveSocialVerb — the Insult ladder", () => {
     const s = createWardenCampaignState(0);
     const r = resolveSocialVerb(s, bosk, "insult", ctx());
     expect(r.favorability).toBe(INSULT_FAVORABILITY_DELTA.wolf);
-    expect(r.line).toBe(INSULT_LINES.wolf);
+    expect(r.line).toBe(INSULT_IDLE_LINES.wolf);
     expect(r.hotTopic).toBeUndefined();
     expect(r.refusesDeploymentSet).toBe(false);
     expect(ensureHubSocialState(s, "pilot_bosk", SEED).insultsGiven).toBe(1);
@@ -210,7 +210,7 @@ describe("resolveSocialVerb — diminishing returns on repeats (mission chat onl
     expect(third.favorability).toBe(second.favorability + 1); // trunc(4 * 0.25) = 1
     const fifth = resolveSocialVerb(s, bosk, "praise", ctx([], 4));
     expect(fifth.favorability).toBe(third.favorability);
-    expect(fifth.line).toBe(PRAISE_LINES.wolf);
+    expect(fifth.line).toBe(PRAISE_IDLE_LINES.wolf);
     expect(fifth.applied).toBe(true);
     expect(fifth.scale).toBe(0);
   });
@@ -229,5 +229,59 @@ describe("isSocialVerb", () => {
     expect(isSocialVerb("askOut")).toBe(false);
     expect(isSocialVerb(null)).toBe(false);
     expect(isSocialVerb(undefined)).toBe(false);
+  });
+});
+
+
+// 17 Sep 2026 — the line banks moved to state buckets (data/socialActions.ts
+// VerbLineBank). Every bucket but idle ships EMPTY (Maxime writes them), so
+// the tests above keep asserting the authored idle line. These pin the
+// mechanism so his lines land somewhere that works.
+describe("verb line buckets (17 Sep 2026)", () => {
+  it("verbLineStateFor: drunk beats stressed beats low_morale beats idle", async () => {
+    const { verbLineStateFor } = await import("../socialVerbResolution");
+    const { STRESS_PANIC_THRESHOLD, MORALE_PANIC_THRESHOLD } = await import("../../data/ambientLines");
+    expect(verbLineStateFor({ stress: 10, morale: 80 }, 1000)).toBe("idle");
+    expect(verbLineStateFor({ stress: STRESS_PANIC_THRESHOLD, morale: 80 }, 1000)).toBe("stressed");
+    expect(verbLineStateFor({ stress: 10, morale: MORALE_PANIC_THRESHOLD }, 1000)).toBe("low_morale");
+    expect(verbLineStateFor({ stress: 99, morale: 1, drunkUntil: 2000 }, 1000)).toBe("drunk");
+    expect(verbLineStateFor({ stress: 99, morale: 1, drunkUntil: 500 }, 1000)).toBe("stressed");
+  });
+
+  it("pickVerbLine: an empty or missing bucket falls back to idle; a filled one is picked with the rng", async () => {
+    const { pickVerbLine } = await import("../../data/socialActions");
+    const bank = {
+      wolf: { idle: ["idle-only"], drunk: [] },
+      dog: { idle: ["dog-idle"], stressed: ["dog-stressed-a", "dog-stressed-b"] },
+    } as unknown as Parameters<typeof pickVerbLine>[0];
+    expect(pickVerbLine(bank, "wolf", "drunk", () => 0)).toBe("idle-only");
+    expect(pickVerbLine(bank, "wolf", "low_morale", () => 0)).toBe("idle-only");
+    expect(pickVerbLine(bank, "dog", "stressed", () => 0)).toBe("dog-stressed-a");
+    expect(pickVerbLine(bank, "dog", "stressed", () => 0.99)).toBe("dog-stressed-b");
+    expect(pickVerbLine(bank, "dog", "idle", () => 0.5)).toBe("dog-idle");
+  });
+
+  it("every shipped bank has a non-empty idle bucket for all nine catalysts, and every idle line is the authored one", async () => {
+    const sa = await import("../../data/socialActions");
+    const pairs: [keyof typeof sa, keyof typeof sa][] = [
+      ["GIFT_LINES", "GIFT_IDLE_LINES"], ["PRAISE_LINES", "PRAISE_IDLE_LINES"], ["INSULT_LINES", "INSULT_IDLE_LINES"],
+      ["APOLOGY_LINES", "APOLOGY_IDLE_LINES"], ["CONGRATULATE_LINES", "CONGRATULATE_IDLE_LINES"], ["SEND_OFF_LINES", "SEND_OFF_IDLE_LINES"],
+      ["CONDOLENCE_LINES", "CONDOLENCE_IDLE_LINES"], ["REASSURANCE_LINES", "REASSURANCE_IDLE_LINES"],
+    ];
+    for (const [bankKey, idleKey] of pairs) {
+      const bank = sa[bankKey] as Record<string, { idle: string[] }>;
+      const idle = sa[idleKey] as Record<string, string>;
+      expect(Object.keys(bank)).toHaveLength(9);
+      for (const c of Object.keys(bank)) {
+        expect(bank[c].idle).toEqual([idle[c]]);
+      }
+    }
+  });
+
+  it("a stressed pilot still gets the authored idle line while the stressed bucket is empty (behaviour-neutral migration)", () => {
+    const state = createWardenCampaignState(1);
+    const subject: SocialVerbSubject = { pilotId: "pilot_bosk", displayName: "Bosk — Ironwood", catalyst: "wolf", romanceable: true, seed: { favorability: 0, stress: 95, morale: 5 } };
+    const r = resolveSocialVerb(state, subject, "praise", { hotTopics: [], now: 1_000, rng: () => 0 });
+    expect(r.line).toBe(PRAISE_IDLE_LINES.wolf);
   });
 });

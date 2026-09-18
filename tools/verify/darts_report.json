@@ -1,0 +1,66 @@
+{
+  "sceneReady": "active",
+  "skillInfo": {
+    "raw": 0,
+    "effective": 59
+  },
+  "openedVia": "chat",
+  "played": true,
+  "throwsHuman": 9,
+  "throwsAi": 9,
+  "distinctAiAngles": 9,
+  "pass": true,
+  "final": {
+    "status": "over",
+    "winner": "ai",
+    "totals": {
+      "human": 160,
+      "ai": 170
+    },
+    "humanAngles": [
+      0.06,
+      3.03,
+      0.24,
+      3.14,
+      1.5,
+      4.73,
+      0.93,
+      1.05,
+      6.13
+    ],
+    "aiAngles": [
+      3.95,
+      5.35,
+      4.23,
+      0.25,
+      2.93,
+      3.88,
+      3.62,
+      3.55,
+      3.35
+    ],
+    "humanAcc": [
+      0.36,
+      0.6,
+      0.61,
+      0.3,
+      0.62,
+      0.53,
+      0.61,
+      0.66,
+      0.67
+    ],
+    "aiAcc": [
+      0.33,
+      0.76,
+      0.38,
+      0.91,
+      0.88,
+      0.51,
+      0.35,
+      0.58,
+      0.4
+    ]
+  },
+  "pageErrors": []
+}

@@ -124,9 +124,20 @@ describe("checkWinLoss — clear_bloom objective", () => {
 
   it("never fails on turn count alone (house rule #5, extended to clear_bloom) — staying past objectiveParams.turnLimit does not end the mission", () => {
     const mission = new Mission(AMARANTH_MISSION_3);
-    for (const u of mission.units) if (u.side === "hostile") u.downed = true;
     expect(AMARANTH_MISSION_3.objectiveParams.turnLimit).toBe(12);
-    for (let i = 0; i < 13; i++) mission.endPlayerTurn();
+    // Down the hostiles EVERY turn, not just at construction (17 Sep 2026).
+    // This mission's bloom keeps spawning: downing the starting units once
+    // left a fresh Crawlmass beating the commander down before turn 13 in
+    // about one run in five, ending the mission on commander_down and
+    // failing this test for a reason it is not about. The dodge roll that
+    // decided it goes through rollMeepsDodge's unseeded Math.random default,
+    // so it never reproduced twice the same way. Clearing the board each
+    // turn leaves the turn count as the only thing that could end the
+    // mission, which is the property this test actually claims.
+    for (let i = 0; i < 13; i++) {
+      for (const u of mission.units) if (u.side === "hostile") u.downed = true;
+      mission.endPlayerTurn();
+    }
     expect(mission.turn).toBeGreaterThan(12);
     expect(mission.outcome).toBe("ongoing");
   });

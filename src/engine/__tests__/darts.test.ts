@@ -212,3 +212,60 @@ describe("pickAiThrowValue", () => {
     expect(zones.size).toBeGreaterThan(1);
   });
 });
+
+// 17 Sep 2026 — every throw lands at a real point on the board, not just a
+// ring. The angle is rolled once and stored on the throw (see DartThrow's
+// own comment) so the Hub can redraw without moving anything.
+describe("DartThrow.angle — a landed dart has a stable place on the board", () => {
+  it("every throw carries an angle in 0..2π", () => {
+    let game = createDartsGame();
+    while (game.status === "playing") {
+      const { state, result } = throwDart(game, 0.5);
+      game = state;
+      expect(result.angle).toBeGreaterThanOrEqual(0);
+      expect(result.angle).toBeLessThan(Math.PI * 2);
+    }
+    const all = [...game.throws.human, ...game.throws.ai];
+    expect(all).toHaveLength(DARTS_TOTAL_ROUNDS * DARTS_PER_ROUND * 2);
+    for (const t of all) expect(typeof t.angle).toBe("number");
+  });
+
+  it("nine darts do not all share one angle — the 'same point' look is gone", () => {
+    let game = createDartsGame();
+    while (game.status === "playing") game = throwDart(game, 0.62).state;
+    const angles = new Set(game.throws.ai.map((t) => t.angle.toFixed(3)));
+    expect(angles.size).toBeGreaterThan(1);
+  });
+
+  it("the stored angle on an earlier throw is untouched by later throws", () => {
+    let game = createDartsGame();
+    const first = throwDart(game, 0.8);
+    game = first.state;
+    const firstAngle = first.result.angle;
+    while (game.status === "playing") game = throwDart(game, 0.3).state;
+    expect(game.throws.human[0].angle).toBe(firstAngle);
+  });
+});
+
+// 17 Sep 2026 — the player's opponent now plays at their real learned
+// skill, floored (data/recRoomAptitude.ts's OPPONENT_SKILL_FLOOR). The
+// darts floor was chosen to match today's flat opponent's MEAN. Its spread
+// is deliberately wider (the 3 Sep retune keeps spread wide at every skill
+// so "a good thrower is better, not immune to a bad round"), so a floored
+// opponent averages what today's did with more swing either way.
+describe("OPPONENT_SKILL_FLOOR.fletchers — matches the old flat opponent's mean", () => {
+  it("floored skill maps to at least the default mean", async () => {
+    const { OPPONENT_SKILL_FLOOR } = await import("../../data/recRoomAptitude");
+    const { dartsSkillFor, DEFAULT_DARTS_SKILL } = await import("../darts");
+    const floored = dartsSkillFor(OPPONENT_SKILL_FLOOR.fletchers);
+    expect(floored.mean).toBeGreaterThanOrEqual(DEFAULT_DARTS_SKILL.mean - 0.005);
+    expect(floored.spread).toBeGreaterThan(0);
+    expect(floored.spread).toBeLessThan(0.44); // strictly tighter than a skill-0 thrower
+  });
+
+  it("a skill above the floor is never pulled down by it", async () => {
+    const { OPPONENT_SKILL_FLOOR } = await import("../../data/recRoomAptitude");
+    expect(Math.max(90, OPPONENT_SKILL_FLOOR.fletchers)).toBe(90);
+    expect(Math.max(10, OPPONENT_SKILL_FLOOR.fletchers)).toBe(OPPONENT_SKILL_FLOOR.fletchers);
+  });
+});

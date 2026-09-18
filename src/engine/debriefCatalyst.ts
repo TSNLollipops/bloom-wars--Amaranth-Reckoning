@@ -52,8 +52,8 @@ import { pickSoloEcho, stageFromTier, type AmbientPilotState, type Echo } from "
 import { catalystForPilot, NPC_BOND_SEED } from "../data/npcSeed";
 import type { WorryEntry, WorrySourceId } from "../data/worries";
 import { MEMORY_BIRTH_WEIGHT, type MemoryEntry, type MemoryKind } from "../data/memories";
-import { effectiveEchoLean } from "../data/echoLean";
-import { recordMemory, settleDrift, socialStateFor } from "./memoryLedger";
+import { reactionWeight } from "./pillars";
+import { historyAdjustedEchoLean, recordMemory, settleDrift, socialStateFor } from "./memoryLedger";
 import { ECHO_BOND_LEAN, type GriefBondShift, type GriefCatalystResult } from "./griefCatalyst";
 import { UNIT_ARCHETYPES } from "../data/units";
 
@@ -173,8 +173,8 @@ function clamp100(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function scaledTake(base: { stress: number; morale: number }, intensity: number, echo: Echo): { stress: number; morale: number } {
-  const k = INTENSITY_FLOOR + Math.max(0, Math.min(1, intensity));
+function scaledTake(base: { stress: number; morale: number }, intensity: number, echo: Echo, pillars = 1): { stress: number; morale: number } {
+  const k = (INTENSITY_FLOOR + Math.max(0, Math.min(1, intensity))) * Math.max(0, Math.min(1, pillars));
   const t = ECHO_TAKE[echo];
   const stress = base.stress > 0 ? base.stress * k * t.stressUp : base.stress * k;
   const morale = base.morale > 0 ? base.morale * k * t.moraleUp : base.morale * k * t.moraleDown;
@@ -222,7 +222,7 @@ export function runDebriefCatalyst(state: CampaignState, input: DebriefCatalystI
       stress: social.stress,
       morale: social.morale,
       drunk: !!social.drunkUntil && social.drunkUntil > now,
-      echoLean: effectiveEchoLean(catalyst, drift),
+      echoLean: historyAdjustedEchoLean(catalyst, social, drift, today),
     };
     const pick = pickSoloEcho(ambient, rng);
     const echo = pick.echo;
@@ -234,11 +234,21 @@ export function runDebriefCatalyst(state: CampaignState, input: DebriefCatalystI
     const others = witnesses.filter((id) => id !== pilotId);
 
     // 1. Own events.
+    // Slice 1 (17 Sep 2026): every take below is scaled by the three
+    // pillars — Time (this is happening now, so 1.0), Volume (whose event
+    // it was), Matter (this pilot's own agency rung). engine/pillars.ts.
+    // NOT the "world" ring: that one is for something the campaign narrates
+    // at a pilot who wasn't in it. Everything Debrief scales here happened to
+    // a pilot who was on the board, so the subject is always a person —
+    // themselves for their own events and the outcome of the fight they
+    // fought, the other pilot for what happened to the others.
+    const selfWeight = reactionWeight(state, { pilotId, aboutId: pilotId, inTheFight: true }).weight;
+
     const own = input.combatWorries[pilotId] ?? [];
     for (const w of own) {
       const take = SOURCE_TAKE[w.source];
       if (!take) continue;
-      const s = scaledTake(take, w.intensity, echo);
+      const s = scaledTake(take, w.intensity, echo, selfWeight);
       stress += s.stress;
       morale += s.morale;
       if (take.kind) {
@@ -252,14 +262,15 @@ export function runDebriefCatalyst(state: CampaignState, input: DebriefCatalystI
     // 2. What happened to the others.
     for (const otherId of others) {
       if (otherId === pilotId) continue;
+      const otherWeight = reactionWeight(state, { pilotId, aboutId: otherId, inTheFight: true }).weight;
       if (lost.has(otherId)) {
-        const s = scaledTake(LOSS_TAKE, 1, echo);
+        const s = scaledTake(LOSS_TAKE, 1, echo, otherWeight);
         stress += s.stress;
         morale += s.morale;
         const mournEcho = griefEcho[otherId]?.[pilotId] ?? echo;
         memories.push(recordMemory(state, pilotId, { kind: "lost_squadmate", echo: mournEcho, about: [otherId], witnesses: others, missionId: input.missionId, now, today }));
       } else if (downed.has(otherId)) {
-        const s = scaledTake(SAW_FALL_TAKE, 0.5, echo);
+        const s = scaledTake(SAW_FALL_TAKE, 0.5, echo, otherWeight);
         stress += s.stress;
         morale += s.morale;
         memories.push(recordMemory(state, pilotId, { kind: "saw_fall", echo, about: [otherId], witnesses: others, missionId: input.missionId, now, today }));
@@ -268,7 +279,7 @@ export function runDebriefCatalyst(state: CampaignState, input: DebriefCatalystI
 
     // 3. The outcome.
     const o = OUTCOME_TAKE[input.outcome];
-    const so = scaledTake(o, 0.5, echo);
+    const so = scaledTake(o, 0.5, echo, selfWeight);
     stress += so.stress;
     morale += so.morale;
     memories.push(recordMemory(state, pilotId, { kind: input.outcome === "win" ? "mission_won" : "mission_lost", echo, witnesses: others, missionId: input.missionId, now, today }));

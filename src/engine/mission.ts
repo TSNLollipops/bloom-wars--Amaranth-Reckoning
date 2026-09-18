@@ -136,7 +136,7 @@ import {
   SCATTERSHOT_PISTOLS_CLEAVE_PCT,
   WEAPON_BRANCH_ON_HIT_EFFECT,
 } from "../data/weaponBranches";
-import { decideHostileAction, decideCivilianAction, isVisibleTo, unitsVisibleToSide } from "./ai";
+import { decideHostileAction, decideCivilianAction, isVisibleTo, unitsVisibleToSide, type HostileBrain } from "./ai";
 import {
   createEventRuntimeState,
   evaluateTurnStart,
@@ -442,6 +442,15 @@ export interface MissionOptions {
    * reference, so a test's vi.spyOn(Math, "random") still takes effect).
    */
   rng?: () => number;
+  /**
+   * Optional replacement brain for hostile units (17 Sep 2026, Player Bot
+   * Reuse Plan §2b, E-lite — engine/ai.ts's HostileBrain). runHostileTurn
+   * asks it first and falls back to decideHostileAction when it returns
+   * undefined. Unset everywhere in the shipped game; only the headless sim
+   * installs one (sim/playerAi/hostileBrain.ts). With it unset, the hostile
+   * phase is exactly what it was before this field existed.
+   */
+  hostileBrain?: HostileBrain;
   /**
    * Carrier Upgrade Modules the company has installed (2 Sep 2026,
    * data/carrierModules.ts). Deliberately here rather than as a fifth
@@ -1027,9 +1036,12 @@ export class Mission {
 
   /** The battle's random source — see MissionOptions.rng. Private; every roll in this class goes through it. */
   private readonly rng: () => number;
+  /** MissionOptions.hostileBrain — unset in the shipped game. */
+  private readonly hostileBrain?: HostileBrain;
 
   constructor(mission: CampaignMission, deployRoster?: DeployRosterEntry[], builtBays: ReservedBayId[] = [], options: MissionOptions = {}) {
     this.rng = options.rng ?? (() => Math.random());
+    this.hostileBrain = options.hostileBrain;
     this.mission = mission;
     this.builtBays = builtBays;
     this.builtModules = options.builtModules ?? [];
@@ -5106,7 +5118,7 @@ export class Mission {
         this.log.push(`${unit.displayName} is stunned and skips its turn.`);
         continue;
       }
-      const decision = decideHostileAction(this.map, unit, this.units);
+      const decision = this.hostileBrain?.(this.map, unit, this.units, this.turn) ?? decideHostileAction(this.map, unit, this.units);
       if (decision.path && decision.path.length > 1) {
         this.moveHostile(unit, decision.path);
       }

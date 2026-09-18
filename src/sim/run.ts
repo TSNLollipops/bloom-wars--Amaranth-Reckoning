@@ -14,11 +14,14 @@
 //   --seed=N                           replay this exact run (dodge rolls + Easy's mistakes)
 //   --ai-log[=path.json]               dump every bot decision as JSON
 //   --progression                      deploy the reference progression roster (see progressionRoster.ts)
+//   --hostile=easy|moderate|hard       enemy mechs played by the Player AI at that tier (17 Sep 2026)
+//   --heirloom=<id>[:rank][@pilot]     one deployed pilot carries that Heirloom (17 Sep 2026, heirloomFielding.ts)
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
-import { playerAiLog, profileForTier, type PlayerAiReason } from "./playerAi";
+import { playerAiLog, profileForTier, type PlayerAiReason, type PlayerAiTier } from "./playerAi";
 import { driveMission } from "./driveMission";
 import { writeFileSync } from "node:fs";
 import { buildProgressionRoster, describeProgression } from "./progressionRoster";
+import { parseHeirloomFlag } from "./heirloomFielding";
 
 const args = process.argv.slice(2);
 const positional = args.filter((a) => !a.startsWith("--"));
@@ -33,6 +36,12 @@ const tier = flag("tier") || "moderate";
 const seedRaw = flag("seed");
 const seed = seedRaw ? Number(seedRaw) : undefined;
 const aiLogFlag = flag("ai-log");
+const hostileTier = (flag("hostile") || undefined) as PlayerAiTier | undefined;
+// --beacon[=N] (17 Sep 2026): Beacon Control built, N crates and charges (default 2).
+const beaconFlag = flag("beacon");
+const beacons = beaconFlag === undefined ? undefined : Number(beaconFlag || 2);
+const heirloomFlag = flag("heirloom");
+const heirloom = heirloomFlag ? parseHeirloomFlag(heirloomFlag) : undefined;
 const aiLogPath = aiLogFlag === undefined ? null : aiLogFlag || `${missionId}_ai_log.json`;
 
 const mission = MISSIONS_BY_ID[missionId];
@@ -41,14 +50,15 @@ if (!mission) {
   process.exit(1);
 }
 
-console.log(`=== ${mission.displayName} === (tier ${tier}${seed !== undefined ? `, seed ${seed}` : ""})`);
+console.log(`=== ${mission.displayName} === (tier ${tier}${seed !== undefined ? `, seed ${seed}` : ""}${hostileTier ? `, hostile mechs: ${hostileTier} bot` : ""})`);
 console.log(mission.briefing);
 console.log("");
 
 const progression = flag("progression") !== undefined;
 if (progression) console.log(`Progression roster: ${describeProgression(mission)}`);
-const result = driveMission(mission, { profile: profileForTier(tier), seed, deployRoster: progression ? buildProgressionRoster(mission) : undefined });
+const result = driveMission(mission, { profile: profileForTier(tier), seed, hostileTier, heirloom, beacons, deployRoster: progression ? buildProgressionRoster(mission) : undefined });
 const m = result.mission;
+if (heirloom) console.log(result.heirloomWielderId ? `Heirloom ${heirloom.id} (rank ${heirloom.rank ?? 1}) carried by ${result.heirloomWielderId}` : `Heirloom ${heirloom.id}: nobody on this squad can carry it — run is without it`);
 
 for (const line of m.log) console.log(line);
 console.log("");

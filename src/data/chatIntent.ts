@@ -147,7 +147,19 @@ function countHits(text: string, keywords: string[]): number {
 // empty as a result, kept (rather than deleted along with
 // detectUnbuiltVerbLine) so the next genuinely-unbuilt verb someone tries
 // in chat has a home to land in without re-deriving this whole pattern.
-const UNBUILT_VERB_LINES: { verb: string; keywords: string[]; line: string }[] = [];
+// "follow"/"follow me" — 17 Sep 2026, the first entry since the table
+// emptied. Maxime asked for Follow Me on 13 Sep ("Add, follow me to the
+// list of verb to add"); the verb itself is designed in
+// Bloom_Wars_NPC_Agency_And_Scene_Layer_Plan_v1.md §4 and waits on the
+// Activity-slot refactor there (Update 2). Until then, typing it near an
+// ant gets the honest "not open yet" this table exists for. Word-boundary
+// matching means "following orders" or "the follow-up" don't trigger it
+// ("follow-up" has a hyphen after the word, which IS a boundary — so
+// "follow" alone would match "follow-up"; the listed phrases are the two
+// natural ways to ask, and the bare word is deliberately left out).
+const UNBUILT_VERB_LINES: { verb: string; keywords: string[]; line: string }[] = [
+  { verb: "follow", keywords: ["follow me", "follow us", "come with me", "come along"], line: "Follow me isn't open yet — the crew can't tail you around the ship. Not built." },
+];
 
 // Real verb requests — 26 Aug 2026, the verb framework's first consumer.
 // Checked BEFORE detectUnbuiltVerbLine (Hub.ts's submitChat), so "drink"
@@ -256,6 +268,25 @@ const VERB_REQUEST_KEYWORDS: Partial<Record<VerbId, string[]>> = {
   // UNBUILT_VERB_LINES above, 15 Sep 2026 — same word-boundary matching
   // means this still won't false-positive inside "sparse"/"disparage".
   challengeSpar: ["spar with me", "let's spar", "lets spar", "fight me", "wanna spar", "want to spar", "spar", "sparring"],
+  // askAbout, 17 Sep 2026 — whole-phrase questions about the pilot
+  // themselves. Deliberately no bare "story"/"background"/"from" (each is
+  // an ordinary word in ordinary chat). Checked against every list above:
+  // "tell me about yourself" shares no word-boundary hit with the banter
+  // list's "tell me a joke" (countHits matches whole phrases), and none of
+  // these contain "how are you" (a greeting) or "mission" (muster).
+  askAbout: [
+    "where are you from", "where you from", "tell me about yourself", "tell me about you",
+    "what's your story", "whats your story", "where did you grow up", "where'd you grow up",
+    "what's your background", "whats your background", "who are you",
+  ],
+  // gossip, 17 Sep 2026 — a question about a THIRD person. Whole phrases;
+  // Hub.ts finds the named crewmate separately (the name is the subject,
+  // not the target). "how's <name>" was considered and left out: "how's it
+  // going" is a worry check-in and the bare "how's" would eat it.
+  gossip: [
+    "what do you think of", "what do you think about", "what do you make of", "how do you feel about",
+    "what's your read on", "whats your read on", "your take on",
+  ],
 };
 
 // Named single-target addressing, 2 Sep 2026 — every verb above resolves

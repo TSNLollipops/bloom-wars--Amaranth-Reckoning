@@ -50,7 +50,7 @@ import type { Coord, MapDefinition } from "../data/types";
 import type { BattleUnit } from "./units";
 import { chebyshevDistance, coordKey, reachableTiles, type MovementKind } from "./grid";
 import { movementKindOf as frameMovementKindOf } from "./frameSystems";
-import { decideHostileAction, estimateDamage, livingTargets, occupiedSet } from "./ai";
+import { decideHostileAction, estimateDamage, livingTargets, occupiedSet, opposingSide } from "./ai";
 
 export interface HostileFootprint {
   hostile: BattleUnit;
@@ -97,9 +97,15 @@ function tilesInRangeOf(map: MapDefinition, from: Coord, range: [number, number]
  * pessimism (a tile a friend is about to vacate looks blocked) that the
  * caller accepts for a once-per-turn build.
  */
-export function buildThreatMap(map: MapDefinition, allUnits: BattleUnit[], turn: number): ThreatMap {
-  const hostiles = livingTargets(allUnits, "hostile");
-  const anyTaunting = allUnits.some((u) => !u.downed && u.side === "player" && u.taunting);
+export function buildThreatMap(map: MapDefinition, allUnits: BattleUnit[], turn: number, attackerSide: BattleUnit["side"] = "hostile"): ThreatMap {
+  // `attackerSide` (17 Sep 2026, Player Bot Reuse Plan §2b): whose reach
+  // this map describes. "hostile" (the default, and every caller before
+  // this date) is the player's question; "player" is the same question
+  // asked by a bot driving the hostile side. Taunt roots the side that is
+  // being taunted, i.e. the attackers, when any defender is taunting.
+  const hostiles = livingTargets(allUnits, attackerSide);
+  const defenderSide = opposingSide(attackerSide);
+  const anyTaunting = allUnits.some((u) => !u.downed && u.side === defenderSide && u.taunting);
   const footprints: HostileFootprint[] = [];
   for (const h of hostiles) {
     const standable = new Set<string>();
@@ -167,6 +173,10 @@ function cloneUnit(u: BattleUnit): BattleUnit {
  * hostile moved before the next decides). HP is not deducted between
  * attacks and reaction fire is not modelled — that's the whole simplicity
  * budget of this function.
+ *
+ * Player-side defenders only: it asks decideHostileAction, the hostile
+ * side's brain. A bot driving the hostile side must run with the oracle
+ * off (sim/playerAi/hostileBrain.ts does).
  */
 export function predictedFocus(map: MapDefinition, defender: BattleUnit, tile: Coord, allUnits: BattleUnit[], assumeGone?: Set<string>): IncomingEstimate {
   const board = allUnits.map(cloneUnit);

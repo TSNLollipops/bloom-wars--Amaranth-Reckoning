@@ -57,10 +57,26 @@ export function livingTargets(units: BattleUnit[], side: BattleUnit["side"]): Ba
   return units.filter((u) => u.side === side && !u.downed);
 }
 
+/** The side opposing `side`. Exported 17 Sep 2026 so engine/threat.ts and the headless bot (sim/playerAi) can be pointed at either side (Player Bot Reuse Plan §2, E-lite). */
+export function opposingSide(side: BattleUnit["side"]): BattleUnit["side"] {
+  return side === "player" ? "hostile" : "player";
+}
+
 /** The opposing side — this module is symmetric (Build Brief calls it "the AI", but the same reflexive/pack/emergent logic drives the headless sim's player-side autoplay too). */
 function enemySideOf(unit: BattleUnit): BattleUnit["side"] {
-  return unit.side === "player" ? "hostile" : "player";
+  return opposingSide(unit.side);
 }
+
+/**
+ * An alternative brain for a hostile unit (17 Sep 2026, Player Bot Reuse
+ * Plan §2b, E-lite). Mission.runHostileTurn asks this first when one is
+ * installed (MissionOptions.hostileBrain); `undefined` means "not mine,
+ * use decideHostileAction" — so a brain can take over some hostiles (say,
+ * mechs) and leave the rest (the Bloom) on the built-in tiers. Pure: it
+ * reads the board and returns a decision, the engine applies it. Nothing in
+ * the shipped game installs one; the headless sim does.
+ */
+export type HostileBrain = (map: MapDefinition, unit: BattleUnit, allUnits: BattleUnit[], turn: number) => AiDecision | undefined;
 
 /**
  * Vision gate (Maxime, 22 Aug 2026 — "all enemy seem to know where I am at

@@ -10,6 +10,9 @@
 //   npm run sim:batch -- 100 --all-tiers             easy / moderate / hard side by side
 //   npm run sim:batch -- 100 --seed=1000             seeded: run i uses seed 1000+i, so any loss is replayable with `npm run sim -- <id> --seed=N`
 //   npm run sim:batch -- 100 --json=out.json         also dump every run's MissionSummary record (the shape Debrief writes for humans)
+//   npm run sim:batch -- 100 --hostile=hard           enemy mechs played by the Player AI (Hard) instead of the built-in hostile brain
+//   npm run sim:batch -- 100 --heirloom=cinder_line:3  one pilot carries that Heirloom at rank 3 (see heirloomFielding.ts)
+//   npm run sim:batch -- 500 --tier=hard --no-oracle  Hard without the hostile oracle (compare against the same run without the flag)
 //   npm run sim:batch -- 100 --progression           deploy the reference progression roster (src/sim/progressionRoster.ts) instead of the static G-tier registry
 //
 // Mission rework pass (8 Sep 2026) added two "how close was it" columns so a
@@ -31,6 +34,7 @@ import { driveMission, type DriveResult } from "./driveMission";
 import type { MissionSummary } from "../engine/missionSummary";
 import { writeFileSync } from "node:fs";
 import { buildProgressionRoster, describeProgression } from "./progressionRoster";
+import { fieldHeirloom, parseHeirloomFlag, staticRoster } from "./heirloomFielding";
 
 const args = process.argv.slice(2);
 const positional = args.filter((a) => !a.startsWith("--"));
@@ -47,6 +51,27 @@ const tiers: PlayerAiTier[] = flag("all-tiers") !== undefined ? ["easy", "modera
 const seedBase = flag("seed") ? Number(flag("seed")) : undefined;
 const jsonPath = flag("json") || null;
 const progression = flag("progression") !== undefined;
+// --no-oracle (17 Sep 2026): Hard without the hostile oracle — it still
+// reads the threat map, but never asks engine/ai.ts what the enemy would
+// actually do. Diffing a batch with and without it answers whether a Hard
+// win came from playing well or from reading the enemy's code (Difficulty
+// Tiers plan §5.2 / §10.2). Only changes the Hard profile; the others
+// never use the oracle.
+const noOracle = flag("no-oracle") !== undefined;
+// --hostile=<tier> (17 Sep 2026, Player Bot Reuse Plan §2b, E-lite): the
+// hostile mechs are played by the Player AI at that tier instead of
+// engine/ai.ts. The Bloom keep their own brains. Every number this prints
+// is then "your squad vs a bot-played enemy", not the shipped game.
+const hostileTier = (flag("hostile") || undefined) as PlayerAiTier | undefined;
+// --heirloom=<id>[:rank][@pilot] (17 Sep 2026, sim/heirloomFielding.ts):
+// one deployed pilot carries that Heirloom's kit. Missions where nobody can
+// carry it (a path-locked Heirloom, no pilot of that path) are skipped and
+// say so, rather than silently reporting a run without it.
+// --beacon[=N] (17 Sep 2026): Beacon Control built, N crates and charges (default 2).
+const beaconFlag = flag("beacon");
+const beacons = beaconFlag === undefined ? undefined : Number(beaconFlag || 2);
+const heirloomFlag = flag("heirloom");
+const heirloom = heirloomFlag ? parseHeirloomFlag(heirloomFlag) : undefined;
 
 interface Tally {
   win: number;
@@ -63,7 +88,9 @@ interface Tally {
 
 function runOnce(missionId: string, tier: PlayerAiTier, seed: number | undefined): DriveResult {
   const def = MISSIONS_BY_ID[missionId];
-  return driveMission(def, { profile: profileForTier(tier), seed, resetLog: true, deployRoster: progression ? buildProgressionRoster(def) : undefined });
+  const base = profileForTier(tier);
+  const profile = noOracle ? { ...base, hostileOracle: false } : base;
+  return driveMission(def, { profile, seed, hostileTier, heirloom, beacons, resetLog: true, deployRoster: progression ? buildProgressionRoster(def) : undefined });
 }
 
 const records: MissionSummary[] = [];
@@ -80,6 +107,14 @@ for (const id of ids) {
   if (!MISSIONS_BY_ID[id]) {
     console.error(`Unknown mission id: ${id}. Known: ${Object.keys(MISSIONS_BY_ID).join(", ")}`);
     continue;
+  }
+  if (heirloom) {
+    const def = MISSIONS_BY_ID[id];
+    const { wielderId } = fieldHeirloom(progression ? buildProgressionRoster(def) : staticRoster(def), heirloom);
+    if (!wielderId) {
+      console.log(`${id.padEnd(26)} skipped: nobody on this squad can carry ${heirloom.id}`);
+      continue;
+    }
   }
   for (const tier of tiers) {
     const t: Tally = { win: 0, loss: 0, commander_down: 0, ongoing_timeout: 0, turnsOnWin: [], downed: 0, lost: 0, lossKillPct: [], lossTurnPct: [], bonusDone: 0 };

@@ -193,3 +193,16 @@ describe("pickAiAction", () => {
     expect(weakFolds).toBeGreaterThan(strongFolds);
   });
 });
+
+// 17 Sep 2026 — see darts.test.ts's OPPONENT_SKILL_FLOOR block. Poker's old
+// flat opponent sat near the top of the curve; the floor is moderate.
+describe("OPPONENT_SKILL_FLOOR.poker — a moderate opponent", () => {
+  it("is steadier than a beginner and noisier than the old shipped heuristic", async () => {
+    const { OPPONENT_SKILL_FLOOR } = await import("../../data/recRoomAptitude");
+    const { pokerSkillFor, DEFAULT_POKER_SKILL } = await import("../holdem");
+    const floored = pokerSkillFor(OPPONENT_SKILL_FLOOR.poker);
+    expect(floored.noise).toBeLessThan(pokerSkillFor(0).noise);
+    expect(floored.noise).toBeGreaterThan(DEFAULT_POKER_SKILL.noise);
+    expect(floored.potOddsRespect).toBeGreaterThan(pokerSkillFor(0).potOddsRespect);
+  });
+});

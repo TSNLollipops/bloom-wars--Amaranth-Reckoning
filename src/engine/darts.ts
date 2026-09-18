@@ -42,6 +42,16 @@ export interface DartThrow {
   accuracy: number; // aim + hand-jitter, clamped 0..1 — what actually decided the zone
   zone: DartZone;
   score: number;
+  // Where around the board the dart landed, in radians, 17 Sep 2026. Accuracy
+  // decides the RING (distance from the bullseye); this decides where on
+  // that ring. Rolled once, here, when the throw resolves, and stored on the
+  // throw — so Hub.ts can redraw the board any number of times and a dart
+  // that has already landed never moves. Before this field existed the
+  // board drew only each side's most recent throw, on one fixed diagonal,
+  // so every AI dart looked like the same dart twitching in place (Maxime,
+  // 17 Sep: "npc only shoot same point"). Purely presentational: nothing
+  // in scoring, session state, or the AI reads it.
+  angle: number;
 }
 
 export interface DartsGameState {
@@ -206,7 +216,11 @@ export function throwDart(state: DartsGameState, aim: number): { state: DartsGam
   const accuracy = clamp01(clampedAim + jitter);
   const zone = zoneForAccuracy(accuracy);
   const score = scoreForZone(zone);
-  const result: DartThrow = { aim: clampedAim, accuracy, zone, score };
+  // Same Math.random the hand-jitter above already uses — this engine has
+  // no seeded rng parameter (unlike the social verbs), and adding one for a
+  // cosmetic angle would be scope, not a fix.
+  const angle = Math.random() * Math.PI * 2;
+  const result: DartThrow = { aim: clampedAim, accuracy, zone, score, angle };
 
   const thrower = state.turn;
   const throws = { ...state.throws, [thrower]: [...state.throws[thrower], result] };

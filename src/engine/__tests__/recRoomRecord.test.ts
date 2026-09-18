@@ -6,6 +6,8 @@ import {
   PLAYER_RECORD_ID,
   combinedRecord,
   emptyRecord,
+  pairFavoriteGame,
+  pairSessionsFor,
   recordSession,
   skillFor,
   skillFromPlayed,
@@ -120,6 +122,42 @@ describe("recRoomRecord — recording sessions", () => {
     }
     expect(state.records.pilot_dead?.fletchers?.best).toBe(300);
     expect(state.records.pilot_dead?.fletchers?.wins).toBe(1);
+  });
+});
+
+// 17 Sep 2026 — Gossip's warm line, "I like to play {GAME} with him,
+// depending on history." The individual records above never knew who a
+// pilot played WITH; this is that missing axis, pairKey-keyed same as the
+// bond store.
+describe("recRoomRecord — pair history (Gossip's {GAME})", () => {
+  it("nobody has a favorite game before they've played anything together", () => {
+    const state = fresh();
+    expect(pairSessionsFor(state, "pilot_bosk", "pilot_anand", "fletchers")).toBe(0);
+    expect(pairFavoriteGame(state, "pilot_bosk", "pilot_anand")).toBeUndefined();
+  });
+
+  it("counts sessions between a specific pair, separate from either pilot's own overall record", () => {
+    const state = fresh();
+    recordSession(state, { gameId: "fletchers", a: "pilot_bosk", b: "pilot_anand", winner: "pilot_bosk" });
+    recordSession(state, { gameId: "fletchers", a: "pilot_bosk", b: "pilot_anand", winner: "pilot_anand" });
+    recordSession(state, { gameId: "fletchers", a: "pilot_bosk", b: "pilot_other", winner: "pilot_bosk" });
+    expect(pairSessionsFor(state, "pilot_bosk", "pilot_anand", "fletchers")).toBe(2);
+    expect(pairSessionsFor(state, "pilot_bosk", "pilot_other", "fletchers")).toBe(1);
+    // Order of the two ids passed in doesn't matter — same pairKey either way.
+    expect(pairSessionsFor(state, "pilot_anand", "pilot_bosk", "fletchers")).toBe(2);
+  });
+
+  it("picks whichever game the pair has played the most, across all three", () => {
+    const state = fresh();
+    recordSession(state, { gameId: "poker", a: "pilot_bosk", b: "pilot_anand", winner: "draw" });
+    recordSession(state, { gameId: "fletchers", a: "pilot_bosk", b: "pilot_anand", winner: "pilot_bosk" });
+    recordSession(state, { gameId: "fletchers", a: "pilot_bosk", b: "pilot_anand", winner: "pilot_anand" });
+    expect(pairFavoriteGame(state, "pilot_bosk", "pilot_anand")).toBe("fletchers");
+  });
+
+  it("an old save with no pairSessions field at all just reads as no history — not a crash", () => {
+    const state: RecRoomState = { records: {} };
+    expect(pairFavoriteGame(state, "pilot_bosk", "pilot_anand")).toBeUndefined();
   });
 });
 

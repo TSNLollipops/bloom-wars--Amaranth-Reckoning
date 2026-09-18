@@ -536,3 +536,29 @@ what this first pass covered and what's still owed.
   (Footer depth 5 staying under the Discharge/Frame modals at 10/11 is by
   construction in `Debrief.ts`, not asserted here.)
   Writes `debriefFooter_top.png` and `debriefFooter_bottom.png`.
+- `checkDartsBoard.mjs` — 17 Sep 2026, the Fletchers board fix
+  (`engine/darts.ts`: `DartThrow.angle`; `Hub.ts`: `drawDartsMarkers`
+  draws every throw at its stored angle, earlier rounds dimmed, outlined
+  dots). Needs `save.json` (run `genSave.ts` first) and the dev server on
+  port 5183 (`npx vite --port 5183`; the `window.__bwGame` hook is
+  dev-only). Pre-seeds every Hub hint as seen so the Rec Room hint panel
+  can't swallow the open. Teleports next to a Rec Room NPC, types `darts`
+  in the real chat box, plays the whole session with the real `E` key at
+  random meter positions, then asserts: the game reached `over`, 9 throws a
+  side, at least 5 distinct AI angles, zero page errors. Writes
+  `darts_round1.png`, `darts_final.png`, `darts_report.json` (every
+  throw's angle and accuracy, so "not all the same point" can be checked
+  by eye). Uses the `headless_shell` binary; override with `PW_CHROME`.
+- `checkCrewVerbsCodex.mjs` — 17 Sep 2026, the verb plan's pre-EA builds
+  (`Codex.ts` §13 Crew Verbs; `engine/askAbout.ts` + Hub's `askAboutNpc`;
+  `data/gossip.ts` + Hub's `gossipWithNpc` behind its empty-bank gate).
+  Needs `save.json` and the dev server on 5183. Part A starts the Codex
+  scene straight into section `verbs`, pages through every page via the
+  scene's own `renderSection`, and asserts all 21 card titles rendered
+  (`crewVerbs_p1.png`, `crewVerbs_last.png`). Part B goes CONTINUE → Hub,
+  teleports beside Anand, and types three Ask About phrasings plus one
+  Gossip line through the REAL chat box: asserts three distinct
+  `[from the file]` sentences in order on her socialLog, +1 Favorability
+  once (not per sentence), and the Gossip gate's "not open yet"
+  (`askAbout_hub.png`, `crewVerbs_report.json`). `checkDartsBoard.mjs` also
+  now logs the opponent's raw vs floored darts skill (`OPPONENT_SKILL_FLOOR`).

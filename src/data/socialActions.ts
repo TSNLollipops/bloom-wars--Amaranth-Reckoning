@@ -31,6 +31,49 @@ function pickOne(bank: string[]): string {
   return bank[Math.floor(Math.random() * bank.length)];
 }
 
+// ---- Verb line banks by state, 17 Sep 2026 ------------------------------
+//
+// Until today eight of the nine resolver verbs had exactly ONE line per
+// catalyst (`Record<Catalyst, string>`): praise a drunk rabbit and a
+// grieving rabbit and you got the same sentence. Verb plan §5, Maxime's
+// decision 2 (§11): the banks move to the greeting bank's shape, one bucket
+// per state the pilot can be in when the verb lands, and HE writes the new
+// lines in a line thread. So this migration ships every bucket except
+// `idle` EMPTY, with the existing line as idle's single entry — behaviour
+// is byte-identical until a bucket is filled. Do not draft lines into the
+// empty buckets; they are his.
+//
+// The four states are what the resolver can actually read off the pilot's
+// persisted social state (engine/socialVerbResolution.ts): Stress, Morale,
+// drunkUntil. The brief called the second bucket "worried"; it is named
+// `stressed` here because the Hub-side Worries list is not persisted and
+// the resolver never sees it — Stress past STRESS_PANIC_THRESHOLD is the
+// honest, readable equivalent. Order of precedence when more than one
+// holds, decided here so a line thread can rely on it: drunk beats
+// stressed beats low_morale beats idle (a drunk pilot sounds drunk
+// whatever else is true).
+export type VerbLineState = "idle" | "stressed" | "drunk" | "low_morale";
+
+export const VERB_LINE_STATES: readonly VerbLineState[] = ["idle", "stressed", "drunk", "low_morale"];
+
+/** `idle` is required and non-empty by convention; the other buckets may be absent or empty and fall back to it. */
+export type VerbLineBank = Record<Catalyst, { idle: string[] } & Partial<Record<Exclude<VerbLineState, "idle">, string[]>>>;
+
+/** Pick a line for this catalyst in this state, falling back to `idle` when the state's bucket is missing or empty. */
+export function pickVerbLine(bank: VerbLineBank, catalyst: Catalyst, state: VerbLineState, rng: () => number = Math.random): string {
+  const entry = bank[catalyst];
+  const bucket = state === "idle" ? entry.idle : entry[state];
+  const lines = bucket && bucket.length > 0 ? bucket : entry.idle;
+  return lines[Math.floor(rng() * lines.length)];
+}
+
+/** One line per catalyst → the bank shape above, with that line as idle's only entry. The migration helper; the eight banks below all use it. */
+function singleLineBank(lines: Record<Catalyst, string>): VerbLineBank {
+  const out = {} as VerbLineBank;
+  for (const [catalyst, line] of Object.entries(lines) as [Catalyst, string][]) out[catalyst] = { idle: [line] };
+  return out;
+}
+
 // ---- Gift ------------------------------------------------------------
 // Named in data/verbs.ts's own header as a real verb-framework slot left
 // empty since Phase 2 ("Rec Room Invite, Gift... wait on content"). No
@@ -41,7 +84,8 @@ function pickOne(bank: string[]): string {
 // mattered mechanically.
 export const GIFT_FAVORABILITY_DELTA = 4;
 
-export const GIFT_LINES: Record<Catalyst, string> = {
+// The authored lines, one per catalyst — unchanged. GIFT_LINES below is the bank shape the resolver reads.
+export const GIFT_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "Didn't have to do that. Appreciate it — good for morale too.",
   dog: "You remembered. That actually means a lot.",
   cat: "Huh. Didn't expect that. I'll take it.",
@@ -53,8 +97,10 @@ export const GIFT_LINES: Record<Catalyst, string> = {
   shark: "Not bad. I'll take useful over sentimental any day.",
 };
 
-export function pickGiftLine(catalyst: Catalyst): string {
-  return GIFT_LINES[catalyst];
+export const GIFT_LINES: VerbLineBank = singleLineBank(GIFT_IDLE_LINES);
+
+export function pickGiftLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(GIFT_LINES, catalyst, state, rng);
 }
 
 // ---- Praise / Insult / Apology ----------------------------------------
@@ -101,7 +147,8 @@ export const APOLOGY_FAVORABILITY_DELTA: Record<Catalyst, number> = {
   shark: 2,
 };
 
-export const INSULT_LINES: Record<Catalyst, string> = {
+// The authored lines, one per catalyst — unchanged. INSULT_LINES below is the bank shape the resolver reads.
+export const INSULT_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "That's not how you talk to someone who's got your back out there.",
   dog: "...That one actually hurt. I won't forget it.",
   cat: "Wow. Noted. I'll remember that the next time you need something.",
@@ -113,7 +160,10 @@ export const INSULT_LINES: Record<Catalyst, string> = {
   shark: "Cute. Doesn't change anything, but noted.",
 };
 
-export const PRAISE_LINES: Record<Catalyst, string> = {
+export const INSULT_LINES: VerbLineBank = singleLineBank(INSULT_IDLE_LINES);
+
+// The authored lines, one per catalyst — unchanged. PRAISE_LINES below is the bank shape the resolver reads.
+export const PRAISE_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "Good to hear. Means more coming from someone who's actually in the fight with me.",
   dog: "That actually means a lot. Thank you.",
   cat: "Didn't need to hear that, but I won't pretend it didn't land.",
@@ -125,7 +175,10 @@ export const PRAISE_LINES: Record<Catalyst, string> = {
   shark: "Good. That's the standard — glad it shows.",
 };
 
-export const APOLOGY_LINES: Record<Catalyst, string> = {
+export const PRAISE_LINES: VerbLineBank = singleLineBank(PRAISE_IDLE_LINES);
+
+// The authored lines, one per catalyst — unchanged. APOLOGY_LINES below is the bank shape the resolver reads.
+export const APOLOGY_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "Appreciate you saying it. We're square — for the team's sake, if nothing else.",
   dog: "Okay. I believe you. Don't make me regret that.",
   cat: "Sure. Whatever. Doesn't really change anything, but fine.",
@@ -137,14 +190,16 @@ export const APOLOGY_LINES: Record<Catalyst, string> = {
   shark: "Fine. Doesn't cost me anything to move on.",
 };
 
-export function pickPraiseLine(catalyst: Catalyst): string {
-  return PRAISE_LINES[catalyst];
+export const APOLOGY_LINES: VerbLineBank = singleLineBank(APOLOGY_IDLE_LINES);
+
+export function pickPraiseLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(PRAISE_LINES, catalyst, state, rng);
 }
-export function pickInsultLine(catalyst: Catalyst): string {
-  return INSULT_LINES[catalyst];
+export function pickInsultLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(INSULT_LINES, catalyst, state, rng);
 }
-export function pickApologyLine(catalyst: Catalyst): string {
-  return APOLOGY_LINES[catalyst];
+export function pickApologyLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(APOLOGY_LINES, catalyst, state, rng);
 }
 
 // The escalation ladder — proposal doc §3, placeholder counts same as
@@ -178,7 +233,8 @@ export const INSULT_TIER3_FAVORABILITY_CEILING = -10;
 export const CONGRATULATE_FAVORABILITY_DELTA = 5;
 export const CONGRATULATE_MORALE_DELTA = 6;
 
-export const CONGRATULATE_LINES: Record<Catalyst, string> = {
+// The authored lines, one per catalyst — unchanged. CONGRATULATE_LINES below is the bank shape the resolver reads.
+export const CONGRATULATE_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "Appreciate it. Wouldn't have gotten here without the rest of you, though.",
   dog: "Thanks. Means more coming from you.",
   cat: "Yeah, yeah. I earned it. Thanks for noticing.",
@@ -190,8 +246,10 @@ export const CONGRATULATE_LINES: Record<Catalyst, string> = {
   shark: "Thanks. Now watch me earn the next one too.",
 };
 
-export function pickCongratulateLine(catalyst: Catalyst): string {
-  return CONGRATULATE_LINES[catalyst];
+export const CONGRATULATE_LINES: VerbLineBank = singleLineBank(CONGRATULATE_IDLE_LINES);
+
+export function pickCongratulateLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(CONGRATULATE_LINES, catalyst, state, rng);
 }
 
 // ---- Send-Off ----------------------------------------------------------
@@ -228,7 +286,8 @@ export const SEND_OFF_FAVORABILITY_DELTA = 3;
 export const SEND_OFF_STRESS_DELTA = -6;
 export const SEND_OFF_DEFENSE_BONUS = 8;
 
-export const SEND_OFF_LINES: Record<Catalyst, string> = {
+// The authored lines, one per catalyst — unchanged. SEND_OFF_LINES below is the bank shape the resolver reads.
+export const SEND_OFF_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "Copy that. I'll bring everyone back, that's the job.",
   dog: "I've got you. Every time, no question.",
   cat: "Sure, sure. I was already planning to come back anyway.",
@@ -240,8 +299,10 @@ export const SEND_OFF_LINES: Record<Catalyst, string> = {
   shark: "Watch me. I'm not coming back with anything less than a win.",
 };
 
-export function pickSendOffLine(catalyst: Catalyst): string {
-  return SEND_OFF_LINES[catalyst];
+export const SEND_OFF_LINES: VerbLineBank = singleLineBank(SEND_OFF_IDLE_LINES);
+
+export function pickSendOffLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(SEND_OFF_LINES, catalyst, state, rng);
 }
 
 // ---- Flirt ---------------------------------------------------------------
@@ -409,7 +470,8 @@ export function pickCoCalloutLine(): string {
 export const CONDOLENCE_FAVORABILITY_DELTA = 5;
 export const CONDOLENCE_STRESS_DELTA = -6;
 
-export const CONDOLENCE_LINES: Record<Catalyst, string> = {
+// The authored lines, one per catalyst — unchanged. CONDOLENCE_LINES below is the bank shape the resolver reads.
+export const CONDOLENCE_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "...Yeah. Doesn't feel real yet. Glad you came by, though — means we're still a company, not just a roster.",
   dog: "Thank you. I keep looking over at where they'd be standing. Stupid, I know.",
   cat: "I'm fine. I don't need — okay. Thanks. I heard you.",
@@ -421,8 +483,10 @@ export const CONDOLENCE_LINES: Record<Catalyst, string> = {
   shark: "Won't lie, it shook me more than I expected. Appreciate you saying something instead of walking past.",
 };
 
-export function pickCondolenceLine(catalyst: Catalyst): string {
-  return CONDOLENCE_LINES[catalyst];
+export const CONDOLENCE_LINES: VerbLineBank = singleLineBank(CONDOLENCE_IDLE_LINES);
+
+export function pickCondolenceLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(CONDOLENCE_LINES, catalyst, state, rng);
 }
 
 // ---- Reassurance -----------------------------------------------------------
@@ -450,7 +514,8 @@ export const REASSURANCE_STRESS_DELTA = -10;
 export const REASSURANCE_MORALE_DELTA = 8;
 export const REASSURANCE_COOLDOWN_MS = 3 * 60 * 1000;
 
-export const REASSURANCE_LINES: Record<Catalyst, string> = {
+// The authored lines, one per catalyst — unchanged. REASSURANCE_LINES below is the bank shape the resolver reads.
+export const REASSURANCE_IDLE_LINES: Record<Catalyst, string> = {
   wolf: "Yeah. Yeah, okay. We'll get through it together, like always.",
   dog: "...Thank you. I needed to hear that more than I realized.",
   cat: "I wasn't worried. But — fine. It helps. A little.",
@@ -462,8 +527,10 @@ export const REASSURANCE_LINES: Record<Catalyst, string> = {
   shark: "I wasn't losing sleep over it. But that's good to hear regardless.",
 };
 
-export function pickReassuranceLine(catalyst: Catalyst): string {
-  return REASSURANCE_LINES[catalyst];
+export const REASSURANCE_LINES: VerbLineBank = singleLineBank(REASSURANCE_IDLE_LINES);
+
+export function pickReassuranceLine(catalyst: Catalyst, state: VerbLineState = "idle", rng: () => number = Math.random): string {
+  return pickVerbLine(REASSURANCE_LINES, catalyst, state, rng);
 }
 
 // ---- Check-In (surfacing a pilot's real Worries state) --------------------

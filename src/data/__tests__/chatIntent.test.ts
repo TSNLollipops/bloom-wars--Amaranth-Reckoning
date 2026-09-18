@@ -765,3 +765,21 @@ describe("detectCommand — the colon-command namespace", () => {
     for (const cmd of [":notes", ":t", ":help"]) expect(joined).toContain(cmd);
   });
 });
+
+
+// 17 Sep 2026 — "follow me" lands on the not-open-yet list (verb plan §6 #7).
+describe("detectUnbuiltVerbLine — follow me", () => {
+  it("recognizes the natural phrasings", () => {
+    expect(detectUnbuiltVerbLine("follow me")).toMatch(/open yet/);
+    expect(detectUnbuiltVerbLine("hey, come with me")).toMatch(/open yet/);
+    expect(detectUnbuiltVerbLine("Follow us to the bay")).toMatch(/open yet/);
+  });
+  it("does not trigger on the bare word inside other phrases", () => {
+    expect(detectUnbuiltVerbLine("following orders")).toBeNull();
+    expect(detectUnbuiltVerbLine("i'll follow up later")).toBeNull();
+    expect(detectUnbuiltVerbLine("follow the plan")).toBeNull();
+  });
+  it("a real verb still wins over the unbuilt line in the chain (checked first by Hub.ts)", () => {
+    expect(detectVerbRequest("follow me for a drink")).toBe("shareADrink");
+  });
+});

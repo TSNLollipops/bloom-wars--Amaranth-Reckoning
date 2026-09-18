@@ -26,6 +26,38 @@ export type RecGameId = "pegBoard" | "poker" | "fletchers";
 
 export const REC_GAME_IDS: RecGameId[] = ["pegBoard", "poker", "fletchers"];
 
+// ---- The opponent floor, 17 Sep 2026 -----------------------------------
+//
+// Until today the crew member the PLAYER sat down against never used their
+// own skill at all: Hub.ts played every opponent at each engine's flat
+// default (darts mean 0.62; peg board best move every time; poker's
+// shipped heuristic), while NPC-vs-NPC sessions and the standings board's
+// "skill" column both used the real, learned number. The board could say
+// "Bosk, skill 71" and Bosk would then throw exactly like a rookie against
+// you.
+//
+// Maxime's call (verb plan §11, decision 1): the player's opponent uses the
+// real learned skill, WITH A FLOOR so nobody is a pushover. The floor is
+// per game because "today's level" was not one level: darts' default sits
+// at about skill 59 on dartsSkillFor's curve; the peg board's default was
+// the CEILING (bestMoveChance 1 == skill 100), so a floor "at today" there
+// would have meant the skill column never shows in a peg game; poker's
+// default lands around skill 80, above what most of the crew reach for a
+// long while. His pick, from the three options put to him: darts exactly at
+// today, peg and poker at a moderate opponent so a veteran visibly plays
+// better than a rookie in all three games.
+//
+// Placeholders under the same rule as every other number in this file:
+// retune with tester data, not before. Applied in Hub.ts as
+// Math.max(skillFor(...), OPPONENT_SKILL_FLOOR[game]) before the engine's
+// own xSkillFor() mapping; NPC-vs-NPC sessions and the standings board
+// are untouched and still read the raw learned number.
+export const OPPONENT_SKILL_FLOOR: Record<RecGameId, number> = {
+  pegBoard: 50,
+  poker: 50,
+  fletchers: 59,
+};
+
 export const REC_GAME_LABELS: Record<RecGameId, string> = {
   pegBoard: "Peg Board",
   poker: "Poker",

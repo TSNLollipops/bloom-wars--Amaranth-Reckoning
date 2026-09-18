@@ -1,0 +1,9 @@
+THE BLOOM WARS
+An Early Access release by TSNL.
+Made by Maxime Grenon.
+
+This copy of the game is for your own personal use. Please don't
+redistribute, resell, or repackage it.
+
+Third-party software, AI tools, and audio credits (all Creative Commons
+Zero) are listed in THIRD_PARTY_NOTICES.txt, alongside this file.

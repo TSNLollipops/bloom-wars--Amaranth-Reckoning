@@ -369,3 +369,20 @@ export function explorationTarget(map: MapDefinition, from: Coord): Coord | null
   if (!candidates.length) return null;
   return candidates.reduce((best, c) => (chebyshevDistance(from, c) < chebyshevDistance(from, best) ? c : best));
 }
+
+// ---- Beacon Control (17 Sep 2026, Player Bot Reuse Plan §1b) -----------------
+
+/**
+ * The beacon holder (Rourke from Captain up, or Marrow) revives a downed
+ * ally in reach. Each revive costs a placement, a crate, a charge unless a
+ * Munti is standing, and a cut of the mission payout at Debrief, so the bot
+ * only spends one while the fight is still on, and picks the Munti first
+ * (the squad's healing), then whoever has the most HP to bring back.
+ */
+export function chooseBeaconTarget(unit: BattleUnit, allEnemies: BattleUnit[], context: PlayerAiMissionContext, profile: PlayerAiProfile): BattleUnit | null {
+  if (!profile.useAbilities.beacon || !allEnemies.length) return null;
+  if (!context.canPlaceBeacon?.(unit.instanceId) || !context.getBeaconTargetsFrom) return null;
+  const targets = context.getBeaconTargetsFrom(unit.instanceId);
+  if (!targets.length) return null;
+  return [...targets].sort((a, b) => Number(b.path === "munti") - Number(a.path === "munti") || b.maxHp - a.maxHp)[0];
+}

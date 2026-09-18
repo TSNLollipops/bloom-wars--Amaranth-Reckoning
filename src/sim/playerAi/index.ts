@@ -216,7 +216,7 @@
 // old full awareness so pre-1-Sep batch numbers stay reproducible.
 import type { Coord, MapDefinition } from "../../data/types";
 import type { BattleUnit } from "../../engine/units";
-import { livingTargets, isVisibleTo, unitsVisibleToSide, moveToward } from "../../engine/ai";
+import { livingTargets, isVisibleTo, unitsVisibleToSide, moveToward, opposingSide } from "../../engine/ai";
 import { chebyshevDistance } from "../../engine/grid";
 import { AMBUSH_DECLOAK_DAMAGE_MULTIPLIER } from "../../data/combatTables";
 import {
@@ -247,12 +247,14 @@ import {
   chooseFireSupportTile,
   chooseMissileTile,
   chooseMaserLanceDirection,
+  chooseBeaconTarget,
   repairMove,
   explorationTarget,
 } from "./abilities";
 import { MODERATE, type PlayerAiProfile } from "./profile";
 import { createPlayerAiMemory, type PlayerAiDecision, type PlayerAiLogEntry, type PlayerAiMissionContext, type PlayerAiMemory, type PlayerAiReason } from "./types";
 import { hardTierOverride, threatMapFor, betterFiringTile, threatAwareIntoRange, threatTrimmedPath, bestHoldTile } from "./hard";
+import { chooseHeirloomAction } from "./heirlooms";
 
 export type { PlayerAiDecision, PlayerAiReason, PlayerAiLogEntry, PlayerAiMissionContext, PlayerAiMemory, PlayerAiTier, PlayerAiAction } from "./types";
 export { createPlayerAiMemory } from "./types";
@@ -278,6 +280,12 @@ export function decidePlayerAiAction(
   memory: PlayerAiMemory = createPlayerAiMemory()
 ): PlayerAiDecision {
   const hpFraction = unit.maxHp > 0 ? unit.currentHp / unit.maxHp : 1;
+  // Side-neutral since 17 Sep 2026 (Player Bot Reuse Plan §2b, E-lite): the
+  // squad is whatever side `unit` is on, the enemy is the other one. The
+  // Long-Range Sensor Array is a player-side bay, so only the player side
+  // gets its reveal.
+  const enemySide = opposingSide(unit.side);
+  const sensorArray = unit.side === "player" && (context.sensorArrayBuilt ?? false);
   const entry = (reason: PlayerAiReason, extra: Partial<PlayerAiLogEntry> = {}): PlayerAiLogEntry => ({
     turn,
     unitId: unit.instanceId,
@@ -327,7 +335,7 @@ export function decidePlayerAiAction(
   // (hard.ts bestHoldTile).
   const advance = (target: Coord, objectiveTile = false): Coord[] => {
     const path = profile.squadCohesion ? cohesiveMoveToward(map, unit, target, allUnits) : moveToward(map, unit, target, allUnits);
-    if (!profile.threatMap || !livingTargets(allUnits, "hostile").length) return path;
+    if (!profile.threatMap || !livingTargets(allUnits, enemySide).length) return path;
     // A VIP keeps the trim even then — the zone is for the line to hold
     // (House Amaranth 9 trace: the commander walking into the zone on
     // turn 2 and dying in it on turn 4).
@@ -362,8 +370,8 @@ export function decidePlayerAiAction(
       const openExits = exits.filter((c) => !allUnits.some((u) => !u.downed && u.instanceId !== unit.instanceId && u.pos.x === c.x && u.pos.y === c.y));
       const dest = nearestCoord(unit.pos, openExits.length ? openExits : exits);
       const path = moveToward(map, unit, dest, allUnits);
-      const hostilesAlive = livingTargets(allUnits, "hostile");
-      const seen = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn, { sensorArray: context.sensorArrayBuilt ?? false }) : new Set(hostilesAlive.map((h) => h.instanceId));
+      const hostilesAlive = livingTargets(allUnits, enemySide);
+      const seen = profile.honestVision ? unitsVisibleToSide(unit.side, allUnits, turn, { sensorArray }) : new Set(hostilesAlive.map((h) => h.instanceId));
       const visibleNow = hostilesAlive.filter((e) => seen.has(e.instanceId));
       const from = path.length > 1 ? lastStep(path) : unit.pos;
       const canShoot = path.length > 1 ? unit.actionsRemaining >= 2 : unit.actionsRemaining >= 1;
@@ -399,14 +407,14 @@ export function decidePlayerAiAction(
   // only: nobody walks toward a capsule.
   if (profile.useAbilities.capsule && context.getRecoverableCapsules) {
     const pods = context.getRecoverableCapsules(unit.instanceId);
-    const own = pods.find((p) => p.side === "player");
-    const shootingOver = livingTargets(allUnits, "hostile").length === 0;
-    const squadLeft = allUnits.filter((u) => u.side === "player" && !u.downed && !u.npcIncapacitated && !u.isCivilian).length;
+    const own = pods.find((p) => p.side === unit.side);
+    const shootingOver = livingTargets(allUnits, enemySide).length === 0;
+    const squadLeft = allUnits.filter((u) => u.side === unit.side && !u.downed && !u.npcIncapacitated && !u.isCivilian).length;
     if (own && (shootingOver || hpFraction < 0.5 || squadLeft <= 2)) {
       log(entry("recover_capsule", { targetId: own.id }));
       return { action: "recover_capsule", capsuleId: own.id };
     }
-    const enemy = pods.find((p) => p.side === "hostile");
+    const enemy = pods.find((p) => p.side === enemySide);
     if (enemy && shootingOver) {
       log(entry("capture_prisoner", { targetId: enemy.id }));
       return { action: "recover_capsule", capsuleId: enemy.id };
@@ -414,8 +422,8 @@ export function decidePlayerAiAction(
   }
 
   // ---- What this unit knows about the enemy ----
-  const allEnemies = livingTargets(allUnits, "hostile");
-  const visibleIds = profile.honestVision ? unitsVisibleToSide("player", allUnits, turn, { sensorArray: context.sensorArrayBuilt ?? false }) : new Set(allEnemies.map((e) => e.instanceId));
+  const allEnemies = livingTargets(allUnits, enemySide);
+  const visibleIds = profile.honestVision ? unitsVisibleToSide(unit.side, allUnits, turn, { sensorArray }) : new Set(allEnemies.map((e) => e.instanceId));
   // Hard's last-seen memory: refresh for anything visible, forget the dead.
   if (profile.rememberLastSeen) {
     for (const e of allEnemies) if (visibleIds.has(e.instanceId)) memory.lastSeen.set(e.instanceId, { ...e.pos });
@@ -448,6 +456,24 @@ export function decidePlayerAiAction(
   const spotted = allEnemies.some((e) => isVisibleTo(e, unit, turn));
   // A cloaked Meeps' first hit lands at 2x — read the kill check that way.
   const strikeMult = unit.concealed && unit.stealthTurnsRemaining !== undefined && unit.stealthTurnsRemaining > 0 ? AMBUSH_DECLOAK_DAMAGE_MULTIPLIER : 1;
+
+  // Heirloom and Signature verbs (17 Sep 2026, heirlooms.ts). Ahead of
+  // Hard's positioning override on purpose: most of them cost one action
+  // and leave the turn open (the driver re-asks, and the override still
+  // moves the unit afterwards), and the whole-turn ones carry their own
+  // "don't die standing here" check. A unit without an Heirloom falls
+  // straight through.
+  const heirloomChoice = chooseHeirloomAction({ map, unit, allUnits, turn, context, profile, memory, enemies, allEnemies, hpFraction, frontLineProtected });
+  if (heirloomChoice) {
+    log(entry("heirloom", { targetId: heirloomChoice.decision.abilityTargetId, destination: heirloomChoice.decision.targetTile, note: heirloomChoice.note }));
+    return heirloomChoice.decision;
+  }
+  // Beacon Control (17 Sep 2026): a revive in reach is worth one action.
+  const beaconTarget = chooseBeaconTarget(unit, allEnemies, context, profile);
+  if (beaconTarget) {
+    log(entry("beacon", { targetId: beaconTarget.instanceId, targetName: beaconTarget.displayName }));
+    return { action: "beacon", abilityTargetId: beaconTarget.instanceId };
+  }
 
   // Hard tier (hard.ts): the threat map / squad planner may pre-empt the
   // whole chain below with a pre-emptive retreat or a planned position —
@@ -629,6 +655,39 @@ export function decidePlayerAiAction(
       if (path.length > 1) {
         log(entry("clear_bloom", { destination: lastStep(path), note: "walking to the patch" }));
         return { path };
+      }
+    }
+  }
+
+  // Protect Asset (17 Sep 2026, Player Bot Reuse Plan §1b). The asset
+  // loses HP for every hostile standing on its perimeter (the map's
+  // defendZone) at the end of each turn, so the only enemies that matter
+  // are the ones that can reach the perimeter next turn: shoot those first,
+  // closest to the perimeter first, and walk to them when none is in range.
+  // A VIP still shoots but doesn't walk. Easy plays it as a plain fight, the
+  // way a newcomer who didn't read the objective would. Before this the bot
+  // treated the mission as eliminate-all and chased whatever was nearest.
+  const defendZone = context.map.defendZone ?? [];
+  if (context.mission.objective === "protect_asset" && defendZone.length && unit.actionsRemaining > 0 && profile.tier !== "easy" && profile.tier !== "legacy") {
+    const zoneDist = (c: Coord): number => Math.min(...defendZone.map((z) => chebyshevDistance(c, z)));
+    const raiders = enemies.filter((e) => zoneDist(e.pos) <= e.moveRange).sort((a, b) => zoneDist(a.pos) - zoneDist(b.pos) || a.currentHp - b.currentHp);
+    if (raiders.length) {
+      const [minR, maxR] = unit.attackRange;
+      const inRangeNow = raiders.filter((e) => chebyshevDistance(unit.pos, e.pos) >= minR && chebyshevDistance(unit.pos, e.pos) <= maxR);
+      if (inRangeNow.length) {
+        const target = findLethalTargetFrom(map, unit, unit.pos, inRangeNow, allUnits, strikeMult) ?? inRangeNow[0];
+        log(entry("defend_asset", { targetId: target.instanceId, targetName: target.displayName, note: `${zoneDist(target.pos)} from the perimeter` }));
+        return { attackTargetId: target.instanceId };
+      }
+      if (!frontLineProtected) {
+        const goal = raiders[0];
+        const path = advance(goal.pos);
+        if (path.length > 1) {
+          const at = lastStep(path);
+          const target = unit.actionsRemaining >= 2 ? (findLethalTargetFrom(map, unit, at, raiders, allUnits, strikeMult) ?? nearestDamageableInRange(map, unit, at, raiders, allUnits)) : undefined;
+          log(entry("defend_asset", { targetId: target?.instanceId, targetName: target?.displayName, destination: at, note: `closing on ${goal.displayName}, ${zoneDist(goal.pos)} from the perimeter` }));
+          return { path, attackTargetId: target?.instanceId };
+        }
       }
     }
   }
@@ -872,6 +931,18 @@ export function decidePlayerAiAction(
     // would go looking.
     const guesses: Coord[] = [];
     if (memory.commitThisTurn) guesses.push(nearestCoord(unit.pos, allEnemies.map((e) => e.pos)));
+    // Protect Asset: with nothing in sight, wait by the perimeter instead of
+    // wandering off to the spawn seams — the raiders are coming here anyway.
+    // Not on a stall-breaker turn: a squad that waits forever for raiders
+    // who never come is the stall the breaker exists to end.
+    if (context.mission.objective === "protect_asset" && defendZone.length && profile.tier !== "easy" && profile.tier !== "legacy" && !memory.commitThisTurn) {
+      const dest = nearestCoord(unit.pos, defendZone);
+      if (chebyshevDistance(unit.pos, dest) <= 2) {
+        log(entry("defend_asset", { note: "holding by the perimeter" }));
+        return {};
+      }
+      guesses.unshift(dest);
+    }
     if (profile.rememberLastSeen && memory.lastSeen.size > 0) guesses.push(nearestCoord(unit.pos, [...memory.lastSeen.values()]));
     const seam = explorationTarget(map, unit.pos);
     if (seam) guesses.push(seam);

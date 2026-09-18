@@ -23,8 +23,10 @@ import { currentDay } from "./calendarClock";
 import { WARDEN_FACILITY } from "./facilityWarden";
 import { HOUSE_AMARANTH_FACILITY } from "./facilityHouseAmaranth";
 import type { Echo } from "../data/ambientLines";
-import { addMemory, MEMORY_BIRTH_WEIGHT, type MemoryEntry, type MemoryKind } from "../data/memories";
-import { nudgeDrift, relaxDrift, type EchoWeights } from "../data/echoLean";
+import { addMemory, MEMORY_BIRTH_WEIGHT, memorySalience, type MemoryEntry, type MemoryKind } from "../data/memories";
+import { effectiveEchoLean, nudgeDrift, relaxDrift, type EchoWeights } from "../data/echoLean";
+import { historyAdjustedLean, historyGains, spacingMultiplier } from "../data/dualProcess";
+import type { Catalyst } from "../data/ambientLines";
 
 export interface SocialSeed {
   favorability: number;
@@ -59,6 +61,34 @@ export function settleDrift(social: HubPilotSocialState, today: number): EchoWei
   social.echoDrift = relaxed;
   social.echoDriftDay = today;
   return relaxed;
+}
+
+/**
+ * The read side of E (17 Sep 2026, dual-process threshold rule). Sums the
+ * decayed weight of this pilot's memories per echo — the same
+ * memorySalience curve everything else reads, so a memory's pull here and
+ * its pull in the dossier never disagree — and applies the spacing factor:
+ * a run of matching memories crammed into one bad week counts for less than
+ * the same run spread over a season (data/dualProcess.ts's own comment for
+ * why that direction, and not the other).
+ *
+ * Reads nothing but the ledger. Returns 0s for a pilot with no memories,
+ * which is exactly a day-one pilot, which is exactly the old behaviour.
+ */
+export function echoHistoryWeight(social: HubPilotSocialState, today: number): Record<Echo, number> {
+  const totals: Record<Echo, number> = { love: 0, fear: 0, anger: 0, sadness: 0 };
+  const days: Record<Echo, number[]> = { love: [], fear: [], anger: [], sadness: [] };
+  for (const entry of social.memories ?? []) {
+    totals[entry.echo] += memorySalience(entry, today);
+    days[entry.echo].push(entry.day);
+  }
+  for (const echo of Object.keys(totals) as Echo[]) totals[echo] *= spacingMultiplier(days[echo]);
+  return totals;
+}
+
+/** The echo lean Gate 3 should read for this pilot: their ordinary lean, bent by what they carry. */
+export function historyAdjustedEchoLean(catalyst: Catalyst, social: HubPilotSocialState, drift: EchoWeights, today: number): EchoWeights {
+  return historyAdjustedLean(effectiveEchoLean(catalyst, drift), historyGains(catalyst, echoHistoryWeight(social, today)));
 }
 
 export interface RecordMemoryInput {

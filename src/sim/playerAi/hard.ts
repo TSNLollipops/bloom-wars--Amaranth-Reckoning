@@ -49,7 +49,7 @@
 import type { Coord, MapDefinition } from "../../data/types";
 import type { BattleUnit } from "../../engine/units";
 import { chebyshevDistance, coordKey, reachableTiles, reconstructPath, tileAt } from "../../engine/grid";
-import { estimateDamage, intelligenceOf, livingTargets, occupiedSet } from "../../engine/ai";
+import { estimateDamage, intelligenceOf, livingTargets, occupiedSet, opposingSide } from "../../engine/ai";
 import { buildThreatMap, movementKindOf, predictedFocus, type IncomingEstimate, type ThreatMap } from "../../engine/threat";
 import { TILES } from "../../data/tiles";
 import { AMBUSH_DECLOAK_DAMAGE_MULTIPLIER } from "../../data/combatTables";
@@ -75,17 +75,17 @@ const DOOMED_HP_FRACTION = 0.2;
 
 // ---- Threat map cache -------------------------------------------------------
 
-function boardStamp(allUnits: BattleUnit[], turn: number): string {
-  const hostiles = livingTargets(allUnits, "hostile").map((h) => h.instanceId).join(",");
-  const taunting = allUnits.some((u) => !u.downed && u.side === "player" && u.taunting) ? "T" : "";
+function boardStamp(allUnits: BattleUnit[], turn: number, side: BattleUnit["side"]): string {
+  const hostiles = livingTargets(allUnits, opposingSide(side)).map((h) => h.instanceId).join(",");
+  const taunting = allUnits.some((u) => !u.downed && u.side === side && u.taunting) ? "T" : "";
   return `${turn}:${taunting}:${hostiles}`;
 }
 
 /** This turn's threat map, rebuilt only when a hostile died (or a taunt went up) since it was last built. */
 export function threatMapFor(memory: PlayerAiMemory, map: MapDefinition, allUnits: BattleUnit[], turn: number): ThreatMap {
-  const stamp = boardStamp(allUnits, turn);
+  const stamp = boardStamp(allUnits, turn, memory.side);
   if (memory.threat && memory.threatStamp === stamp) return memory.threat;
-  memory.threat = buildThreatMap(map, allUnits, turn);
+  memory.threat = buildThreatMap(map, allUnits, turn, opposingSide(memory.side));
   memory.threatStamp = stamp;
   return memory.threat;
 }
