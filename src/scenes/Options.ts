@@ -37,6 +37,10 @@ import { clearStats, exportStatsJson, listMissionSummaries } from "../engine/sta
 import { currentGameVersion } from "../engine/telemetry";
 import { applyDisplayScale, DISPLAY_SCALE_OPTIONS, getDisplayScaleOption, getStoredDisplayScaleId, setStoredDisplayScaleId } from "../engine/displayScale";
 import { getTesterNotes } from "../engine/testerNotes";
+// JOIN THE DISCORD row, 18 Sep 2026 (Business Plan v1 §12 decision 6, §13) —
+// see data/discordLink.ts's own header for the empty-string safety idiom and
+// why no Electron-specific open call is needed.
+import { DISCORD_INVITE_URL } from "../data/discordLink";
 import { makeShopButton } from "./shop/ShopPanel";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
 import { showNotesOverlayPanel } from "./ui/NotesOverlayPanel";
@@ -262,14 +266,37 @@ export class Options extends Phaser.Scene {
       ...wrapTipText("Paste a save exported earlier (this computer or another) and make it your live campaign. Checked before anything is written; your current live save is replaced only if the paste is valid.", 42),
     ], this.hoverTip);
 
-    makeShopButton(this, this.add.container(0, 0), 400, 623, 220, 24, "BACK", true, () => {
+    // JOIN THE DISCORD, 18 Sep 2026 — a third button on this same row rather
+    // than a new row: this screen has no vertical room left (y=623 already
+    // sits 17px above the 640px floor), but there was slack on either side
+    // of BACK/CREDITS (290-680 of the 960-wide legacy layout, see
+    // legacyCenter.ts), so all three are resized/recentred here instead.
+    // DISCORD_INVITE_URL empty (data/discordLink.ts's own safety idiom,
+    // mirroring DEMO_STORE_URL) falls back to the original two-button
+    // widths/positions so this row never regresses if the link is ever
+    // unset again.
+    const hasDiscord = Boolean(DISCORD_INVITE_URL);
+    const backCx = hasDiscord ? 293 : 400;
+    const backW = hasDiscord ? 170 : 220;
+    const creditsCx = hasDiscord ? 455 : 600;
+    const creditsW = hasDiscord ? 130 : 160;
+    makeShopButton(this, this.add.container(0, 0), backCx, 623, backW, 24, "BACK", true, () => {
       this.scene.start(this.returnScene);
     }, ["Back", "", ...wrapTipText("Returns to where you opened Options from. Everything above is already saved as you set it.", 42)], this.hoverTip);
-    makeShopButton(this, this.add.container(0, 0), 600, 623, 160, 24, "CREDITS", true, () => this.openCreditsPanel(), [
+    makeShopButton(this, this.add.container(0, 0), creditsCx, 623, creditsW, 24, "CREDITS", true, () => this.openCreditsPanel(), [
       "Credits",
       "",
       ...wrapTipText("Who made this, and the third-party software and sounds it's built on.", 42),
     ], this.hoverTip);
+    if (hasDiscord) {
+      makeShopButton(this, this.add.container(0, 0), 642, 623, 220, 24, "JOIN THE DISCORD", true, () => {
+        window.open(DISCORD_INVITE_URL, "_blank", "noopener");
+      }, [
+        "Join the Discord",
+        "",
+        ...wrapTipText("Opens the community Discord's invite in your browser. Bug reports, devlogs, and everyone else playing.", 42),
+      ], this.hoverTip);
+    }
   }
 
   private openExportSavePanel() {
