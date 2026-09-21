@@ -105,10 +105,17 @@ export function isMissionDemoLocked(campaignId: string, chain: readonly Campaign
 /**
  * Ship audit, 16 Sep 2026 — where the tease panel's GET THE FULL GAME
  * button sends a demo player. Empty string = no button (the panel shows
- * text only), so an unset URL never ships a dead link. Fill in once the
- * paid itch.io page has its final address.
+ * text only), so an unset URL never ships a dead link.
+ *
+ * Set 20 Sep 2026: the paid page's slug is permanent once created (itch
+ * doesn't change it on going Public), so this doesn't have to wait for
+ * launch day — confirmed against the live Draft page record,
+ * claude/Bloom_Wars_Itchio_FullGame_Page_16Sep2026.md. The page itself is
+ * still Draft (nobody but Maxime can see it) until the TSNL registration
+ * and the 26 Oct launch, so this URL is correct but not yet reachable by
+ * a stranger — that's expected, not a bug to chase.
  */
-export const DEMO_STORE_URL = "";
+export const DEMO_STORE_URL = "https://tsnl.itch.io/the-bloom-wars-amaranth-reach";
 
 export const DEMO_TAB_LOCK_MESSAGE = "The war doesn't end at Mission 12. The rest of Warden Company's story is waiting on itch.io.";
 
