@@ -91,7 +91,7 @@ export interface MemoryEntry {
   weight: number;
 }
 
-/** Fixed small stack, same reasoning as WORRIES_STACK_CAP: the weakest is evicted, never the oldest by default. */
+/** Fixed small stack, same reasoning as WORRIES_STACK_CAP: the weakest is evicted, never the oldest by default. See memoryRetention for what "weakest" means here. */
 export const MEMORY_CAP = 24;
 /**
  * Salience multiplier per in-game day. 0.96^14 ≈ 0.56, 0.96^30 ≈ 0.29: a
@@ -104,6 +104,31 @@ export const MEMORY_CAP = 24;
 export const MEMORY_DECAY_PER_DAY = 0.96;
 /** Absolute floor. A loss is never forgotten, only quiet. */
 export const MEMORY_FLOOR = 0.05;
+/**
+ * Retention multiplier per in-game day, used ONLY by addMemory's eviction
+ * (22 Sep 2026, claude/Bloom_Wars_Ledger_Retention_Fix_Plan_v1_22Sep2026.md).
+ *
+ * Two clocks, on purpose. MEMORY_DECAY_PER_DAY is how LOUD a memory is
+ * right now, and every reader (topMemories, echoLoad, the dossier's Carries
+ * block, the dual-process history) should keep hearing recent things
+ * loudest. This one is how hard a memory HOLDS ITS PLACE in the ledger, and
+ * it is far slower: 0.995^60 ≈ 0.74, 0.995^365 ≈ 0.16.
+ *
+ * Why the split exists: before it, eviction compared salience, and because
+ * salience is weight × 0.96^age, "least salient" became "oldest" for any
+ * two memories of similar weight once they were a month or so apart. A
+ * two-month-old lost_squadmate (1.0 × 0.96^60 ≈ 0.086) was evicted to make
+ * room for a mission_won from that morning (0.2) — the exact opposite of
+ * what MEMORY_CAP's own comment promises. Under retention the same loss
+ * holds at 0.74 and the win goes instead. A fresh was_downed (0.7) can still
+ * edge a 60-day loss, and a year of accumulated fresh experience can finally
+ * displace it, so the ledger can never starve on old losses either.
+ *
+ * In the formula's own terms (THE_FORMULA_Master_Reference_v1 §10): this is
+ * sludge age decoupled from hydraulic retention time. Before this constant
+ * the two were equal, and the ledger was in washout.
+ */
+export const MEMORY_RETENTION_DECAY_PER_DAY = 0.995;
 
 /**
  * Birth weight per kind — how loud a memory starts. Losses and downings
@@ -158,7 +183,7 @@ export const MEMORY_BIRTH_WEIGHT: Record<MemoryKind, number> = {
   suppressed_askout_rival: 0.4,
 };
 
-/** Current salience of one memory, given today's in-game day. */
+/** Current salience of one memory, given today's in-game day. How loud it is. */
 export function memorySalience(entry: MemoryEntry, today: number): number {
   const age = Math.max(0, today - entry.day);
   const decayed = entry.weight * Math.pow(MEMORY_DECAY_PER_DAY, age);
@@ -166,17 +191,35 @@ export function memorySalience(entry: MemoryEntry, today: number): number {
 }
 
 /**
- * Insert `entry`, evicting the least salient one if the list is over the
- * cap. Ties on salience evict the older one. Returns a new array; the
- * caller assigns it back (HubPilotSocialState.memories = addMemory(...)).
+ * How hard one memory holds its place in the ledger, given today's in-game
+ * day. NOT how loud it is (that's memorySalience) — this is only read by
+ * addMemory when deciding what to evict. Same shape, much slower clock;
+ * see MEMORY_RETENTION_DECAY_PER_DAY for why the two are separate.
+ */
+export function memoryRetention(entry: MemoryEntry, today: number): number {
+  const age = Math.max(0, today - entry.day);
+  const decayed = entry.weight * Math.pow(MEMORY_RETENTION_DECAY_PER_DAY, age);
+  return Math.max(MEMORY_FLOOR, Math.min(1, decayed));
+}
+
+/**
+ * Insert `entry`, evicting the entry with the least RETENTION (not
+ * salience) if the list is over the cap. Ties on retention evict the older
+ * one. Returns a new array; the caller assigns it back
+ * (HubPilotSocialState.memories = addMemory(...)).
+ *
+ * Retention rather than salience since 22 Sep 2026: salience is the right
+ * question for "what is this pilot carrying loudest today", and the wrong
+ * one for "what is this pilot allowed to forget". See
+ * MEMORY_RETENTION_DECAY_PER_DAY.
  */
 export function addMemory(entries: readonly MemoryEntry[] | undefined, entry: MemoryEntry, today: number): MemoryEntry[] {
   const next = [...(entries ?? []), entry];
   if (next.length <= MEMORY_CAP) return next;
   let evict = 0;
   for (let i = 1; i < next.length; i++) {
-    const a = memorySalience(next[i], today);
-    const b = memorySalience(next[evict], today);
+    const a = memoryRetention(next[i], today);
+    const b = memoryRetention(next[evict], today);
     if (a < b || (a === b && next[i].at < next[evict].at)) evict = i;
   }
   next.splice(evict, 1);

@@ -8,7 +8,7 @@
 //
 // Narrator/record register, Maxime's own call (AskUserQuestion, 17 Sep
 // 2026): this is Claude's copy to draft and his to edit, not the line-
-// bank/CO-dialogue material that stays his alone. It follows the Qiraki
+// bank/CO-dialogue material that stays his alone. It follows the book-side
 // Master Style Guide's craft-rule subset Foundation.md already borrows
 // for Archive prose — zero em dashes, zero semicolons, no paragraph-
 // ending morals or stated thesis, no symmetrical sentence construction,

@@ -47,6 +47,8 @@ import { HOUSE_AMARANTH_FACILITY } from "./facilityHouseAmaranth";
 import { type PilotServiceRecord } from "./statsStore";
 import { currentDay } from "./calendarClock";
 import { topMemories, MEMORY_KIND_LABEL, type MemoryEntry } from "../data/memories";
+import { dominantBankedEcho, type EchoWeights } from "../data/echoLean";
+import type { Echo } from "../data/ambientLines";
 import { ALL_MISSIONS_BY_ID } from "../data/allCampaigns";
 
 /** One row of the live block. `tone` is a rendering hint, not a rule. */
@@ -243,6 +245,28 @@ export function carriesFor(state: CampaignState, memories: readonly MemoryEntry[
   });
 }
 
+/**
+ * The "Has become" line, 22 Sep 2026 (claude/Bloom_Wars_Echo_Bank_Plan_v1_
+ * 22Sep2026.md §2.5): the one place a player sees that the bank exists. One
+ * word for the echo a pilot has banked most, and only once the bank is thick
+ * enough to mean something (data/echoLean.ts dominantBankedEcho). Record
+ * voice, system text, Archive prose rule. The four words are placeholders
+ * in this project's usual sense and Maxime's to override, one each. A pilot
+ * with a thin bank gets no line at all, same reasoning as an empty Carries.
+ */
+export const BECOME_WORD: Record<Echo, string> = {
+  love: "warmer",
+  fear: "warier",
+  anger: "harder",
+  sadness: "quieter",
+};
+
+export function becomeFor(bank: EchoWeights | undefined): ArchiveLiveLine[] {
+  const echo = dominantBankedEcho(bank);
+  if (!echo) return [];
+  return [{ label: "Has become", value: `${BECOME_WORD[echo].charAt(0).toUpperCase()}${BECOME_WORD[echo].slice(1)}.`, tone: "muted" }];
+}
+
 function recordLine(rec: PilotServiceRecord | undefined): ArchiveLiveLine {
   if (!rec || rec.missionsFlown === 0) {
     return { label: "Record", value: "No missions flown.", tone: "muted" };
@@ -340,6 +364,7 @@ export function buildArchiveDossier(
     }
     lines.push(...relationsFor(state, entry));
     lines.push(...carriesFor(state, social.memories));
+    lines.push(...becomeFor(social.echoBank));
   }
 
   lines.push({ label: "Points", value: String(entry.personalPoints) });

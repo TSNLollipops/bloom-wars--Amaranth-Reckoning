@@ -24,9 +24,10 @@ import { WARDEN_FACILITY } from "./facilityWarden";
 import { HOUSE_AMARANTH_FACILITY } from "./facilityHouseAmaranth";
 import type { Echo } from "../data/ambientLines";
 import { addMemory, MEMORY_BIRTH_WEIGHT, memorySalience, type MemoryEntry, type MemoryKind } from "../data/memories";
-import { effectiveEchoLean, nudgeDrift, relaxDrift, type EchoWeights } from "../data/echoLean";
+import { bankEcho, bankTotal, effectiveEchoLean, nudgeDrift, purgeBank, relaxDrift, type EchoWeights } from "../data/echoLean";
 import { historyAdjustedLean, historyGains, spacingMultiplier } from "../data/dualProcess";
 import type { Catalyst } from "../data/ambientLines";
+import { catalystForPilot } from "../data/npcSeed";
 
 export interface SocialSeed {
   favorability: number;
@@ -59,6 +60,10 @@ export function settleDrift(social: HubPilotSocialState, today: number): EchoWei
   const days = last === undefined ? 0 : Math.max(0, today - last);
   const relaxed = relaxDrift(social.echoDrift, days);
   social.echoDrift = relaxed;
+  // The bank rides the same clock (22 Sep 2026). At ECHO_BANK_PURGE_PER_DAY
+  // = 1.0 this is a copy; the field is only created once something has
+  // actually been banked, so an untouched save stays untouched.
+  if (social.echoBank) social.echoBank = purgeBank(social.echoBank, days);
   social.echoDriftDay = today;
   return relaxed;
 }
@@ -86,9 +91,41 @@ export function echoHistoryWeight(social: HubPilotSocialState, today: number): R
   return totals;
 }
 
-/** The echo lean Gate 3 should read for this pilot: their ordinary lean, bent by what they carry. */
+/**
+ * The echo lean Gate 3 should read for this pilot: their ordinary lean, bent
+ * by what they carry (the ledger, via dual-process gains) and by what they
+ * have become (the bank, 22 Sep 2026). Both call sites in the game
+ * (scenes/Hub.ts idle pick, engine/debriefCatalyst.ts Debrief pick) come
+ * through here, so the bank reaches both without either knowing about it.
+ *
+ * The bank is read twice here, deliberately, for two different things:
+ * effectiveEchoLean bends WHICH echo leans heavier (what the pilot has
+ * become), and historyGains uses it as sensitization's clock (whether a
+ * long career has wound that echo up). The ledger is habituation's clock.
+ * Two clocks, 22 Sep 2026 — data/dualProcess.ts's header.
+ */
 export function historyAdjustedEchoLean(catalyst: Catalyst, social: HubPilotSocialState, drift: EchoWeights, today: number): EchoWeights {
-  return historyAdjustedLean(effectiveEchoLean(catalyst, drift), historyGains(catalyst, echoHistoryWeight(social, today)));
+  const bank = social.echoBank ?? {};
+  return historyAdjustedLean(effectiveEchoLean(catalyst, drift, social.echoBank), historyGains(catalyst, echoHistoryWeight(social, today), bank));
+}
+
+/**
+ * Food-to-microorganism ratio, ported (22 Sep 2026, THE_FORMULA_Master_
+ * Reference_v1 §11.3): recent experience over accumulated self. High means a
+ * pilot is being hit with more than they have a self to absorb it with;
+ * low means a heavy history and not much new coming in. A harness
+ * diagnostic, not a game mechanic: nothing reads this but runBrainSim.ts.
+ * Infinity for a pilot with recent memories and an empty bank; 0 for a
+ * pilot with a bank and nothing recent; NaN never (returns 0 for 0/0).
+ */
+export function foodToMass(social: HubPilotSocialState, today: number, windowDays = 14): number {
+  let food = 0;
+  for (const entry of social.memories ?? []) {
+    if (today - entry.day <= windowDays) food += memorySalience(entry, today);
+  }
+  const mass = bankTotal(social.echoBank);
+  if (mass <= 0) return food > 0 ? Infinity : 0;
+  return food / mass;
 }
 
 export interface RecordMemoryInput {
@@ -103,6 +140,13 @@ export interface RecordMemoryInput {
   now?: number;
   /** In-game day; defaults to currentDay(state). */
   today?: number;
+  /**
+   * The pilot's catalyst, for the bank's establishment rate (data/echoLean.ts
+   * bankRate). Optional: when absent, recordMemory looks it up from the
+   * roster, so Hub writers that never knew about catalysts get the right
+   * rate anyway. A pilot not on the roster banks at the neutral 1.0.
+   */
+  catalyst?: Catalyst;
 }
 
 /**
@@ -127,5 +171,11 @@ export function recordMemory(state: CampaignState, pilotId: string, input: Recor
   social.memories = addMemory(social.memories, entry, today);
   settleDrift(social, today);
   social.echoDrift = nudgeDrift(social.echoDrift, input.echo, weight);
+  // The return line (22 Sep 2026): part of E goes back into B. Drift above
+  // is the two-week version of the same idea; this one does not relax.
+  // Nature filters what sticks: the animal's own lean row sets the rate.
+  const roster = state.pilots[pilotId];
+  const catalyst = input.catalyst ?? (roster ? catalystForPilot(pilotId, roster.pilot.background) : undefined);
+  social.echoBank = bankEcho(social.echoBank, input.echo, weight, catalyst);
   return entry;
 }

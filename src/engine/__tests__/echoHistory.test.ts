@@ -5,8 +5,8 @@
 // historyAdjustedEchoLean, over data/dualProcess.ts).
 import { describe, it, expect } from "vitest";
 import { createWardenCampaignState } from "../campaignState";
-import { echoHistoryWeight, historyAdjustedEchoLean, recordMemory, socialStateFor } from "../memoryLedger";
-import { emptyDrift, effectiveEchoLean } from "../../data/echoLean";
+import { echoHistoryWeight, historyAdjustedEchoLean, recordMemory, socialStateFor, settleDrift, foodToMass } from "../memoryLedger";
+import { emptyDrift, effectiveEchoLean, bankTotal, bankRate, ECHO_BANK_RETURN_RATIO, ECHO_BANK_SATURATION, ECHO_BANK_INFLUENCE } from "../../data/echoLean";
 import { MASSED_MULTIPLIER, SPACED_MULTIPLIER } from "../../data/dualProcess";
 import { memorySalience } from "../../data/memories";
 import type { Echo } from "../../data/ambientLines";
@@ -84,25 +84,54 @@ describe("historyAdjustedEchoLean", () => {
     recordMemory(s, "pilot_bosk", { kind: "saw_fall", echo: "sadness", now: 0, today: 1 });
     const social = socialStateFor(s, "pilot_bosk");
     const drift = emptyDrift();
-    const before = effectiveEchoLean("shark", drift);
+    // The pre-gain baseline includes the bank (22 Sep 2026): the gain is the
+    // only thing historyAdjustedEchoLean adds on top of effectiveEchoLean,
+    // so the comparison has to hand effectiveEchoLean the same bank.
+    const before = effectiveEchoLean("shark", drift, social.echoBank);
     const after = historyAdjustedEchoLean("shark", social, drift, 1);
     expect(after.sadness).toBeLessThan(before.sadness);
     expect(after.love).toBeCloseTo(before.love, 10);
     expect(after.anger).toBeCloseTo(before.anger, 10);
   });
 
-  it("winds up an early-tipping animal on the same ledger that wears down a late-tipping one", () => {
-    const build = () => {
-      const s = createWardenCampaignState();
-      for (const day of [0, 7, 14, 21, 28]) {
-        recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "fear", now: 0, today: day });
-      }
-      return socialStateFor(s, "pilot_bosk");
-    };
-    const social = build();
+  // Two clocks, 22 Sep 2026 (data/dualProcess.ts header): habituation reads
+  // the ledger, sensitization reads the bank. Until then this was one test,
+  // "winds up an early-tipping animal on the same ledger" — five fear losses
+  // across one month — and under the one-clock rule that month was enough to
+  // wind a Rabbit up. It no longer is, by design: a month is not a career.
+  // Both halves of that are pinned below, through the real ledger path.
+  // Note the bank is filled by recordMemory at Bosk's own rate (Raven, 1.0
+  // on every echo); the two animals are then read against that one pilot.
+  const gainOf = (catalyst: "rabbit" | "shark", social: ReturnType<typeof socialStateFor>, today: number) => {
     const drift = emptyDrift();
-    const rabbit = historyAdjustedEchoLean("rabbit", social, drift, 28).fear / effectiveEchoLean("rabbit", drift).fear;
-    const shark = historyAdjustedEchoLean("shark", social, drift, 28).fear / effectiveEchoLean("shark", drift).fear;
+    // Same baseline rule as above: the ratio isolates the gain only if the
+    // denominator carries the bank too.
+    return historyAdjustedEchoLean(catalyst, social, drift, today).fear / effectiveEchoLean(catalyst, drift, social.echoBank).fear;
+  };
+
+  it("a hard month quiets even an early-tipping animal — a month is not a career", () => {
+    const s = createWardenCampaignState();
+    for (const day of [0, 7, 14, 21, 28]) {
+      recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "fear", now: 0, today: day });
+    }
+    const social = socialStateFor(s, "pilot_bosk");
+    expect(gainOf("rabbit", social, 28)).toBeLessThan(1);
+    expect(gainOf("shark", social, 28)).toBeLessThan(1);
+  });
+
+  it("a career of the same losses winds up the early-tipping animal and leaves the late-tipping one still quieting", () => {
+    const s = createWardenCampaignState();
+    // Twelve weeks of it: a bank of 12 on fear, past a Rabbit's fear tip
+    // (8.4) and short of a Shark's (14.4).
+    for (let week = 0; week < 12; week++) {
+      recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "fear", now: 0, today: week * 7 });
+    }
+    const social = socialStateFor(s, "pilot_bosk");
+    expect(social.echoBank!.fear).toBeCloseTo(12, 10);
+    const rabbit = gainOf("rabbit", social, 77);
+    const shark = gainOf("shark", social, 77);
+    expect(rabbit).toBeGreaterThan(1);
+    expect(shark).toBeLessThan(1);
     expect(rabbit).toBeGreaterThan(shark);
   });
 
@@ -111,5 +140,118 @@ describe("historyAdjustedEchoLean", () => {
     recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "anger", now: 0, today: 0 });
     const out = historyAdjustedEchoLean("bear", socialStateFor(s, "pilot_bosk"), emptyDrift(), 0);
     for (const e of ECHOES) expect(out[e]).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ---- The bank through the ledger, 22 Sep 2026 -------------------------------
+
+describe("recordMemory banks into echoBank — the return line", () => {
+  it("a fresh pilot has no bank field at all, and an untouched save stays untouched", () => {
+    const s = createWardenCampaignState();
+    const social = socialStateFor(s, "pilot_bosk");
+    expect(social.echoBank).toBeUndefined();
+    settleDrift(social, 10);
+    expect(social.echoBank).toBeUndefined();
+  });
+
+  it("the first memory creates the bank and feeds its echo by weight × ratio × the animal's rate", () => {
+    // Bosk is a Raven, the even row, so his rate is exactly 1.0 and the
+    // arithmetic here is the plain weight × ratio.
+    const s = createWardenCampaignState();
+    recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "sadness", now: 0, today: 0 });
+    const social = socialStateFor(s, "pilot_bosk");
+    expect(social.echoBank).toBeDefined();
+    expect(social.echoBank!.sadness).toBeCloseTo(1.0 * ECHO_BANK_RETURN_RATIO * bankRate("raven", "sadness"));
+    expect(social.echoBank!.sadness).toBeCloseTo(1.0 * ECHO_BANK_RETURN_RATIO);
+    expect(social.echoBank!.love).toBe(0);
+  });
+
+  it("recordMemory looks the catalyst up itself, so a Hub writer that never passes one still gets the right rate", () => {
+    // Anand is a Wolf (sadness 0.15 → rate 0.6). Same memory, no catalyst passed.
+    const s = createWardenCampaignState();
+    recordMemory(s, "pilot_anand", { kind: "lost_squadmate", echo: "sadness", now: 0, today: 0 });
+    const social = socialStateFor(s, "pilot_anand");
+    expect(social.echoBank!.sadness).toBeCloseTo(1.0 * ECHO_BANK_RETURN_RATIO * bankRate("wolf", "sadness"));
+    expect(social.echoBank!.sadness).toBeCloseTo(0.6);
+  });
+
+  it("the same loss sticks differently to different animals — nature filters", () => {
+    const s = createWardenCampaignState();
+    recordMemory(s, "pilot_anand", { kind: "lost_squadmate", echo: "sadness", now: 0, today: 0 }); // Wolf, 0.6×
+    recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "sadness", now: 0, today: 0 }); // Raven, 1.0×
+    const anand = socialStateFor(s, "pilot_anand").echoBank!.sadness;
+    const bosk = socialStateFor(s, "pilot_bosk").echoBank!.sadness;
+    expect(anand).toBeLessThan(bosk);
+    expect(bosk / anand).toBeCloseTo(bankRate("raven", "sadness") / bankRate("wolf", "sadness"));
+  });
+
+  it("the bank does not relax with in-game days, unlike drift", () => {
+    const s = createWardenCampaignState();
+    recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "sadness", now: 0, today: 0 });
+    const social = socialStateFor(s, "pilot_bosk");
+    const driftBefore = social.echoDrift!.sadness;
+    const bankBefore = social.echoBank!.sadness;
+    settleDrift(social, 200);
+    expect(social.echoDrift!.sadness).toBeLessThan(driftBefore * 0.01);
+    expect(social.echoBank!.sadness).toBe(bankBefore);
+  });
+
+  it("the bank survives a save round-trip as plain JSON", () => {
+    const s = createWardenCampaignState();
+    recordMemory(s, "pilot_bosk", { kind: "was_downed", echo: "fear", now: 0, today: 0 });
+    const round = JSON.parse(JSON.stringify(s)) as typeof s;
+    const social = socialStateFor(round, "pilot_bosk");
+    expect(social.echoBank!.fear).toBeCloseTo(0.7 * ECHO_BANK_RETURN_RATIO);
+  });
+
+  it("historyAdjustedEchoLean reads the bank, so both game call sites get it without knowing", () => {
+    const s = createWardenCampaignState();
+    const social = socialStateFor(s, "pilot_bosk");
+    const before = historyAdjustedEchoLean("raven", social, emptyDrift(), 0);
+    // Bosk is a Raven: the even row, 0.25 each. Bank enough sadness to saturate.
+    for (let i = 0; i < 4; i++) recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "sadness", now: i, today: 0 });
+    // Reset drift so we isolate the bank's contribution from the drift's.
+    social.echoDrift = emptyDrift();
+    const after = historyAdjustedEchoLean("raven", social, emptyDrift(), 0);
+    // Dual-process gains will also move things (four losses in one day is a
+    // massed run), so compare against the raw lean with and without the bank
+    // rather than asserting an exact number.
+    const rawWithout = effectiveEchoLean("raven", emptyDrift());
+    const rawWith = effectiveEchoLean("raven", emptyDrift(), social.echoBank);
+    expect(rawWith.sadness - rawWithout.sadness).toBeCloseTo(ECHO_BANK_INFLUENCE, 5);
+    expect(after.sadness).toBeGreaterThan(before.sadness);
+  });
+
+  it("a Wolf who has processed enough losses as sadness now leans sadness — and keeps leaning it after a quiet season", () => {
+    const s = createWardenCampaignState();
+    // A Wolf banks sadness at 0.6×, so saturation takes more losses than the
+    // neutral count — which is the point: it is harder to turn a Wolf sad.
+    const n = Math.ceil(ECHO_BANK_SATURATION / (ECHO_BANK_RETURN_RATIO * bankRate("wolf", "sadness")));
+    for (let i = 0; i < n; i++) recordMemory(s, "pilot_anand", { kind: "lost_squadmate", echo: "sadness", now: i, today: i * 10 });
+    const social = socialStateFor(s, "pilot_anand");
+    // A quiet season: 120 days, drift relaxes to nothing, ledger salience to the floor.
+    const drift = settleDrift(social, n * 10 + 120);
+    const lean = effectiveEchoLean("wolf", drift, social.echoBank);
+    expect(lean.sadness).toBeGreaterThan(lean.love);
+    expect(bankTotal(social.echoBank)).toBeGreaterThanOrEqual(ECHO_BANK_SATURATION);
+  });
+});
+
+describe("foodToMass — the harness diagnostic", () => {
+  it("is 0 for nothing over nothing, Infinity for something over nothing", () => {
+    const s = createWardenCampaignState();
+    const social = socialStateFor(s, "pilot_bosk");
+    expect(foodToMass(social, 0)).toBe(0);
+    social.memories = [{ kind: "got_the_kill", at: 0, day: 0, about: [], witnesses: [], echo: "anger", weight: 0.3 }];
+    expect(foodToMass(social, 0)).toBe(Infinity);
+  });
+
+  it("is recent salience over banked total, and old memories fall out of the window", () => {
+    const s = createWardenCampaignState();
+    recordMemory(s, "pilot_bosk", { kind: "lost_squadmate", echo: "sadness", now: 0, today: 0 });
+    const social = socialStateFor(s, "pilot_bosk");
+    const fmNow = foodToMass(social, 0);
+    expect(fmNow).toBeCloseTo(1.0 / bankTotal(social.echoBank));
+    expect(foodToMass(social, 100)).toBe(0);
   });
 });

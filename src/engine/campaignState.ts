@@ -3036,6 +3036,16 @@ export interface HubPilotSocialState {
   // means "never relaxed yet": the first writer stamps today and relaxes
   // nothing.
   echoDriftDay?: number;
+  // echoBank — the third layer, 22 Sep 2026 (claude/Bloom_Wars_Echo_Bank_
+  // Plan_v1_22Sep2026.md): what this pilot has become. Every memory written
+  // feeds its echo's slot, and unlike echoDrift the slots never relax on
+  // their own. Read as a normalised shape scaled by a bounded, saturating
+  // influence (data/echoLean.ts bankLean), so undefined or all-zero reads
+  // as "contributes nothing" and every save that predates this field
+  // behaves exactly as it did. Same optional-additive pattern as the three
+  // fields above. In the formula's terms this is B accumulating: the return
+  // line from E.
+  echoBank?: EchoWeights;
 }
 
 /**

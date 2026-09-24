@@ -21,6 +21,7 @@ import { Hub } from "./scenes/Hub";
 // arguments (which is exactly how the Warden `Hub` entry stays the Antfarm).
 import { HOUSE_AMARANTH_FACILITY } from "./engine/facilityHouseAmaranth";
 import { applyDisplayScale, getStoredDisplayScaleId } from "./engine/displayScale";
+import { pinDomLayerToCanvas } from "./engine/domLayerPin";
 import { setSaveFailureHandler } from "./engine/campaignState";
 
 // Screen Resolution Plan v1, 2 Sep 2026 — apply the player's saved display-
@@ -128,6 +129,19 @@ const __bwGame = new Phaser.Game({
   // work at all; off by default. No effect on any other scene.
   dom: { createContainer: true },
 });
+
+// Demo verification pass, 24 Sep 2026 — keep that DOM layer on top of the
+// canvas. Without this every text box drifts off its spot at any window size
+// other than exactly 1074x640 (at 1920x1080 the Battle talk box opened off
+// the bottom-right of the screen). Why, and the measurements: see
+// src/engine/domLayerPin.ts. Re-pinned whenever Phaser rescales, and on
+// window resize, since a capped canvas can move without being rescaled.
+{
+  const pin = () => pinDomLayerToCanvas(__bwGame.domContainer, __bwGame.canvas);
+  __bwGame.events.once(Phaser.Core.Events.READY, pin);
+  __bwGame.scale.on(Phaser.Scale.Events.RESIZE, pin);
+  window.addEventListener("resize", () => requestAnimationFrame(pin));
+}
 
 // Playwright verification harness (31 Aug 2026, see tools/verify/'s own
 // README) — exposes the live Phaser.Game instance on window so a headless

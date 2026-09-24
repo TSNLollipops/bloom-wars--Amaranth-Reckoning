@@ -6,6 +6,8 @@ import {
   buildArchiveDossier,
   facilityOf,
   relationsFor,
+  becomeFor,
+  BECOME_WORD,
 } from "../archiveDossier";
 import {
   type CampaignPilotEntry,
@@ -503,5 +505,50 @@ describe("the Carries block", () => {
       const own = l.value.replace(/Amaranth I\.\d+ — [^,]+/, "");
       expect(own).not.toMatch(/[—;]/);
     }
+  });
+});
+
+// ---- The "Has become" line, 22 Sep 2026 -------------------------------------
+import { ECHO_BANK_SATURATION } from "../../data/echoLean";
+
+describe("becomeFor — the one place a player sees the bank", () => {
+  it("says nothing for a pilot with no bank, or a thin one", () => {
+    expect(becomeFor(undefined)).toEqual([]);
+    expect(becomeFor({ love: 0, fear: 0, anger: 0, sadness: 0 })).toEqual([]);
+    expect(becomeFor({ love: 0, fear: 0, anger: 0, sadness: ECHO_BANK_SATURATION / 2 - 0.01 })).toEqual([]);
+  });
+
+  it("names the dominant banked echo once the bank is thick enough, in record voice", () => {
+    const lines = becomeFor({ love: 0, fear: 0, anger: 0, sadness: ECHO_BANK_SATURATION });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].label).toBe("Has become");
+    expect(lines[0].value).toBe("Quieter.");
+    expect(lines[0].tone).toBe("muted");
+  });
+
+  it("has one word per echo and none of them break the Archive prose rule", () => {
+    for (const w of Object.values(BECOME_WORD)) {
+      expect(w.length).toBeGreaterThan(0);
+      expect(w).not.toMatch(/[—;]/);
+      expect(w).toBe(w.toLowerCase());
+    }
+  });
+
+  it("appears in the full dossier after Carries, and only for a pilot who has banked enough", () => {
+    const s = warden();
+    const n = Math.ceil(ECHO_BANK_SATURATION / 2) + 1;
+    for (let i = 0; i < n; i++) {
+      recordMemory(s, "pilot_anand", { kind: "lost_squadmate", echo: "sadness", about: ["pilot_bosk"], missionId: "mission_amaranth_3", now: i, today: i * 5 });
+    }
+    const dossier = buildArchiveDossier(s, entryOf(s, "pilot_anand"));
+    const labels = dossier.lines.map((l) => l.label);
+    const carriesIdx = labels.indexOf("Carries");
+    const becomeIdx = labels.indexOf("Has become");
+    expect(becomeIdx).toBeGreaterThan(carriesIdx);
+    expect(dossier.lines[becomeIdx].value).toBe("Quieter.");
+
+    // Bosk has banked nothing: no line.
+    const fresh = buildArchiveDossier(s, entryOf(s, "pilot_bosk"));
+    expect(fresh.lines.some((l) => l.label === "Has become")).toBe(false);
   });
 });

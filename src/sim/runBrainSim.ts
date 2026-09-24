@@ -3,6 +3,7 @@
 // claude/Bloom_Wars_Emotional_Brain_Build_Plan_v1_12Sep2026.md §3e.
 //   npm run sim:brain
 //   npm run sim:brain -- --missions=12 --seeds=10 --tier=hard --hubdays=3 --care=2 --json=out.json
+//   npm run sim:brain -- --no-replay   (skip the determinism replay of seed 1, see below)
 //
 // Seeded, headless, no Phaser. Runs a Warden campaign end to end the way a
 // real save would experience it, minus the screens: the mission bot plays
@@ -31,8 +32,33 @@
 // out in the Hub (Share a Drink alone is -8, data/verbs.ts). Set --care=0
 // to see the raw engine with no player looking after anyone.
 //
+// --crew=N (22 Sep 2026) is the second stand-in, also NOT a game mechanic
+// and also labelled in the output: after each mission, generated recruits
+// top the NPC roster back up to N, standing in for the player recruiting
+// to replace the dead (the recruit pool, the discretionary track, the
+// empty lances Act II and III grant). Off by default, so a plain run is
+// unchanged. Why it exists: without it the harness never recruits, and a
+// measured 36 x 12 run found the crew all but gone by Mission 11 — 246 of
+// 432 missions never debrief, and 98 of the 186 that do have no NPC pilot
+// left to react. Past the first act, the stock harness is barely
+// exercising the Reaction Engine at all
+// (claude/Bloom_Wars_Shark_Threshold_Measurement_22Sep2026.md).
+//
 // Mirrors src/sim/run.ts / runSocialSim.ts conventions: plain tsx script,
 // readable log, exits clean, nonzero exit if a check fails.
+//
+// Determinism, 22 Sep 2026 (claude/Bloom_Wars_Build_Log_Addendum_
+// SimDeterminism_22Sep2026.md). "Seeded" above was only half true until
+// this date: the harness's own rng reached the Mission, the Debrief chain
+// and simulateDay, but recruit generation, the Hub minigames and Hub talk
+// still called the real Math.random, so the same --seeds gave a different
+// campaign on every run from the first recruit onward. Each campaign now
+// runs inside sim/seededRandom.ts's fence, and a last check replays seed 1
+// after every other seed has run and demands a byte-identical result
+// (--no-replay skips it). A FAIL there means something new is reading the
+// wall clock or carrying state from one campaign into the next; every
+// before/after comparison this harness prints is untrustworthy until it's
+// fixed.
 import { writeFileSync } from "node:fs";
 import { WARDEN_MISSION_CHAIN } from "../data/allCampaigns";
 import type { CampaignMission } from "../data/types";
@@ -43,22 +69,24 @@ import {
   integrateSecondLance,
   integrateThirdLance,
   ensureNpcSocialState,
+  generateRandomRescuedPilot,
   type CampaignState,
 } from "../engine/campaignState";
 import { applyMissionCompletionDayCost, creditRealMs, currentDay, MS_PER_CALENDAR_DAY } from "../engine/calendarClock";
 import { runGriefCatalyst, type GriefCatalystResult } from "../engine/griefCatalyst";
 import { runDebriefCatalyst, debriefTakeLine, type DebriefCatalystResult } from "../engine/debriefCatalyst";
-import { socialStateFor, settleDrift } from "../engine/memoryLedger";
+import { socialStateFor, settleDrift, foodToMass } from "../engine/memoryLedger";
 import { simulateDay, type SocialSimPilot } from "../engine/socialSim";
 import { NPC_BOND_SEED, catalystForPilot } from "../data/npcSeed";
 import { stageFromTier, STRESS_PANIC_THRESHOLD, type Echo } from "../data/ambientLines";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { topMemories, memorySalience, MEMORY_KIND_LABEL, type MemoryEntry } from "../data/memories";
-import { effectiveEchoLean, dominantEcho } from "../data/echoLean";
+import { effectiveEchoLean, dominantEcho, bankTotal, dominantBankedEcho, type EchoWeights } from "../data/echoLean";
 import { driveMission } from "./driveMission";
 import { buildProgressionRoster } from "./progressionRoster";
 import { profileForTier } from "./playerAi";
 import { mulberry32 } from "./rng";
+import { withSeededMathRandom } from "./seededRandom";
 
 // ---- args -------------------------------------------------------------------
 
@@ -76,8 +104,10 @@ const seeds = Math.max(1, Number(flag("seeds") ?? 10) || 10);
 const tier = flag("tier") || "hard";
 const hubDays = Math.max(0, Number(flag("hubdays") ?? 3) || 0);
 const care = Math.max(0, Number(flag("care") ?? 3) || 0);
+const crew = Math.max(0, Number(flag("crew") ?? 0) || 0);
 const jsonPath = flag("json");
 const quiet = flag("quiet") !== undefined;
+const skipReplay = flag("no-replay") !== undefined;
 const profile = profileForTier(tier);
 
 // ---- one campaign -------------------------------------------------------------
@@ -116,7 +146,7 @@ interface CampaignRun {
   pilots: Record<string, PilotTrack>;
   pairs: Record<string, PairTrack>;
   carries: Record<string, { label: string; salience: number; about: string[]; missionId?: string; day: number }[]>;
-  lean: Record<string, { dominant: Echo; drift: Record<Echo, number> }>;
+  lean: Record<string, { dominant: Echo; drift: EchoWeights; bank: EchoWeights; bankTotal: number; become: Echo | undefined; foodToMass: number }>;
   pinnedAt100Before8: string[];
   panicked: string[];
   maxOrdinaryPairShift: number;
@@ -181,7 +211,16 @@ function rosterFor(def: CampaignMission, state: CampaignState) {
   return roster;
 }
 
+/**
+ * One campaign inside the determinism fence (sim/seededRandom.ts). The
+ * fence's stream is derived from the seed with a different multiplier
+ * than the harness's own `rng` below, so the two never walk in lockstep.
+ */
 function runCampaign(seed: number): CampaignRun {
+  return withSeededMathRandom(seed * 104_729 + 29, () => runCampaignUnfenced(seed));
+}
+
+function runCampaignUnfenced(seed: number): CampaignRun {
   const rng = mulberry32(seed * 7919 + 17);
   const state = createWardenCampaignState();
   const npcSocial = ensureNpcSocialState(state, NPC_BOND_SEED);
@@ -266,6 +305,11 @@ function runCampaign(seed: number): CampaignRun {
     } else {
       row.outcome = `${outcome} after ${attempts} attempts (every attempt voided, no debrief)`;
     }
+    // --crew stands in for the player recruiting (see the header). After
+    // every mission, voided or not: a real player recruits between fights.
+    if (crew > 0) {
+      while (activeIds(state).filter((id) => id !== "pilot_rourke" && id !== "pilot_marrow").length < crew) generateRandomRescuedPilot(state);
+    }
     missions.push(row);
 
     // Hub days between missions: bonds move through the social sim, the
@@ -308,7 +352,16 @@ function runCampaign(seed: number): CampaignRun {
     if (social) {
       const drift = settleDrift(social, today);
       const catalyst = catalystForPilot(id, state.pilots[id].pilot.background);
-      lean[pilots[id].displayName] = { dominant: dominantEcho(effectiveEchoLean(catalyst, drift)), drift: { love: r2(drift.love), fear: r2(drift.fear), anger: r2(drift.anger), sadness: r2(drift.sadness) } };
+      const bank = social.echoBank ?? { love: 0, fear: 0, anger: 0, sadness: 0 };
+      const fm = foodToMass(social, today);
+      lean[pilots[id].displayName] = {
+        dominant: dominantEcho(effectiveEchoLean(catalyst, drift, social.echoBank)),
+        drift: { love: r2(drift.love), fear: r2(drift.fear), anger: r2(drift.anger), sadness: r2(drift.sadness) },
+        bank: { love: r2(bank.love), fear: r2(bank.fear), anger: r2(bank.anger), sadness: r2(bank.sadness) },
+        bankTotal: r2(bankTotal(social.echoBank)),
+        become: dominantBankedEcho(social.echoBank),
+        foodToMass: Number.isFinite(fm) ? r2(fm) : fm,
+      };
     }
   }
   let closestPair: string | null = null;
@@ -344,6 +397,7 @@ function r2(n: number): number {
 const runs: CampaignRun[] = [];
 console.log(`=== Emotional Brain harness: ${seeds} seed${seeds === 1 ? "" : "s"} × ${missionsToRun} missions, tier ${tier}, ${hubDays} Hub day${hubDays === 1 ? "" : "s"} between missions, care ${care}/day ===`);
 console.log(care > 0 ? `(care=${care} is NOT a game mechanic: it stands in for the player's own relief verbs in the Hub. --care=0 shows the raw engine.)` : "(care=0: the raw engine, nobody looking after anyone.)");
+if (crew > 0) console.log(`(crew=${crew} is NOT a game mechanic: generated recruits top the NPC roster back up to ${crew} after every mission, standing in for the player recruiting.)`);
 console.log("");
 
 for (let s = 1; s <= seeds; s++) {
@@ -364,7 +418,10 @@ for (let s = 1; s <= seeds; s++) {
     console.log(`      Stress ${p.stress.join(" > ")}`);
     console.log(`      Morale ${p.morale.join(" > ")}`);
     const l = run.lean[p.displayName];
-    if (l) console.log(`      Lean: ${l.dominant}  (drift love ${l.drift.love}, fear ${l.drift.fear}, anger ${l.drift.anger}, sadness ${l.drift.sadness})`);
+    if (l) {
+      console.log(`      Lean: ${l.dominant}  (drift love ${l.drift.love}, fear ${l.drift.fear}, anger ${l.drift.anger}, sadness ${l.drift.sadness})`);
+      console.log(`      Bank: ${l.bankTotal} banked (love ${l.bank.love}, fear ${l.bank.fear}, anger ${l.bank.anger}, sadness ${l.bank.sadness})  has become: ${l.become ?? "nothing yet"}  F/M ${l.foodToMass === Infinity ? "inf" : l.foodToMass}`);
+    }
     const c = run.carries[p.displayName] ?? [];
     for (const mm of c) console.log(`      Carries: ${mm.label}${mm.about.length ? ` (${mm.about.join(", ")})` : ""}, ${mm.missionId ?? "the Hub"}, day ${mm.day}, salience ${mm.salience}`);
   }
@@ -409,6 +466,27 @@ if (runs.length >= 5 && closest.size === 1 && loudest.size === 1) {
   failed = true;
 } else {
   console.log("Surprise: OK. Different campaigns produce different crews.");
+}
+
+// Determinism tripwire. Seed 1 again, AFTER every other seed has run, so
+// it catches both kinds of leak: something reading real randomness or the
+// wall clock mid-campaign, and something one campaign leaves behind in a
+// module-level variable that the next one picks up. Compared as JSON, the
+// same shape --json writes, so "identical" means identical to the file.
+if (skipReplay) {
+  console.log("Determinism: skipped (--no-replay).");
+} else {
+  const replay = runCampaign(runs[0].seed);
+  const first = JSON.stringify(runs[0]);
+  const again = JSON.stringify(replay);
+  if (first === again) {
+    console.log(`Determinism, seed ${runs[0].seed} replayed after all ${runs.length} seed${runs.length === 1 ? "" : "s"}: OK (byte-identical)`);
+  } else {
+    const diverged = runs[0].missions.find((m, i) => JSON.stringify(m) !== JSON.stringify(replay.missions[i]));
+    const where = diverged ? `first differs at M${String(diverged.index).padStart(2, "0")} ${diverged.missionId}` : "missions match; the difference is in the end-of-run pilot/bond summary";
+    console.log(`Determinism, seed ${runs[0].seed} replayed: FAIL (${where}). Something is reading real randomness, the wall clock, or state left over from an earlier campaign. Before/after comparisons from this harness can't be trusted until it's found.`);
+    failed = true;
+  }
 }
 
 if (jsonPath) {

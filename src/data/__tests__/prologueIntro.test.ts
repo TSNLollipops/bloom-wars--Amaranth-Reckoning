@@ -1,5 +1,5 @@
 // src/data/__tests__/prologueIntro.test.ts
-// Universe Intro Plan v1, 17 Sep 2026 — codifies the Qiraki Master Style
+// Universe Intro Plan v1, 17 Sep 2026 — codifies the book-side Master Style
 // Guide craft-rule subset this content is written to (see prologueIntro.ts's
 // own header) as an actual check, rather than leaving it to review alone —
 // this project's own habit for anything with a "never do X" rule attached
@@ -31,7 +31,7 @@ describe("PROLOGUE_BEATS_WARDEN shape", () => {
   });
 });
 
-describe("Qiraki craft-rule subset (Foundation.md's Archive-prose scope, borrowed here 17 Sep 2026)", () => {
+describe("book-side craft-rule subset (Foundation.md's Archive-prose scope, borrowed here 17 Sep 2026)", () => {
   it("uses zero em dashes", () => {
     for (const line of allLines()) expect(line).not.toContain(EM_DASH);
   });
