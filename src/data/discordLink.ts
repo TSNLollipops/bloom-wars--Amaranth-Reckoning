@@ -13,4 +13,10 @@
 // setWindowOpenHandler (added for that same button) already redirect any
 // window.open() to the system browser via shell.openExternal, so no
 // Electron-specific branch is needed here.
-export const DISCORD_INVITE_URL = "https://discord.gg/3KwYbynG9";
+//
+// Swapped 24 Sep 2026: the 18 Sep invite (3KwYbynG9) was a default Discord
+// invite set to expire 18 Oct 2026, eight days before the 26 Oct launch.
+// This one was made with Expire After: Never (Discord's API reports
+// expires_at: null). Keep it that way: any replacement must be non-expiring,
+// or every shipped build's JOIN THE DISCORD button dies with it.
+export const DISCORD_INVITE_URL = "https://discord.gg/3Fkkujj2US";

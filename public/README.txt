@@ -26,8 +26,8 @@ save on this machine.
 FOUND A BUG?
 Options → COPY STATS + BUG REPORT TO CLIPBOARD copies your game version,
 your mission history, and an install id — paste that (plus what you were
-doing) into a bug report. Where to send it: [Discord invite link goes
-here once the server is public] or wherever you got this build.
+doing) into a bug report. Where to send it: the Discord,
+https://discord.gg/3Fkkujj2US, or wherever you got this build.
 
 REFUND
 If it won't run on your machine, say so and you'll get your money back.
