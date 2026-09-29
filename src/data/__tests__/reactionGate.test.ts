@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { gate0ReactionChance, gate0Reacts, GATE0_BASE_CHANCE, GATE0_DRUNK_BONUS, GATE0_PANIC_PENALTY, GATE0_WORRY_BONUS } from "../reactionGate";
 import { STRESS_PANIC_THRESHOLD, type AmbientPilotState } from "../ambientLines";
+import { gate0WantTouched, gate0Decision, GATE0_WANT_WORRY_THRESHOLD, GATE0_IDLE_BEAT_CHANCE, GATE0_IDLE_TEXT } from "../reactionGate";
 
 function pilot(overrides: Partial<AmbientPilotState> = {}): AmbientPilotState {
   // stage defaults to "blooded" — see ambientLines.test.ts's own helper for
@@ -108,5 +109,50 @@ describe("gate0Reacts — statistical behavior over many trials", () => {
 
   it("never returns anything but a boolean", () => {
     for (let i = 0; i < 50; i++) expect(typeof gate0Reacts(pilot())).toBe("boolean");
+  });
+});
+
+// ---- Formula v2 Gate 0, 28 Sep 2026 -----------------------------------------
+
+describe("gate0WantTouched — Formula v2's want check", () => {
+  it("is touched by an unmet need regardless of worries", () => {
+    expect(gate0WantTouched({ hasUnmetNeed: true })).toBe(true);
+  });
+  it("is touched by a worry at or above the threshold, not below it", () => {
+    expect(gate0WantTouched({ hasUnmetNeed: false, loudestWorryIntensity: GATE0_WANT_WORRY_THRESHOLD })).toBe(true);
+    expect(gate0WantTouched({ hasUnmetNeed: false, loudestWorryIntensity: GATE0_WANT_WORRY_THRESHOLD - 0.01 })).toBe(false);
+  });
+  it("is not touched with nothing on their mind", () => {
+    expect(gate0WantTouched({ hasUnmetNeed: false })).toBe(false);
+  });
+});
+
+describe("gate0Decision — want first, then the old roll, and a 'no' is sometimes idle", () => {
+  const nothing = { hasUnmetNeed: false };
+  it("always reacts when the want is touched, even on a roll that would say no", () => {
+    expect(gate0Decision(pilot({ stress: STRESS_PANIC_THRESHOLD }), { hasUnmetNeed: true }, () => 0.999)).toBe("react");
+  });
+  it("falls through to the pre-v2 roll when nothing is on their mind", () => {
+    expect(gate0Decision(pilot(), nothing, () => GATE0_BASE_CHANCE - 0.01)).toBe("react");
+  });
+  it("turns a 'no' into the idle beat on a low second roll, silence on a high one", () => {
+    const rolls = [0.99, GATE0_IDLE_BEAT_CHANCE - 0.01];
+    expect(gate0Decision(pilot(), nothing, () => rolls.shift()!)).toBe("idle");
+    const rolls2 = [0.99, GATE0_IDLE_BEAT_CHANCE + 0.01];
+    expect(gate0Decision(pilot(), nothing, () => rolls2.shift()!)).toBe("silent");
+  });
+  it("keeps the idle beat wordless", () => {
+    expect(GATE0_IDLE_TEXT).toBe("…");
+  });
+  it("makes idle rarer than silence overall", () => {
+    let idle = 0;
+    let silent = 0;
+    for (let i = 0; i < 4000; i++) {
+      const d = gate0Decision(pilot(), nothing);
+      if (d === "idle") idle++;
+      if (d === "silent") silent++;
+    }
+    expect(idle).toBeGreaterThan(0);
+    expect(idle).toBeLessThan(silent);
   });
 });

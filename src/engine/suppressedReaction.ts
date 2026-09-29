@@ -200,3 +200,32 @@ export function deferralCanFire(nearbyPilotIds: string[], bondedPilotIds: string
   if (nearbyPilotIds.length === 1) return bondedPilotIds.includes(nearbyPilotIds[0]);
   return false;
 }
+
+/**
+ * Release a held reaction, 28 Sep 2026 — Formula v2's "release empties"
+ * (Bloom_Wars_Formula_v2_PreLaunch_Build_Plan_v1_27Sep2026.md, Part C, C1,
+ * Maxime's pick). When the room has thinned out (deferralCanFire), the held
+ * sadness comes out whole: it writes the ordinary `breakdown` memory at that
+ * kind's FULL birth weight, never a softened one, and never a second entry
+ * for the moment it was held (gate4Check's sadness row deliberately writes
+ * nothing at hold time, so this is the one and only mark).
+ *
+ * `weight` is deliberately not passed, same reasoning as applySuppression:
+ * recordMemory reads the birth weight from MEMORY_BIRTH_WEIGHT, and the whole
+ * point of C1 is that it is that number and not a reduced one.
+ */
+export function releaseDeferredReaction(
+  state: CampaignState,
+  pilotId: string,
+  deferred: DeferredReaction,
+  witnesses: string[],
+  now?: number
+): MemoryEntry {
+  return recordMemory(state, pilotId, {
+    kind: "breakdown",
+    echo: deferred.echo,
+    about: deferred.about,
+    witnesses,
+    now: now ?? Date.now(),
+  });
+}

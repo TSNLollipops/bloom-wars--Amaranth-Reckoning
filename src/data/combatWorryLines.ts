@@ -43,7 +43,7 @@
 // picker — no gameplay state.
 import type { WorrySourceId } from "./worries";
 
-const COMBAT_WORRY_LINES: Partial<Record<WorrySourceId, string[]>> = {
+export const COMBAT_WORRY_LINES: Partial<Record<WorrySourceId, string[]>> = {
   // mission_pilot_missing is a Hub-context source (Mission Worry, step 2) —
   // it never appears in a Mission instance's own combatWorries list (see
   // that field's comment in mission.ts), so it has no pool here.
@@ -71,8 +71,19 @@ const COMBAT_WORRY_LINES: Partial<Record<WorrySourceId, string[]>> = {
  * that ambientLines.ts's Hub bank doesn't fit this register, so there is
  * deliberately no fallback bank to reach for here either.
  */
-export function pickCombatWorryLine(source: WorrySourceId, rng: () => number = Math.random): string | undefined {
+export function pickCombatWorryLine(
+  source: WorrySourceId,
+  rng: () => number = Math.random,
+  // Lines already spoken this mission (26 Sep 2026, customer playtest: three
+  // pilots said "No one going to get to you while I'm primed." on the same
+  // turn, which read as a bug, not a squad). Skipped while the pool still
+  // has anything else; once every line has been used, repeats are allowed
+  // again rather than going silent. One rng() draw either way.
+  alreadyUsed?: ReadonlySet<string>,
+): string | undefined {
   const bank = COMBAT_WORRY_LINES[source];
   if (!bank || bank.length === 0) return undefined;
-  return bank[Math.floor(rng() * bank.length)];
+  const fresh = alreadyUsed ? bank.filter((l) => !alreadyUsed.has(l)) : bank;
+  const pool = fresh.length ? fresh : bank;
+  return pool[Math.floor(rng() * pool.length)];
 }

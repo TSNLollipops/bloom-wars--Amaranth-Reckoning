@@ -76,3 +76,57 @@ export function gate0ReactionChance(pilot: AmbientPilotState): number {
 export function gate0Reacts(pilot: AmbientPilotState): boolean {
   return Math.random() < gate0ReactionChance(pilot);
 }
+
+// ---- Formula v2, Gate 0: the want check and idle, 28 Sep 2026 ----------------
+//
+// Bloom_Wars_Formula_v2_PreLaunch_Build_Plan_v1_27Sep2026.md, Part A. THE
+// FORMULA Master Reference v2 (25 Sep 2026) changed Gate 0 in two ways, both
+// Maxime's rulings:
+//
+//   1. It decides with a WANT test before anything else: does the moment touch
+//      this self's scene-want? If not, its long-term want? Only if neither is
+//      touched does the ordinary "not right now" apply. In this game the
+//      scene-want is read off what the pilot is carrying right now: a live
+//      Worry loud enough to be on their mind, or an unmet need. The long-term
+//      want has no field anywhere in the game yet, and Maxime's plan answer
+//      (Q2) was to skip it for now, so a pilot with nothing on their mind
+//      falls through to the existing roll, unchanged.
+//   2. A "no" is IDLE, not blank: a small, cheap beat that shows the pilot is
+//      there. His pick (Q1): a rare silent "…" bubble. No written content, no
+//      memory, no Favorability/Stress/Morale movement, by design.
+//
+// Pure: no clock, no Phaser. `rng` is injectable so the tests never fight
+// Math.random.
+
+/** A live Worry at or above this intensity counts as "on their mind" for Gate 0. SUPPRESSION_WORRY_PEAK is 0.45 and Mission Worry peaks near 1, so both qualify while they are fresh and drop out as they fade. Placeholder. */
+export const GATE0_WANT_WORRY_THRESHOLD = 0.3;
+/** How often a Gate 0 "no" shows the idle beat instead of nothing. Rare on purpose, so a Talk press into a crowded room doesn't fill it with dots. Placeholder. */
+export const GATE0_IDLE_BEAT_CHANCE = 0.25;
+/** The idle beat itself. Deliberately wordless: Maxime writes every line a character says. */
+export const GATE0_IDLE_TEXT = "…";
+
+export interface Gate0WantState {
+  /** Intensity of the pilot's loudest live Worry right now, if any. */
+  loudestWorryIntensity?: number;
+  /** True when at least one need meter is under the Needs Counter's low threshold. */
+  hasUnmetNeed: boolean;
+}
+
+/** Formula v2's want check: true when the moment has something to land on. */
+export function gate0WantTouched(want: Gate0WantState): boolean {
+  if (want.hasUnmetNeed) return true;
+  return (want.loudestWorryIntensity ?? 0) >= GATE0_WANT_WORRY_THRESHOLD;
+}
+
+export type Gate0Decision = "react" | "idle" | "silent";
+
+/**
+ * The whole v2 Gate 0 in one call. A want that is touched always reacts;
+ * otherwise the pre-v2 chance roll runs exactly as it always has, and its
+ * "no" becomes an idle beat GATE0_IDLE_BEAT_CHANCE of the time.
+ */
+export function gate0Decision(pilot: AmbientPilotState, want: Gate0WantState, rng: () => number = Math.random): Gate0Decision {
+  if (gate0WantTouched(want)) return "react";
+  if (rng() < gate0ReactionChance(pilot)) return "react";
+  return rng() < GATE0_IDLE_BEAT_CHANCE ? "idle" : "silent";
+}

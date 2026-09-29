@@ -96,6 +96,7 @@ import {
   type HubMessage,
   type Stage,
   type Catalyst,
+  type Echo,
 } from "../data/ambientLines";
 // Groups 3-5 batch rebuild, 28 Aug 2026 — Anger Blowup, Toxic Pairs, and
 // Breakdown (see each module's own header for the full design). Third
@@ -178,7 +179,10 @@ import { deriveRelationshipStage, relationshipStagePhrase, pickRelationshipStage
 import { pickFrictionLine } from "../data/friction";
 import { worryTriggerChance } from "../data/missionWorry";
 import { upsertWorry, removeWorry, loudestWorry, type WorryEntry } from "../data/worries";
-import { gate0Reacts } from "../data/reactionGate";
+import { gate0Reacts, gate0Decision, GATE0_IDLE_TEXT } from "../data/reactionGate";
+import { gate4Check, type SceneContext } from "../data/reactionGate4";
+import { applySuppression, deferralCanFire, releaseDeferredReaction, type DeferredReaction } from "../engine/suppressedReaction";
+import { areCrewReactionsV2Enabled } from "../engine/crewReactionsSettings";
 import { NEED_ROOM, NEEDS_FLAVOR_BANK, NEEDS_FLAVOR_CHANCE, NEEDS_LOW_THRESHOLD, needsStressMoraleDelta, tickNeed, worstNeed } from "../data/needsCounter";
 import { resolveAskOut, isRomanceableSpecies, ALREADY_TOGETHER_LINES, CLOSE_FRIEND_ONLY_LINES } from "../data/romance";
 import { UNIT_ARCHETYPES } from "../data/units";
@@ -1717,6 +1721,13 @@ type HubNpc = {
   // call, since Mission Worry is currently this list's only real source.
   // Not persisted, same as ambient.worried and ambient.topWorry themselves.
   worries?: WorryEntry[];
+  // Formula v2, 28 Sep 2026 — reactions Gate 4 held back because of who was
+  // in the room (engine/suppressedReaction.ts's DeferredReaction). Fired by
+  // updateDeferredReactions() once deferralCanFire says the room has thinned
+  // out. Scene-owned and unpersisted on purpose, same as `worries` above: a
+  // held reaction that survived a reload would fire into a room that no
+  // longer exists.
+  deferredReactions?: DeferredReaction[];
   // 26 Aug 2026 — drunk's real expiry, epoch ms (Date.now()), mirroring
   // HubPilotSocialState.drunkUntil (campaignState.ts section 11). undefined
   // whenever ambient.drunk is false; set by shareADrink, cleared by
@@ -2551,6 +2562,19 @@ export class Hub extends Phaser.Scene {
         "Opens the separate Campaign Shop screen — an older, simpler gear and roster screen from before the Hub existed. Your progress here is already saved; nothing is lost by going there.",
         42,
       ),
+    ]);
+
+    // NEXT MISSION (playtest 25 Sep 2026, fix E9): the bay was the only way
+    // to Mission Select, and a first-time player didn't find it. Same path
+    // as walking to the bay and pressing E (deploy(), bay hint included),
+    // so the CO check-in gate and everything else on the Pad still apply.
+    // footer.list[2] is this button's bg: makeShopButton adds [bg, txt],
+    // and the CAMPAIGN SHOP button above already holds indexes 0 and 1.
+    makeShopButton(this, footer, 272, 604, 165, 32, "NEXT MISSION", true, () => this.deploy());
+    this.wireHoverTip(footer.list[2] as Phaser.GameObjects.GameObject, [
+      "NEXT MISSION",
+      "",
+      ...wrapTipText("Opens Mission Select, same as walking to the bay and pressing E.", 42),
     ]);
 
     // Explicit per-key binding rather than addKeys("W,A,S,D") — that batch
@@ -3892,7 +3916,7 @@ export class Hub extends Phaser.Scene {
   // header names the set: shareADrink, pegBoard, poker, darts, and the
   // general ambient idle roll) — same population, one layer deeper, not a
   // new decision about which call sites qualify.
-  private pickAmbientLineWithMemory(npc: HubNpc): { line: string } {
+  private pickAmbientLineWithMemory(npc: HubNpc): { line: string; echo?: Echo } {
     // Off-Duty Needs Counter, 28 Aug 2026 (spec §4: "drawn the same way
     // sub-animal bleed already draws an off-primary line... a curious
     // player gets a real textual tell without a meter ever being shown").
@@ -3908,9 +3932,13 @@ export class Hub extends Phaser.Scene {
     const { line, pick, bled } = pickAmbientLineWithBleed(npc.pilotId, npc.ambient);
     const catalyst = bled?.catalyst ?? npc.ambient.catalyst;
     const variant = pickSlottedVariant(catalyst, pick.echo, npc.ambient.stage);
-    if (!variant) return { line };
+    // Formula v2, 28 Sep 2026 — the picked echo is now handed back too, so
+    // speak() can run Gate 4 on it. The needs-flavour line above carries no
+    // echo on purpose: it's a fixed, non-personality line, and Gate 4 has
+    // nothing meaningful to hold back on it.
+    if (!variant) return { line, echo: pick.echo };
     const resolved = resolveSlotText(variant, this.buildSlotContext(npc));
-    return { line: resolved ?? line };
+    return { line: resolved ?? line, echo: pick.echo };
   }
 
   // Off-Duty Needs Counter, 28 Aug 2026 — the flavor-bank half of spec §4.
@@ -4624,6 +4652,11 @@ export class Hub extends Phaser.Scene {
       .setOrigin(0.5);
     const bg = this.add.rectangle(0, 0, width, text.height + 20, 0x141a20, 0.92).setStrokeStyle(1, 0x4a7a9a);
     const banner = this.add.container(480, 78, [bg, text]).setScrollFactor(0).setDepth(HUB_HUD_DEPTH);
+    // Playtest 25 Sep 2026 (fix E2): this banner is a NEW top-level object
+    // built after create(), so finalizeDockCameraSplit()'s one-time ignore
+    // list never saw it and the dock camera drew a second, clipped copy
+    // over the OVERHEARD panel. Tell the dock camera to skip it.
+    this.uiCamera.ignore(banner);
     this.hubHintBanner = banner;
     this.time.delayedCall(7000, () => {
       if (this.hubHintBanner === banner) this.hubHintBanner = null;
@@ -8532,6 +8565,9 @@ export class Hub extends Phaser.Scene {
     // ticking even while an overlay owns input, not freeze the moment the
     // player opens the peg board.
     this.updateMissionWorry();
+    // Formula v2, 28 Sep 2026 — held reactions release on their own clock,
+    // same unconditional placement and same reason as the worry tick above.
+    this.updateDeferredReactions(Date.now());
     // Same unconditional placement as the two above — a hungry or
     // under-slept pilot's meter shouldn't stall just because an overlay
     // owns input this frame.
@@ -10027,6 +10063,31 @@ export class Hub extends Phaser.Scene {
       rng: Math.random,
     });
 
+    // Formula v2, 28 Sep 2026 — Gate 4 on NPC-to-NPC Ask Out (plan Part B,
+    // Q3 "Talk + Ask Out"). The love/rival row of the table, applied where it
+    // actually fits: npcA meant to ask npcB out, but one of npcA's rivals is
+    // standing in the room, so npcA doesn't. The ask never happens (no bond
+    // change, no couple, no rumor); it leaves the heavier ledger mark and a
+    // Worry about the rival instead, through applySuppression, exactly as the
+    // table specifies. The player's own Ask Out is untouched: there the NPC is
+    // the one being asked, and hiding her answer from the player would be a
+    // worse bug than the realism it buys.
+    if (result.kind === "askOut" && areCrewReactionsV2Enabled()) {
+      const nearbyA = this.roomWitnesses(npcA);
+      const everyoneElse = this.npcs.filter((n) => n !== npcA).map((n) => n.pilotId);
+      const scene: SceneContext = {
+        nearbyPilotIds: nearbyA,
+        targetPilotId: npcB.pilotId,
+        bondedPilotIds: this.roomBondIds(npcA, everyoneElse, "bonded"),
+        rivalPilotIds: this.roomBondIds(npcA, everyoneElse, "rival"),
+        authorityPilotIds: [],
+      };
+      if (this.holdBackByGate4(npcA, "love", result.summary ?? "", scene)) {
+        saveCampaignState(this.campaignState);
+        return;
+      }
+    }
+
     // ...and the session goes on the board, both sides. result.winner is a
     // real field the resolver sets, not something read back out of the
     // summary sentence — see EncounterResult.winner's own comment for why
@@ -10572,6 +10633,11 @@ export class Hub extends Phaser.Scene {
     this.playerX = land.x;
     this.playerY = land.y;
     this.player.setPosition(this.playerX, this.playerY);
+    // Playtest 25 Sep 2026 (fix E3): the cursor tip only refreshes on
+    // pointermove, so taking the stairs with the keyboard left the old
+    // deck's room name ("MAIN CORRIDOR") on screen. Hide it here; the next
+    // mouse move shows the right one for the new deck.
+    this.hoverTip?.hide();
     this.refreshRoomVisibility();
   }
 
@@ -10870,10 +10936,119 @@ export class Hub extends Phaser.Scene {
         topic.mentionedBy.push(npc.pilotId);
         continue;
       }
-      if (!gate0Reacts(npc.ambient)) continue;
-      const { line } = this.pickAmbientLineWithMemory(npc);
+      // Formula v2, 28 Sep 2026 (Bloom_Wars_Formula_v2_PreLaunch_Build_Plan_
+      // v1_27Sep2026.md, Parts A and B), behind the Options toggle
+      // (engine/crewReactionsSettings.ts). OFF is the pre-v2 code, untouched.
+      if (!areCrewReactionsV2Enabled()) {
+        if (!gate0Reacts(npc.ambient)) continue;
+        const { line } = this.pickAmbientLineWithMemory(npc);
+        this.showBubble(npc, line, now);
+        this.holdForPlayerTalk(npc);
+        continue;
+      }
+      // Gate 0, v2: a pilot with something on their mind always reacts; the
+      // rest roll as before, and a "no" is sometimes a silent idle beat.
+      const decision = gate0Decision(npc.ambient, this.gate0WantState(npc));
+      if (decision === "silent") continue;
+      if (decision === "idle") {
+        this.showBubble(npc, GATE0_IDLE_TEXT, now);
+        continue;
+      }
+      const { line, echo } = this.pickAmbientLineWithMemory(npc);
+      // Gate 4, v2: the room can hold a reaction back. Only the sadness row
+      // can fire here (ambient Talk has no target), so in practice: a pilot
+      // with three or more others in the room keeps it in, and it comes out
+      // later, whole, when the room thins (updateDeferredReactions).
+      if (echo && this.holdBackByGate4(npc, echo, line, this.talkSceneContext(npc))) continue;
       this.showBubble(npc, line, now);
       this.holdForPlayerTalk(npc);
+    }
+  }
+
+  // ---- Formula v2 helpers, 28 Sep 2026 ------------------------------------
+  // Bloom_Wars_Formula_v2_PreLaunch_Build_Plan_v1_27Sep2026.md. Gate 0's want
+  // check and idle beat live in data/reactionGate.ts, Gate 4's verdict in
+  // data/reactionGate4.ts, its write side in engine/suppressedReaction.ts.
+  // These helpers only read this scene's state into their inputs.
+
+  /** Gate 0's want check, read off what this pilot is carrying right now. */
+  private gate0WantState(npc: HubNpc): { loudestWorryIntensity?: number; hasUnmetNeed: boolean } {
+    const loudest = loudestWorry(npc.worries ?? [], Date.now());
+    return {
+      loudestWorryIntensity: loudest?.intensity,
+      hasUnmetNeed: worstNeed(npc.hunger, npc.thirst, npc.sleep, npc.boredom) !== undefined,
+    };
+  }
+
+  /** Pilots in `npc`'s room whose bond with it reaches `threshold` (cliques) or falls to it (rivals). */
+  private roomBondIds(npc: HubNpc, ids: string[], kind: "bonded" | "rival"): string[] {
+    return ids.filter((id) => {
+      const b = this.npcSocial.bonds[pairKey(npc.pilotId, id)] ?? 0;
+      return kind === "bonded" ? b >= CLIQUE_THRESHOLD : b <= RIVAL_THRESHOLD;
+    });
+  }
+
+  /** Gate 4's view of the room for an untargeted Talk reaction. */
+  private talkSceneContext(npc: HubNpc): SceneContext {
+    const nearby = this.roomWitnesses(npc);
+    const everyoneElse = this.npcs.filter((n) => n !== npc).map((n) => n.pilotId);
+    return {
+      nearbyPilotIds: nearby,
+      bondedPilotIds: this.roomBondIds(npc, everyoneElse, "bonded"),
+      rivalPilotIds: this.roomBondIds(npc, everyoneElse, "rival"),
+      // Ambient Talk has no target, so the anger row (the only one that reads
+      // authority) can't fire here; left empty rather than guessed.
+      authorityPilotIds: [],
+    };
+  }
+
+  /**
+   * Run Gate 4 on one reaction. Returns true when the room held it back, in
+   * which case the memory (if any) is already written and the Worry/deferral
+   * are stored on the NPC. Returns false when the reaction may go ahead.
+   */
+  private holdBackByGate4(npc: HubNpc, echo: Echo, line: string, scene: SceneContext): boolean {
+    const verdict = gate4Check(npc.ambient, echo, scene);
+    if (verdict.allowed) return false;
+    const outcome = applySuppression(this.campaignState, verdict, {
+      pilotId: npc.pilotId,
+      catalyst: npc.ambient.catalyst,
+      echo,
+      lineText: line,
+      witnesses: scene.nearbyPilotIds,
+    });
+    if (outcome.worry) npc.worries = upsertWorry(npc.worries ?? [], outcome.worry);
+    if (outcome.deferred) {
+      // At most two held at once per pilot: a third would only ever repeat
+      // the same thought, and the oldest is the one that should come out first.
+      npc.deferredReactions = [...(npc.deferredReactions ?? []), outcome.deferred].slice(-2);
+    }
+    if (outcome.memory) this.persistNpcSocial(npc);
+    return true;
+  }
+
+  /**
+   * Fire held reactions whose room has thinned out: alone, or with exactly one
+   * bonded pilot (deferralCanFire). v2's "release empties": the line comes
+   * out as it was held, and the breakdown memory is written at full weight
+   * (releaseDeferredReaction). Throttled; called from update() unconditionally.
+   */
+  private nextDeferredCheckAt = 0;
+  private updateDeferredReactions(now: number) {
+    if (now < this.nextDeferredCheckAt) return;
+    this.nextDeferredCheckAt = now + 1500;
+    if (!areCrewReactionsV2Enabled()) return;
+    for (const npc of this.npcs) {
+      const held = npc.deferredReactions;
+      if (!held || held.length === 0) continue;
+      const nearby = this.roomWitnesses(npc);
+      const bonded = this.roomBondIds(npc, nearby, "bonded");
+      if (!deferralCanFire(nearby, bonded)) continue;
+      const [first, ...rest] = held;
+      npc.deferredReactions = rest.length > 0 ? rest : undefined;
+      releaseDeferredReaction(this.campaignState, npc.pilotId, first, nearby);
+      this.persistNpcSocial(npc);
+      this.showBubble(npc, first.lineText, this.time.now);
     }
   }
 
@@ -11135,7 +11310,9 @@ export class Hub extends Phaser.Scene {
     // correctly invisible in-world for the same reason. The log is a
     // record of what the player could actually have seen/heard, not an
     // omniscient transcript — so it stays gated the same way.
-    if (this.sameDeck(npc.room, this.currentRoomId)) this.logChatLine(npc.initials, line);
+    // Formula v2, 28 Sep 2026 — the idle beat is a look, not something said,
+    // so it stays out of the OVERHEARD log (a column of "HB: …" is noise).
+    if (line !== GATE0_IDLE_TEXT && this.sameDeck(npc.room, this.currentRoomId)) this.logChatLine(npc.initials, line);
 
     const duration = Math.min(BUBBLE_DURATION_CAP_MS, 2600 + line.length * 30);
     npc.bubbleUntil = now + duration;

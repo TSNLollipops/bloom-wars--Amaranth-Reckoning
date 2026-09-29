@@ -43,6 +43,7 @@ export class HoverTip {
   private lastKey = "";
   private lastX = -1;
   private lastY = -1;
+  private lastOffset: number | undefined = undefined;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -68,8 +69,12 @@ export class HoverTip {
    * line builders that write into a HUD panel, where a leading "" is a
    * deliberate spacer between blocks. In a standalone box it's just a gap
    * at the top.
+   *
+   * `offset` (optional, playtest 25 Sep 2026 fix E7): gap between the
+   * pointer and the tip. Battle's board passes two tiles' worth so the tip
+   * never covers the tiles right next to the one you're hovering.
    */
-  show(lines: string[], pointerX: number, pointerY: number): void {
+  show(lines: string[], pointerX: number, pointerY: number, offset?: number): void {
     const trimmed = [...lines];
     while (trimmed.length && trimmed[0] === "") trimmed.shift();
     while (trimmed.length && trimmed[trimmed.length - 1] === "") trimmed.pop();
@@ -79,7 +84,7 @@ export class HoverTip {
     }
 
     const key = trimmed.join("\n");
-    const moved = pointerX !== this.lastX || pointerY !== this.lastY;
+    const moved = pointerX !== this.lastX || pointerY !== this.lastY || offset !== this.lastOffset;
     if (key === this.lastKey && !moved && this.container.visible) return;
 
     if (key !== this.lastKey) {
@@ -97,8 +102,10 @@ export class HoverTip {
       this.bg.height,
       this.scene.scale.width,
       this.scene.scale.height,
+      offset === undefined ? {} : { offset },
     );
     this.container.setPosition(pos.x, pos.y).setVisible(true);
+    this.lastOffset = offset;
     this.lastX = pointerX;
     this.lastY = pointerY;
   }

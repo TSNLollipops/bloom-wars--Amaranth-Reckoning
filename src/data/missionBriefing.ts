@@ -171,7 +171,12 @@ export function describeObjective(mission: CampaignMission): string {
       return "Eliminate every hostile on the field. No turn limit — you only fail if the squad is wiped or the commander goes down.";
     case "hold_zone": {
       const holdFrom = p.holdUntilTurn ?? p.turnLimit;
-      return `Hold the marked zone — keep every hostile off it from turn ${holdFrom} onward, through turn ${p.turnLimit}. Real deadline: losing the zone unopposed past that point ends the mission.`;
+      // Reworded 26 Sep 2026 (customer playtest, E1): the old line read like
+      // a long defense through the turn limit, but the rule (Mission.
+      // checkWinLoss) wins the moment you hold it at or after holdFrom.
+      // Maxime chose to keep the rule and fix the words; a real hold was
+      // simmed and broke the hold missions (see the 26 Sep build log).
+      return `Take the marked zone. From turn ${holdFrom} on, one of yours on it with no hostile on it wins the mission, and a hostile on it with none of yours loses it. Real deadline: no hold by the end of turn ${p.turnLimit} is a loss.`;
     }
     case "extract_unit":
       if (p.extractThreshold !== undefined) {

@@ -133,3 +133,23 @@ describe("measureTipBox", () => {
     expect(withBlank.w).toBe(without.w);
   });
 });
+
+describe("layoutHoverTip with a two-tile offset (playtest fix E7)", () => {
+  // A 32px board tile at (5,5) spans 160..192. Its neighbour ring spans
+  // 128..224 on both axes. Wherever the pointer sits inside the hovered
+  // tile, a 64px offset must keep the tip box entirely outside that ring.
+  const T = 32;
+  const ring = { l: 4 * T, r: 7 * T, t: 4 * T, b: 7 * T };
+  const corners = [
+    [160, 160],
+    [191, 160],
+    [160, 191],
+    [191, 191],
+  ];
+  it.each(corners)("pointer at (%i, %i) never overlaps the adjacent tiles", (px, py) => {
+    const tip = layoutHoverTip(px, py, 180, 90, 1074, 640, { offset: T * 2 });
+    const overlapsX = tip.x < ring.r && tip.x + 180 > ring.l;
+    const overlapsY = tip.y < ring.b && tip.y + 90 > ring.t;
+    expect(overlapsX && overlapsY).toBe(false);
+  });
+});

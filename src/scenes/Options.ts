@@ -45,6 +45,7 @@ import { makeShopButton } from "./shop/ShopPanel";
 import { showCopyTextPanel } from "./ui/CopyTextPanel";
 import { showNotesOverlayPanel } from "./ui/NotesOverlayPanel";
 import { getMusicVolume, setMusicVolume, getSfxVolume, setSfxVolume } from "../engine/audioSettings";
+import { areCrewReactionsV2Enabled, setCrewReactionsV2Enabled } from "../engine/crewReactionsSettings";
 import { playAmbient, stopAmbient, applyMusicVolumeLive, playSfx } from "./audio/AudioManager";
 // "Clickable = tooltip," 11 Sep 2026 standing rule (claude/Bloom_Wars_
 // Tooltip_Coverage_Standing_Rule_And_Checklist_v1_11Sep2026.md) — this
@@ -75,6 +76,8 @@ export class Options extends Phaser.Scene {
   // Tutorial hints ON/OFF toggle, 8 Sep 2026 — same rebuild-on-click shape
   // as displayScaleLayer above, same bracket-the-active-option idiom.
   private tutorialToggleLayer: Phaser.GameObjects.Container | null = null;
+  // Formula v2 crew reactions ON/OFF, 28 Sep 2026 — same rebuild-on-click shape as the tutorial row.
+  private crewReactionsLayer: Phaser.GameObjects.Container | null = null;
   // Audio, "enough for EA" scope (A6, 9 Sep 2026) — same rebuild-on-click,
   // bracket-the-active-value shape as displayScaleLayer above. Discrete
   // 0/25/50/75/100 steps rather than a free-drag handle: this screen has no
@@ -103,6 +106,7 @@ export class Options extends Phaser.Scene {
     this.notesPanel = null;
     this.displayScaleLayer = null;
     this.tutorialToggleLayer = null;
+    this.crewReactionsLayer = null;
     this.musicVolumeLayer = null;
     this.sfxVolumeLayer = null;
     this.hoverTip = new HoverTip(this);
@@ -129,6 +133,7 @@ export class Options extends Phaser.Scene {
       .setOrigin(0.5);
     this.refreshStatus();
     this.refreshTutorialToggleRow();
+    this.refreshCrewReactionsRow();
 
     const layer = this.add.container(0, 0);
     makeShopButton(
@@ -494,6 +499,30 @@ export class Options extends Phaser.Scene {
       setTutorialHintsEnabled(false);
       this.refreshTutorialToggleRow();
       this.refreshStatus();
+    }, offTooltip, this.hoverTip);
+  }
+
+  /**
+   * ON/OFF row for the Formula v2 crew-reaction changes, 28 Sep 2026
+   * (Bloom_Wars_Formula_v2_PreLaunch_Build_Plan_v1_27Sep2026.md, Q5: behind an
+   * options toggle, on by default). Sits in the gap between the title and
+   * TUTORIAL HINTS, one line, so no other row had to move.
+   */
+  private refreshCrewReactionsRow() {
+    this.crewReactionsLayer?.destroy(true);
+    const row = this.add.container(0, 0);
+    this.crewReactionsLayer = row;
+    const enabled = areCrewReactionsV2Enabled();
+    row.add(this.add.text(436, 84, "CREW REACTIONS", { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" }).setOrigin(1, 0.5));
+    const onTooltip = ["Crew Reactions: ON", "", ...wrapTipText("The crew's newer reaction rules: someone with something on their mind always answers you, a quiet crewmate sometimes just shows '…', and a sad crewmate in a crowded room holds it in until the room thins out.", 42)];
+    const offTooltip = ["Crew Reactions: OFF", "", ...wrapTipText("The crew reacts the way it did before these rules: a plain chance roll when you talk, and nobody holds anything back because of who's in the room.", 42)];
+    makeShopButton(this, row, 484, 84, 70, 22, enabled ? "[ON]" : "ON", true, () => {
+      setCrewReactionsV2Enabled(true);
+      this.refreshCrewReactionsRow();
+    }, onTooltip, this.hoverTip);
+    makeShopButton(this, row, 560, 84, 70, 22, enabled ? "OFF" : "[OFF]", true, () => {
+      setCrewReactionsV2Enabled(false);
+      this.refreshCrewReactionsRow();
     }, offTooltip, this.hoverTip);
   }
 

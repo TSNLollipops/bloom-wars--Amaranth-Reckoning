@@ -804,6 +804,9 @@ export class Mission {
    * Mission instance.
    */
   private combatWorryLineShown: Record<string, boolean> = {};
+  // Every combat-worry line spoken this mission, by anyone (26 Sep 2026):
+  // passed to pickCombatWorryLine so two pilots don't say the same line.
+  private combatWorryLinesUsed = new Set<string>();
   /**
    * lastword_signature (Migawari/The Last Word) — one entry per use, live
    * this mission. Same "Mission records, Debrief applies" split as
@@ -2483,9 +2486,10 @@ export class Mission {
     if (this.combatWorryLineShown[pilotId]) return;
     const loudest = loudestWorry(this.combatWorries[pilotId] ?? [], now);
     if (loudest?.source !== source) return;
-    const line = pickCombatWorryLine(source, this.rng);
+    const line = pickCombatWorryLine(source, this.rng, this.combatWorryLinesUsed);
     if (!line) return;
     this.combatWorryLineShown[pilotId] = true;
+    this.combatWorryLinesUsed.add(line);
     const speaker = this.units.find((u) => u.pilotId === pilotId);
     this.log.push(`(dialogue) ${speaker ? `${speaker.displayName}: ` : ""}${line}`);
   }

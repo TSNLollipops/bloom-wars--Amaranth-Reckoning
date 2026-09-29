@@ -1,3 +1,5 @@
+> **Superseded, 26 Sep 2026.** The current engine doc is `Tactics Docs\Systems & Plans\Bloom_Wars_NPC_Reaction_Engine_v1-1.md`, rewritten for **THE FORMULA — Master Reference v2** (25 Sep 2026). It lists what the code does today and where it differs from v2. This file is kept as history; the code comments that cite it still read correctly as history.
+
 # THE BLOOM WARS — NPC Reaction Engine: what's actually live, and a closing plan for the *current* (not v6) recipe
 
 **Status: paper only, zero code touched, per Maxime's own instruction this pass — "only plan for now."** Maxime's framing: the v6 formula (`Reaction_Formula_Applied_Model_v6.docx`) is his own current, tested version, but the game keeps running the older recipe (`design/Bloom_Wars_NPC_Reaction_Engine_v1.md`, 25 Aug) until after EA. Before touching anything, he wants to know: does *that* older recipe actually work as designed, in the live game, today? Where code is missing, this doc finds a way to make it work — but as a plan, not a build. Checked directly against the live TypeScript source (`src/data/*`, `src/engine/*`), not assumed from the design docs alone.

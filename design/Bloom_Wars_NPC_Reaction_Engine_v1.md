@@ -1,3 +1,5 @@
+> **Superseded, 26 Sep 2026.** The current engine doc is `Tactics Docs\Systems & Plans\Bloom_Wars_NPC_Reaction_Engine_v1-1.md`, rewritten for **THE FORMULA — Master Reference v2** (25 Sep 2026). It lists what the code does today and where it differs from v2. This file is kept as history; the code comments that cite it still read correctly as history.
+
 # THE BLOOM WARS — NPC Reaction Engine v1
 
 *Confirmed design direction, 25 Aug 2026 — zero code, not scheduled. Captures

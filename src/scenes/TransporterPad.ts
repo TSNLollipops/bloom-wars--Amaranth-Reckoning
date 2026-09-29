@@ -33,6 +33,7 @@
 import Phaser from "phaser";
 import type { CampaignMission, MekArchetype, Path, PilotRecord } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
+import { clampDeployCapToPads } from "../data/deployPads";
 import { UNIT_ARCHETYPES } from "../data/units";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import {
@@ -577,7 +578,12 @@ export class TransporterPad extends Phaser.Scene {
     // changes for a player who's never lost anyone — this only changes
     // behavior once the roster composition actually has, which is exactly
     // the case it was silently getting wrong before.
-    this.deployCap = deployCapForMission(this.missionId);
+    // Clamped to the map's own pad count (26 Sep 2026): a squad bigger than
+    // the map's pads used to stack pilots on one tile (Mission.deployPlayerUnits
+    // wraps with i % pads.length). Warden maps all have enough pads now; this
+    // is the guard rail for House Amaranth's and any future map. See
+    // data/deployPads.ts.
+    this.deployCap = clampDeployCapToPads(deployCapForMission(this.missionId), this.missionId);
     this.showPicker = activePilotIds.length > this.deployCap;
 
     if (this.showPicker) {

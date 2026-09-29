@@ -21,6 +21,11 @@ import {
   SUPPRESSION_WORRY_WINDOW_MS,
 } from "../suppressedReaction";
 import type { WorryEntry } from "../../data/worries";
+import { applySuppression, releaseDeferredReaction } from "../suppressedReaction";
+import { createWardenCampaignState } from "../campaignState";
+import { socialStateFor } from "../memoryLedger";
+import { MEMORY_BIRTH_WEIGHT } from "../../data/memories";
+import { gate4Check } from "../../data/reactionGate4";
 
 const BORN = 1_000_000;
 
@@ -111,5 +116,34 @@ describe("deferralCanFire — the table's own 'alone or with exactly one bonded 
 
   it("does not fire in a crowd", () => {
     expect(deferralCanFire(["a", "b", "c", "d"], ["a", "b", "c", "d"])).toBe(false);
+  });
+});
+
+// ---- Formula v2 release, 28 Sep 2026 -----------------------------------------
+// The integration test the header above said applySuppression was owed, plus
+// C1 ("release at full weight"), both against a real CampaignState.
+
+describe("Gate 4 sadness hold and release against a real campaign", () => {
+  const base = { catalyst: "raven" as const, stage: "blooded" as const, stress: 30, morale: 70, drunk: false };
+  const crowded = { nearbyPilotIds: ["a", "b", "c"], bondedPilotIds: [], rivalPilotIds: [], authorityPilotIds: [] };
+
+  it("holds sadness in a crowded room without writing any memory yet", () => {
+    const s = createWardenCampaignState();
+    const verdict = gate4Check(base, "sadness", crowded);
+    expect(verdict.allowed).toBe(false);
+    if (verdict.allowed) return;
+    const before = socialStateFor(s, "pilot_bosk").memories?.length ?? 0;
+    const out = applySuppression(s, verdict, { pilotId: "pilot_bosk", catalyst: "raven", echo: "sadness", lineText: "held line", witnesses: crowded.nearbyPilotIds, now: 5 });
+    expect(out.deferred?.lineText).toBe("held line");
+    expect(out.memory).toBeUndefined();
+    expect(socialStateFor(s, "pilot_bosk").memories?.length ?? 0).toBe(before);
+  });
+
+  it("releases as one breakdown memory at the kind's full birth weight", () => {
+    const s = createWardenCampaignState();
+    const entry = releaseDeferredReaction(s, "pilot_bosk", { echo: "sadness", lineText: "x", about: [], reason: "sadness_too_many_witnesses", heldAt: 1 }, [], 10);
+    expect(entry.kind).toBe("breakdown");
+    expect(entry.echo).toBe("sadness");
+    expect(entry.weight).toBeCloseTo(MEMORY_BIRTH_WEIGHT.breakdown);
   });
 });

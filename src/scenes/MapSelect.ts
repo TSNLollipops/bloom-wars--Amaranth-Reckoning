@@ -18,6 +18,7 @@ import { addMenuOverlayButton } from "./MenuOverlay";
 import { Panel, TEXT_MAIN, TEXT_DIM, PANEL_BORDER, PANEL_CARD_BORDER, PANEL_ACCENT, TEXT_ACCENT } from "./ui/Panel";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { campaignTabLabel } from "../data/campaignTabLabel";
 
 const CARD_SPACING = 92;
 const CARD_HEIGHT = 74;
@@ -196,7 +197,7 @@ export class MapSelect extends Phaser.Scene {
           .setStrokeStyle(1, demoLocked ? PANEL_CARD_BORDER : active ? PANEL_ACCENT : PANEL_BORDER)
           .setInteractive({ useHandCursor: true });
         const label = this.add
-          .text(x, 116, campaign.name, {
+          .text(x, 116, campaignTabLabel(campaign.name), {
             fontFamily: "monospace",
             fontSize: "12px",
             color: demoLocked ? TEXT_DIM : active ? TEXT_MAIN : TEXT_DIM,

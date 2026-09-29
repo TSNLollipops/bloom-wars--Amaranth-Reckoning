@@ -11,6 +11,7 @@ import { Mission, type DeployRosterEntry, type HostilePhaseEvent, type EjectionC
 import { playAmbient, stopAmbient, playSfx } from "./audio/AudioManager";
 import type { BattleUnit } from "../engine/units";
 import { coordKey, tileAt, chebyshevDistance } from "../engine/grid";
+import { outOfRangeLine } from "../data/outOfRangeLine";
 import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
 import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen, areTutorialHintsEnabled } from "../engine/campaignState";
@@ -2586,6 +2587,24 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
+    // Clicked a visible hostile you can't hit (playtest 25 Sep 2026, E8):
+    // this used to fall through to the deselect below, so a misjudged
+    // range silently dropped your unit. Keep the selection and say why in
+    // the comms column instead. Hidden hostiles still fall through, so the
+    // message never leaks a unit the fog is hiding.
+    if (
+      this.selectedUnitId &&
+      unitHere &&
+      unitHere.side === "hostile" &&
+      this.visibleHostileIds().has(unitHere.instanceId)
+    ) {
+      const attacker = this.mission.unitById(this.selectedUnitId);
+      if (attacker) {
+        this.logCommsLine("SYS", outOfRangeLine(attacker, chebyshevDistance(attacker.pos, unitHere.pos)));
+        return;
+      }
+    }
+
     // Clicked empty/irrelevant ground — deselect.
     this.selectedUnitId = null;
     this.clearSelectionHighlights();
@@ -4819,7 +4838,11 @@ export class Battle extends Phaser.Scene {
       else this.hoverTip.hide();
       return;
     }
-    this.hoverTip.show(this.hoverLines(), this.pointerX, this.pointerY);
+    // Playtest 25 Sep 2026 (fix E7): a board tip at the default 16px gap
+    // sat on the tiles next to the hovered unit, so you couldn't see the
+    // enemy you were about to click. Two tiles of gap clears the whole
+    // adjacent ring wherever the pointer is inside its tile.
+    this.hoverTip.show(this.hoverLines(), this.pointerX, this.pointerY, this.tileSize * 2);
   }
 
   /**
@@ -5295,7 +5318,7 @@ export class Battle extends Phaser.Scene {
       .text(
         480,
         344,
-        "No permadeath roll. No earnings. The mission is simply available again — back to briefing to try again.",
+        "No permadeath roll. No earnings. The mission is simply available again — pick it from mission select to try again.",
         { fontFamily: "monospace", fontSize: "12px", color: "#8a97a6", wordWrap: { width: 640 }, align: "center" }
       )
       .setOrigin(0.5);
@@ -5303,7 +5326,9 @@ export class Battle extends Phaser.Scene {
       .rectangle(480, 400, 260, 40, 0x2e5c7a)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.scene.start("MapSelect"));
-    const btnLabel = this.add.text(480, 400, "return to briefing", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
+    // Relabelled 26 Sep 2026 (customer playtest): the button has always gone
+    // to MapSelect, not a briefing, so the label now says where it goes.
+    const btnLabel = this.add.text(480, 400, "back to mission select", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff" }).setOrigin(0.5);
     this.overlay.add([bg, title, sub, note, btn, btnLabel]);
   }
 }

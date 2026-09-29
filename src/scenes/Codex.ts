@@ -185,7 +185,7 @@ interface ObjectiveRow {
 // clock cannot beat you, danger = it can.
 const OBJECTIVES: ObjectiveRow[] = [
   { name: "eliminate_all", color: "go", desc: "Kill every hostile. The turn number on the briefing is a bonus target, not a deadline — running past it costs you a reward, never the mission. Only losing your whole squad ends it early." },
-  { name: "hold_zone", color: "danger", desc: "Get a unit onto the gold hold tiles and keep every hostile off them from the hold-turn on. Real deadline: hostiles holding the zone unopposed past turn 2 is an instant loss." },
+  { name: "hold_zone", color: "danger", desc: "Get a unit onto the gold hold tiles. From the mission's hold turn on, one of yours on the zone with no hostile on it wins on the spot, and a hostile on it with none of yours is an instant loss. Real deadline: no hold by the turn limit is a loss too." },
   { name: "extract_unit", color: "danger", desc: "Get the named unit onto a green exit tile before the turn limit. Real deadline — the rescue-mission clock, kept on purpose." },
   { name: "clear_bloom", color: "go", desc: "Win when no bloom-mat tile is left on the board. The mat regrows each environment step, so clear it faster than it spreads. No timeout loss." },
   { name: "survive_n_turns", color: "go", desc: "Win the instant the turn count is reached with the squad still standing. Nothing else has to survive — a squad wipe already ends any mission." },
