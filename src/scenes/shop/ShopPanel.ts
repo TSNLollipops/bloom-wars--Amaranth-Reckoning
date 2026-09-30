@@ -61,6 +61,7 @@ import {
   BEACON_CRATE_COST_DISCOUNTED,
   BEACON_CHARGE_COST,
   BEACON_CHARGE_COST_DISCOUNTED,
+  BEACON_REVIVE_PAYOUT_PERCENT,
 } from "../../engine/campaignEconomy";
 import {
   recruitDiscretionary,
@@ -185,7 +186,9 @@ const ROW_H: Record<ShopEntry["type"], number> = {
   // Beacon Control's crate/charge stockpile (built 4 Sep 2026) — one row,
   // two buy buttons side by side, same rough footprint as drawMekRow's own
   // 54 but a hair taller since it carries two stock counts instead of one.
-  beaconStock: 60,
+  // 60 -> 76 (WePlaytestGames playtest, 30 Sep 2026): the explainer line ran
+  // under both BUY buttons. Buttons moved to the right, text wraps left.
+  beaconStock: 76,
 };
 
 function computePages(entries: ShopEntry[], budget: number): ShopEntry[][] {
@@ -1270,19 +1273,32 @@ export class ShopPanel {
     // shade than its outer panel frame. Codex UI match, 11 Sep 2026.
     this.shopLayer.add(this.scene.add.rectangle(480, cy, SHOP_CARD_W, cardH, PANEL_BG, 1).setStrokeStyle(1, PANEL_CARD_BORDER));
     this.drawCardAccent(cy, cardH);
+    // WePlaytestGames playtest, 30 Sep 2026: "I don't know what is the crate
+    // and what is the charge... I don't understand why you need them
+    // separately." The rule (engine/mission.ts useBeaconControl): every
+    // mid-mission revive uses ONE crate (or the downed pilot's own Fabricator
+    // spare part) AND ONE charge, and the charge is waived while any of your
+    // Munti is still standing. Said here in one place, in that order.
     this.shopLayer.add(
-      this.scene.add.text(SHOP_CARD_L + 14, top + 8, `Fabricator crates: ${crates}  ·  Restock Room charges: ${charges}`, {
+      this.scene.add.text(SHOP_CARD_L + 14, top + 8, `Revive stock:  ${crates} crate(s)  ·  ${charges} charge(s)`, {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#e8e2d4",
       })
     );
     this.shopLayer.add(
-      this.scene.add.text(SHOP_CARD_L + 14, top + 26, "Spent mid-mission by Beacon Control to revive a downed ally — see the CO about the bay.", {
-        fontFamily: "monospace",
-        fontSize: "9px",
-        color: "#6b7a8a",
-      })
+      this.scene.add.text(
+        SHOP_CARD_L + 14,
+        top + 26,
+        `Beacon Control (Rourke, from Captain) revives a downed pilot mid-mission. Each revive uses 1 crate AND 1 charge (the charge is free while one of your Munti is still standing), and costs ${Math.round(BEACON_REVIVE_PAYOUT_PERCENT * 100)}% of that mission's payout.`,
+        {
+          fontFamily: "monospace",
+          fontSize: "9px",
+          color: "#8a97a6",
+          wordWrap: { width: SHOP_CARD_W - 400 },
+          lineSpacing: 2,
+        }
+      )
     );
 
     // Beacon Control tooltips, 11 Sep 2026 — verified against
@@ -1296,7 +1312,7 @@ export class ShopPanel {
       "Fabricator Crate",
       "",
       ...wrapTipText(
-        `Company-pool stockpile (${crateCost} pts${fabricatorBuilt ? ", halved by the Fabricator bay" : ""}). Beacon Control spends one of these to revive a downed pilot who has no Fabricator spare part of their own left.`,
+        `The revive itself: one crate brings one downed pilot back at full HP. If that pilot's Mek carries a Fabricator spare part, the part is used instead and the crate is kept. Bought from company points (${crateCost} pts${fabricatorBuilt ? ", halved by the Fabricator bay" : ""}).`,
         42
       ),
     ];
@@ -1304,17 +1320,17 @@ export class ShopPanel {
       "Restock Room Charge",
       "",
       ...wrapTipText(
-        `Company-pool stockpile (${chargeCost} pts${fabricatorBuilt ? ", halved by the Fabricator bay" : ""}). Beacon Control always spends one of these per revive too, alongside the crate/part — free (0 charges) if a living Munti is on the field when the beacon is used.`,
+        `Powers the beacon: one charge per revive, on top of the crate. Not used at all while one of your Munti is still standing on the field. Bought from company points (${chargeCost} pts${fabricatorBuilt ? ", halved by the Fabricator bay" : ""}).`,
         42
       ),
     ];
     const crateEnabled = this.state.points >= crateCost;
-    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_L + 190, top + 44, 170, 22, `BUY CRATE (${crateCost})`, crateEnabled, () => {
+    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 280, cy, 160, 26, `BUY CRATE (${crateCost})`, crateEnabled, () => {
       purchaseBeaconCrate(this.state);
       this.render();
     }, crateTooltip, this.hoverTip);
     const chargeEnabled = this.state.points >= chargeCost;
-    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 190, top + 44, 170, 22, `BUY CHARGE (${chargeCost})`, chargeEnabled, () => {
+    makeShopButton(this.scene, this.shopLayer, SHOP_CARD_R - 100, cy, 160, 26, `BUY CHARGE (${chargeCost})`, chargeEnabled, () => {
       purchaseBeaconCharge(this.state);
       this.render();
     }, chargeTooltip, this.hoverTip);
@@ -1417,6 +1433,17 @@ export class ShopPanel {
       );
       lx += 146;
     }
+    // What a lance is (WePlaytestGames playtest, 30 Sep 2026: "First Lance
+    // 5/5, Second Lance — but we already have five pilots, so why would I...
+    // confused"). Numbers match TransporterPad's ACT1/2/3_DEPLOY_CAP (5/10/15).
+    this.shopLayer.add(
+      this.scene.add.text(lx + 4, top + 84, "A lance is a squad of 5. Act I fields 1 lance, Act II 2, Act III 3. Recruits join the lance you pick.", {
+        fontFamily: "monospace",
+        fontSize: "9px",
+        color: "#8a97a6",
+        wordWrap: { width: Math.max(120, SHOP_CARD_R - 14 - (lx + 4)) },
+      })
+    );
 
     if (this.recruitLance === null) {
       this.shopLayer.add(

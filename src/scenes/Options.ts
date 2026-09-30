@@ -31,7 +31,7 @@
 // everything a little rather than scroll" call the 9 Sep audio rows
 // already made (see this file's own note above them).
 import Phaser from "phaser";
-import { hasSeenTutorial, resetTutorialSeen, areTutorialHintsEnabled, setTutorialHintsEnabled, resetHubHintsSeen, exportCampaignJson, importCampaignJson } from "../engine/campaignState";
+import { hasSeenTutorial, resetTutorialSeen, areTutorialHintsEnabled, setTutorialHintsEnabled, resetHubHintsSeen, resetBattleTipsSeen, exportCampaignJson, importCampaignJson } from "../engine/campaignState";
 import { GAME_CREDITS } from "../data/credits";
 import { clearStats, exportStatsJson, listMissionSummaries } from "../engine/statsStore";
 import { currentGameVersion } from "../engine/telemetry";
@@ -153,13 +153,14 @@ export class Options extends Phaser.Scene {
         // just the combat one. Bundled here rather than a second, separate
         // "reset Hub hints" control.
         resetHubHintsSeen();
+        resetBattleTipsSeen();
         this.refreshStatus();
       },
       [
         "Reset Tutorial Hints",
         "",
         ...wrapTipText(
-          "Clears every hint's own \"already seen\" flag — Mission 1's combat hints and the Hub orientation hints (Roster & Gear, crew talk, the Vault, Archive, Rec Room, the Bay) all play again from scratch. Doesn't touch the ON/OFF switch above — switched off, they still won't show even after this.",
+          "Clears every hint's own \"already seen\" flag — Mission 1's combat hints, this campaign's first-time battle tips (range, actions, classes, cover...) and the Hub orientation hints (Roster & Gear, crew talk, the Vault, Archive, Rec Room, the Bay) all play again from scratch. Doesn't touch the ON/OFF switch above — switched off, they still won't show even after this.",
           42
         ),
       ],

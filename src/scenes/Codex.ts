@@ -207,7 +207,7 @@ interface RosterRow {
 // the rows below are the three things that decide what a mech does before
 // it is handed a single piece of gear. Column headers reused as-is.
 const ROSTER: RosterRow[] = [
-  { callsign: "PATH", name: "Meeps · Reeps · Tank · Munti", path: "role", chassis: "sets the class triangle", mek: "—", role: "The combat role. Meeps beat Tank, Tank beats Reeps, Reeps beat Meeps. Munti sits outside it entirely and loses every column: it is not a fighting path and no matchup makes it one." },
+  { callsign: "PATH", name: "Meeps · Reeps · Tank · Munti", path: "role", chassis: "sets the class triangle", mek: "—", role: "The combat role. Meeps beat Reeps, Reeps beat Tank, Tank beats Meeps. Munti sits outside it entirely and loses every column: it is not a fighting path and no matchup makes it one." },
   { callsign: "CHASSIS", name: "bipedal · centauroid · vibrissal", path: "species", chassis: "never changes", mek: "—", role: "Comes from the pilot's species and is fixed for life. Bipedal is the default. Centauroid can Charge. Vibrissal reads the ground close-in and finds what is buried in it." },
   { callsign: "MEK", name: "Fabricator · Armorer · Runemaster · Fieldwright · Quartermaster", path: "track", chassis: "the cradle", mek: "primary", role: "The person in the cradle. A Mek's PRIMARY track changes what that one pilot's frame actually does, which is why two identical mechs with different Meks are not identical mechs. Five tracks; a Mek can buy a secondary." },
   { callsign: "TIER", name: "G · F · E · D · C · B · A · S", path: "gear", chassis: "bought with points", mek: "—", role: "The gear ladder, climbed with that pilot's own personal points rather than time served. S is the Heirloom rung and nothing can be bought up to it." },

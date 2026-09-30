@@ -22,7 +22,7 @@
 // (fading the SAME loop through a settings screen instead of restarting it)
 // is a nice-to-have for later, not part of this pass's asked-for scope.
 import Phaser from "phaser";
-import { getMusicVolume, getSfxVolume } from "../../engine/audioSettings";
+import { getMusicVolume, getSfxVolume, volumeGain } from "../../engine/audioSettings";
 
 export type AmbientKey = "hub" | "battle";
 export type SfxKey = "hit" | "dodge" | "kill" | "click" | "mission_win" | "pilot_lost";
@@ -64,7 +64,7 @@ export function playAmbient(scene: Phaser.Scene, key: AmbientKey): void {
   // sound.add() throws on an uncached key, and this runs inside Hub/
   // Battle's own create(), where a throw would abort the rest of setup.
   if (!scene.cache.audio.exists(cacheKey(key))) return;
-  const sound = scene.sound.add(cacheKey(key), { loop: true, volume: getMusicVolume() / 100 });
+  const sound = scene.sound.add(cacheKey(key), { loop: true, volume: volumeGain(getMusicVolume()) });
   sound.play();
   currentAmbient = sound;
   currentAmbientKey = key;
@@ -109,5 +109,5 @@ export function playSfx(scene: Phaser.Scene, key: SfxKey): void {
   // should cost a sound, never a click, so skip quietly instead.
   const k = cacheKey(key);
   if (!scene.cache.audio.exists(k)) return;
-  scene.sound.play(k, { volume: getSfxVolume() / 100 });
+  scene.sound.play(k, { volume: volumeGain(getSfxVolume()) });
 }

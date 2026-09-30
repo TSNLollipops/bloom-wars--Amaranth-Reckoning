@@ -2836,7 +2836,7 @@ export class Hub extends Phaser.Scene {
       .setStrokeStyle(1, PANEL_BORDER)
       .setScrollFactor(0);
     const label = this.add
-      .text(DOCK_LOG_CENTER_X, DOCK_PANEL_TOP + 14, "OVERHEARD", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM })
+      .text(DOCK_LOG_CENTER_X, DOCK_PANEL_TOP + 14, "OVERHEARD · said aloud nearby", { fontFamily: "monospace", fontSize: "10px", color: TEXT_DIM })
       .setOrigin(0.5)
       .setScrollFactor(0);
     this.chatLogText = this.add
@@ -2902,7 +2902,15 @@ export class Hub extends Phaser.Scene {
       return;
     }
     const recent = this.chatLog.slice(-CHAT_LOG_VISIBLE_LINES);
-    this.chatLogText.setText(recent.map((entry) => `${entry.speaker}: ${entry.line}`).join("\n\n"));
+    // "You said" / "<name> said" (30 Sep playtest): make the direction of
+    // every line unambiguous. SYS lines are the game talking, left as-is.
+    this.chatLogText.setText(
+      recent
+        .map((entry) =>
+          entry.speaker === "SYS" ? `SYS: ${entry.line}` : entry.speaker === "YOU" ? `You said: “${entry.line}”` : `${entry.speaker} said: “${entry.line}”`
+        )
+        .join("\n\n")
+    );
   }
 
   private openChat() {
@@ -4650,8 +4658,13 @@ export class Hub extends Phaser.Scene {
         wordWrap: { width: width - 28 },
       })
       .setOrigin(0.5);
-    const bg = this.add.rectangle(0, 0, width, text.height + 20, 0x141a20, 0.92).setStrokeStyle(1, 0x4a7a9a);
-    const banner = this.add.container(480, 78, [bg, text]).setScrollFactor(0).setDepth(HUB_HUD_DEPTH);
+    // Opaque, and moved below the HUD header (WePlaytestGames playtest, 30
+    // Sep 2026: "It says something in the middle but there's text behind
+    // it"). At y=78 and 92% alpha it sat right on top of the controls line,
+    // so both were half-readable. Top edge now starts under the header rule.
+    const bgH = text.height + 20;
+    const bg = this.add.rectangle(0, 0, width, bgH, 0x141a20, 1).setStrokeStyle(1, 0x4a7a9a);
+    const banner = this.add.container(480, 102 + bgH / 2, [bg, text]).setScrollFactor(0).setDepth(HUB_HUD_DEPTH);
     // Playtest 25 Sep 2026 (fix E2): this banner is a NEW top-level object
     // built after create(), so finalizeDockCameraSplit()'s one-time ignore
     // list never saw it and the dock camera drew a second, clipped copy
@@ -11312,7 +11325,10 @@ export class Hub extends Phaser.Scene {
     // omniscient transcript — so it stays gated the same way.
     // Formula v2, 28 Sep 2026 — the idle beat is a look, not something said,
     // so it stays out of the OVERHEARD log (a column of "HB: …" is noise).
-    if (line !== GATE0_IDLE_TEXT && this.sameDeck(npc.room, this.currentRoomId)) this.logChatLine(npc.initials, line);
+    // Full name, not initials (WePlaytestGames playtest, 30 Sep 2026: "Is
+    // this who I'm talking to? ... is this what I tell him, or what he told
+    // me?"). Initials matched the in-world portrait tag but read as a code.
+    if (line !== GATE0_IDLE_TEXT && this.sameDeck(npc.room, this.currentRoomId)) this.logChatLine(npc.displayName, line);
 
     const duration = Math.min(BUBBLE_DURATION_CAP_MS, 2600 + line.length * 30);
     npc.bubbleUntil = now + duration;

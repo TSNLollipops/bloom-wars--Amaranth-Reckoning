@@ -90,7 +90,10 @@ export class HoverTip {
     if (key !== this.lastKey) {
       this.text.setText(key);
       const { w, h } = measureTipBox(trimmed, CHAR_W, LINE_H, PADDING);
-      this.bg.setSize(w, h);
+      // Never smaller than the text Phaser actually rendered (30 Sep 2026):
+      // the fixed LINE_H estimate runs a little short of the real line
+      // height, so a 10+ line tip had its last line hanging out of the box.
+      this.bg.setSize(Math.max(w, this.text.width + PADDING * 2), Math.max(h, this.text.height + PADDING * 2));
       this.text.setPosition(PADDING, PADDING);
       this.lastKey = key;
     }

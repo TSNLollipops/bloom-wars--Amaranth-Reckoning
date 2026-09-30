@@ -509,6 +509,11 @@ export interface CampaignState {
   // Optional so an older save still parses; loadCampaignState backfills
   // one on first load (backfillCampaignId below).
   campaignId?: string;
+  // First-time battle tips already shown in THIS campaign (data/battleTips.ts
+  // ids). WePlaytestGames onboarding pass, 30 Sep 2026; Maxime: per campaign,
+  // not per browser, so a new campaign teaches from scratch. Optional so older
+  // saves parse; missing = none seen.
+  battleTipsSeen?: string[];
   // Crew-interaction brainstorm pass, 2 Sep 2026 — the first real slice of
   // giving the MC (player character) their own persisted state at all.
   // data/verbs.ts's own header and the Stress & Morale Trigger Proposal's
@@ -1236,6 +1241,44 @@ export function resetHubHintsSeen(storage?: CampaignStorage): void {
   const s = resolveStorage(storage);
   if (!s) return;
   s.removeItem(HUB_HINTS_SEEN_KEY);
+}
+
+// ---- Battle tips (WePlaytestGames playtest, 30 Sep 2026) ----------------
+//
+// First-time, once-each rules tips during battle (data/battleTips.ts holds
+// the text and triggers). Stored ON the campaign save (CampaignState.
+// battleTipsSeen), per Maxime's call: a new campaign teaches from scratch,
+// the same campaign never repeats a tip. Gated by the same Tutorial hints
+// ON/OFF as everything else; RESET TUTORIAL HINTS clears the current
+// campaign's list. Pure helpers on a state object, plus one load-modify-save
+// wrapper for the Battle scene (same pattern Battle.ts already uses for
+// every other mid-mission save write).
+
+/** Ids already shown in this campaign. Never null. */
+export function battleTipsSeenOf(state: CampaignState | null | undefined): Set<string> {
+  return new Set(state?.battleTipsSeen ?? []);
+}
+
+/** Marks one tip shown on this state object (in memory). Idempotent. */
+export function markBattleTipSeenOn(state: CampaignState, id: string): void {
+  const seen = state.battleTipsSeen ?? [];
+  if (!seen.includes(id)) state.battleTipsSeen = [...seen, id];
+}
+
+/** Load the live save, mark the tip, save it back. No-op without a save. */
+export function markBattleTipSeen(id: string, storage?: CampaignStorage): void {
+  const state = loadCampaignState(storage);
+  if (!state) return;
+  markBattleTipSeenOn(state, id);
+  saveCampaignState(state, storage);
+}
+
+/** RESET TUTORIAL HINTS: clears the current campaign's shown-tips list. */
+export function resetBattleTipsSeen(storage?: CampaignStorage): void {
+  const state = loadCampaignState(storage);
+  if (!state || !state.battleTipsSeen?.length) return;
+  state.battleTipsSeen = [];
+  saveCampaignState(state, storage);
 }
 
 // ---- 1 & 3. Live Munti-gated restock/permadeath check ------------------

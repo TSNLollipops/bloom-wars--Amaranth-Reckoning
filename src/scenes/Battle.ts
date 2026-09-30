@@ -7,14 +7,17 @@
 import Phaser from "phaser";
 import type { BloomArchetype, Coord, TileType } from "../data/types";
 import { ALL_MISSIONS_BY_ID as MISSIONS_BY_ID } from "../data/allCampaigns";
-import { Mission, type DeployRosterEntry, type HostilePhaseEvent, type EjectionCapsule } from "../engine/mission";
+import { rangeLabel, rangeLabelCap } from "../data/rangeLabel";
+import { classPrimer, actionsLine } from "../data/classPrimer";
+import { BATTLE_TIPS, pickBattleTip, type BattleTipId } from "../data/battleTips";
+import { Mission, type DeployRosterEntry, type HostilePhaseEvent, type EjectionCapsule, type AttackOutcome } from "../engine/mission";
 import { playAmbient, stopAmbient, playSfx } from "./audio/AudioManager";
 import type { BattleUnit } from "../engine/units";
 import { coordKey, tileAt, chebyshevDistance } from "../engine/grid";
 import { outOfRangeLine } from "../data/outOfRangeLine";
 import { BLOOM, BLOOM_ON_HIT_EFFECTS } from "../data/bloom";
 import { findPilot, findMek } from "../data/pilotRegistry";
-import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen, areTutorialHintsEnabled } from "../engine/campaignState";
+import { createWardenCampaignState, loadCampaignState, saveCampaignState, applyCommanderDownAttempt, hasSeenTutorial, markTutorialSeen, areTutorialHintsEnabled, battleTipsSeenOf, markBattleTipSeen } from "../engine/campaignState";
 import { fieldedHeirloom, heirloomForPilot, abilityRank } from "../engine/heirlooms";
 import { HEIRLOOMS } from "../data/heirlooms";
 // Calendar economy, 2 Sep 2026 — mission time feeds the same campaign clock
@@ -22,7 +25,7 @@ import { HEIRLOOMS } from "../data/heirlooms";
 // on the same ckock."
 import { accrueRealMs, creditRealMs, measureRealDelta } from "../engine/calendarClock";
 import { TILES } from "../data/tiles";
-import { tierPipCount, CINDER_LINE_DAMAGE_PER_TURN, CINDER_LINE_MAX_TILES, CUTTING_ROOM_CHARGE_MAX_LINE_TILES, MASER_LANCE_CONE_RANGE } from "../data/combatTables";
+import { tierPipCount, MAX_ACTIONS_PER_TURN, CINDER_LINE_DAMAGE_PER_TURN, CINDER_LINE_MAX_TILES, CUTTING_ROOM_CHARGE_MAX_LINE_TILES, MASER_LANCE_CONE_RANGE } from "../data/combatTables";
 // requiem_severance (Gjallar, Vault Phase 2 slice 7, 3 Sep 2026) — SEVERANCE.maxCharge for the HUD's own charge-meter line, same locked-numbers reuse engine/mission.ts's own Requiem section already does rather than a second placeholder constant.
 import { SEVERANCE } from "../data/abilities";
 import { recordHumanMissionSummary, activeRosterSize } from "../engine/telemetry";
@@ -539,6 +542,20 @@ export class Battle extends Phaser.Scene {
   private tutorialHasAttacked = false;
   private tutorialSeenMarked = false; // guards markTutorialSeen() to a single call
   private tutorialText!: Phaser.GameObjects.Text;
+  // First-time battle tips (WePlaytestGames playtest, 30 Sep 2026) — see
+  // data/battleTips.ts. One line under the tutorial hint, cyan, one tip at a
+  // time. A tip stays up at least TIP_MIN_MS so a second eligible tip can't
+  // wipe it before it's read; the last one fades after TIP_HOLD_MS.
+  private tipText!: Phaser.GameObjects.Text;
+  private tipsEnabled = false;
+  private currentTipId: BattleTipId | null = null;
+  private tipShownAt = 0;
+  private lastLivingHostileCount = -1;
+  private reinforcementsPending = false;
+  private tipOverBoard = false;
+  // Cached once per mission from the campaign save; markBattleTipSeen
+  // writes through to the save as well, so the render loop never re-reads it.
+  private tipsSeen = new Set<string>();
   private selectedUnitId: string | null = null;
   private reachable: Coord[] = [];
   private attackable: BattleUnit[] = [];
@@ -1129,6 +1146,23 @@ export class Battle extends Phaser.Scene {
         wordWrap: { width: m.width * this.tileSize },
       })
       .setOrigin(0.5, 0);
+    this.tipText = this.add
+      .text(this.boardX + (m.width * this.tileSize) / 2, boardBottom + 14, "", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#7dd3fc",
+        align: "center",
+        wordWrap: { width: m.width * this.tileSize },
+      })
+      .setOrigin(0.5, 0)
+      .setVisible(false);
+    this.tipsEnabled = areTutorialHintsEnabled();
+    this.tipsSeen = battleTipsSeenOf(loadCampaignState());
+    this.currentTipId = null;
+    this.tipShownAt = 0;
+    this.lastLivingHostileCount = -1;
+    this.reinforcementsPending = false;
+    this.tipOverBoard = false;
 
     // End turn, with the "units still have actions" check (1 Sep 2026,
     // feature-gap report A3). First press with unspent units up opens the
@@ -1975,6 +2009,7 @@ export class Battle extends Phaser.Scene {
     const boardBottom = this.boardY + m.height * this.tileSize;
     this.tutorialText.setPosition(this.boardX + (m.width * this.tileSize) / 2, boardBottom + 14);
     this.tutorialText.setWordWrapWidth(m.width * this.tileSize);
+    this.tipText.setWordWrapWidth(m.width * this.tileSize);
 
     this.layoutCommsColumn();
 
@@ -2467,6 +2502,7 @@ export class Battle extends Phaser.Scene {
       // enemy-phase-playback-only (see that method's own header — a
       // player's own click has no "board is in flux" replay to wait for).
       if (outcome) playSfx(this, outcome.defenderDowned ? "kill" : outcome.defenderDodged ? "dodge" : "hit");
+      if (outcome) this.showAttackNumbers(outcome);
       this.tutorialHasAttacked = true;
       this.selectedUnitId = null;
       this.clearSelectionHighlights();
@@ -2481,7 +2517,11 @@ export class Battle extends Phaser.Scene {
     // the healer still has an action left, so a Munti can Repair a second
     // ally, or Repair then move.
     if (this.selectedUnitId && unitHere && this.repairable.some((a) => a.instanceId === unitHere.instanceId)) {
-      this.mission.repairUnit(this.selectedUnitId, unitHere.instanceId);
+      const repaired = this.mission.repairUnit(this.selectedUnitId, unitHere.instanceId);
+      // Floating "+X HP" (30 Sep playtest: "Is he getting healed or not?").
+      // A repair on a unit already at full HP restores 0 and says so,
+      // rather than silently spending the action.
+      if (repaired) this.floatTextAt(unitHere.pos, repaired.amount > 0 ? `+${repaired.amount} HP` : "FULL HP", repaired.amount > 0 ? "#86efac" : "#9ca3af");
       this.refreshSelectionAfterAction();
       this.render();
       return;
@@ -2750,11 +2790,61 @@ export class Battle extends Phaser.Scene {
         : "hit";
     this.hostilePhaseFlashTarget = { unitId: event.defenderId, result };
     playSfx(this, result);
+    this.showAttackNumbers(event.outcome);
     this.render();
     this.time.delayedCall(BEAT_MS, () => {
       this.hostilePhaseFlashTarget = null;
       onComplete();
     });
+  }
+
+  /**
+   * Floating combat numbers (WePlaytestGames playtest, 30 Sep 2026). The
+   * tester asked "Did I shoot him? Where can I see this?" after his first
+   * attack, and later "Is he getting healed or not?" after a Repair. Every
+   * hit, dodge, kill and repair now pops a short number over the unit it
+   * landed on, drifts up and fades. Purely visual: the engine has already
+   * resolved everything by the time this is called.
+   */
+  private floatTextAt(pos: Coord, text: string, color: string) {
+    const ts = this.tileSize;
+    const x = this.boardX + pos.x * ts + ts / 2;
+    const y = this.boardY + pos.y * ts + ts * 0.2;
+    const t = this.add
+      .text(x, y, text, {
+        fontFamily: "monospace",
+        fontSize: `${Math.max(12, Math.round(ts * 0.4))}px`,
+        color,
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(60);
+    this.tweens.add({
+      targets: t,
+      y: y - ts * 0.7,
+      alpha: 0,
+      delay: 450,
+      duration: 700,
+      ease: "Quad.easeIn",
+      onComplete: () => t.destroy(),
+    });
+  }
+
+  private showAttackNumbers(outcome: AttackOutcome) {
+    const defender = this.mission.unitById(outcome.defenderId);
+    if (defender) {
+      if (outcome.defenderDodged) this.floatTextAt(defender.pos, "DODGE", "#e5e7eb");
+      else this.floatTextAt(defender.pos, outcome.defenderDowned ? `-${outcome.damage} DOWN` : `-${outcome.damage}`, outcome.defenderDowned ? "#fca5a5" : "#fde68a");
+    }
+    if (outcome.countered) {
+      const attacker = this.mission.unitById(outcome.attackerId);
+      if (attacker) {
+        if (outcome.counterDodged) this.floatTextAt(attacker.pos, "DODGE", "#e5e7eb");
+        else if (outcome.counterDamage !== undefined) this.floatTextAt(attacker.pos, `-${outcome.counterDamage}`, "#fdba74");
+      }
+    }
   }
 
   private clearSelectionHighlights() {
@@ -3775,6 +3865,7 @@ export class Battle extends Phaser.Scene {
     this.drawHud();
     this.drawOverlayIfNeeded();
     this.updateTutorialHint();
+    this.updateBattleTips();
   }
 
   /**
@@ -3824,6 +3915,85 @@ export class Battle extends Phaser.Scene {
    * teaches "move" first, matching the plan's own Select → Move → Attack
    * teaching order regardless of what's actually available to click.
    */
+  private static readonly TIP_MIN_MS = 6000;
+  private static readonly TIP_HOLD_MS = 16000;
+
+  /**
+   * First-time battle tips — builds data/battleTips.ts's context from this
+   * scene's state and shows the picked tip under the tutorial line. Runs
+   * every render(); cheap (a few array scans), and does nothing at all once
+   * tips are off or every tip has been seen.
+   */
+  private updateBattleTips() {
+    if (!this.tipText) return;
+    const m = this.mission.map;
+    const cx = this.boardX + (m.width * this.tileSize) / 2;
+    const boardBottom = this.boardY + m.height * this.tileSize;
+    let y = this.tutorialText.visible && this.tutorialText.text ? this.tutorialText.y + this.tutorialText.height + 8 : boardBottom + 14;
+    // Tall maps fill the board down to battleLayout's BOARD_BOTTOM (620 of
+    // 640), leaving no room under it. Then the tip rides the top edge of the
+    // board instead, on its own dark plate so it reads over the tiles.
+    const overBoard = y + this.tipText.height > this.cameras.main.height - 4;
+    if (overBoard) y = this.boardY + 4;
+    this.tipText.setPosition(cx, y);
+    if (overBoard !== this.tipOverBoard) {
+      // Only on change: setBackgroundColor re-rasterises the text texture.
+      this.tipOverBoard = overBoard;
+      this.tipText.setBackgroundColor(overBoard ? "#0b1016e6" : "");
+      this.tipText.setDepth(overBoard ? 40 : 0);
+    }
+
+    // Reinforcement detection runs even with tips off so the counter stays
+    // honest if they're switched back on mid-campaign.
+    const living = this.mission.livingUnits();
+    const hostiles = living.filter((u) => u.side === "hostile").length;
+    if (this.lastLivingHostileCount >= 0 && hostiles > this.lastLivingHostileCount && this.mission.turn >= 2) this.reinforcementsPending = true;
+    this.lastLivingHostileCount = hostiles;
+
+    const now = this.time.now;
+    if (this.currentTipId && now - this.tipShownAt > Battle.TIP_HOLD_MS) {
+      this.currentTipId = null;
+      this.tipText.setVisible(false);
+    }
+    if (!this.tipsEnabled) return;
+    if (this.currentTipId && now - this.tipShownAt < Battle.TIP_MIN_MS) return;
+
+    const idle = this.mission.phase === "player" && this.mission.outcome === "ongoing" && !this.isAnimatingMove;
+    const selUnit = this.selectedUnitId ? this.mission.unitById(this.selectedUnitId) : undefined;
+    const hov = this.hoveredUnit();
+    let hovered: { kind: "bloom" | "hostile_mech" | "player" | "tile"; defenceStars?: number } | undefined;
+    if (hov) hovered = { kind: hov.kind === "bloom" ? "bloom" : hov.side === "hostile" ? "hostile_mech" : "player" };
+    else if (this.hoverTile) hovered = { kind: "tile", defenceStars: TILES[tileAt(m, this.hoverTile)]?.defenceStars ?? 0 };
+    const mine = living.filter((u) => u.side === "player" && !u.isCivilian && !u.npcIncapacitated);
+    const pick = pickBattleTip(
+      {
+        idle,
+        selected:
+          selUnit && selUnit.side === "player"
+            ? {
+                path: selUnit.path,
+                actionsRemaining: selUnit.actionsRemaining,
+                tilesMovedThisTurn: selUnit.tilesMovedThisTurn ?? 0,
+                hasAbilities: (selUnit.abilities?.length ?? 0) > 0,
+              }
+            : undefined,
+        attackableCount: this.attackable.length,
+        repairableCount: this.repairable.length,
+        hovered,
+        reinforcementsJustArrived: this.reinforcementsPending,
+        someUnitsDone: mine.some((u) => u.actionsRemaining <= 0) && mine.some((u) => u.actionsRemaining > 0),
+      },
+      this.tipsSeen
+    );
+    if (!pick) return;
+    if (pick === "reinforcements") this.reinforcementsPending = false;
+    this.tipsSeen.add(pick);
+    markBattleTipSeen(pick);
+    this.currentTipId = pick;
+    this.tipShownAt = now;
+    this.tipText.setText(`TIP — ${BATTLE_TIPS[pick]}`).setVisible(true);
+  }
+
   private updateTutorialHint() {
     if (!this.tutorialActive) return;
     let line: string | null = null;
@@ -3832,7 +4002,7 @@ export class Battle extends Phaser.Scene {
       // call, softly warning rather than either spelling out the full
       // permadeath/Munti rule or staying silent (Onboarding plan §5's
       // open question): "we should softly warn them."
-      line = "TUTORIAL — click one of your own units to select it.\nLosses out here can be permanent. Keep a Munti in the fight.";
+      line = "TUTORIAL — click one of your own units to select it.\nLosses out here can be permanent. Keep your Munti (circle + bar, the healer) in the fight.";
     } else if (!this.tutorialHasMoved && this.reachable.length > 0) {
       line = "TUTORIAL — click a highlighted green tile to move there.";
     } else if (!this.tutorialHasAttacked && this.attackable.length > 0) {
@@ -4152,7 +4322,11 @@ export class Battle extends Phaser.Scene {
           ? HOSTILE_MECH_COLOR
           : parseInt(BLOOM[unit.archetypeId]?.colorPalette[0].replace("#", "") ?? "888888", 16);
 
-    const fillAlpha = acted ? 0.55 : 1;
+    // 0.55 -> 0.4, WePlaytestGames playtest 30 Sep 2026 ("How do I know if
+    // this one has done his turn already?"). The faint fade alone was too
+    // close to full colour; the action pips and "done" check drawn at the
+    // end of this function carry most of the signal now.
+    const fillAlpha = acted ? 0.4 : 1;
     g.fillStyle(color, fillAlpha);
 
     const path = unit.path;
@@ -4443,6 +4617,52 @@ export class Battle extends Phaser.Scene {
         g.fillRect(barX, shieldY, barW, 3);
         g.fillStyle(0x38bdf8, 1);
         g.fillRect(barX, shieldY, barW * shieldFrac, 3);
+      }
+    }
+
+    // Action pips + "done" check (WePlaytestGames playtest, 30 Sep 2026).
+    // The tester couldn't tell which units had acted, or why a unit that
+    // had moved could no longer attack. The rule (two actions a turn: Move
+    // and Repair cost 1, Attack ends the turn) was only in How to Play. Now
+    // every one of your units shows its actions left as pips under its
+    // tile, bottom-left: bright = still available, hollow = spent. At zero
+    // a grey check replaces them. Player phase only: during the hostile
+    // phase every one of your units is at 0 by definition, and a board full
+    // of checks would just be noise. Civilians / incapacitated NPCs never
+    // take actions, so they get none.
+    if (
+      unit.side === "player" &&
+      !unit.downed &&
+      !unit.isCivilian &&
+      !unit.npcIncapacitated &&
+      this.mission.phase === "player"
+    ) {
+      // Top-LEFT corner of the unit's own tile: bottom-left carries the
+      // tile's cover dots, top-right the gear-tier pips, and the bottom
+      // edge gets covered by the HP bar of any unit standing on the tile
+      // below (HP bars draw above their own tile).
+      const tileLeft = this.boardX + pos.x * ts;
+      const tileTop = this.boardY + pos.y * ts;
+      const pipR = Math.max(2, ts * 0.075);
+      if (unit.actionsRemaining > 0) {
+        for (let i = 0; i < MAX_ACTIONS_PER_TURN; i++) {
+          const px = tileLeft + pipR * 1.8 + i * pipR * 2.7;
+          const py = tileTop + pipR * 1.8;
+          if (i < unit.actionsRemaining) {
+            g.fillStyle(0x86efac, 1);
+            g.fillCircle(px, py, pipR);
+          } else {
+            g.lineStyle(1, 0x9ca3af, 0.9);
+            g.strokeCircle(px, py, pipR);
+          }
+        }
+      } else {
+        const s = ts * 0.2;
+        const x0 = tileLeft + ts * 0.08;
+        const y0 = tileTop + ts * 0.16;
+        g.lineStyle(2, 0xd1d5db, 0.95);
+        g.lineBetween(x0, y0, x0 + s * 0.4, y0 + s * 0.4);
+        g.lineBetween(x0 + s * 0.4, y0 + s * 0.4, x0 + s, y0 - s * 0.5);
       }
     }
   }
@@ -5076,8 +5296,8 @@ export class Battle extends Phaser.Scene {
       const arch = BLOOM[hovered.archetypeId];
       out.push("", `${hovered.displayName}${arch ? ` — ${arch.intelligence}` : ""}`);
       if (hovered.collapsed) out.push(`COLLAPSED — Vitality ${hovered.vitality ?? 0} (a hit of that much kills it)`);
-      else out.push(`Endurance ${hovered.endurance ?? 0}/${hovered.maxEndurance ?? 0}, Vitality ${hovered.vitality ?? 0}`);
-      out.push(`Hits for ${hovered.attackPower ?? "?"}, range ${hovered.attackRange[0]}-${hovered.attackRange[1]}, moves ${hovered.moveRange}, sees ${hovered.vision}`);
+      else out.push(`Endurance ${hovered.endurance ?? 0}/${hovered.maxEndurance ?? 0} (blue), Vitality ${hovered.vitality ?? 0} (red)`, "Empty the blue bar to collapse it. Extra damage past 0 is lost.");
+      out.push(`Hits for ${hovered.attackPower ?? "?"}, ${rangeLabel(hovered.attackRange)}, moves ${hovered.moveRange} tiles, sees ${hovered.vision}`);
       const fx = this.describeOnHit(arch?.onHit);
       if (fx) out.push(fx);
       if (hovered.burrowed) out.push("BURROWED — surfaces to strike at ×1.5");
@@ -5086,7 +5306,14 @@ export class Battle extends Phaser.Scene {
       out.push("", `${who} — ${hovered.path ?? "?"}${hovered.tier ? ` tier ${hovered.tier}` : ""}`);
       const shield = hovered.shield && hovered.shield > 0 ? ` +${hovered.shield} shield` : "";
       out.push(`HP ${hovered.currentHp}/${hovered.maxHp}${shield}, ATK ${hovered.effectiveAttack} DEF ${hovered.effectiveDefense}`);
-      out.push(`Range ${hovered.attackRange[0]}-${hovered.attackRange[1]}, moves ${hovered.moveRange}, sees ${hovered.vision}${hovered.canCounter ? ", counters" : ""}`);
+      out.push(`${rangeLabelCap(hovered.attackRange)}, moves ${hovered.moveRange} tiles, sees ${hovered.vision}${hovered.canCounter ? ", hits back when attacked" : ""}`);
+      // Class primer + action economy (WePlaytestGames playtest, 30 Sep
+      // 2026) — the two things the tester had to leave the fight to read.
+      const primer = classPrimer(hovered.path);
+      if (primer) out.push(...wrapTipText(primer, 62));
+      if (hovered.side === "player" && !hovered.isCivilian && !hovered.npcIncapacitated && this.mission.phase === "player") {
+        out.push(...wrapTipText(actionsLine(hovered.actionsRemaining, MAX_ACTIONS_PER_TURN), 62));
+      }
       const fx = hovered.statusEffects?.map((s) => (s.kind === "acid_dot" ? `acid ${s.turnsRemaining}t` : `-${Math.round(s.magnitude * 100)}% atk ${s.turnsRemaining}t`)) ?? [];
       if (fx.length) out.push(`Status: ${fx.join(", ")}`);
       const burning = this.surtrLineAt(hovered.pos);

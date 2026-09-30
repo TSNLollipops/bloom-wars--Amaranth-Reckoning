@@ -23,6 +23,7 @@ import { HOUSE_AMARANTH_FACILITY } from "./engine/facilityHouseAmaranth";
 import { applyDisplayScale, getStoredDisplayScaleId } from "./engine/displayScale";
 import { pinDomLayerToCanvas } from "./engine/domLayerPin";
 import { setSaveFailureHandler } from "./engine/campaignState";
+import { installSharpText } from "./scenes/ui/sharpText";
 
 // Screen Resolution Plan v1, 2 Sep 2026 — apply the player's saved display-
 // scale cap (Options screen, defaults to 150%) to #app's max-width/max-
@@ -30,6 +31,10 @@ import { setSaveFailureHandler } from "./engine/campaignState";
 // the wrong size on the very first frame. See src/engine/displayScale.ts
 // and index.html's own :root fallback for the pre-script default.
 applyDisplayScale(getStoredDisplayScaleId());
+
+// WePlaytestGames playtest fix, 30 Sep 2026 — draw all Text at 2-3x so the
+// Scale.FIT stretch stops blurring it. See src/scenes/ui/sharpText.ts.
+installSharpText();
 
 // Ship audit, 16 Sep 2026 (§1.2) — a save that fails to write (browser
 // storage full or blocked) used to vanish silently: the click handler that

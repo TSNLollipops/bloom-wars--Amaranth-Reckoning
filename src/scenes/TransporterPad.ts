@@ -56,6 +56,7 @@ import { portraitAssetFor } from "../engine/portraits";
 import { describeObjective } from "../data/missionBriefing";
 import { HoverTip } from "./ui/HoverTip";
 import { wrapTipText } from "../engine/hoverTipLayout";
+import { mekPrimerLines } from "../data/mekTrackPrimer";
 
 // One muted, distinct hue per Path so a squad row scans quickly — new to
 // this file (see header comment: no portrait colour scheme existed
@@ -486,6 +487,18 @@ export class TransporterPad extends Phaser.Scene {
     this.add
       .text(480, 44, `TRANSPORTER PAD — ${companyNameOf(this.state).toUpperCase()}`, { fontFamily: "monospace", fontSize: "30px", color: "#e8e2d4" })
       .setOrigin(0.5);
+    // Shrink-to-fit (30 Sep 2026): at 30px the default "WARDEN COMPANY" title
+    // already ran under the HOW TO PLAY and mission-select buttons in the top
+    // corners, and a 24-character company name made it worse. The gap
+    // between those two buttons is about 480px.
+    {
+      const title = this.children.list[this.children.list.length - 1] as Phaser.GameObjects.Text;
+      let size = 30;
+      while (title.width > 470 && size > 14) {
+        size -= 2;
+        title.setFontSize(size);
+      }
+    }
     this.add
       .text(480, 72, `deploying to: ${this.missionDef.displayName}`, { fontFamily: "monospace", fontSize: "13px", color: "#8a97a6" })
       .setOrigin(0.5);
@@ -906,6 +919,16 @@ export class TransporterPad extends Phaser.Scene {
           .text(textX, y + TRACK_DY, trackLine, { fontFamily: "monospace", fontSize: "10px", color: "#6b7a8a" })
           .setAlpha(rowAlpha);
         this.squadLayer.add(trackText);
+        // Mek specialty explained on hover (WePlaytestGames playtest, 30 Sep
+        // 2026: "Primary rune master, armor... not sure what this means").
+        const primerTip = mekPrimerLines(mek.displayName, mek.primary, mek.secondary ?? undefined).flatMap((l) => (l === "" ? [""] : wrapTipText(l, 42)));
+        if (owned.length === 0) {
+          trackText
+            .setInteractive()
+            .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(["Mek specialty", "", ...primerTip], pointer.x, pointer.y))
+            .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(["Mek specialty", "", ...primerTip], pointer.x, pointer.y))
+            .on("pointerout", () => this.hoverTip.hide());
+        }
         if (owned.length > 0) {
           const weaponTip = [
             "Cycle Weapon",
@@ -916,6 +939,8 @@ export class TransporterPad extends Phaser.Scene {
                 : "Cycles this pilot's equipped weapon branch: none → first owned → next owned → ... → none again.",
               42
             ),
+            "",
+            ...primerTip,
           ];
           trackText
             .setInteractive({ useHandCursor: true })
@@ -977,6 +1002,19 @@ export class TransporterPad extends Phaser.Scene {
         .setOrigin(1, 0.5)
         .setAlpha(rowAlpha);
       this.squadLayer.add(ptsLabel);
+      // "Not sure what the zero points mean" (WePlaytestGames playtest, 30
+      // Sep 2026). Same split engine/campaignEconomy.ts's header describes.
+      const ptsTip = [
+        "Personal points",
+        "",
+        ...wrapTipText("Earned by this pilot in each mission: kills, assists (repairs count), surviving, and a bonus on a win. Spent only on this pilot, in the Campaign Shop aboard ship: gear tier upgrades, a second Mek specialty, weapon branches. Everyone starts at 0.", 42),
+      ];
+      for (const t of [ptsText, ptsLabel]) {
+        t.setInteractive()
+          .on("pointerover", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(ptsTip, pointer.x, pointer.y))
+          .on("pointermove", (pointer: Phaser.Input.Pointer) => this.hoverTip.show(ptsTip, pointer.x, pointer.y))
+          .on("pointerout", () => this.hoverTip.hide());
+      }
     });
   }
 

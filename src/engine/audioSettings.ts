@@ -27,7 +27,7 @@ const SFX_KEY = "bloomwars_volume_sfx_v1";
 /** Neither slider defaults to 0 or 100 — audio existing at all is new, and a
  * silent-by-default or startlingly-loud-by-default first impression are both
  * worse than a moderate, adjustable starting point. */
-export const DEFAULT_MUSIC_VOLUME = 55;
+export const DEFAULT_MUSIC_VOLUME = 35;
 export const DEFAULT_SFX_VOLUME = 70;
 
 function readStoredPercent(key: string, fallback: number): number {
@@ -70,4 +70,22 @@ export function getSfxVolume(): number {
 
 export function setSfxVolume(percent: number): void {
   writeStoredPercent(SFX_KEY, percent);
+}
+
+/**
+ * Slider percent (0-100) -> playback gain (0-1), on a perceptual curve.
+ *
+ * WePlaytestGames playtest, 30 Sep 2026: "the music is too loud even at
+ * 25%." The files themselves aren't hot (both ambient loops average about
+ * -28 dB); the slider was. Hearing is roughly logarithmic, so a LINEAR
+ * slider (gain = percent/100) sounds almost unchanged from 100 down to
+ * ~20 and then falls off a cliff. Squaring the fraction spreads the audible
+ * change across the whole slider: 50% is now a quarter of full gain (about
+ * -12 dB), 25% is 1/16 (about -24 dB). Saved slider values are untouched;
+ * the same number just plays quieter. The music default dropped 55 -> 35 in
+ * the same pass (35% squared ~ 0.12 gain, versus the old 0.55).
+ */
+export function volumeGain(percent: number): number {
+  const f = Math.min(100, Math.max(0, percent)) / 100;
+  return f * f;
 }
