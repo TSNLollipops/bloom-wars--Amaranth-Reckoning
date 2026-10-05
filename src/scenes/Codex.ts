@@ -122,7 +122,7 @@ const CONTROLS: ControlRow[] = [
   { key: "Click green", desc: "Moves there. Costs 1 action, does not end your turn — the unit stays selected and its options recompute.", chip: "go" },
   { key: "Click red", desc: "Attacks. Costs every action the unit has left and ends its turn immediately, no matter how many actions were still in the bank.", chip: "danger" },
   { key: "Click cyan", desc: "Munti only — heals that ally instead of attacking. Costs 1 action, does not end the turn.", chip: "info" },
-  { key: "Action bar", desc: "Bottom-left, above END TURN, once a unit is selected: Overwatch, Ambush and whatever else that unit carries. Click a slot or press its number (1-6). Hover a slot for exactly what it does and what it costs." },
+  { key: "Action bar", desc: "Bottom-left, above END TURN, once a unit is selected: Overwatch, Ambush and whatever else that unit carries. Click a slot or press its number (1-6). Hover a slot for exactly what it does and what it costs. Overwatch (every unit, slot 1) skips the turn to take one free shot at the first hostile that moves into range and sight. Interdict (Tanks) braces so any hostile that ends a move nearby loses the rest of its turn." },
   { key: "End Turn", desc: "Bottom-left button, or Space. If anyone can still act you get a prompt first — Space again ends the turn anyway, Esc keeps playing. Then the hostile phase plays out move by move, the environment step ticks (Bloom mat, deploy-pad healing, shields and regen), and the turn is yours." },
   { key: "Tab · Esc · R-click", desc: "Tab cycles through your units that can still act. Esc or right-click cancels whatever is open — a prompt, an aimed ability, then the selection itself." },
   { key: "[ and ]", desc: "Hide or show the left (briefing) and right (comms) columns to give a wide map the room." },
@@ -234,9 +234,9 @@ const MISSIONS: MissionRow[] = [
   },
   {
     title: "The briefing tells you what intelligence expected",
-    tags: ["not a guarantee", "waves arrive on their own schedule"],
-    desc: "The Transporter Pad and the left column in the fight carry the briefing and the objective. Waves arrive on their own timer and the briefing does not always know about the second one. Plan the fight you were given, then keep a unit uncommitted for the one you were not.",
-    tip: "A squad that has spent every action by turn 3 has no answer to a wave that lands on turn 4.",
+    tags: ["not a guarantee", "red crossed boxes = next turn's wave"],
+    desc: "The Transporter Pad and the left column in the fight carry the briefing and the objective. Waves arrive on their own timer and the briefing does not always know about the second one. The turn before a wave lands, its landing tiles get red crossed boxes and COMMS says how many are coming. Burrowed ambushers and some scripted arrivals give no warning. Plan the fight you were given, then keep a unit uncommitted for the one you were not.",
+    tip: "Red crossed boxes on your turn mean company next turn. Get into cover facing them, or leave someone on Overwatch.",
   },
   {
     title: "Read the ground on turn 1, before anyone moves",

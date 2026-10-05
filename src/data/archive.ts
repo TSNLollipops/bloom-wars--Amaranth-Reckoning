@@ -2646,7 +2646,7 @@ export const ARCHIVE_ENTRIES: ArchiveEntry[] = [
     gate: null,
     body: [
       "The briefing panel before a mission is the only place that tells you the win condition. Read the turn number correctly.",
-      "The panel names the objective, the threat you have been told to expect, and a turn number. That number means two different things depending on the objective, and getting it wrong is the most common way a good squad loses a mission it was winning. For eliminate_all, clear_bloom, contested_landing and protect_asset it is a bonus target: running past it costs you a reward, never the mission. For hold_zone, extract_unit and survive_n_turns it is the mission. The threat list is what intelligence expected, not a guarantee. Waves arrive on their own schedule and the briefing does not always know about the second one.",
+      "The panel names the objective, the threat you have been told to expect, and a turn number. That number means two different things depending on the objective, and getting it wrong is the most common way a good squad loses a mission it was winning. For eliminate_all, clear_bloom, contested_landing and protect_asset it is a bonus target: running past it costs you a reward, never the mission. For hold_zone, extract_unit and survive_n_turns it is the mission. The threat list is what intelligence expected, not a guarantee. Waves arrive on their own schedule and the briefing does not always know about the second one. The board does: the turn before a wave lands, its landing tiles are marked with red crossed boxes and COMMS gives the count. Burrowed ambushers give no such warning.",
     ],
   },
 ];

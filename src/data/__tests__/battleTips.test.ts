@@ -33,9 +33,28 @@ describe("pickBattleTip", () => {
   it("reinforcements beats everything", () => {
     expect(pickBattleTip({ ...base, selected: sel(), reinforcementsJustArrived: true }, new Set())).toBe("reinforcements");
   });
+  it("warns about incoming reinforcements, but an arrival still wins", () => {
+    expect(pickBattleTip({ ...base, reinforcementsIncoming: true }, new Set(["actions"]))).toBe("reinforcements_incoming");
+    expect(pickBattleTip({ ...base, reinforcementsIncoming: true, reinforcementsJustArrived: true }, new Set(["actions"]))).toBe("reinforcements");
+  });
+  it("the incoming warning never beats the very first lesson", () => {
+    expect(pickBattleTip({ ...base, reinforcementsIncoming: true }, new Set())).toBeNull();
+    expect(pickBattleTip({ ...base, reinforcementsIncoming: true, selected: sel() }, new Set())).toBe("actions");
+  });
+  it("interdict for a unit that carries it, after the basics", () => {
+    const seen = new Set(["actions", "class_tank", "abilities"]);
+    expect(pickBattleTip({ ...base, selected: sel({ path: "tank", hasAbilities: true, hasInterdict: true }) }, seen)).toBe("interdict");
+    expect(pickBattleTip({ ...base, selected: sel({ path: "tank", hasAbilities: true }) }, seen)).toBeNull();
+  });
+  it("overwatch only when the unit can use it and has nothing to shoot", () => {
+    const seen = new Set(["actions", "class_meeps"]);
+    expect(pickBattleTip({ ...base, selected: sel({ canOverwatch: true }) }, seen)).toBe("overwatch");
+    expect(pickBattleTip({ ...base, selected: sel({ canOverwatch: true }), attackableCount: 1 }, new Set([...seen, "range", "triangle"]))).toBeNull();
+    expect(pickBattleTip({ ...base, selected: sel({ canOverwatch: false }) }, seen)).toBeNull();
+  });
   it("never repeats a seen tip", () => {
     const all = new Set(Object.keys(BATTLE_TIPS));
-    expect(pickBattleTip({ ...base, selected: sel({ tilesMovedThisTurn: 1, actionsRemaining: 1, hasAbilities: true }), attackableCount: 2, repairableCount: 1, hovered: { kind: "bloom" }, reinforcementsJustArrived: true, someUnitsDone: true }, all)).toBeNull();
+    expect(pickBattleTip({ ...base, selected: sel({ tilesMovedThisTurn: 1, actionsRemaining: 1, hasAbilities: true, canOverwatch: true, hasInterdict: true }), attackableCount: 2, repairableCount: 1, hovered: { kind: "bloom" }, reinforcementsJustArrived: true, reinforcementsIncoming: true, someUnitsDone: true }, all)).toBeNull();
   });
   it("no tip uses the engine's range notation", () => {
     for (const t of Object.values(BATTLE_TIPS)) expect(t).not.toMatch(/\b1-1\b/);

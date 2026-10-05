@@ -97,6 +97,7 @@ const HOSTILE_MECH_COLOR = 0x7a6a55;
 const SWEEP_COLOR = 0xa855f7; // abil_sensor_sweep footprint + painted-contact ring
 const CONCEAL_COLOR = 0xc084fc; // abil_ambush / abil_screen — this unit is not seen
 const INTERDICT_COLOR = 0xfb923c; // abil_interdict kill-box
+const INCOMING_COLOR = 0xff3b3b; // reinforcement warning: hostiles land on these tiles next turn (crossed box, so it never reads as the attackable outline)
 const SCREEN_COLOR = 0xf472b6; // abil_screen coverage preview
 const FIRE_SUPPORT_COLOR = 0x38bdf8; // abil_fire_support — a distinct sky blue, chosen apart from every hue above so an armed strike's click-target wash never reads as a repaint of an existing verb (Sweep's own violet, Interdict's orange, Screen's pink)
 const DEADFALL_STRIKE_COLOR = 0xd946ef; // deadfall_strike (Vault Phase 2 slice 2) — fuchsia, distinct from attackable's red and every hue above: this target set is NOT the normal attackable list (it ignores range), so it needs its own tell rather than borrowing red's meaning
@@ -552,6 +553,13 @@ export class Battle extends Phaser.Scene {
   private tipShownAt = 0;
   private lastLivingHostileCount = -1;
   private reinforcementsPending = false;
+  // Reinforcement warning (30 Sep 2026): the tiles Mission.upcomingWaves()
+  // says hostiles land on next turn, refreshed every render during the
+  // player phase, plus the last turn a comms line was logged for it so the
+  // warning is said once per turn, not every frame.
+  private incomingTiles: Coord[] = [];
+  private incomingCount = 0;
+  private incomingWarnedTurn = -1;
   private tipOverBoard = false;
   // Cached once per mission from the campaign save; markBattleTipSeen
   // writes through to the save as well, so the render loop never re-reads it.
@@ -1162,6 +1170,9 @@ export class Battle extends Phaser.Scene {
     this.tipShownAt = 0;
     this.lastLivingHostileCount = -1;
     this.reinforcementsPending = false;
+    this.incomingTiles = [];
+    this.incomingCount = 0;
+    this.incomingWarnedTurn = -1;
     this.tipOverBoard = false;
 
     // End turn, with the "units still have actions" check (1 Sep 2026,
@@ -3587,6 +3598,33 @@ export class Battle extends Phaser.Scene {
       g.fillStyle(INTERDICT_COLOR, 0.3);
       g.fillRect(this.boardX + c.x * ts, this.boardY + c.y * ts, ts - 1, ts - 1);
     }
+    // Reinforcement warning (30 Sep 2026). WePlaytestGames' tester was
+    // "surprised by 22 enemies": waves arrived with no tell. The engine
+    // already knows every wave's turn and landing tiles, so the turn before
+    // one lands, its tiles get a crossed red box and COMMS says how many.
+    // Player phase only; burrowed waves are left out (Mission.upcomingWaves).
+    if (this.mission.phase === "player" && this.mission.outcome === "ongoing") {
+      const up = this.mission.upcomingWaves();
+      this.incomingTiles = up.tiles;
+      this.incomingCount = up.count;
+      if (up.count > 0 && this.incomingWarnedTurn !== this.mission.turn) {
+        this.incomingWarnedTurn = this.mission.turn;
+        this.logCommsLine("SYS", `Hostiles incoming next turn: ${up.count}. Landing zones marked with red crossed boxes.`);
+      }
+    } else {
+      this.incomingTiles = [];
+      this.incomingCount = 0;
+    }
+    for (const c of this.incomingTiles) {
+      const x0 = this.boardX + c.x * ts;
+      const y0 = this.boardY + c.y * ts;
+      g.fillStyle(INCOMING_COLOR, 0.18);
+      g.fillRect(x0, y0, ts - 1, ts - 1);
+      g.lineStyle(2, INCOMING_COLOR, 0.95);
+      g.strokeRect(x0 + 2, y0 + 2, ts - 5, ts - 5);
+      g.lineBetween(x0 + 4, y0 + 4, x0 + ts - 5, y0 + ts - 5);
+      g.lineBetween(x0 + ts - 5, y0 + 4, x0 + 4, y0 + ts - 5);
+    }
     for (const u of this.screenable) {
       g.fillStyle(SCREEN_COLOR, 0.35);
       g.fillRect(this.boardX + u.pos.x * ts, this.boardY + u.pos.y * ts, ts - 1, ts - 1);
@@ -3975,12 +4013,15 @@ export class Battle extends Phaser.Scene {
                 actionsRemaining: selUnit.actionsRemaining,
                 tilesMovedThisTurn: selUnit.tilesMovedThisTurn ?? 0,
                 hasAbilities: (selUnit.abilities?.length ?? 0) > 0,
+                canOverwatch: this.mission.canEnterOverwatch(selUnit.instanceId),
+                hasInterdict: selUnit.abilities?.includes("abil_interdict") ?? false,
               }
             : undefined,
         attackableCount: this.attackable.length,
         repairableCount: this.repairable.length,
         hovered,
         reinforcementsJustArrived: this.reinforcementsPending,
+        reinforcementsIncoming: this.incomingCount > 0,
         someUnitsDone: mine.some((u) => u.actionsRemaining <= 0) && mine.some((u) => u.actionsRemaining > 0),
       },
       this.tipsSeen
@@ -4915,6 +4956,7 @@ export class Battle extends Phaser.Scene {
     if (this.repairable.length) lines.push("", "Cyan tile = Repair target (+HP, instead of attacking)");
     if (this.screenable.length) lines.push("", `Pink tiles = Screen would conceal ${this.screenable.length} unit(s)`);
     if (this.interdictZone.length) lines.push("", "Orange tiles = ground Interdict would pin");
+    if (this.incomingTiles.length) lines.push("", `Red crossed boxes = ${this.incomingCount} hostile(s) land there next turn`);
     if (this.sweepArea.length) lines.push("", "Violet box = Sensor Sweep reach");
     if (this.rescuableNpc.length) lines.push("", "Gold tile = Rescue (adjacent, downed pilot)");
     if (this.clearableBloom.length) lines.push("", `Gold tiles = ${this.clearableBloom.length} bloom mat tile(s) Clear would flip`);

@@ -34,6 +34,9 @@ export type BattleTipId =
   | "cover"
   | "bloom_bars"
   | "reinforcements"
+  | "reinforcements_incoming"
+  | "overwatch"
+  | "interdict"
   | "done_units";
 
 export const BATTLE_TIPS: Record<BattleTipId, string> = {
@@ -59,6 +62,12 @@ export const BATTLE_TIPS: Record<BattleTipId, string> = {
     "Bloom have two bars. Blue is endurance: empty it and the Bloom collapses, and leftover damage is lost. Red is vitality: once collapsed, one hit that big kills it.",
   reinforcements:
     "More hostiles just arrived. Missions bring waves, so don't spend everything on the first group. The left panel tracks the objective.",
+  reinforcements_incoming:
+    "Red crossed boxes on the board = hostiles arriving there next turn. Get into cover facing them, or set Overwatch so they walk into your fire.",
+  overwatch:
+    "Nothing in range? OVERWATCH (key 1) skips this unit's turn to take one free shot at the first hostile that moves into its range and sight. Good for covering a door or those red arrival boxes.",
+  interdict:
+    "This Tank can INTERDICT: it braces and any hostile that ends a move near it loses the rest of its turn. No damage, it just stops them cold. Costs the Tank's whole turn.",
   done_units:
     "A check mark means that unit is done for this turn. Press Space or END TURN when everyone is done. You'll get a warning if someone still has actions.",
 };
@@ -68,13 +77,15 @@ export interface BattleTipContext {
   /** True when it's the player phase and nothing is animating or targeting. */
   idle: boolean;
   /** The selected player unit, if any. */
-  selected?: { path?: string; actionsRemaining: number; tilesMovedThisTurn: number; hasAbilities: boolean };
+  selected?: { path?: string; actionsRemaining: number; tilesMovedThisTurn: number; hasAbilities: boolean; canOverwatch?: boolean; hasInterdict?: boolean };
   attackableCount: number;
   repairableCount: number;
   /** What the pointer is over on the board (visible things only). */
   hovered?: { kind: "bloom" | "hostile_mech" | "player" | "tile"; defenceStars?: number };
   /** True the render after the living hostile count went UP (a spawn wave), from turn 2 on. */
   reinforcementsJustArrived: boolean;
+  /** True while hostiles are scheduled to arrive next turn (Mission.upcomingWaves). */
+  reinforcementsIncoming?: boolean;
   /** True when at least one of your units is at 0 actions while others still have some. */
   someUnitsDone: boolean;
 }
@@ -88,6 +99,10 @@ export function pickBattleTip(ctx: BattleTipContext, seen: ReadonlySet<string>):
   if (!ctx.idle) return null;
   const want = (id: BattleTipId, cond: boolean) => cond && !seen.has(id);
   if (want("reinforcements", ctx.reinforcementsJustArrived)) return "reinforcements";
+  // Waits for the basics: on Mission 1 a wave lands on turn 2, and this
+  // must not be the first thing a brand-new player is told. The red boxes
+  // and the COMMS line show regardless; only the explanation waits.
+  if (want("reinforcements_incoming", !!ctx.reinforcementsIncoming && seen.has("actions"))) return "reinforcements_incoming";
   const sel = ctx.selected;
   if (sel) {
     if (want("actions", true)) return "actions";
@@ -98,6 +113,10 @@ export function pickBattleTip(ctx: BattleTipContext, seen: ReadonlySet<string>):
     if (want("repair", ctx.repairableCount > 0)) return "repair";
     if (want("moved_can_act", sel.tilesMovedThisTurn > 0 && sel.actionsRemaining === 1)) return "moved_can_act";
     if (want("abilities", sel.hasAbilities)) return "abilities";
+    if (want("interdict", !!sel.hasInterdict)) return "interdict";
+    // Overwatch is on every unit's bar, so it waits for the moment it's the
+    // right answer: this unit can still act and has nothing to shoot.
+    if (want("overwatch", !!sel.canOverwatch && ctx.attackableCount === 0)) return "overwatch";
   }
   const h = ctx.hovered;
   if (h) {

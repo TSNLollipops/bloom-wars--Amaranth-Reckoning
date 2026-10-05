@@ -1247,6 +1247,46 @@ export class Mission {
     return resolved;
   }
 
+  /**
+   * Reinforcement warning (30 Sep 2026, from the WePlaytestGames session:
+   * the tester was "surprised by 22 enemies"). The waves that will spawn at
+   * the start of NEXT turn, read from the same mission data
+   * spawnWavesForTurn() uses, so the warning can never disagree with what
+   * actually arrives. Burrowed waves are left out on purpose: a burrower is
+   * meant to be a surprise, and flagging its tile would spoil the one
+   * mechanic built around not seeing it. Event-driven spawns
+   * (evaluateTurnStart) are also left out, since some are conditional and a
+   * warning that sometimes lies is worse than none.
+   *
+   * `tiles` is every distinct seam tile a unit will be placed at or next to
+   * (the first min(count, spots) spots, same as spawnWavesForTurn). `count`
+   * is the total number of hostiles in those waves.
+   */
+  upcomingWaves(): { tiles: Coord[]; count: number } {
+    const nextTurn = this.turn + 1;
+    const waves = this.mission.enemyWaves.filter((w) => w.atTurn === nextTurn);
+    if (!waves.length) return { tiles: [], count: 0 };
+    const mirrorCounts = waves.some((w) => w.mirrorPlayerSquad) ? this.resolveMirrorCounts(waves) : null;
+    const tiles: Coord[] = [];
+    const seen = new Set<string>();
+    let count = 0;
+    waves.forEach((wave, waveIndex) => {
+      if (wave.burrowed) return;
+      const n = wave.mirrorPlayerSquad ? mirrorCounts![waveIndex] : wave.count;
+      if (n <= 0) return;
+      count += n;
+      const spots = wave.spawnAt === "enemy_deploy" ? this.map.deployZones.enemy : wave.spawnAt;
+      const used = spots.length ? spots.slice(0, Math.min(n, spots.length)) : this.map.deployZones.enemy.slice(0, 1);
+      for (const p of used) {
+        const key = coordKey(p);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        tiles.push({ x: p.x, y: p.y });
+      }
+    });
+    return { tiles, count };
+  }
+
   private spawnWavesForTurn(turn: number): void {
     const wavesThisTurn = this.mission.enemyWaves.filter((w) => w.atTurn === turn);
     const mirrorCounts = wavesThisTurn.some((w) => w.mirrorPlayerSquad) ? this.resolveMirrorCounts(wavesThisTurn) : null;
