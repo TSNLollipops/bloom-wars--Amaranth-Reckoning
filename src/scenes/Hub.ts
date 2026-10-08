@@ -347,6 +347,7 @@ import {
   C as PAL,
 } from "../engine/hubLayout";
 import { findPath } from "../engine/hubNav";
+import { planAutoWalk, stepAutoWalk, type WalkPoint } from "../engine/hubAutoWalk";
 // Which building this is — 6 Sep 2026, House Amaranth Hub build (step 1 of
 // claude/Bloom_Wars_House_Amaranth_Hub_Build_Plan_v1.md). Every landmark
 // point, room/deck table, stair, reserved bay, the CO, the player's own
@@ -1251,6 +1252,12 @@ const STANDINGS_BOARD_RADIUS = 60;
 // a stair is structurally just a door whose toRoom happens to sit on a
 // different deck.
 const DOOR_RADIUS = 45;
+// Stairs without the E press (7 Oct 2026): stand this close to a stair
+// marker for this long and you take it. See Hub.updateStairAutoEnter.
+const STAIR_AUTO_RADIUS = 22;
+const STAIR_AUTO_DWELL_MS = 350;
+/** How long the deck view takes to fade up after a deck change. */
+const DECK_CHANGE_FADE_MS = 260;
 
 // DoorDef, the DOORS stair table, DECK_ORDER and nextHopDoor moved out with
 // the facility split (6 Sep 2026): the type to engine/facility.ts, Warden's
@@ -1929,6 +1936,20 @@ export class Hub extends Phaser.Scene {
   // panning the camera per deck. These are that: the pointer's own worldX/
   // worldY, captured alongside pointerX/Y in the same pointermove handler,
   // for every comparison that isn't "where does the tip box render."
+  // Click-to-walk (7 Oct 2026, engine/hubAutoWalk.ts). Non-null while the
+  // player is walking to a right-clicked spot. `door` is set when the click
+  // was on a stair marker: arriving takes the stairs. update() drops it the
+  // moment any overlay opens (anyOverlayOpen), so a walk never resumes
+  // behind a panel the player has just closed.
+  private autoWalk: { path: WalkPoint[]; door: DoorDef | null; stuckMs: number } | null = null;
+  private autoWalkMarker?: Phaser.GameObjects.Graphics;
+  // Stairs without the E press (7 Oct 2026, Maxime: "make the lvl transfer
+  // seamless"). How long the player has stood on a stair marker, and
+  // whether the auto-enter is armed: it disarms on every deck change and
+  // only re-arms once the player is clear of every marker, so arriving
+  // next to the way back can never bounce them straight down it.
+  private stairDwellMs = 0;
+  private stairAutoArmed = true;
   private pointerWorldX = 0;
   private pointerWorldY = 0;
   private eKey?: Phaser.Input.Keyboard.Key;
@@ -2373,12 +2394,16 @@ export class Hub extends Phaser.Scene {
       .text(
         480,
         44,
+        // 7 Oct 2026 — click-to-walk added "right-click". The line was
+        // exactly two full rows before, so the words were traded, not
+        // added: "/ arrows" (still works, still in the Codex) and "Walk to
+        // ... and" made room. Measured in a browser: still two rows.
         // 2 Sep 2026 — H/L appended as part of the keybinding pass. Kept to
         // one added clause rather than rewriting the line: this text is
         // already at the width that clipped once (see the comment above),
         // so it earns its space by naming the two panels that had no way
         // in except typing at the chat box.
-        "WASD / arrows to move — E or click room to talk, click an NPC to provoke. Walk to a door or the BAY and press E. T = type something real (:help lists what the crew answer to). H = history, L = highlights.",
+        "WASD / right-click to move — E or click room to talk, click an NPC to provoke. At a door or the BAY press E. T = type something real (:help lists what the crew answer to). H = history, L = highlights.",
         {
           fontFamily: "monospace",
           fontSize: "11px",
@@ -2635,7 +2660,27 @@ export class Hub extends Phaser.Scene {
     this.buildWorkshopOverlay();
     this.buildVaultOverlay();
 
+    // Click-to-walk (7 Oct 2026). The browser's own right-click menu is
+    // switched off for the canvas, the same way Battle.ts does it for its
+    // right-click cancel. The marker is created here, before
+    // finalizeDockCameraSplit(), so it is a world object like the player.
+    this.input.mouse?.disableContextMenu();
+    this.autoWalkMarker = this.add.graphics().setVisible(false);
+
     this.input.on("pointerdown", (_pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+      // Right-click walks. Handled first and on its own: it never talks,
+      // never opens anything, and never touches npcClickConsumed. A
+      // right-click on a panel (anything interactive that isn't a crew
+      // member) is ignored; a right-click on a crew member walks to them.
+      if (_pointer.rightButtonDown()) {
+        if (this.anyOverlayOpen() || this.rosterOpen || this.memorialOpen) return;
+        const crew = new Set<Phaser.GameObjects.GameObject>(this.npcs.map((n) => n.circle));
+        if (currentlyOver.some((o) => !crew.has(o))) return;
+        this.startAutoWalk(_pointer);
+        return;
+      }
+      // Any left click takes control back from a walk in progress.
+      this.cancelAutoWalk();
       // Hangar-shop hotfix (30 Aug 2026, Maxime: "still cant interact with
       // the hangar window"). This scene-wide listener fires on EVERY
       // pointerdown, including clicks landing on ShopPanel's own buttons —
@@ -8078,7 +8123,10 @@ export class Hub extends Phaser.Scene {
     // in can't be clicked, on top of not being visible.
     for (const npc of this.npcs) {
       npc.circle.setInteractive({ useHandCursor: true });
-      npc.circle.on("pointerdown", () => {
+      npc.circle.on("pointerdown", (p: Phaser.Input.Pointer) => {
+        // Right-click is click-to-walk (see the scene-wide handler); only a
+        // left click provokes.
+        if (p.rightButtonDown()) return;
         this.npcClickConsumed = true;
         this.provoke(npc);
       });
@@ -8552,6 +8600,10 @@ export class Hub extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    // Click-to-walk: a panel opening ends a walk in progress (7 Oct 2026).
+    // rosterOpen / memorialOpen are panels with their own early return
+    // below that anyOverlayOpen() doesn't list.
+    if (this.autoWalk && (this.anyOverlayOpen() || this.rosterOpen || this.memorialOpen)) this.cancelAutoWalk();
     // Calendar economy, 2 Sep 2026 — first, and unconditional for the same
     // reason as everything below it, but the reason matters more here than
     // anywhere else on this list. Maxime's model is "the calandar run when
@@ -8736,6 +8788,7 @@ export class Hub extends Phaser.Scene {
     }
 
     this.handleMovement(delta);
+    this.updateStairAutoEnter(delta);
     this.updateNpcMovement(delta);
     this.updateNpcRoaming(this.time.now);
     this.updateNpcEncounters(this.time.now);
@@ -8922,7 +8975,15 @@ export class Hub extends Phaser.Scene {
     if (this.keys.d.isDown || this.cursors?.right?.isDown) dx += 1;
     if (this.keys.w.isDown || this.cursors?.up?.isDown) dy -= 1;
     if (this.keys.s.isDown || this.cursors?.down?.isDown) dy += 1;
-    if (dx === 0 && dy === 0) return; // no input held — standing still on purpose
+    if (dx === 0 && dy === 0) {
+      // No key held: either standing still on purpose, or walking to a
+      // right-clicked spot (click-to-walk, 7 Oct 2026).
+      this.updateAutoWalk(delta);
+      return;
+    }
+    // A movement key always wins: it cancels a walk in progress and the
+    // keyboard code below runs exactly as it always has.
+    this.cancelAutoWalk();
 
     const len = Math.hypot(dx, dy) || 1;
     const stepX = (dx / len) * PLAYER_SPEED * dt;
@@ -8952,6 +9013,124 @@ export class Hub extends Phaser.Scene {
     if (zone !== this.currentRoomId) {
       this.currentRoomId = zone;
       this.refreshRoomVisibility();
+    }
+  }
+
+  // ---- Click-to-walk (7 Oct 2026) ------------------------------------
+  // Right-click a spot on the deck you are on and the player walks there
+  // around the walls; right-click a stair marker and the player walks to
+  // it and takes it. The route and the stepping live in
+  // engine/hubAutoWalk.ts (Phaser-free, unit-tested against the real deck
+  // layouts) on top of hubNav.findPath, the crew's own route-finder. This
+  // scene only owns the input, the marker and the reasons to stop: a
+  // movement key, a left click, a panel opening, or being stuck.
+
+  private startAutoWalk(pointer: Phaser.Input.Pointer) {
+    // Only clicks inside the deck view count; the dock on the right is
+    // drawn by its own camera and has its own coordinates.
+    const cam = this.cameras.main;
+    if (pointer.x < cam.x || pointer.x > cam.x + cam.width || pointer.y < cam.y || pointer.y > cam.y + cam.height) return;
+    const world = cam.getWorldPoint(pointer.x, pointer.y);
+    const deck = this.f.roomDeck(this.currentRoomId);
+    // A click on (or near) a stair marker on this deck means "take those stairs".
+    let door: DoorDef | null = null;
+    for (const d of this.f.doors) {
+      if (this.f.roomDeck(d.room) !== deck) continue;
+      if (Phaser.Math.Distance.Between(world.x, world.y, d.x, d.y) <= DOOR_RADIUS) {
+        door = d;
+        break;
+      }
+    }
+    const targetX = door ? door.x : world.x;
+    const targetY = door ? door.y : world.y;
+    const path = planAutoWalk(deck, this.playerX, this.playerY, targetX, targetY, PLAYER_R);
+    if (!path) {
+      this.cancelAutoWalk();
+      return;
+    }
+    this.autoWalk = { path, door, stuckMs: 0 };
+    const end = path[path.length - 1];
+    const g = this.autoWalkMarker;
+    if (g) {
+      g.clear();
+      g.lineStyle(2, 0x86efac, 0.9);
+      g.strokeCircle(end.x, end.y, 9);
+      g.fillStyle(0x86efac, 0.9);
+      g.fillCircle(end.x, end.y, 2.5);
+      g.setVisible(true);
+    }
+  }
+
+  /**
+   * Stairs without the E press. Stand on a stair marker for
+   * STAIR_AUTO_DWELL_MS and you take it. The reach is deliberately much
+   * tighter than DOOR_RADIUS (the E prompt's reach): at walking speed the
+   * player crosses the whole auto zone in about a quarter of a second, so
+   * walking PAST a stairwell never triggers it; stopping on it does. E and
+   * a left click at a door work exactly as before, from the wider reach.
+   */
+  private updateStairAutoEnter(delta: number) {
+    const deck = this.f.roomDeck(this.currentRoomId);
+    let onStair: DoorDef | null = null;
+    for (const d of this.f.doors) {
+      if (this.f.roomDeck(d.room) !== deck) continue;
+      if (Phaser.Math.Distance.Between(this.playerX, this.playerY, d.x, d.y) <= STAIR_AUTO_RADIUS) {
+        onStair = d;
+        break;
+      }
+    }
+    if (!onStair) {
+      this.stairDwellMs = 0;
+      this.stairAutoArmed = true;
+      return;
+    }
+    if (!this.stairAutoArmed) return;
+    this.stairDwellMs += delta;
+    if (this.stairDwellMs >= STAIR_AUTO_DWELL_MS) this.switchRoom(onStair);
+  }
+
+  private cancelAutoWalk() {
+    if (!this.autoWalk) return;
+    this.autoWalk = null;
+    this.autoWalkMarker?.setVisible(false);
+  }
+
+  /** One frame of a walk in progress. Called from handleMovement only when no movement key is held. */
+  private updateAutoWalk(delta: number) {
+    const walk = this.autoWalk;
+    if (!walk) return;
+    const dt = delta / 1000;
+    const step = stepAutoWalk(walk.path, this.playerX, this.playerY, PLAYER_SPEED * dt);
+    if (step.done) {
+      const door = walk.door;
+      this.cancelAutoWalk();
+      if (door && Phaser.Math.Distance.Between(this.playerX, this.playerY, door.x, door.y) <= DOOR_RADIUS) this.switchRoom(door);
+      return;
+    }
+    const beforeX = this.playerX;
+    const beforeY = this.playerY;
+    // Same axis-separated, wall-clamped move the keyboard uses.
+    this.tryMove(step.stepX, 0);
+    this.tryMove(0, step.stepY);
+    this.player.setPosition(this.playerX, this.playerY);
+    const zone = zoneAt(this.f.roomDeck(this.currentRoomId), this.playerX, this.playerY);
+    if (zone !== this.currentRoomId) {
+      this.currentRoomId = zone;
+      this.refreshRoomVisibility();
+    }
+    // Pinned against something the route didn't expect: give up quietly
+    // rather than push at a wall forever.
+    if (Math.hypot(this.playerX - beforeX, this.playerY - beforeY) < 0.05) {
+      walk.stuckMs += delta;
+      if (walk.stuckMs > 600) this.cancelAutoWalk();
+    } else {
+      walk.stuckMs = 0;
+    }
+    // A stair walk ends the moment the player is inside the marker's reach.
+    if (this.autoWalk && walk.door && Phaser.Math.Distance.Between(this.playerX, this.playerY, walk.door.x, walk.door.y) <= DOOR_RADIUS * 0.5) {
+      const door = walk.door;
+      this.cancelAutoWalk();
+      this.switchRoom(door);
     }
   }
 
@@ -10635,6 +10814,11 @@ export class Hub extends Phaser.Scene {
   // not just each step toward it, is what keeps a jittered target from
   // ever being unreachable.
   private switchRoom(door: DoorDef) {
+    // A walk in progress was planned on the deck being left.
+    this.cancelAutoWalk();
+    // Arriving never auto-takes the stairs back: see stairAutoArmed.
+    this.stairDwellMs = 0;
+    this.stairAutoArmed = false;
     this.currentRoomId = door.toRoom;
     const landing = pickPointNearDoor(
       this.f.roomDeck(door.toRoom),
@@ -10652,6 +10836,12 @@ export class Hub extends Phaser.Scene {
     // mouse move shows the right one for the new deck.
     this.hoverTip?.hide();
     this.refreshRoomVisibility();
+    // The deck view used to snap to the new deck in one frame. A short
+    // fade up from black on arrival lets the eye follow the change. Only
+    // the deck camera fades; the dock on the right stays put. The switch
+    // itself is still instant, so nothing that reads state after
+    // switchRoom() sees anything different.
+    this.cameras.main.fadeIn(DECK_CHANGE_FADE_MS, 6, 9, 13);
   }
 
   // Phase 2 map growth — the single place that decides what's visible and

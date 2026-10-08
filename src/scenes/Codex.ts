@@ -295,7 +295,7 @@ const SHIP: MissionRow[] = [
   {
     title: "Getting around",
     tags: ["WASD / arrows", "E", "T"],
-    desc: "Between missions you walk the ship. WASD or the arrow keys move you. E at a door, a console or a crew member interacts — clicking works too. T opens the chat box to type something real to whoever is nearest. H is your history, L the highlights reel, B the Rec Room standings board. Walk onto the BAY pad on the Hangar Deck and press E to muster and launch the next mission.",
+    desc: "Between missions you walk the ship. WASD or the arrow keys move you, or right-click a spot (or a stairwell) to walk there. E at a door, a console or a crew member interacts — clicking works too. T opens the chat box to type something real to whoever is nearest. H is your history, L the highlights reel, B the Rec Room standings board. Walk onto the BAY pad on the Hangar Deck and press E to muster and launch the next mission.",
     tip: "The controls strip along the top of the ship never goes away. When in doubt, read it.",
   },
   {
