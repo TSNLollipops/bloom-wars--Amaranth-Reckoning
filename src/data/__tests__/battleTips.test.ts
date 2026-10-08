@@ -52,9 +52,28 @@ describe("pickBattleTip", () => {
     expect(pickBattleTip({ ...base, selected: sel({ canOverwatch: true }), attackableCount: 1 }, new Set([...seen, "range", "triangle"]))).toBeNull();
     expect(pickBattleTip({ ...base, selected: sel({ canOverwatch: false }) }, seen)).toBeNull();
   });
+  it("points at a downed pilot once the basics are known, with nothing selected", () => {
+    expect(pickBattleTip({ ...base, downedPilotOnBoard: true }, new Set())).toBeNull();
+    expect(pickBattleTip({ ...base, downedPilotOnBoard: true }, new Set(["actions"]))).toBe("rescue_spot");
+    expect(pickBattleTip({ ...base, downedPilotOnBoard: false }, new Set(["actions"]))).toBeNull();
+  });
+  it("says to click the downed pilot when the selected unit is next to them, ahead of general lessons", () => {
+    expect(pickBattleTip({ ...base, selected: sel(), rescuableCount: 1, downedPilotOnBoard: true }, new Set())).toBe("rescue_pickup");
+    expect(pickBattleTip({ ...base, selected: sel(), rescuableCount: 0, downedPilotOnBoard: true }, new Set(["actions", "class_meeps", "rescue_spot"]))).toBeNull();
+    // nothing selected: the "click it" tip never fires on its own
+    expect(pickBattleTip({ ...base, rescuableCount: 1 }, new Set(["actions", "rescue_spot"]))).toBeNull();
+  });
+  it("capsule tips: recover for a friendly capsule, prisoner for an enemy one", () => {
+    const seen = new Set(["actions", "class_munti"]);
+    expect(pickBattleTip({ ...base, selected: sel({ path: "munti" }), recoverableFriendlyCapsules: 1 }, seen)).toBe("capsule_recover");
+    expect(pickBattleTip({ ...base, selected: sel({ path: "tank" }), capturableEnemyCapsules: 1 }, new Set(["actions", "class_tank"]))).toBe("capsule_prisoner");
+    // both in reach: your own pilot first, then the prisoner
+    expect(pickBattleTip({ ...base, selected: sel({ path: "munti" }), recoverableFriendlyCapsules: 1, capturableEnemyCapsules: 1 }, seen)).toBe("capsule_recover");
+    expect(pickBattleTip({ ...base, selected: sel({ path: "munti" }), recoverableFriendlyCapsules: 1, capturableEnemyCapsules: 1 }, new Set([...seen, "capsule_recover"]))).toBe("capsule_prisoner");
+  });
   it("never repeats a seen tip", () => {
     const all = new Set(Object.keys(BATTLE_TIPS));
-    expect(pickBattleTip({ ...base, selected: sel({ tilesMovedThisTurn: 1, actionsRemaining: 1, hasAbilities: true, canOverwatch: true, hasInterdict: true }), attackableCount: 2, repairableCount: 1, hovered: { kind: "bloom" }, reinforcementsJustArrived: true, reinforcementsIncoming: true, someUnitsDone: true }, all)).toBeNull();
+    expect(pickBattleTip({ ...base, selected: sel({ tilesMovedThisTurn: 1, actionsRemaining: 1, hasAbilities: true, canOverwatch: true, hasInterdict: true }), attackableCount: 2, repairableCount: 1, hovered: { kind: "bloom" }, reinforcementsJustArrived: true, reinforcementsIncoming: true, someUnitsDone: true, downedPilotOnBoard: true, rescuableCount: 1, recoverableFriendlyCapsules: 1, capturableEnemyCapsules: 1 }, all)).toBeNull();
   });
   it("no tip uses the engine's range notation", () => {
     for (const t of Object.values(BATTLE_TIPS)) expect(t).not.toMatch(/\b1-1\b/);

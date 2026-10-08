@@ -310,7 +310,26 @@ const ACTION_LABEL_LONG_CHARS = 10;
  * 27 Aug 2026 — "an automatic in," Maxime). Shared between the fill pass
  * and the outline helpers below it so both draw the exact same geometry.
  */
-type SilhouetteKind = "blob" | "meeps" | "tank" | "reeps" | "munti" | "bloom_swarm" | "bloom_burrow" | "bloom_sessile" | "bloom_flight" | "bloom_limbless";
+type SilhouetteKind = "blob" | "meeps" | "tank" | "reeps" | "munti" | "bloom_swarm" | "bloom_burrow" | "bloom_sessile" | "bloom_flight" | "bloom_limbless" | "bloom_jaw";
+
+/**
+ * Per-type Bloom marks (7 Oct 2026, customer playtest 25 Sep: "Crawlmass,
+ * Splitfang and Sporethrower are all the same pale cluster glyph"). The
+ * movement-family shapes above stay; inside a family each type now gets
+ * one mark in its own accent colour (drawBloomMark), and Splitfang gets
+ * its own outline (bloom_jaw). Three types whose first palette colour is
+ * near-black or near the Crawlmass grey fill from their SECOND palette
+ * colour instead, so they separate from a dark tile and from each other.
+ * Drawing only: no rule, stat or save reads any of this.
+ */
+/** How many pixels of a unit's HP bar sit inside its own tile; the rest sits just above the tile's top edge. See drawUnitBars. */
+const UNIT_BAR_INSET = 2;
+
+const BLOOM_FILL_PALETTE_INDEX: Record<string, number> = {
+  bloom_undertow: 1,
+  bloom_heartwood: 1,
+  bloom_bramble: 1,
+};
 
 /**
  * BloomArchetype.movementType has six values (flight_membrane and
@@ -3884,6 +3903,13 @@ export class Battle extends Phaser.Scene {
       const dyingUnit = this.mission.unitById(this.animatingUnitId);
       if (dyingUnit) this.drawUnit(g, dyingUnit, ts);
     }
+    // HP bars, in their own pass on top of every unit (see drawUnitBars).
+    // Same visibility rule as the unit loop above; the dying unit's last
+    // walk keeps no bar, it is already down.
+    for (const unit of this.mission.livingUnits()) {
+      if (unit.side === "hostile" && !visibleHostiles.has(unit.instanceId)) continue;
+      this.drawUnitBars(g, unit, ts);
+    }
     // playAttackBeat's flash — a ring around the defender's tile, colored by
     // what the hit actually did, held for the beat's short pause. Reads
     // unit.pos directly (never animatingVisualPos): the defender in an
@@ -4023,6 +4049,13 @@ export class Battle extends Phaser.Scene {
         reinforcementsJustArrived: this.reinforcementsPending,
         reinforcementsIncoming: this.incomingCount > 0,
         someUnitsDone: mine.some((u) => u.actionsRemaining <= 0) && mine.some((u) => u.actionsRemaining > 0),
+        // Rescue and capsule tips (playtest 7 Oct 2026). All four read the
+        // same lists the click handler and the highlights already use, so a
+        // tip can never promise a click the board won't accept.
+        downedPilotOnBoard: living.some((u) => u.npcIncapacitated),
+        rescuableCount: this.rescuableNpc.length,
+        recoverableFriendlyCapsules: this.recoverableCapsules.filter((c) => c.side === "player").length,
+        capturableEnemyCapsules: this.recoverableCapsules.filter((c) => c.side === "hostile").length,
       },
       this.tipsSeen
     );
@@ -4168,6 +4201,117 @@ export class Battle extends Phaser.Scene {
    * double-outline pass can re-stroke the exact same geometry at a second,
    * larger radius instead of hand-duplicating each shape's path.
    */
+  /** One half of Splitfang's jaw (d = -1 left, 1 right). Shared by the fill and outline passes so both trace the same points. */
+  private traceJawHalf(g: Phaser.GameObjects.Graphics, cx: number, cy: number, r: number, d: number) {
+    g.moveTo(cx + d * r * 0.12, cy + r * 0.95);
+    g.lineTo(cx + d * r * 1.0, cy + r * 0.55);
+    g.lineTo(cx + d * r * 0.95, cy - r * 0.35);
+    g.lineTo(cx + d * r * 0.3, cy - r * 1.05);
+    g.lineTo(cx + d * r * 0.42, cy - r * 0.05);
+  }
+
+  /**
+   * The one mark that tells a Bloom type from the others in its movement
+   * family (see BLOOM_FILL_PALETTE_INDEX's comment). Drawn after the
+   * outline pass so it sits on top of the body. Colours come from the
+   * archetype's own palette in data/bloom.ts ([1] secondary, [2] accent),
+   * so a palette edit there carries through. Crawlmass has no mark on
+   * purpose: it is the baseline the rest are read against. A burrowed
+   * Undertow never reaches here (drawUnit skips it), so the mark can't
+   * give a hidden unit's type away.
+   */
+  private drawBloomMark(g: Phaser.GameObjects.Graphics, archetypeId: string, cx: number, cy: number, r: number, alpha: number) {
+    const pal = BLOOM[archetypeId]?.colorPalette;
+    if (!pal) return;
+    const hex = (c: string) => parseInt(c.replace("#", ""), 16);
+    const second = hex(pal[1]);
+    const accent = hex(pal[2]);
+    switch (archetypeId) {
+      case "bloom_splitfang":
+        // Yellow fang tips on both halves of the jaw.
+        g.fillStyle(second, alpha);
+        for (const d of [-1, 1]) {
+          g.beginPath();
+          g.moveTo(cx + d * r * 0.3, cy - r * 1.05);
+          g.lineTo(cx + d * r * 0.62, cy - r * 0.62);
+          g.lineTo(cx + d * r * 0.38, cy - r * 0.45);
+          g.closePath();
+          g.fillPath();
+        }
+        break;
+      case "bloom_bramble":
+        // Thorns sticking out past the pack shape.
+        g.lineStyle(2, accent, alpha);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + 0.3;
+          g.lineBetween(cx + Math.cos(a) * r * 0.95, cy + Math.sin(a) * r * 0.95, cx + Math.cos(a) * r * 1.35, cy + Math.sin(a) * r * 1.35);
+        }
+        break;
+      case "bloom_undertow":
+        g.fillStyle(accent, alpha);
+        g.fillCircle(cx, cy, r * 0.3);
+        break;
+      case "bloom_sporethrower": {
+        // A bigger red gland over the small yellow one, and three spores
+        // arcing off it: "this one shoots".
+        g.fillStyle(accent, alpha);
+        g.fillCircle(cx + r * 0.85, cy, r * 0.36);
+        g.lineStyle(1, 0xffffff, 0.9 * alpha);
+        g.strokeCircle(cx + r * 0.85, cy, r * 0.36);
+        g.fillStyle(accent, alpha);
+        g.fillCircle(cx + r * 0.45, cy - r * 0.8, r * 0.15);
+        g.fillCircle(cx - r * 0.05, cy - r * 1.02, r * 0.13);
+        g.fillCircle(cx - r * 0.55, cy - r * 0.92, r * 0.11);
+        break;
+      }
+      case "bloom_gallcyst":
+        g.fillStyle(accent, alpha);
+        g.fillCircle(cx, cy - r * 0.75, r * 0.4);
+        g.lineStyle(1, 0x000000, 0.5 * alpha);
+        g.strokeCircle(cx, cy - r * 0.75, r * 0.4);
+        break;
+      case "bloom_sirenmaw":
+        g.fillStyle(accent, alpha);
+        g.fillCircle(cx, cy - r * 0.42, r * 0.26);
+        break;
+      case "bloom_choir": {
+        // Sound waves spreading out past both wing tips, and a purple
+        // mouth instead of cyan. Sideways, not upward: the HP bar owns the
+        // strip above a flyer's wing.
+        g.lineStyle(1.6, 0xa98be0, alpha);
+        for (const q of [1.2, 1.45]) {
+          for (const mid of [0, Math.PI]) {
+            g.beginPath();
+            g.arc(cx, cy - r * 0.3, r * q, mid - 0.38, mid + 0.38, false);
+            g.strokePath();
+          }
+        }
+        g.fillStyle(second, alpha);
+        g.fillCircle(cx, cy - r * 0.42, r * 0.2);
+        break;
+      }
+      case "bloom_heartwood":
+        g.fillStyle(0xc9a7ff, alpha);
+        g.fillCircle(cx, cy - r * 0.2, r * 0.38);
+        g.fillStyle(hex(pal[0]), alpha);
+        g.fillCircle(cx, cy - r * 0.2, r * 0.18);
+        break;
+      case "bloom_wellroot":
+        // Green roots spreading wider than the dome's own white ticks.
+        g.lineStyle(1.8, accent, alpha);
+        for (const o of [-1.25, -0.7, 0.7, 1.25]) g.lineBetween(cx + o * r * 0.5, cy + r * 0.45, cx + o * r, cy + r * 1.05);
+        g.fillStyle(accent, alpha);
+        g.fillCircle(cx, cy - r * 0.3, r * 0.2);
+        break;
+      case "bloom_unnamed":
+        g.fillStyle(second, alpha);
+        g.fillEllipse(cx, cy - r * 0.2, r * 1.1, r * 0.32);
+        g.fillStyle(0xffffff, alpha);
+        g.fillCircle(cx, cy - r * 0.2, r * 0.1);
+        break;
+    }
+  }
+
   private strokeSilhouette(g: Phaser.GameObjects.Graphics, kind: SilhouetteKind, cx: number, cy: number, r: number) {
     if (kind === "blob" || kind === "munti") {
       g.strokeCircle(cx, cy, r);
@@ -4183,6 +4327,15 @@ export class Battle extends Phaser.Scene {
     }
     if (kind === "bloom_limbless") {
       g.strokeEllipse(cx, cy, r * 2.3, r * 1.05);
+      return;
+    }
+    if (kind === "bloom_jaw") {
+      for (const d of [-1, 1]) {
+        g.beginPath();
+        this.traceJawHalf(g, cx, cy, r, d);
+        g.closePath();
+        g.strokePath();
+      }
       return;
     }
     if (kind === "bloom_burrow") {
@@ -4361,7 +4514,7 @@ export class Battle extends Phaser.Scene {
         ? PLAYER_COLOR
         : unit.kind === "mech"
           ? HOSTILE_MECH_COLOR
-          : parseInt(BLOOM[unit.archetypeId]?.colorPalette[0].replace("#", "") ?? "888888", 16);
+          : parseInt(BLOOM[unit.archetypeId]?.colorPalette[BLOOM_FILL_PALETTE_INDEX[unit.archetypeId] ?? 0].replace("#", "") ?? "888888", 16);
 
     // 0.55 -> 0.4, WePlaytestGames playtest 30 Sep 2026 ("How do I know if
     // this one has done his turn already?"). The faint fade alone was too
@@ -4380,7 +4533,9 @@ export class Battle extends Phaser.Scene {
     const kind: SilhouetteKind = bloomArch
       ? burrowedBlob
         ? "blob"
-        : bloomSilhouetteKind(bloomArch.movementType)
+        : unit.archetypeId === "bloom_splitfang"
+          ? "bloom_jaw"
+          : bloomSilhouetteKind(bloomArch.movementType)
       : !path
         ? "blob"
         : path === "meeps"
@@ -4440,6 +4595,16 @@ export class Battle extends Phaser.Scene {
       g.fillCircle(cx - off, cy + off * 0.6, cr);
       g.fillCircle(cx + off, cy + off * 0.6, cr);
       g.fillCircle(cx, cy - off * 0.7, cr);
+    } else if (kind === "bloom_jaw") {
+      // Splitfang: an open jaw, two pointed halves. Same swarm family as
+      // Crawlmass in the rules; a different outline on the board so the
+      // one that hits for 38 doesn't look like the one that hits for 22.
+      for (const d of [-1, 1]) {
+        g.beginPath();
+        this.traceJawHalf(g, cx, cy, r, d);
+        g.closePath();
+        g.fillPath();
+      }
     } else if (kind === "bloom_burrow") {
       // Burrow, surfaced (Undertow): a jagged six-point spike. Only ever
       // reached when burrowedBlob is false — see the kind derivation above.
@@ -4531,6 +4696,7 @@ export class Battle extends Phaser.Scene {
         g.lineBetween(cx + off * r, baseY, cx + off * r * 1.3, baseY + r * 0.35);
       });
     }
+    if (bloomArch && !burrowedBlob) this.drawBloomMark(g, unit.archetypeId, cx, cy, r, fillAlpha);
     if (unit.collapsed) {
       // GDD §12 wants a "pulsing rim." Real per-frame animation would mean
       // driving render() off this scene's update(time) every frame instead
@@ -4554,7 +4720,7 @@ export class Battle extends Phaser.Scene {
       if (pips > 0) {
         const pipR = Math.max(1, ts * 0.05);
         const originX = this.boardX + pos.x * ts + ts - pipR * 2;
-        const originY = this.boardY + pos.y * ts + pipR * 2;
+        const originY = this.boardY + pos.y * ts + pipR * 2 + UNIT_BAR_INSET;
         g.fillStyle(0xd4af37, 0.95);
         for (let i = 0; i < pips; i++) {
           const col = i % 3;
@@ -4629,37 +4795,8 @@ export class Battle extends Phaser.Scene {
       g.strokeCircle(cx, cy, r + 6);
     }
 
-    // HP bar(s) above the unit.
-    const barW = ts * 0.8;
-    const barX = cx - barW / 2;
-    const barY = cy - ts / 2 - 6;
-    if (unit.kind === "bloom" && unit.maxEndurance !== undefined) {
-      const enduranceFrac = unit.maxEndurance > 0 ? (unit.endurance ?? 0) / unit.maxEndurance : 0;
-      const vitalityFrac = (unit.vitality ?? 0) / (BLOOM[unit.archetypeId]?.vitality || 1);
-      g.fillStyle(0x222222, 0.9);
-      g.fillRect(barX, barY, barW, 5);
-      g.fillStyle(0x60a5fa, 1);
-      g.fillRect(barX, barY, barW * enduranceFrac, 2.5);
-      g.fillStyle(0xf87171, 1);
-      g.fillRect(barX, barY + 2.5, barW * vitalityFrac, 2.5);
-    } else {
-      const frac = Math.max(0, unit.currentHp / unit.maxHp);
-      g.fillStyle(0x222222, 0.9);
-      g.fillRect(barX, barY, barW, 4);
-      g.fillStyle(frac > 0.5 ? 0x4ade80 : frac > 0.25 ? 0xfacc15 : 0xef4444, 1);
-      g.fillRect(barX, barY, barW * frac, 4);
-
-      // Tank shield house rule — an extra blue line above the HP bar,
-      // shown only while the unit is actually in an eligible Tank's radius.
-      if (unit.maxShield && unit.maxShield > 0) {
-        const shieldFrac = Math.max(0, (unit.shield ?? 0) / unit.maxShield);
-        const shieldY = barY - 4;
-        g.fillStyle(0x0c2a3d, 0.9);
-        g.fillRect(barX, shieldY, barW, 3);
-        g.fillStyle(0x38bdf8, 1);
-        g.fillRect(barX, shieldY, barW * shieldFrac, 3);
-      }
-    }
+    // HP bars are NOT drawn here any more: see drawUnitBars(), called in
+    // its own pass after every unit is on the board (playtest 7 Oct 2026).
 
     // Action pips + "done" check (WePlaytestGames playtest, 30 Sep 2026).
     // The tester couldn't tell which units had acted, or why a unit that
@@ -4679,11 +4816,11 @@ export class Battle extends Phaser.Scene {
       this.mission.phase === "player"
     ) {
       // Top-LEFT corner of the unit's own tile: bottom-left carries the
-      // tile's cover dots, top-right the gear-tier pips, and the bottom
-      // edge gets covered by the HP bar of any unit standing on the tile
-      // below (HP bars draw above their own tile).
+      // tile's cover dots, top-right the gear-tier pips. Shifted down by
+      // UNIT_BAR_INSET so the unit's own HP bar, which sits on the tile's
+      // top edge, never overlaps the pips (see drawUnitBars).
       const tileLeft = this.boardX + pos.x * ts;
-      const tileTop = this.boardY + pos.y * ts;
+      const tileTop = this.boardY + pos.y * ts + UNIT_BAR_INSET;
       const pipR = Math.max(2, ts * 0.075);
       if (unit.actionsRemaining > 0) {
         for (let i = 0; i < MAX_ACTIONS_PER_TURN; i++) {
@@ -4704,6 +4841,65 @@ export class Battle extends Phaser.Scene {
         g.lineStyle(2, 0xd1d5db, 0.95);
         g.lineBetween(x0, y0, x0 + s * 0.4, y0 + s * 0.4);
         g.lineBetween(x0 + s * 0.4, y0 + s * 0.4, x0 + s, y0 - s * 0.5);
+      }
+    }
+  }
+
+  /**
+   * HP bar(s) for one unit. Playtest 7 Oct 2026 (Maxime: "when bloom are
+   * above my unit I dont see their hp bar"). The bar used to sit 6px above
+   * its owner's tile, i.e. in the bottom strip of the tile ABOVE, drawn in
+   * the same pass as the unit. In a column that put every bar across the
+   * feet of the unit above its owner, so the bar touching a Bloom was the
+   * pilot's below it and the Bloom's own bar read as someone else's.
+   *
+   * Two changes, both drawing only:
+   *  - the bar now sits ON its owner's top edge (UNIT_BAR_INSET px inside
+   *    its own tile, the rest just above the line), clear of the feet of
+   *    whoever stands on the tile above;
+   *  - bars are drawn in a pass of their own after every unit, with a dark
+   *    edge, so no body, ring or mark can paint over one.
+   * The action pips and gear pips move down by the same inset to stay
+   * clear of it. Same animated-position override as drawUnit, so a bar
+   * walks with its unit.
+   */
+  private drawUnitBars(g: Phaser.GameObjects.Graphics, unit: BattleUnit, ts: number) {
+    const pos = unit.instanceId === this.animatingUnitId && this.animatingVisualPos ? this.animatingVisualPos : unit.pos;
+    const cx = this.boardX + pos.x * ts + ts / 2;
+    const tileTop = this.boardY + pos.y * ts;
+    const barW = ts * 0.8;
+    const barX = cx - barW / 2;
+    if (unit.kind === "bloom" && unit.maxEndurance !== undefined) {
+      const barY = tileTop + UNIT_BAR_INSET - 5;
+      const enduranceFrac = Math.min(1, unit.maxEndurance > 0 ? (unit.endurance ?? 0) / unit.maxEndurance : 0);
+      const vitalityFrac = Math.min(1, (unit.vitality ?? 0) / (BLOOM[unit.archetypeId]?.vitality || 1));
+      g.fillStyle(0x000000, 0.85);
+      g.fillRect(barX - 1, barY - 1, barW + 2, 7);
+      g.fillStyle(0x222222, 1);
+      g.fillRect(barX, barY, barW, 5);
+      g.fillStyle(0x60a5fa, 1);
+      g.fillRect(barX, barY, barW * enduranceFrac, 2.5);
+      g.fillStyle(0xf87171, 1);
+      g.fillRect(barX, barY + 2.5, barW * vitalityFrac, 2.5);
+    } else {
+      const barY = tileTop + UNIT_BAR_INSET - 4;
+      const frac = Math.max(0, unit.currentHp / unit.maxHp);
+      g.fillStyle(0x000000, 0.85);
+      g.fillRect(barX - 1, barY - 1, barW + 2, 6);
+      g.fillStyle(0x222222, 1);
+      g.fillRect(barX, barY, barW, 4);
+      g.fillStyle(frac > 0.5 ? 0x4ade80 : frac > 0.25 ? 0xfacc15 : 0xef4444, 1);
+      g.fillRect(barX, barY, barW * frac, 4);
+
+      // Tank shield house rule — an extra blue line above the HP bar,
+      // shown only while the unit is actually in an eligible Tank's radius.
+      if (unit.maxShield && unit.maxShield > 0) {
+        const shieldFrac = Math.max(0, (unit.shield ?? 0) / unit.maxShield);
+        const shieldY = barY - 4;
+        g.fillStyle(0x0c2a3d, 0.95);
+        g.fillRect(barX, shieldY, barW, 3);
+        g.fillStyle(0x38bdf8, 1);
+        g.fillRect(barX, shieldY, barW * shieldFrac, 3);
       }
     }
   }

@@ -37,6 +37,10 @@ export type BattleTipId =
   | "reinforcements_incoming"
   | "overwatch"
   | "interdict"
+  | "rescue_spot"
+  | "rescue_pickup"
+  | "capsule_recover"
+  | "capsule_prisoner"
   | "done_units";
 
 export const BATTLE_TIPS: Record<BattleTipId, string> = {
@@ -68,6 +72,20 @@ export const BATTLE_TIPS: Record<BattleTipId, string> = {
     "Nothing in range? OVERWATCH (key 1) skips this unit's turn to take one free shot at the first hostile that moves into its range and sight. Good for covering a door or those red arrival boxes.",
   interdict:
     "This Tank can INTERDICT: it braces and any hostile that ends a move near it loses the rest of its turn. No damage, it just stops them cold. Costs the Tank's whole turn.",
+  // Playtest 7 Oct 2026 (Maxime, Mission 5): nothing said the downed pilot
+  // is picked up by clicking her. Same gap for ejection capsules. Rules as
+  // of that date: rescue and capsule recovery are adjacent, 1 action, the
+  // turn continues (mission.ts canRescue / canRecoverCapsule); a carrier
+  // can't attack; only a Munti recovers a friendly capsule, anyone takes a
+  // prisoner; ransom or recruit is decided at Debrief.
+  rescue_spot:
+    "The pale dashed circle is a downed pilot. Move a unit next to them, then click them to pick them up.",
+  rescue_pickup:
+    "Click the downed pilot to pick them up (1 action). Then walk this unit to an exit tile. A unit carrying someone can't attack.",
+  capsule_recover:
+    "Click the capsule to recover your pilot (1 action). Only a Munti can do this.",
+  capsule_prisoner:
+    "Click the capsule to take the pilot prisoner (1 action). You decide ransom or recruit after the mission.",
   done_units:
     "A check mark means that unit is done for this turn. Press Space or END TURN when everyone is done. You'll get a warning if someone still has actions.",
 };
@@ -88,6 +106,14 @@ export interface BattleTipContext {
   reinforcementsIncoming?: boolean;
   /** True when at least one of your units is at 0 actions while others still have some. */
   someUnitsDone: boolean;
+  /** True while a downed pilot waiting for rescue is on the board (Mission 5's bonus objective). */
+  downedPilotOnBoard?: boolean;
+  /** Downed pilots the selected unit can pick up right now (adjacent, action free). */
+  rescuableCount?: number;
+  /** Friendly capsules the selected unit can recover right now (a Munti, adjacent). */
+  recoverableFriendlyCapsules?: number;
+  /** Enemy capsules the selected unit can capture right now (anyone, adjacent). */
+  capturableEnemyCapsules?: number;
 }
 
 /**
@@ -105,6 +131,11 @@ export function pickBattleTip(ctx: BattleTipContext, seen: ReadonlySet<string>):
   if (want("reinforcements_incoming", !!ctx.reinforcementsIncoming && seen.has("actions"))) return "reinforcements_incoming";
   const sel = ctx.selected;
   if (sel) {
+    // "Click it now" beats every general lesson: the unit is standing next
+    // to the thing and the highlight is already on screen.
+    if (want("rescue_pickup", (ctx.rescuableCount ?? 0) > 0)) return "rescue_pickup";
+    if (want("capsule_recover", (ctx.recoverableFriendlyCapsules ?? 0) > 0)) return "capsule_recover";
+    if (want("capsule_prisoner", (ctx.capturableEnemyCapsules ?? 0) > 0)) return "capsule_prisoner";
     if (want("actions", true)) return "actions";
     const classId = sel.path && (["meeps", "tank", "reeps", "munti"] as const).includes(sel.path as PathId) ? (`class_${sel.path}` as BattleTipId) : null;
     if (classId && want(classId, true)) return classId;
@@ -124,6 +155,10 @@ export function pickBattleTip(ctx: BattleTipContext, seen: ReadonlySet<string>):
     if (want("range", h.kind === "bloom" || h.kind === "hostile_mech")) return "range";
     if (want("cover", h.kind === "tile" && (h.defenceStars ?? 0) >= 2)) return "cover";
   }
+  // Waits for the basics, like reinforcements_incoming: on a first campaign
+  // Mission 5 opens with class tips still unseen, and "there's a pilot
+  // down" should not be the first thing said on turn 1 before "actions".
+  if (want("rescue_spot", !!ctx.downedPilotOnBoard && seen.has("actions"))) return "rescue_spot";
   if (want("done_units", ctx.someUnitsDone)) return "done_units";
   return null;
 }
