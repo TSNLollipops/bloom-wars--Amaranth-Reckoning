@@ -110,6 +110,15 @@
         });
         window.addEventListener("unhandledrejection", function (ev) {
           var r = ev && ev.reason;
+          // An audio file the browser can't decode (EncodingError) isn't a
+          // crash: Phaser ignores the promise decodeAudioData returns, so the
+          // failure lands here, while the game keeps running without that
+          // sound (AudioManager checks the cache before playing). 10 Oct 2026.
+          if (r && r.name === "EncodingError") {
+            console.warn("Audio file could not be decoded; continuing without it.", r);
+            if (ev.preventDefault) ev.preventDefault();
+            return;
+          }
           show("Unhandled promise rejection: " + String(r && r.message ? r.message : r), r && r.stack ? String(r.stack) : "");
         });
       })();
