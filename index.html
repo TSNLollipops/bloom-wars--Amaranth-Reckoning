@@ -83,9 +83,20 @@
           var copy = document.createElement("button");
           copy.textContent = "COPY REPORT";
           copy.setAttribute("style", "padding:8px 18px;background:#1a2028;color:#e8e2d4;border:1px solid #3a4552;font:12px monospace;cursor:pointer;");
+          // writeText returns a promise: try/catch alone never saw an async
+          // refusal (itch's iframe or a denied permission), which became an
+          // unhandled rejection and left the player thinking it had copied.
+          // 10 Oct 2026: catch it, and say on the button what happened.
           copy.onclick = function () {
             ta.focus(); ta.select();
-            try { navigator.clipboard && navigator.clipboard.writeText(ta.value); } catch (e) { /* select-all is the fallback */ }
+            var fallback = function () { copy.textContent = "SELECTED \u2014 PRESS CTRL+C"; };
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(ta.value).then(function () { copy.textContent = "COPIED"; }, fallback);
+              } else {
+                fallback();
+              }
+            } catch (e) { fallback(); }
           };
           row.appendChild(reload); row.appendChild(copy);
           inner.appendChild(h); inner.appendChild(p); inner.appendChild(ta); inner.appendChild(row);

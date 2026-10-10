@@ -23,7 +23,11 @@ function loadLocalEnv() {
 }
 loadLocalEnv();
 
-const TERM = process.env.BW_RESERVED_TERM;
+// Trimmed (10 Oct 2026): loadLocalEnv() already trims .env.local lines, but a
+// value set in the OS environment wins over the file and arrives raw. A
+// stray trailing space there made the lint search for "<term> " and miss
+// "<term>." / "<term>'s" / end-of-line, while still reporting clean.
+const TERM = process.env.BW_RESERVED_TERM?.trim();
 if (!TERM) {
   console.warn(
     "BW_RESERVED_TERM not set (expected in a git-ignored .env.local) — " +
